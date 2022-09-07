@@ -1,0 +1,14 @@
+[jkr-dev]
+host=localhost
+port=5435
+dbname=jkr
+
+[jkr-test]
+host=test-server
+port=5432
+dbname=jkr
+
+[jkr-prod]
+host=prod-server
+port=5432
+dbname=jkr

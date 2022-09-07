@@ -1,0 +1,48 @@
+version: "3.9"
+
+volumes:
+  postgis-data:
+    driver: local
+
+services:
+  db:
+    image: jkr/postgis
+    build:
+      context: ./docker/postgis
+    volumes:
+      - postgis-data:/var/lib/postgresql/data
+      - ./docker/postgis/init_db:/docker-entrypoint-initdb.d
+      - ./docker/postgis/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./docker/postgis/logs:/var/log/postgresql
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JKR_DB=${JKR_DB}
+      - JKR_USER=${JKR_USER}
+      - JKR_PASSWORD=${JKR_PASSWORD}
+    ports:
+      - ${JKR_DB_PORT}:5432
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  flyway:
+    image: flyway/flyway
+    depends_on:
+      - db
+    profiles: [ "migration" ]
+    environment:
+      - FLYWAY_USER=${JKR_USER}
+      - FLYWAY_PASSWORD=${JKR_PASSWORD}
+      - FLYWAY_URL=jdbc:postgresql://db/${JKR_DB}
+    volumes:
+      - ./db/migrations:/flyway/sql
+      - ./db/flyway.conf:/flyway/conf/flyway.conf
+    command: migrate
+
+  tbls:
+    image: k1low/tbls:latest
+    depends_on:
+      - db
+    profiles: [ "dev" ]
+    volumes:
+      - ./docs/db:/work/db
+      - ./db/.tbls.yml:/work/.tbls.yml
+    command: doc --rm-dist -c /work/.tbls.yml postgres://${JKR_USER}:${JKR_PASSWORD}@db:5432/${JKR_DB}?sslmode=disable /work/db

@@ -1,0 +1,24 @@
+ALTER TABLE jkr.sopimus
+    DROP CONSTRAINT kohde_fk;
+
+ALTER TABLE IF EXISTS jkr.sopimus
+    ADD CONSTRAINT kohde_fk FOREIGN KEY (kohde_id) REFERENCES jkr.kohde (id) MATCH FULL ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE jkr.keraysvaline
+    DROP CONSTRAINT sopimus_fk;
+
+ALTER TABLE IF EXISTS jkr.keraysvaline
+    ADD CONSTRAINT sopimus_fk FOREIGN KEY (sopimus_id) REFERENCES jkr.sopimus (id) MATCH FULL ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE jkr.keskeytys
+    DROP CONSTRAINT sopimus_fk;
+
+ALTER TABLE IF EXISTS jkr.keskeytys
+    ADD CONSTRAINT sopimus_fk FOREIGN KEY (sopimus_id) REFERENCES jkr.sopimus (id) MATCH FULL ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE jkr.tyhjennysvali
+    DROP CONSTRAINT sopimus_fk;
+
+ALTER TABLE IF EXISTS jkr.tyhjennysvali
+    ADD CONSTRAINT sopimus_fk FOREIGN KEY (sopimus_id) REFERENCES jkr.sopimus (id) MATCH FULL ON UPDATE CASCADE ON DELETE CASCADE;
+

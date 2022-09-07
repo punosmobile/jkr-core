@@ -1,0 +1,44 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "jkr-core"
+version = "0.1.0"
+description = ""
+authors = ["Lauri Kajan <lauri.kajan@gispo.fi>"]
+license = "GPL-3.0-or-later"
+packages = [
+    { include = "jkrimporter" },
+    { include = "tests", format = "sdist" },
+]
+
+[tool.poetry.scripts]
+jkr = 'scripts.jkr:app'
+
+
+[tool.poetry.dependencies]
+python = "^3.7"
+GeoAlchemy2 = "^0.12.3"
+SQLAlchemy = "^1.4.40"
+psycopg2-binary = "^2.9.3"
+openpyxl = "^3.0.10"
+pyparsing = "^3.0.9"
+pydantic = "^1.9.2"
+shapely = "^1.8.2"
+typer = "^0.6.1"
+python-dotenv = "^0.20.0"
+addrparser = "^0.1.0"
+
+[tool.poetry.dev-dependencies]
+flake8 = "^5.0.4"
+pre-commit = "^2.20.0"
+pytest = "^7.1.2"
+black = "^22.6.0"
+isort = "^5.10.1"
+
+[tool.black]
+target-version = ['py37', 'py38', 'py39', 'py310']
+
+[tool.isort]
+profile = "black"

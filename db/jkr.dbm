@@ -1,0 +1,2175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+CAUTION: Do not modify this file unless you know what you are doing.
+ Unexpected results may occur if the code is changed deliberately.
+-->
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1530,1327" last-zoom="0.8" max-obj-count="43"
+	 default-schema="jkr" default-owner="jkr_admin"
+	 layers="kiinteisto,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus,facta_remote"
+	 active-layers="0"
+	 layer-name-colors="#000000"
+	 layer-rect-colors="#b4b4b4"
+	 show-layer-names="false" show-layer-rects="false">
+<role name="jkr_admin"
+ login="true"
+ encrypted="true"
+ password="jkr_admin"
+ sql-disabled="true">
+</role>
+
+<database name="ymparisto_db" encoding="UTF8" lc-collate="en_US.utf8" lc-ctype="en_US.utf8" is-template="false" allow-conns="true" sql-disabled="true">
+	<role name="postgres"/>
+	<tablespace name="pg_default"/>
+</database>
+
+<schema name="public" layers="0" rect-visible="true" fill-color="#e1e1e1" sql-disabled="true">
+</schema>
+
+<schema name="jkr" layers="0" rect-visible="true" fill-color="#e1e1e1" sql-disabled="true">
+	<role name="jkr_admin"/>
+</schema>
+
+<schema name="jkr_koodistot" layers="0" rect-visible="true" fill-color="#e1e1e1">
+	<role name="jkr_admin"/>
+</schema>
+
+<schema name="jkr_osoite" layers="0,1" rect-visible="true" fill-color="#e1e1e1">
+	<role name="jkr_admin"/>
+</schema>
+
+<tag name="koodisto">
+	<style id="table-body" colors="#fcfcfc,#fcfcfc,#d7d7d7"/>
+	<style id="table-ext-body" colors="#fcfcfc,#fcfcfc,#d7d7d7"/>
+	<style id="table-name" colors="#000000"/>
+	<style id="table-schema-name" colors="#000000"/>
+	<style id="table-title" colors="#fff586,#4aa5ff,#3175b0"/>
+	<style id="table-toggler-body" colors="#fcfcfc,#fcfcfc,#d7d7d7"/>
+	<style id="table-toggler-btns" colors="#f3f3f3,#e1e1e1,#bebebe"/>
+</tag>
+<extension name="postgis" sql-disabled="true">
+	<schema name="public"/>
+</extension>
+
+<table name="kohde" layers="0,3" collapse-mode="2" max-obj-count="8" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Kohteet sisältävä taulu. Kohde koostuu yhden omistajan hallinnoimista lähekkäisistä rakennuksista. Rakennukset voivat sijaita myös eri kiinteistöillä. Yhdellä kiinteistöllä voi olla useita kohteita.]]></comment>
+	<position x="2940" y="1000"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="nimi">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kohteen nimi]]></comment>
+	</column>
+	<column name="geom">
+		<type name="geometry" length="0" spatial-type="POLYGON" variation="0" srid="3067"/>
+		<comment><![CDATA[Kohteen pseudogeometria. Generoidaan automaattisesti (konveksi peite kohteeseen kuuluvista rakennuksista)]]></comment>
+	</column>
+	<column name="alkupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Kohteen jätehuoltovelvollisuuden alkupäivämäärä. Käytännössä milloin asiakas on muuttanut rakennukseen]]></comment>
+	</column>
+	<column name="loppupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Kohteen jätehuoltovelvollisuuden loppupäivämäärä. Käytännössä milloin asiakas on muuttanut pois rakennuksesta]]></comment>
+	</column>
+	<column name="voimassaolo" default-value="daterange(coalesce(alkupvm, '-infinity'), coalesce(loppupvm, 'infinity'), '[]')" generated="true">
+		<type name="daterange" length="0"/>
+		<comment><![CDATA[Kohteen jätehuoltovelvollisuuden voimassaoloaikaväli. Oletusarvo johdetaan lausekkeella muiden sarakkeiden arvoista]]></comment>
+	</column>
+	<constraint name="kohde_pk" type="pk-constr" table="jkr.kohde">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="kohdetyyppi_id" index="6"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kohdetyyppi_fk" index="1"/>
+	</customidxs>
+</table>
+
+<table name="velvoitemalli" layers="0,4" collapse-mode="2" max-obj-count="6" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset velvoitemallit eli tiedon siitä millaisia velvoitteita kohteeseen voi liittyä ja millaisella kyselyllä kunkin velvoitteen toteutumista voidaan tarkastella]]></comment>
+	<position x="4760" y="320"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="selite">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta velvoitemallista]]></comment>
+	</column>
+	<column name="saanto">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Velvoitteeseen liittymisen sääntö SQL-kyselynä. SQL-kyselyn ajamalla saadaan selville kohteet, joita velvoite koskee]]></comment>
+	</column>
+	<column name="tayttymissaanto">
+		<type name="text" length="0"/>
+		<comment><![CDATA[SQL-kysely, joka palauttaa kohde_velvoite-instanssille tosi / epätosi riippuen siitä, onko velvoite kunnossa]]></comment>
+	</column>
+	<constraint name="velvoitemalli_pk" type="pk-constr" table="jkr.velvoitemalli">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="jatetyyppi_id" index="4"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="jatetyyppi_fk" index="1"/>
+	</customidxs>
+</table>
+
+<table name="jatetyyppi" layers="0,4" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset jätetyypit]]></comment>
+	<tag name="koodisto"/>
+	<position x="4340" y="20"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="selite" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta jätetyypistä]]></comment>
+	</column>
+	<column name="ewc">
+		<type name="char" length="6"/>
+		<comment><![CDATA[Kuusinumeroinen jätekoodi (EWC-koodi)]]></comment>
+	</column>
+	<constraint name="jatetyyppi_pk" type="pk-constr" table="jkr_koodistot.jatetyyppi">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<table name="velvoite" layers="0,4" collapse-mode="2" max-obj-count="6" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää kohteeseen liittyvät velvoitteet]]></comment>
+	<position x="4760" y="600"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="alkupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Velvoitteen alkamispäivämäärä]]></comment>
+	</column>
+	<column name="loppupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Velvoitteen päättymispäivämäärä]]></comment>
+	</column>
+	<constraint name="velvoite_pk" type="pk-constr" table="jkr.velvoite">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="kohde_id" index="3"/>
+		<object name="velvoitemalli_id" index="4"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kohde_fk" index="1"/>
+		<object name="velvoitemalli_fk" index="2"/>
+	</customidxs>
+</table>
+
+<relationship name="kohteen_velvoitteet" type="rel1n" layers="0,4"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#e778bf"
+	 src-table="jkr.kohde"
+	 dst-table="jkr.velvoite"
+	 src-required="true" dst-required="false">
+	<label ref-type="dst-label">
+		<position x="-5.5455" y="-7.685"/>
+	</label>
+	<label ref-type="name-label">
+		<position x="-123.087" y="-38.4883"/>
+	</label>
+</relationship>
+
+<relationship name="kohdevelvoite_liittyy_velvoitteeseen" type="rel1n" layers="0,4"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#d15d41"
+	 src-table="jkr.velvoitemalli"
+	 dst-table="jkr.velvoite"
+	 src-required="true" dst-required="false">
+	<label ref-type="name-label">
+		<position x="110.77" y="-41.1765"/>
+	</label>
+</relationship>
+
+<table name="kiinteisto" layers="0,1" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Kiinteistöt sisältävä taulu]]></comment>
+	<position x="1880" y="2200"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="kiinteistotunnus">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Tekstimuotoinen kiinteistötunnus]]></comment>
+	</column>
+	<column name="geom">
+		<type name="geometry" length="0" spatial-type="MULTIPOLYGON" variation="0" srid="3067"/>
+		<comment><![CDATA[Kiinteistön geometria]]></comment>
+	</column>
+	<constraint name="kiinteisto_pk" type="pk-constr" table="jkr.kiinteisto">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="kiinteistotunnus_idx" table="jkr.kiinteisto"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kiinteistotunnus"/>
+		</idxelement>
+</index>
+
+<table name="osapuoli" layers="0,2" collapse-mode="2" max-obj-count="10" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Kohteen, rakennuksen ja kiinteistön osapuolien tiedot sisältävä taulu]]></comment>
+	<position x="2920" y="1880"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="nimi" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Osapuolen nimi]]></comment>
+	</column>
+	<column name="katuosoite">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Katuosoite]]></comment>
+	</column>
+	<column name="postitoimipaikka">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Postitoimipaikka]]></comment>
+	</column>
+	<column name="erikoisosoite">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Ulkomaanosoitteet]]></comment>
+	</column>
+	<column name="ytunnus">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Y-tunnus, jos osapuoli on yritys / yhteisö]]></comment>
+	</column>
+	<column name="ulkoinen_id">
+		<type name="bigint" length="0"/>
+		<comment><![CDATA[Ulkoisen järjestelmän primääriavain. Tämän avulla voidaan estää, ettei päivittäessä tuoda jo olemassa olevia henkilöitä uudelleen.]]></comment>
+	</column>
+	<column name="postinumero" alias="posti_numero">
+		<type name="text" length="5"/>
+		<comment><![CDATA[Postinumero]]></comment>
+	</column>
+	<constraint name="osapuoli_pk" type="pk-constr" table="jkr.osapuoli">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="osapuolenlaji_koodi" index="8"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="osapuolenlaji_fk" index="1"/>
+	</customidxs>
+</table>
+
+<table name="rakennus" layers="0,1" collapse-mode="2" max-obj-count="12" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Rakennukset sisältävä taulu]]></comment>
+	<position x="1700" y="1180"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="prt">
+		<type name="char" length="10"/>
+		<comment><![CDATA[Yksilöivä 10-merkkinen rakennustunnus]]></comment>
+	</column>
+	<column name="huoneistomaara">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Rakennukseen kuuluvien huoneistojen lukumäärä]]></comment>
+	</column>
+	<column name="kiinteistotunnus">
+		<type name="text" length="14"/>
+		<comment><![CDATA[Tekstimuotoinen kiinteistötunnus]]></comment>
+	</column>
+	<column name="onko_viemari">
+		<type name="bool" length="0"/>
+		<comment><![CDATA[Totuusarvo, joka kertoo sen kuuluuko rakennus viemäriverkostoon vai ei]]></comment>
+	</column>
+	<column name="geom">
+		<type name="geometry" length="0" spatial-type="POINT" variation="0" srid="3067"/>
+		<comment><![CDATA[Rakennuksen geometria]]></comment>
+	</column>
+	<column name="kayttoonotto_pvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Rakennuksen käyttöönottopäivämäärä]]></comment>
+	</column>
+	<column name="kaytostapoisto_pvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Rakennuksen käytöstäpoistopäivämäärä]]></comment>
+	</column>
+	<constraint name="rakennus_pk" type="pk-constr" table="jkr.rakennus">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="rakennuksenkayttotarkoitus_koodi" index="8"/>
+		<object name="rakennuksenolotila_koodi" index="9"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="rakennuksenkayttotarkoitus_fk" index="1"/>
+		<object name="rakennuksenolotila_fk" index="2"/>
+	</customidxs>
+</table>
+
+<table name="kuljetus" layers="0,6" collapse-mode="2" max-obj-count="12" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää 4 kertaa vuodessa toimitettavat kuljetustiedot]]></comment>
+	<position x="4840" y="1340"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="alkupvm" not-null="true">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Kujetustapahtumien raportointiaikavälin alkamispäivämäärä]]></comment>
+	</column>
+	<column name="loppupvm" not-null="true">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Kujetustapahtumien raportointiaikavälin päättymispäivämäärä]]></comment>
+	</column>
+	<column name="tyhjennyskerrat">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Raportointiaikavälin aikana suoritettujen kuljetusten lukumäärä]]></comment>
+	</column>
+	<column name="massa">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Raportointiaikavälin aikana suoritettujen kuljetusten sisältämä massa kilogrammoina]]></comment>
+	</column>
+	<column name="tilavuus">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Raportointiaikavälin aikana suoritettujen kuljetusten sisältämä tilavuus litroina]]></comment>
+	</column>
+	<column name="aikavali" default-value="daterange(coalesce(alkupvm, '-infinity'), coalesce(loppupvm, 'infinity'), '[]')" generated="true">
+		<type name="daterange" length="0"/>
+		<comment><![CDATA[Kuljetustapahtumien raportointiaikaväli. Oletusarvo johdetaan lausekkeella muiden sarakkeiden arvoista]]></comment>
+	</column>
+	<constraint name="kuljetus_pk" type="pk-constr" table="jkr.kuljetus">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="jatetyyppi_id" index="8"/>
+		<object name="kohde_id" index="7"/>
+		<object name="urakoitsija_osapuoli_id" index="9"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="jatetyyppi_fk" index="2"/>
+		<object name="kohde_fk" index="1"/>
+		<object name="urakoitsija_osapuoli_fk" index="3"/>
+	</customidxs>
+</table>
+
+<index name="kiinteisto_geom_idx" table="jkr.kiinteisto"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<table name="keraysvaline" layers="0,7" collapse-mode="2" max-obj-count="7" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää tiedot sopimukseen liittyvistä keräysvälineistä. Jätteenkuljettajien on toimitettava neljä kertaa vuodessa tiedot kuljetukseen kuuluvien jäteastioiden ko'oista ja määristä jätelajeittain (esim. asiakkaalla xxx on 2 kpl 660 litran sekajäte-astioita ja 1 kpl 200 litran sekajäte-astioita sekä 1 kpl 200 litran metallinkeräysastioita)]]></comment>
+	<position x="4060" y="400"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="pvm" not-null="true">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Päivämäärä, jolloin kuljettajat ovat keränneet raportoitavat tiedot]]></comment>
+	</column>
+	<column name="tilavuus">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Keräysväline(id)en tilavuus litroina]]></comment>
+	</column>
+	<column name="maara" not-null="true">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Keräysvälineiden lukumäärä]]></comment>
+	</column>
+	<constraint name="keraysvaline_pk" type="pk-constr" table="jkr.keraysvaline">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="keraysvalinetyyppi_id" index="5"/>
+		<object name="sopimus_id" index="4"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="keraysvalinetyyppi_fk" index="2"/>
+		<object name="sopimus_fk" index="1"/>
+	</customidxs>
+</table>
+
+<index name="rakennus_geom_idx" table="jkr.rakennus"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<table name="flyway_schema_history" layers="0" sql-disabled="true" collapse-mode="2" max-obj-count="12" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Tietokantamigraatioiden historiatiedot sisältävä taulu]]></comment>
+	<position x="4760" y="2460"/>
+	<column name="installed_rank" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Järjestysnumero, joka kertoo monesko migraatio on kyseessä]]></comment>
+	</column>
+	<column name="version">
+		<type name="character varying" length="50"/>
+		<comment><![CDATA[Migraation uniikki versiotunniste]]></comment>
+	</column>
+	<column name="description" not-null="true">
+		<type name="character varying" length="200"/>
+		<comment><![CDATA[Kuvaus siitä, mitä migraatiossa tapahtuu]]></comment>
+	</column>
+	<column name="type" not-null="true">
+		<type name="character varying" length="20"/>
+		<comment><![CDATA[Migraatioiden tyyppi (versioned tai repeatable)]]></comment>
+	</column>
+	<column name="script" not-null="true">
+		<type name="character varying" length="1000"/>
+		<comment><![CDATA[Migraation määrittävät skriptit (yleensä migraatio koostuu SQL:stä, mutta se voi koostua myös skripti-tiedostoista)]]></comment>
+	</column>
+	<column name="checksum">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Checksum havaitsee vahingossa tapahtuvat muutokset]]></comment>
+	</column>
+	<column name="installed_by" not-null="true">
+		<type name="character varying" length="100"/>
+		<comment><![CDATA[Taho (henkilö / organisaatio), joka on suorittanut migraation]]></comment>
+	</column>
+	<column name="installed_on" not-null="true" default-value="now()">
+		<type name="timestamp" length="0"/>
+		<comment><![CDATA[Ajanhetki, jolloin migraatio on suoritettu]]></comment>
+	</column>
+	<column name="execution_time" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Migraation suorituksen kesto millisekunteina]]></comment>
+	</column>
+	<column name="success" not-null="true">
+		<type name="boolean" length="0"/>
+		<comment><![CDATA[Totuusarvo, joka määrittää sujuiko migraatio onnistuneesti]]></comment>
+	</column>
+	<constraint name="flyway_schema_history_pk" type="pk-constr" table="jkr.flyway_schema_history">
+		<columns names="installed_rank" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="flyway_schema_history_s_idx" table="jkr.flyway_schema_history"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="90" sql-disabled="true">
+		<idxelement use-sorting="false">
+			<column name="success"/>
+		</idxelement>
+</index>
+
+<table name="qgis_projects" layers="0" sql-disabled="true" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[QGIS-projektit sisältävä taulu]]></comment>
+	<position x="5260" y="2460"/>
+	<column name="name" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[QGIS-projektin nimi]]></comment>
+	</column>
+	<column name="metadata">
+		<type name="jsonb" length="0"/>
+		<comment><![CDATA[QGIS-projektin metadatatiedot jsonb-muodossa]]></comment>
+	</column>
+	<column name="content">
+		<type name="bytea" length="0"/>
+		<comment><![CDATA[QGIS-projektitiedosto. Tämän kentän sisältö on tarkoitettu ainoastaan QGISin käyttöön.]]></comment>
+	</column>
+	<constraint name="qgis_projects_pkey" type="pk-constr" table="jkr.qgis_projects">
+		<columns names="name" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<table name="pohjavesialue" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Pohjavesialueet sisältävä taulu]]></comment>
+	<position x="5260" y="2120"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="geom">
+		<type name="geometry" length="0" spatial-type="MULTIPOLYGON" variation="0" srid="3067"/>
+		<comment><![CDATA[Pohjavesialueen geometria]]></comment>
+	</column>
+	<constraint name="pohjavesialue_pk" type="pk-constr" table="jkr.pohjavesialue">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<relationship name="velvoitteen_jatetyyppi" type="rel1n" layers="0,4"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#29ace1"
+	 src-table="jkr_koodistot.jatetyyppi"
+	 dst-table="jkr.velvoitemalli"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="-15.7586" y="-9.97651"/>
+	</label>
+</relationship>
+
+<index name="geom_idx" table="jkr.kohde"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<table name="jatteenkuljetusalue" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Jätteenkuljetusalueet sisältävä taulu. Jätteenkuljetusalueiden ulkopuoliset kiinteistöt liittyvät aluejätekeräykseen]]></comment>
+	<position x="4780" y="2100"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="nimi">
+		<type name="text" length="0"/>
+	</column>
+	<column name="geom">
+		<type name="geometry" length="0" spatial-type="MULTIPOLYGON" variation="0" srid="3067"/>
+		<comment><![CDATA[Jätteenkuljetusalueen geometria]]></comment>
+	</column>
+	<constraint name="jatteenkuljetusalue_pk" type="pk-constr" table="jkr.jatteenkuljetusalue">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<table name="keskeytys" layers="0,7" collapse-mode="2" max-obj-count="6" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Sopimuksen keskeytystapahtumien tiedot sisältävä taulu]]></comment>
+	<position x="4080" y="740"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="alkupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Keskeytystapahtuman alkamispäivämäärä]]></comment>
+	</column>
+	<column name="loppupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Keskeytystapahtuman päättymispäivämäärä]]></comment>
+	</column>
+	<column name="selite">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta keskeytys-tapahtumasta]]></comment>
+	</column>
+	<constraint name="keskeytys_pk" type="pk-constr" table="jkr.keskeytys">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="sopimus_id" index="4"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="sopimus_fk" index="1"/>
+	</customidxs>
+</table>
+
+<table name="tyhjennysvali" layers="0,7" collapse-mode="2" max-obj-count="6" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Sopimukseen liittyvät tyhjennysvälitiedot sisältävä taulu]]></comment>
+	<position x="3680" y="820"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="alkuvko" default-value="1">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Viikkonumero, josta alkaen astiat tyhjennetään X viikon välein. Oletusarvo on se, että tyhjennysväli asetetaan vuodeksi kerrallaan (eli alkaa vuoden ensimmäisestä viikosta)]]></comment>
+	</column>
+	<column name="loppuvko" default-value="53">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Viikkonumero, johon päättyy astioiden tyhjentäminen X viikon välein. Oletusarvo on se, että tyhjennysväli asetetaan vuodeksi kerrallaan (eli päättyy vuoden viimeisenä viikkona)]]></comment>
+	</column>
+	<column name="tyhjennysvali" not-null="true">
+		<type name="smallint" length="3" precision="2"/>
+		<comment><![CDATA[Tyhjennysväli viikoissa]]></comment>
+	</column>
+	<constraint name="tyhjennysvali_pk" type="pk-constr" table="jkr.tyhjennysvali">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="sopimus_id" index="4"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="sopimus_fk" index="1"/>
+	</customidxs>
+</table>
+
+<table name="katu" layers="0,1" collapse-mode="2" max-obj-count="4" z-value="0">
+	<schema name="jkr_osoite"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Katuosoitteen tiedot sisältävä taulu]]></comment>
+	<position x="1320" y="1780"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="katunimi_fi">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kadun nimi suomeksi]]></comment>
+	</column>
+	<column name="katunimi_sv">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kadun nimi ruotsiksi]]></comment>
+	</column>
+	<constraint name="katu_pk" type="pk-constr" table="jkr_osoite.katu">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="kunta_koodi" index="3"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kunta_fk" index="1"/>
+	</customidxs>
+</table>
+
+<table name="osoite" layers="0,1" collapse-mode="2" max-obj-count="6" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Osoitetiedot sisältävä taulu]]></comment>
+	<position x="1740" y="1800"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="osoitenumero">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Katuosoitteeseen liittyvä talon ja/tai rapun ja/tai asunnon numero]]></comment>
+	</column>
+	<constraint name="osoite_pk" type="pk-constr" table="jkr.osoite">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="katu_id" index="2"/>
+		<object name="posti_numero" index="4"/>
+		<object name="rakennus_id" index="3"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="katu_fk" index="1"/>
+		<object name="posti_fk" index="3"/>
+		<object name="rakennus_fk" index="2"/>
+	</customidxs>
+</table>
+
+<table name="kunta" layers="0,1" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr_osoite"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Osoitteeseen liittyvän kunnan tiedot sisältävä taulu]]></comment>
+	<position x="1080" y="1580"/>
+	<column name="koodi" not-null="true">
+		<type name="char" length="3"/>
+		<comment><![CDATA[Kolminumeroinen kuntakoodi]]></comment>
+	</column>
+	<column name="nimi_fi">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kunnan nimi suomeksi]]></comment>
+	</column>
+	<column name="nimi_sv">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kunnan nimi ruotsiksi]]></comment>
+	</column>
+	<constraint name="kunta_pk" type="pk-constr" table="jkr_osoite.kunta">
+		<columns names="koodi" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<relationship name="kunta_has_many_katu" type="rel1n" layers="0,1"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#6f6878"
+	 src-table="jkr_osoite.kunta"
+	 dst-table="jkr_osoite.katu"
+	 src-required="true" dst-required="false"/>
+
+<relationship name="katu_has_many_osoite" type="rel1n" layers="0,1"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#ae7b98"
+	 src-table="jkr_osoite.katu"
+	 dst-table="jkr.osoite"
+	 src-required="true" dst-required="false">
+	<label ref-type="name-label">
+		<position x="127.774" y="-13.9765"/>
+	</label>
+</relationship>
+
+<index name="prt_uidx" table="jkr.rakennus"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="prt"/>
+		</idxelement>
+</index>
+
+<index name="katunimi_fi_idx" table="jkr_osoite.katu"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kunta_koodi"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="katunimi_fi"/>
+		</idxelement>
+</index>
+
+<index name="katunimi_sv_idx" table="jkr_osoite.katu"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kunta_koodi"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="katunimi_sv"/>
+		</idxelement>
+</index>
+
+<relationship name="rakennus_has_many_osoite" type="rel1n" layers="0,1"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#96ecfd"
+	 src-table="jkr.rakennus"
+	 dst-table="jkr.osoite"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="-6.88501" y="-2.32027"/>
+	</label>
+</relationship>
+
+<function name="qgis_notify"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Triggeröinti-funktio, joka käynnistää QGIS-tasojen automaattisen päivityksen]]></comment>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition><![CDATA[BEGIN NOTIFY qgis;
+RETURN NULL;
+END; ]]></definition>
+</function>
+
+<trigger name="notify_qgis_edit" firing-type="AFTER" per-line="false" constraint="false"
+	 ins-event="true" del-event="true" upd-event="true" trunc-event="true"
+	 table="jkr.kohde">
+		<comment><![CDATA[Triggeri, joka aktivoituu kun uusi kohde luodaan, kohdetta muokataan, kohde poistetaan tai kaikki kohteet poistetaan. Triggeri käynnistää qgis_notify-nimisen funktion]]></comment>
+		<function signature="jkr.qgis_notify()"/>
+</trigger>
+
+<function name="create_kohde_geom"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Funktio, joka luo uudelle kohteelle geometrian luomalla kohteeseen liittyvien rakennusten geometrian/geometroiden ympärille bufferin ja muodostamalla näistä konveksin peitteen]]></comment>
+	<language name="sql"/>
+	<return-type>
+	<type name="geometry" length="0"/>
+	</return-type>
+	<parameter name="kohde_id" in="true">
+		<type name="integer" length="0"/>
+	</parameter>
+	<definition><![CDATA[select
+  ST_ConvexHull(ST_Collect(buf_geom))
+from (
+  select
+    st_buffer(r.geom, 8) buf_geom
+  from
+    jkr.kohde k
+    join jkr.kohteen_rakennukset kr
+      on k.id = kr.kohde_id
+    join jkr.rakennus r
+      on kr.rakennus_id = r.id
+  where k.id = $1
+) bufferoidut
+;
+]]></definition>
+</function>
+
+<function name="update_kohde_geom"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Triggeröinti-funktio, joka päivittää kohteeseen liittyvien rakennusten listaa ja käynnistää tarvittaessa kohteen geometrian luonnista vastaavan funktion uudella kohdetunnisteella tai asettaa kohteen geometrian tyhjäksi (mikäli viimeinen kohteen rakennus poistuu käytöstä)]]></comment>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition><![CDATA[begin
+	if (TG_OP = 'INSERT') THEN
+		update jkr.kohde
+		set geom = jkr.create_kohde_geom(new.kohde_id)
+		where id = new.kohde_id;
+  elsif (TG_OP = 'DELETE') THEN
+		update jkr.kohde
+		set geom = jkr.create_kohde_geom(old.kohde_id)
+		where id = old.kohde_id;
+  elsif (TG_OP = 'UPDATE' AND old.kohde_id <> new.kohde_id) THEN
+		update jkr.kohde
+		set geom = jkr.create_kohde_geom(new.kohde_id)
+		where id = old.kohde_id;
+  elsif (TG_OP = 'TRUNCATE') THEN
+		update jkr.kohde
+		set geom = null;
+	end if;
+  RETURN NULL;
+end;]]></definition>
+</function>
+
+<table name="kohdetyyppi" layers="0,3" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset kohdetyypit]]></comment>
+	<tag name="koodisto"/>
+	<position x="2920" y="500"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="selite" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta kohdetyypistä]]></comment>
+	</column>
+	<constraint name="kohdetyyppi_pk" type="pk-constr" table="jkr_koodistot.kohdetyyppi">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+	<initial-data>
+<![CDATA[id•selite⸣
+1•kiinteistö⸣
+2•putkikeräys⸣
+3•lähikeräys⸣
+4•aluekeräys]]>
+	</initial-data>
+</table>
+
+<relationship name="kohteen_tyyppi" type="rel1n" layers="0,3"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#92c3bc"
+	 src-table="jkr_koodistot.kohdetyyppi"
+	 dst-table="jkr.kohde"
+	 src-required="true" dst-required="false">
+	<label ref-type="src-label">
+		<position x="0" y="0"/>
+	</label>
+	<label ref-type="dst-label">
+		<position x="23.7988" y="29.0625"/>
+	</label>
+	<label ref-type="name-label">
+		<position x="-8.48091" y="-2.77651"/>
+	</label>
+</relationship>
+
+<index name="kohdetyyppi_selite_uidx" table="jkr_koodistot.kohdetyyppi"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="selite"/>
+		</idxelement>
+</index>
+
+<table name="tiedontuottaja" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset tiedontuottajat]]></comment>
+	<tag name="koodisto"/>
+	<position x="1980" y="640"/>
+	<column name="tunnus" not-null="true">
+		<type name="text" length="3"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki tekstimuotoinen tunniste]]></comment>
+	</column>
+	<column name="nimi" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Tiedontuottajan nimi]]></comment>
+	</column>
+	<constraint name="tiedontuottaja_pk" type="pk-constr" table="jkr_koodistot.tiedontuottaja">
+		<columns names="tunnus" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="tunnus_uidx" table="jkr_koodistot.tiedontuottaja"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="tunnus"/>
+		</idxelement>
+</index>
+
+<index name="nimi_uidx" table="jkr_koodistot.tiedontuottaja"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="nimi"/>
+		</idxelement>
+</index>
+
+<extension name="postgres_fdw" sql-disabled="true">
+</extension>
+
+<table name="posti" layers="0" collapse-mode="2" max-obj-count="4" z-value="0">
+	<schema name="jkr_osoite"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Postitoimipaikan tiedot sisältävä taulu]]></comment>
+	<position x="1060" y="2120"/>
+	<column name="numero" not-null="true">
+		<type name="char" length="5"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki viisinumeroinen postinumero]]></comment>
+	</column>
+	<column name="nimi_fi">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Postitoimipaikan nimi suomeksi]]></comment>
+	</column>
+	<column name="nimi_se">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Postitoimipaikan nimi ruotsiksi]]></comment>
+	</column>
+	<constraint name="posti_pk" type="pk-constr" table="jkr_osoite.posti">
+		<columns names="numero" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="kunta_koodi" index="3"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kunta_fk" index="1"/>
+	</customidxs>
+</table>
+
+<relationship name="postitoimipaikka_has_many_osoite" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#36317e"
+	 src-table="jkr_osoite.posti"
+	 dst-table="jkr.osoite"
+	 src-required="false" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<index name="uidx_osapuoli_ulkoinen_id" table="jkr.osapuoli"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="ulkoinen_id"/>
+		</idxelement>
+</index>
+
+<table name="rakennuksenkayttotarkoitus" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset rakennuksen käyttötarkoitukset]]></comment>
+	<tag name="koodisto"/>
+	<position x="1180" y="1280"/>
+	<column name="koodi" not-null="true">
+		<type name="text" length="3"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki tekstimuotoinen tunniste]]></comment>
+	</column>
+	<column name="selite" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta rakennuksen käyttötarkoituksesta]]></comment>
+	</column>
+	<constraint name="rakennuksenkayttotarkoitus_pk" type="pk-constr" table="jkr_koodistot.rakennuksenkayttotarkoitus">
+		<columns names="koodi" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<relationship name="rakennuksenkayttotarkoitus_has_many_rakennus" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#8fb936"
+	 src-table="jkr_koodistot.rakennuksenkayttotarkoitus"
+	 dst-table="jkr.rakennus"
+	 src-required="false" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<table name="rakennuksenolotila" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset rakennuksen olotilat]]></comment>
+	<tag name="koodisto"/>
+	<position x="1260" y="940"/>
+	<column name="koodi" not-null="true">
+		<type name="text" length="2"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki tekstimuotoinen tunniste]]></comment>
+	</column>
+	<column name="selite" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta rakennuksen olotilasta]]></comment>
+	</column>
+	<constraint name="rakennuksenolotila_pk" type="pk-constr" table="jkr_koodistot.rakennuksenolotila">
+		<columns names="koodi" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="uidx_rakennuksenolotila_selite" table="jkr_koodistot.rakennuksenolotila"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="selite"/>
+		</idxelement>
+</index>
+
+<relationship name="rakennuksenolotila_has_many_rakennus" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#af8e93"
+	 src-table="jkr_koodistot.rakennuksenolotila"
+	 dst-table="jkr.rakennus"
+	 src-required="false" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<table name="osapuolenlaji" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset osapuolen lajit]]></comment>
+	<tag name="koodisto"/>
+	<position x="3000" y="2420"/>
+	<column name="koodi" not-null="true">
+		<type name="text" length="2"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki tekstimuotoinen tunniste]]></comment>
+	</column>
+	<column name="selite" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta osapuolenlajista]]></comment>
+	</column>
+	<constraint name="osapuolenlaji_pk" type="pk-constr" table="jkr_koodistot.osapuolenlaji">
+		<columns names="koodi" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="uidx_osapuolenlaji_selite" table="jkr_koodistot.osapuolenlaji"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="selite"/>
+		</idxelement>
+</index>
+
+<relationship name="osapuolenlaji_has_many_osapuoli" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#a781e7"
+	 src-table="jkr_koodistot.osapuolenlaji"
+	 dst-table="jkr.osapuoli"
+	 src-required="false" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<index name="idx_rakennuksenkayttotarkoitus_selite" table="jkr_koodistot.rakennuksenkayttotarkoitus"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[factassa duplikaattiselitteitä, ei voida käyttää uniikkiindeksiä]]></comment>
+		<idxelement use-sorting="false">
+			<column name="selite"/>
+		</idxelement>
+</index>
+
+<relationship name="kunta_has_many_posti" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#f2d53d"
+	 src-table="jkr_osoite.kunta"
+	 dst-table="jkr_osoite.posti"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<table name="sopimus" layers="0,7" collapse-mode="2" max-obj-count="10" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää tiedot kohteeseen liittyvistä sopimuksista]]></comment>
+	<position x="3500" y="280"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="alkupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Sopimuksen voimaantulopäivämäärä]]></comment>
+	</column>
+	<column name="loppupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Sopimuksen päättymispäivämäärä]]></comment>
+	</column>
+	<column name="voimassaolo" default-value="daterange(coalesce(alkupvm, '-infinity'), coalesce(loppupvm, 'infinity'), '[]')" generated="true">
+		<type name="daterange" length="0"/>
+		<comment><![CDATA[Sopimuksen voimassaoloaikaväli. Oletusarvo johdetaan lausekkeella muiden sarakkeiden arvoista]]></comment>
+	</column>
+	<constraint name="sopimus_pk" type="pk-constr" table="jkr.sopimus">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="jatetyyppi_id" index="7"/>
+		<object name="kimppaisanta_kohde_id" index="5"/>
+		<object name="kohde_id" index="6"/>
+		<object name="sopimustyyppi_id" index="8"/>
+		<object name="urakoitsija_osapuoli_id" index="3"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="jatetyyppi_fk" index="4"/>
+		<object name="kimppaisanta_kohde_fk" index="2"/>
+		<object name="kohde_fk" index="3"/>
+		<object name="sopimustyyppi_fk" index="5"/>
+		<object name="urakoitsija_osapuoli_fk" index="1"/>
+	</customidxs>
+</table>
+
+<relationship name="osapuoli_has_many_sopimus" type="rel1n" layers="0"
+	 src-col-pattern="urakoitsija_{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="urakoitsija_{st}_fk"
+	 custom-color="#17127a"
+	 src-table="jkr.osapuoli"
+	 dst-table="jkr.sopimus"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<relationship name="kimppaisanta" type="rel1n" layers="0"
+	 src-col-pattern="kimppaisanta_{st}_{sc}"
+	 pk-pattern="kimppaisanta_pk" uq-pattern="kimppaisanta_uq"
+	 src-fk-pattern="kimppaisanta_{st}_fk"
+	 custom-color="#7d1365"
+	 src-table="jkr.kohde"
+	 dst-table="jkr.sopimus"
+	 src-required="false" dst-required="false"
+	upd-action="SET NULL"
+	del-action="CASCADE"/>
+
+<relationship name="sopimus_has_many_keraysvaline" type="rel1n" layers="0,7"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#05fd84"
+	 src-table="jkr.sopimus"
+	 dst-table="jkr.keraysvaline"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="-5.99574" y="20.4476"/>
+	</label>
+</relationship>
+
+<relationship name="sopimus_has_many_tyhjennysvali" type="rel1n" layers="0,7"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#d7911e"
+	 src-table="jkr.sopimus"
+	 dst-table="jkr.tyhjennysvali"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="126.504" y="12.2962"/>
+	</label>
+</relationship>
+
+<relationship name="sopimus_has_many_keskeytys" type="rel1n" layers="0,7"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#26fabe"
+	 src-table="jkr.sopimus"
+	 dst-table="jkr.keskeytys"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="3.50426" y="-4.65503"/>
+	</label>
+</relationship>
+
+<relationship name="kohde_has_many_sopimus" type="rel1n" layers="0,7"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#2bfe6b"
+	 src-table="jkr.kohde"
+	 dst-table="jkr.sopimus"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="-5.69077" y="3.62349"/>
+	</label>
+</relationship>
+
+<relationship name="jatetyyppi_has_many_sopimus" type="rel1n" layers="0,7"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#5014d4"
+	 src-table="jkr_koodistot.jatetyyppi"
+	 dst-table="jkr.sopimus"
+	 src-required="false" dst-required="false">
+	<label ref-type="name-label">
+		<position x="5.93669" y="4.42349"/>
+	</label>
+</relationship>
+
+<extension name="btree_gist" sql-disabled="true">
+</extension>
+
+<index name="jatetyyppi_selite_uidx" table="jkr_koodistot.jatetyyppi"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="selite"/>
+		</idxelement>
+</index>
+
+<table name="ulkoinen_asiakastieto" layers="0" collapse-mode="2" max-obj-count="6" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Mitä vain jostain ulkoisesta järjestelmästä (PJH, Facta, Nokian lietekuskit jne.) löytyvää asiakastietoa sisältävä taulu]]></comment>
+	<position x="2400" y="760"/>
+	<column name="id" not-null="true"
+	 identity-type="BY DEFAULT">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki kokonaislukutunniste. Tunniste generoidaan automaattisesti]]></comment>
+	</column>
+	<column name="ulkoinen_id" not-null="true">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Apu-id, jonka avulla saadaan haettua asiakkaiden tiedot kaikista muista järjestelmistä. Käytännössä asikasnumero kussakin ulkoisessa järjestelmässä]]></comment>
+	</column>
+	<column name="ulkoinen_asiakastieto">
+		<type name="jsonb" length="0"/>
+		<comment><![CDATA[Mitä vain ulkoisesta järjestelmästä löytyvää tietoa asiakkaasta. Tallennetaan json-muodossa]]></comment>
+	</column>
+	<constraint name="ulkoinen_kohdetunnus_pk" type="pk-constr" table="jkr.ulkoinen_asiakastieto">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+
+	<customidxs object-type="column">
+		<object name="kohde_id" index="1"/>
+		<object name="tiedontuottaja_tunnus" index="4"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kohde_fk" index="1"/>
+		<object name="tiedontuottaja_fk" index="2"/>
+	</customidxs>
+</table>
+
+<relationship name="kohde_has_many_ulkoinen_kohdetunnus" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#b79939"
+	 src-table="jkr.kohde"
+	 dst-table="jkr.ulkoinen_asiakastieto"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<table name="osapuolenrooli" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset osapuolen roolit]]></comment>
+	<tag name="koodisto"/>
+	<position x="2540" y="1600"/>
+	<column name="id" not-null="true"
+	 identity-type="BY DEFAULT">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki kokonaislukutunniste. Tunniste generoidaan automaattisesti]]></comment>
+	</column>
+	<column name="selite">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta osapuolenroolista]]></comment>
+	</column>
+	<constraint name="osapuolenrooli_pk" type="pk-constr" table="jkr_koodistot.osapuolenrooli">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<table name="kohteen_osapuolet" layers="0" collapse-mode="2" max-obj-count="4" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Kohteen osapuolet sisältävä taulu]]></comment>
+	<position x="2920" y="1520"/>
+
+	<customidxs object-type="column">
+		<object name="kohde_id" index="0"/>
+		<object name="osapuolenrooli_id" index="2"/>
+		<object name="osapuoli_id" index="1"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kohde_fk" index="0"/>
+		<object name="kohteen_osapuolet_pk" index="1"/>
+		<object name="osapuolenrooli_fk" index="3"/>
+		<object name="osapuoli_fk" index="2"/>
+	</customidxs>
+</table>
+
+<relationship name="kohde_has_many_kohteen_osapuolet" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#aa9bdc"
+	 src-table="jkr.kohde"
+	 dst-table="jkr.kohteen_osapuolet"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<special-pk-cols indexes="0"/>
+</relationship>
+
+<relationship name="osapuoli_has_many_kohteen_osapuolet" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#b00547"
+	 src-table="jkr.osapuoli"
+	 dst-table="jkr.kohteen_osapuolet"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<constraint name="kohteen_osapuolet_pk" type="pk-constr" alias="kohteen_osapuolet_pk" protected="true" table="jkr.kohteen_osapuolet">
+		</constraint>
+	<special-pk-cols indexes="0"/>
+</relationship>
+
+<relationship name="osapuolenrooli_has_many_kohteen_osapuolet" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#e14ef6"
+	 src-table="jkr_koodistot.osapuolenrooli"
+	 dst-table="jkr.kohteen_osapuolet"
+	 src-required="false" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<table name="kohteen_rakennukset" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Kohteeseen liittyvät rakennukset sisältävä taulu]]></comment>
+	<position x="2340" y="1160"/>
+
+	<customidxs object-type="column">
+		<object name="kohde_id" index="1"/>
+		<object name="rakennus_id" index="0"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kohde_fk" index="2"/>
+		<object name="kohteen_rakennukset_pk" index="1"/>
+		<object name="rakennus_fk" index="0"/>
+	</customidxs>
+</table>
+
+<relationship name="rakennus_has_many_kohteen_rakennukset" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#3ddc46"
+	 src-table="jkr.rakennus"
+	 dst-table="jkr.kohteen_rakennukset"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<special-pk-cols indexes="0"/>
+</relationship>
+
+<relationship name="kohde_has_many_kohteen_rakennukset" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#6eefaa"
+	 src-table="jkr.kohde"
+	 dst-table="jkr.kohteen_rakennukset"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE">
+	<constraint name="kohteen_rakennukset_pk" type="pk-constr" alias="kohteen_rakennukset_pk" protected="true" table="jkr.kohteen_rakennukset">
+		</constraint>
+	<special-pk-cols indexes="0"/>
+</relationship>
+
+<trigger name="trg_after_kohde_rakennus_change" firing-type="AFTER" per-line="true" constraint="false"
+	 ins-event="true" del-event="true" upd-event="true" trunc-event="false"
+	 table="jkr.kohteen_rakennukset">
+		<comment><![CDATA[Triggeri, joka aktivoituu kun kohteelle on lisätty rakennus, kohteeseen liittyvien rakennusten listaa on päivitetty tai jokin kohteeseen liittyvistä rakennuksista on poistettu. Triggeri käynnistää update_kohde_geom-nimisen funktion]]></comment>
+		<function signature="jkr.update_kohde_geom()"/>
+</trigger>
+
+<trigger name="trg_after_truncate" firing-type="AFTER" per-line="false" constraint="false"
+	 ins-event="false" del-event="false" upd-event="false" trunc-event="true"
+	 table="jkr.kohteen_rakennukset">
+		<comment><![CDATA[Triggeri, joka aktivoituu kun kohteelta poistetaan kaikki rakennukset. Triggeri käynnistää update_kohde_geom-nimisen funktion]]></comment>
+		<function signature="jkr.update_kohde_geom()"/>
+</trigger>
+
+<index name="idx_kohteen_rakennukset_kohde_id" table="jkr.kohteen_rakennukset"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
+		</idxelement>
+</index>
+
+<relationship name="kohde_has_many_kuljetus" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#660479"
+	 src-table="jkr.kohde"
+	 dst-table="jkr.kuljetus"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<relationship name="jatetyyppi_has_many_kuljetus" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#27d505"
+	 src-table="jkr_koodistot.jatetyyppi"
+	 dst-table="jkr.kuljetus"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<relationship name="osapuoli_has_many_kuljetus" type="rel1n" layers="0"
+	 src-col-pattern="urakoitsija_{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="urakoitsija_{st}_fk"
+	 custom-color="#7f6cd1"
+	 src-table="jkr.osapuoli"
+	 dst-table="jkr.kuljetus"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<relationship name="tiedontuottaja_has_many_ulkoinen_kohdetunnus" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#43f9d9"
+	 src-table="jkr_koodistot.tiedontuottaja"
+	 dst-table="jkr.ulkoinen_asiakastieto"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<index name="uidx_ulkoinen_kohdetunnus" table="jkr.ulkoinen_asiakastieto"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="tiedontuottaja_tunnus"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="ulkoinen_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_sopimus_kohde_id" table="jkr.sopimus"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_ulkoinen_kohdetunnus_kohde_id" table="jkr.ulkoinen_asiakastieto"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_keraysvaline_sopimus_id" table="jkr.keraysvaline"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="sopimus_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_keskeytys_sopimus_id" table="jkr.keskeytys"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="sopimus_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_tyhjennysvali_sopimus_id" table="jkr.tyhjennysvali"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="sopimus_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_kuljetus_kohde_id" table="jkr.kuljetus"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_osoite_rakennus_id" table="jkr.osoite"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+</index>
+
+<table name="rakennuksen_omistajat" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Rakennuksen omistajat sisältävä taulu]]></comment>
+	<position x="2280" y="1760"/>
+	<column name="rakennus_id" alias="rakennus_id" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Rakennuksen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="osapuoli_id" alias="osapuoli_id" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Osapuolen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<constraint name="rakennuksen_omistajat_pk" type="pk-constr" table="jkr.rakennuksen_omistajat">
+		<columns names="rakennus_id,osapuoli_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="idx_osoite_katu_id" table="jkr.osoite"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_osoite_postinumero" table="jkr.osoite"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="posti_numero"/>
+		</idxelement>
+</index>
+
+<index name="idx_katu_kunta_koodi" table="jkr_osoite.katu"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kunta_koodi"/>
+		</idxelement>
+</index>
+
+<index name="idx_posti_kunta_koodi" table="jkr_osoite.posti"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kunta_koodi"/>
+		</idxelement>
+</index>
+
+<index name="idx_rakennuksen_omistajat_rakennus_id" table="jkr.rakennuksen_omistajat"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_rakennuksen_omistajat_osapuoli_id" table="jkr.rakennuksen_omistajat"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="osapuoli_id"/>
+		</idxelement>
+</index>
+
+<view name="v_kohde_yhteystiedot" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Näkymä kuhunkin kohteeseen liittyvistä yhteystiedoista]]></comment>
+	<position x="5280" y="1960"/>
+	<reference>
+		<expression><![CDATA[select
+  k.id kohde_id,
+  k.alkupvm,
+  k.loppupvm,
+  op.id osapuoli_id,
+  (select selite from jkr_koodistot.osapuolenrooli opr where kop.osapuolenrooli_id = opr.id) osapuolenrooli,
+  op.nimi,
+  op.ytunnus,
+  op.katuosoite,
+  op.postinumero,
+  op.postitoimipaikka,
+  op.erikoisosoite
+from
+  jkr.kohde k
+  left join jkr.kohteen_osapuolet kop
+    on k.id = kop.kohde_id
+  left join jkr.osapuoli op
+    on kop.osapuoli_id = op.id]]></expression>
+	</reference>
+</view>
+
+<table name="kiinteiston_omistajat" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Kiinteistön omistajat sisältävä taulu]]></comment>
+	<position x="2380" y="2140"/>
+	<column name="kiinteisto_id" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Kiinteistön yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="osapuoli_id" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Osapuolen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<constraint name="kiinteiston_omistajat_pk" type="pk-constr" table="jkr.kiinteiston_omistajat">
+		<columns names="kiinteisto_id,osapuoli_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<table name="sopimustyyppi" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset sopimustyypit]]></comment>
+	<tag name="koodisto"/>
+	<position x="3500" y="80"/>
+	<column name="id" not-null="true"
+	 identity-type="BY DEFAULT">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki kokonaislukutunniste. Tunniste generoidaan automaattisesti]]></comment>
+	</column>
+	<column name="selite">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta sopimustyypistä]]></comment>
+	</column>
+	<constraint name="sopimustyyppi_pk" type="pk-constr" table="jkr_koodistot.sopimustyyppi">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="uidx_selite" table="jkr_koodistot.sopimustyyppi"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="selite"/>
+		</idxelement>
+</index>
+
+<relationship name="sopimustyyppi_has_many_sopimus" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#9dbd71"
+	 src-table="jkr_koodistot.sopimustyyppi"
+	 dst-table="jkr.sopimus"
+	 src-required="true" dst-required="false"
+	upd-action="CASCADE"
+	del-action="CASCADE"/>
+
+<index name="idx_kohde_nimi" table="jkr.kohde"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="nimi"/>
+		</idxelement>
+</index>
+
+<index name="idx_rakennus_kiinteistotunnus" table="jkr.rakennus"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kiinteistotunnus"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_ytunnus" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="ytunnus"/>
+		</idxelement>
+</index>
+
+<table name="keraysvalinetyyppi" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Taulu, joka sisältää mahdolliset keräysvälinetyypit]]></comment>
+	<tag name="koodisto"/>
+	<position x="3900" y="40"/>
+	<column name="id" not-null="true"
+	 identity-type="BY DEFAULT">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Taulun avaimena toimiva uniikki kokonaislukutunniste. Tunniste generoidaan automaattisesti]]></comment>
+	</column>
+	<column name="selite">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Kuvaus tietyn tunnisteen omaavasta keräysvälinetyypistä]]></comment>
+	</column>
+	<constraint name="keraysvalinetyyppi_pk" type="pk-constr" table="jkr_koodistot.keraysvalinetyyppi">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="uidx_keraysvalinetyyppi_selite" table="jkr_koodistot.keraysvalinetyyppi"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="selite"/>
+		</idxelement>
+</index>
+
+<relationship name="keraysvalinetyyppi_has_many_keraysvaline" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#c89c00"
+	 src-table="jkr_koodistot.keraysvalinetyyppi"
+	 dst-table="jkr.keraysvaline"
+	 src-required="false" dst-required="false"
+	upd-action="CASCADE"
+	del-action="RESTRICT"/>
+
+<view name="v_rakennusten_osoitteet" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="5260" y="420"/>
+	<reference>
+		<expression><![CDATA[SELECT
+  o.id,
+  o.rakennus_id,
+  ka.katunimi_fi katunimi,
+  o.osoitenumero,
+  ku.nimi_fi kunta,
+  po.numero postinumero,
+  po.nimi_fi postitoimipaikka
+FROM
+  jkr.osoite o
+  JOIN jkr_osoite.katu ka ON o.katu_id = ka.id
+  JOIN jkr_osoite.kunta ku ON ka.kunta_koodi = ku.koodi
+  JOIN jkr_osoite.posti po ON o.posti_numero = po.numero]]></expression>
+	</reference>
+</view>
+
+<view name="v_rakennukset_ilman_kohdetta" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="5240" y="560"/>
+	<reference>
+		<expression><![CDATA[SELECT
+  *
+FROM
+  jkr.rakennus r
+WHERE
+  NOT EXISTS (
+    SELECT
+      1
+    FROM
+      jkr.kohteen_rakennukset kr
+    WHERE
+      r.id = kr.rakennus_id)]]></expression>
+	</reference>
+</view>
+
+<view name="v_kohteet_ilman_rakennuksia" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="5360" y="760"/>
+	<reference>
+		<expression><![CDATA[SELECT
+  *
+FROM
+  jkr.kohde k
+WHERE
+  NOT EXISTS (
+    SELECT
+      1
+    FROM
+      jkr.kohteen_rakennukset kr
+    WHERE
+      k.id = kr.kohde_id)]]></expression>
+	</reference>
+</view>
+
+<index name="uidx_osoite_rakennus_katu_numero" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="osoitenumero"/>
+		</idxelement>
+</index>
+
+<table name="toimialue" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="5240" y="2280"/>
+	<column name="id" not-null="true"
+	 identity-type="BY DEFAULT">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="nimi">
+		<type name="text" length="0"/>
+	</column>
+	<column name="geom" not-null="true">
+		<type name="geometry" length="0" spatial-type="MULTIPOLYGON" variation="0" srid="3067"/>
+	</column>
+	<constraint name="toimialue_pk" type="pk-constr" table="jkr.toimialue">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<function name="fix_empty_point"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="CALLED ON NULL INPUT"
+		function-type="VOLATILE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL SAFE"
+		execution-cost="100"
+		row-amount="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Triggerifunktio, joka muuntaa Factan Oraclesta lähtöisin olevat POINT(infinity infinity) geometriat NULL:ksi.]]></comment>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="trigger" length="0"/>
+	</return-type>
+	<definition><![CDATA[    BEGIN
+        IF st_x(NEW.geom) = 'infinity' OR st_y(NEW.geom) = 'infinity' THEN
+          RAISE NOTICE 'Converted POINT(infinity infinity) to NULL';
+          NEW.geom = NULL;
+        END IF;
+        RETURN NEW;
+    END;]]></definition>
+</function>
+
+<trigger name="trg_fix_empty_rakennus_point" firing-type="BEFORE" per-line="true" constraint="false"
+	 ins-event="true" del-event="false" upd-event="true" trunc-event="false"
+	 table="jkr.rakennus">
+		<comment><![CDATA[Factan Oraclesta tulevien rakennusgeometrioiden siivousta varten korjataan tyhjät geometriat ennen inserttiä ja updatea.]]></comment>
+		<function signature="jkr.fix_empty_point()"/>
+</trigger>
+
+<view name="viranomaispaatokset" layers="0" materialized="true" sql-disabled="true" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Viranomaisten tekemät jätehuoltopäätökset sekä viranomaisille tehdyt ilmoitukset]]></comment>
+	<position x="3420" y="1280"/>
+	<reference>
+		<expression><![CDATA[select 1]]></expression>
+	<column name="id">
+		<type name="bigint" length="0"/>
+	</column>
+	<column name="kohde_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="tapahtumalaji">
+		<type name="character varying" length="3"/>
+	</column>
+	<column name="asiantunnus">
+		<type name="character varying" length="85"/>
+	</column>
+	<column name="paatospykala">
+		<type name="smallint" length="0"/>
+	</column>
+	<column name="paatospvm">
+		<type name="timestamp" length="0"/>
+	</column>
+	<column name="paatoslaji">
+		<type name="character varying" length="3"/>
+	</column>
+	<column name="paatostulos">
+		<type name="character varying" length="3"/>
+	</column>
+	<column name="paatosvoimassapvm">
+		<type name="timestamp" length="0"/>
+	</column>
+	<column name="jatetyyppi">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="vireillepvm">
+		<type name="timestamp" length="0"/>
+	</column>
+	<column name="tilanne">
+		<type name="character varying" length="3"/>
+	</column>
+	<column name="hakusanat">
+		<type name="character varying" length="250"/>
+	</column>
+	</reference>
+</view>
+
+<index name="uidx_viranomaispaatokset" table="jkr.viranomaispaatokset"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="90" sql-disabled="true">
+		<idxelement use-sorting="false">
+			<column name="id"/>
+		</idxelement>
+</index>
+
+<index name="idx_viranomaispaatokset_kohde_id" table="jkr.viranomaispaatokset"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="90" sql-disabled="true">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
+		</idxelement>
+</index>
+
+<table name="viemarointialue" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="4820" y="2280"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+	</column>
+	<column name="nimi">
+		<type name="text" length="0"/>
+	</column>
+	<column name="geom" not-null="true">
+		<type name="geometry" length="0" spatial-type="MULTIPOLYGON" variation="0" srid="3067"/>
+	</column>
+	<constraint name="viemarointialue_pk" type="pk-constr" table="jkr.viemarointialue">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="idx_viemarointialue_geom" table="jkr.viemarointialue"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<index name="idx_jattaankuljetusalue_geom" table="jkr.jatteenkuljetusalue"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<index name="idx_toimialue_geom" table="jkr.toimialue"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<index name="idx_pohjavesialue_geom" table="jkr.pohjavesialue"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<table name="taajama" layers="0" collapse-mode="2" max-obj-count="8" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="4760" y="1840"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+	</column>
+	<column name="tilastokeskus_id">
+		<type name="text" length="0"/>
+	</column>
+	<column name="nimi">
+		<type name="text" length="0"/>
+	</column>
+	<column name="nimi_sv">
+		<type name="text" length="0"/>
+	</column>
+	<column name="vaesto_lkm">
+		<type name="bigint" length="0"/>
+	</column>
+	<column name="paivitetty">
+		<type name="date" length="0"/>
+	</column>
+	<column name="geom" not-null="true">
+		<type name="geometry" length="0" spatial-type="MULTIPOLYGON" variation="0" srid="3067"/>
+	</column>
+	<constraint name="taajama_pk" type="pk-constr" table="jkr.taajama">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="idx_taajama_geom" table="jkr.taajama"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="gist" factor="0">
+		<idxelement use-sorting="false">
+			<column name="geom"/>
+		</idxelement>
+</index>
+
+<view name="v_kohteen_osapuolet" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="3400" y="1800"/>
+	<reference>
+		<expression><![CDATA[select
+  ko.kohde_id,
+  ko.osapuolenrooli_id,
+  op.*
+from
+  jkr.kohteen_osapuolet ko
+  join jkr.osapuoli op
+    ON op.id = ko.osapuoli_id]]></expression>
+	</reference>
+</view>
+
+<constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
+	<columns names="rakennus_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="osapuoli_fk" type="fk-constr" alias="osapuoli_fk" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.osapuoli" table="jkr.rakennuksen_omistajat">
+	<columns names="osapuoli_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="kiinteisto_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.kiinteisto" table="jkr.kiinteiston_omistajat">
+	<columns names="kiinteisto_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="osapuoli_fk" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.osapuoli" table="jkr.kiinteiston_omistajat">
+	<columns names="osapuoli_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<relationship name="rel_rakennuksen_omistajat_rakennus" type="relfk" layers="0"
+	 src-table="jkr.rakennuksen_omistajat"
+	 dst-table="jkr.rakennus" reference-fk="rakennus_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_rakennuksen_omistajat_osapuoli" type="relfk" layers="0"
+	 src-table="jkr.rakennuksen_omistajat"
+	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_kiinteiston_omistajat_kiinteisto" type="relfk" layers="0"
+	 src-table="jkr.kiinteiston_omistajat"
+	 dst-table="jkr.kiinteisto" reference-fk="kiinteisto_fk"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_kiinteiston_omistajat_osapuoli" type="relfk" layers="0"
+	 src-table="jkr.kiinteiston_omistajat"
+	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
+	 src-required="false" dst-required="true"/>
+
+</dbmodel>
