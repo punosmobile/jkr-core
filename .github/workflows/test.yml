@@ -33,5 +33,5 @@ jobs:
           url: jdbc:postgresql://postgres:5432/jkr
           user: postgres
           password: postgres
-          locations: ./db/migrations
+          locations: filesystem:./db/migrations
       - run: echo 'testing completed'
