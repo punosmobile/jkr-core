@@ -30,7 +30,7 @@ jobs:
         run: cp db/flyway.conf ./flyway.conf
       - uses: joshuaavalon/flyway-action@v3.0.0
         with:
-          url: jdbc:postgresql://localhost:5432/jkr
+          url: jdbc:postgresql://postgres:5432/jkr
           user: postgres
           password: postgres
           locations: ./db/migrations
