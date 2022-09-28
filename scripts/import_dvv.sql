@@ -1,11 +1,13 @@
 -- Insert buildings to jkr_rakennus
-insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm)
+insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi)
 select 
     rakennustunnus as prt,
     "sijaintikiinteistön tunnus" as kiinteistotunnus,
     viemäri::boolean as onko_viemari,
     ST_GeomFromText('POINT('||itä_koordinaatti||' '||pohjois_koordinaatti||')', 3067) as geom,
-    to_date("käytössä_olotilanteen muutospäivä"::text, 'YYYYMMDD') as kayttoonotto_pvm
+    to_date("käytössä_olotilanteen muutospäivä"::text, 'YYYYMMDD') as kayttoonotto_pvm,
+    "käyttö_tarkoitus" as rakennuksenkayttotarkoitus_koodi,
+    "käytös_säolo_tilanne" as rakennuksenolotila_koodi
 from jkr_dvv.rakennus
 on conflict do nothing
 ;
