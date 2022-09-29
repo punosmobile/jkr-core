@@ -31,7 +31,7 @@ jobs:
       - uses: joshuaavalon/flyway-action@v3.0.0
         with:
           url: jdbc:postgresql://postgres:5432/jkr
-          user: postgres
+          user: jkr_admin
           password: postgres
           locations: filesystem:./db/migrations
       - run: echo 'testing completed'
