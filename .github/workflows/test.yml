@@ -12,11 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgis/postgis:12-3.3
+        image: kartoza/postgis:12.0
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: jkr_admin
           POSTGRES_DB: jkr
+          POSTGRES_MULTIPLE_EXTENSIONS: postgis,btree_gist
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -28,11 +29,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Copy the flyway conf
         run: cp db/flyway.conf ./flyway.conf
-      - name: Configure the database
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends postgresql-client
-          PGPASSWORD=postgres psql -h postgres -U jkr_admin -d jkr -c "CREATE EXTENSION btree_gist;"
       - uses: joshuaavalon/flyway-action@v3.0.0
         with:
           url: jdbc:postgresql://postgres:5432/jkr
