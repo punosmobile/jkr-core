@@ -32,7 +32,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends postgresql-client
-          PGPASSWORD=postgres psql -U jkr_admin -d jkr -c "CREATE EXTENSION btree_gist;"
+          PGPASSWORD=postgres psql -h postgres -U jkr_admin -d jkr -c "CREATE EXTENSION btree_gist;"
       - uses: joshuaavalon/flyway-action@v3.0.0
         with:
           url: jdbc:postgresql://postgres:5432/jkr
