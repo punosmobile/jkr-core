@@ -10,20 +10,29 @@ on:
 jobs:
   migration_test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: kartoza/postgis:12.0
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: jkr_admin
+          POSTGRES_DB: jkr
+          POSTGRES_MULTIPLE_EXTENSIONS: postgis,btree_gist
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v2
-      - uses: huaxk/postgis-action@v1
-        with:
-          postgresql version: "12" # See https://https://hub.docker.com/r/mdillon/postgis for available versions, if it is not specified, use the default value 'latest'
-          postgresql password: ${{ secrets.CI_DATABASE_PASSWORD }} # This environment variable sets the superuser password for PostgreSQL, maybe string or secrets, the default superuser is defined by the input environment variable: postgresql user.
-          postgresql user: "jkr_admin" # This optional environment variable is used in conjunction with postgresql password to set a user and its password. This variable will create the specified user with superuser power and a database with the same name. If it is not specified, then the default user of 'postgres' will be used.
-          postgresql db: "jkr" # This optional environment variable can be used to define a different name for the default database that is created when the image is first started. If it is not specified, then the value of postgresql user will be used.
       - name: Copy the flyway conf
         run: cp db/flyway.conf ./flyway.conf
-      - uses: joshuaavalon/flyway-action@v2
+      - uses: joshuaavalon/flyway-action@v3.0.0
         with:
-          url: jdbc:postgresql://localhost:5432/jkr
+          url: jdbc:postgresql://postgres:5432/jkr
           user: jkr_admin
-          password: ${{ secrets.CI_DATABASE_PASSWORD }}
-          locations: ./db/migrations
+          password: postgres
+          locations: filesystem:./db/migrations
       - run: echo 'testing completed'
