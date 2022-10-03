@@ -90,28 +90,31 @@ docker-compose run --rm flyway repair
 docker-compose run --rm flyway migrate -user=jkr_admin -password=<password> -url=jdbc:postgresql://trepx-paikka1.tre.t.verkko:5432/ymparisto_test_db
 ```
 
-## QGIS project
+## Using the QGIS project
 
-1. Create a PostgreSQL service file to some folder for example in `~/jkrconfig/pg_service.conf` 
-```
-[jkr-dev]
+The QGIS project reads data from a PostgreSQL service named `jkr` with a QGIS authentication which id is `jkruser`.
+
+1. Create a PostgreSQL service file for each environment (Development, Testing, Production) to some folder for example in `<your home folder>/jkrconfig/`. Name the files for example `pg_service_jkr_dev.conf`, `pg_service_jkr_test.conf`, `pg_service_jkr_prod.conf`. Add the following with correct values for each environment:
+```ini
+[jkr]
 host=localhost
 port=5435
 dbname=ymparisto_db
-
-[jkr-test]
-host=jkr_test_server
-port=5432
-dbname=ymparisto_db
-
-[jkr-prod]
-host=jkr_test_server
-port=5432
-dbname=ymparisto_db
 ```
+2. Create a QGIS-profile for each environment (Development, Testing, Production). Name the profiles for example `jkr-dev`, `jkr-test`, `jkr-prod`. A new QGIS window will open. Use that   
+![schreenshot of new profile menu](docs/img/qgis-new-profile.png)
+3. In QGIS settings add a `PGSERVICEFILE` environment variable and fill the file path of corresponding service file as a value.  
+![screenshot of menu location](docs/img/qgis-settings.png)  
+![screenshot of the setting dialog](docs/img/qgis-pgservicefile-environment-variable.png)
+4. Restart QGIS to make the environment variable to take effect.
+5. Create a authentication key to QGIS which ID is `jkruser`.  
+![screenshot of the authentication dialog](docs/img/qgis-authentication.png)
+6. Create a new PostgreSQL connection  
+![screenshot of the new connection menu](docs/img/qgis-new-connection.png)  
+![screenshot of the new connection dialog](docs/img/qgis-create-connection.png)
+7. Open the QGIS project from the jkr-qgis-projektit -schema.  
+![screenshot of the qgis projects schema](docs/img/qgis-open-project.png)
 
-2. Add a `PGSERVICEFILE` environment variable to your account to point to that file.
 
-3. (Optional) Create a new QGIS profile for this project
-4. Add three QGIS authentication configs for each environment. Set the id to `jkrdeve`, `jkrtest` and `jkrprod`.
-5. Open the QGIS-project
+> **Development**  
+> For development use the [QGIS-project](qgis/jkr.qgs) can be used.
