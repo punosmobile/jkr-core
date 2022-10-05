@@ -12,3 +12,7 @@ indent_size = 4
 
 [*.md]
 trim_trailing_whitespace = false
+
+[*.bat]
+charset = cp850
+end_of_line = crlf
