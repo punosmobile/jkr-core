@@ -39,3 +39,89 @@ where
     exists (select 1 from jkr.rakennus where osoite.rakennustunnus = rakennus.prt) -- not all addresses have buildings
     and posti_numero != '00000'
 on conflict do nothing;
+
+-- Insert owners to jkr.osapuoli
+-- Step 1: Find distinct people. This will pick the first line with matching henkilötunnus,
+-- if a person is listed multiple times.
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, erikoisosoite, kunta, henkilotunnus)
+select distinct on ("henkilötunnus")
+    omistaja."omistajan nimi" as nimi,
+    omistaja."omistajan vakinainen kotimainen asuinosoite" as katuosoite,
+    omistaja."vakinaisen kotim osoitteen postitoimipaikka" as postitoimipaikka,
+    omistaja."vak os posti_ numero" as postinumero,
+    case when (
+        omistaja."omistajan ulkomainen lähiosoite" is not null or
+        omistaja."ulkomaisen osoitteen paikkakunta" is not null or
+        omistaja."ulkomaisen osoitteen valtion postinimi" is not null)
+        then (omistaja."omistajan ulkomainen lähiosoite" || e'\n' || omistaja."ulkomaisen osoitteen paikkakunta" || e'\n' || omistaja."ulkomaisen osoitteen valtion postinimi")
+        else null end as erikoisosoite,
+    omistaja."omist koti_kunta" as kunta,
+    omistaja."henkilötunnus" as henkilotunnus
+from jkr_dvv.omistaja
+where
+    omistaja."henkilötunnus" is not null;
+
+-- Step 2: Find distinct non-people. Luckily, DVV y-tunnus entries don't have foreign addresses.
+-- y-tunnus does not have kotikunta either. y-tunnus always has postiosoite instead of asuinosoite.
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, ytunnus)
+select distinct on ("y_tunnus")
+    omistaja."omistajan nimi" as nimi,
+    omistaja."omistajan postiosoite" as katuosoite,
+    omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
+    omistaja."postios posti_numero" as postinumero,
+    omistaja."y_tunnus" as ytunnus
+from jkr_dvv.omistaja
+where omistaja."y_tunnus" is not null;
+
+-- Step 3: Create Finnish owners with missing henkilötunnus/y-tunnus by matching names and addresses.
+-- Any owners without henkilötunnus/y-tunnus do not have vakinainen asuinosoite or kotikunta.
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero)
+select distinct on ("omistajan nimi", "omistajan postiosoite", "postiosoitteen postitoimipaikka", "postios posti_numero")
+    omistaja."omistajan nimi" as nimi,
+    omistaja."omistajan postiosoite" as katuosoite,
+    omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
+    omistaja."postios posti_numero" as postinumero
+from jkr_dvv.omistaja
+where
+    omistaja."henkilötunnus" is null and
+    omistaja."y_tunnus" is null;
+
+-- Insert owners to jkr.rakennuksen_omistajat
+-- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
+select
+    (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
+    (select id from jkr.osapuoli where omistaja."henkilötunnus" = osapuoli.henkilotunnus) as osapuoli_id
+from jkr_dvv.omistaja
+where
+    omistaja."henkilötunnus" is not null and
+    exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
+on conflict do nothing; -- DVV has registered some owners twice on different dates
+
+-- Step 2: Find all buildings owned by each owner, matching by y-tunnus
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
+select
+    (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
+    (select id from jkr.osapuoli where omistaja."y_tunnus" = osapuoli.ytunnus) as osapuoli_id
+from jkr_dvv.omistaja
+where
+    omistaja."y_tunnus" is not null and
+    exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
+on conflict do nothing; -- DVV has registered some owners twice on different dates
+
+-- Step 3: Find all buildings owned by missing henkilötunnus/y-tunnus by name and address
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
+select
+    (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
+    (select id from jkr.osapuoli where
+        -- all fields must be equal or null to match
+        omistaja."omistajan nimi" is not distinct from osapuoli.nimi and
+        omistaja."omistajan postiosoite" is not distinct from osapuoli.katuosoite and
+        omistaja."postiosoitteen postitoimipaikka" is not distinct from osapuoli.postitoimipaikka and
+        omistaja."postios posti_numero" is not distinct from osapuoli.postinumero
+    ) as osapuoli_id
+from jkr_dvv.omistaja
+where
+    omistaja."henkilötunnus" is null and
+    omistaja."y_tunnus" is null
+on conflict do nothing; -- DVV has registered some owners twice
