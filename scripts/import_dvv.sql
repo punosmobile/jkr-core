@@ -27,18 +27,21 @@ where "kadunnimi suomeksi" is not null or "kadunnimi ruotsiksi" is not null  -- 
 on conflict do nothing;
 
 -- Insert addresses to jkr.osoite
--- Assume Finnish kadunnimi is given. Some (two) entries might have errors because of this.
 insert into jkr.osoite (osoitenumero, katu_id, rakennus_id, posti_numero)
 select
     katu_numero as osoitenumero,
-    (select id from jkr_osoite.katu where osoite."kadunnimi suomeksi" = katu.katunimi_fi and osoite.sijainti_kunta = katu.kunta_koodi) as katu_id,
+    case when (osoite."kadunnimi suomeksi" is not null)
+        then (select id from jkr_osoite.katu where osoite."kadunnimi suomeksi" = katu.katunimi_fi and osoite.sijainti_kunta = katu.kunta_koodi)
+        when (osoite."kadunnimi ruotsiksi" is not null)
+        then (select id from jkr_osoite.katu where osoite."kadunnimi ruotsiksi" = katu.katunimi_sv and osoite.sijainti_kunta = katu.kunta_koodi)
+        else null end as katu_id,
     (select id from jkr.rakennus where osoite.rakennustunnus = rakennus.prt) as rakennus_id,
     posti_numero as posti_numero
 from jkr_dvv.osoite
 where
     exists (select 1 from jkr.rakennus where osoite.rakennustunnus = rakennus.prt) -- not all addresses have buildings
     and posti_numero != '00000'
-on conflict do nothing;
+on conflict do nothing; -- osoitenumero and katu_id may be null. rakennus_id and posti_numero are always provided.
 
 -- Insert owners to jkr.osapuoli
 -- Step 1: Find distinct people. This will pick the first line with matching henkilötunnus,
@@ -59,7 +62,8 @@ select distinct on ("henkilötunnus")
     omistaja."henkilötunnus" as henkilotunnus
 from jkr_dvv.omistaja
 where
-    omistaja."henkilötunnus" is not null;
+    omistaja."henkilötunnus" is not null
+on conflict do nothing;
 
 -- Step 2: Find distinct non-people. Luckily, DVV y-tunnus entries don't have foreign addresses.
 -- y-tunnus does not have kotikunta either. y-tunnus always has postiosoite instead of asuinosoite.
@@ -71,10 +75,12 @@ select distinct on ("y_tunnus")
     omistaja."postios posti_numero" as postinumero,
     omistaja."y_tunnus" as ytunnus
 from jkr_dvv.omistaja
-where omistaja."y_tunnus" is not null;
+where omistaja."y_tunnus" is not null
+on conflict do nothing;
 
--- Step 3: Create Finnish owners with missing henkilötunnus/y-tunnus by matching names and addresses.
--- Any owners without henkilötunnus/y-tunnus do not have vakinainen asuinosoite or kotikunta.
+-- Step 3: Create all owners with missing henkilötunnus/y-tunnus by matching names and addresses.
+-- Any owners without henkilötunnus/y-tunnus do not have vakinainen asuinosoite or kotikunta or
+-- foreign address.
 insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero)
 select distinct on ("omistajan nimi", "omistajan postiosoite", "postiosoitteen postitoimipaikka", "postios posti_numero")
     omistaja."omistajan nimi" as nimi,
@@ -84,7 +90,8 @@ select distinct on ("omistajan nimi", "omistajan postiosoite", "postiosoitteen p
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
-    omistaja."y_tunnus" is null;
+    omistaja."y_tunnus" is null
+on conflict do nothing;
 
 -- Insert owners to jkr.rakennuksen_omistajat
 -- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
