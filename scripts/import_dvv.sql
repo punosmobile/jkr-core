@@ -130,5 +130,6 @@ select
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
-    omistaja."y_tunnus" is null
+    omistaja."y_tunnus" is null and
+    exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings might be listed
 on conflict do nothing; -- DVV has registered some owners twice
