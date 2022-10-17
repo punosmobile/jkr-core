@@ -242,11 +242,11 @@ where
 	</label>
 </relationship>
 
-<table name="kiinteisto" layers="0" collapse-mode="2" faded-out="true" max-obj-count="3" z-value="0">
+<table name="kiinteisto" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Kiinteistöt sisältävä taulu]]></comment>
-	<position x="2040" y="2340"/>
+	<position x="1608.89" y="2162.22"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
@@ -1726,11 +1726,11 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 		</idxelement>
 </index>
 
-<table name="kiinteiston_omistajat" layers="0" collapse-mode="2" faded-out="true" max-obj-count="3" z-value="0">
+<table name="kiinteiston_omistajat" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Kiinteistön omistajat sisältävä taulu]]></comment>
-	<position x="2080" y="2120"/>
+	<position x="2064.44" y="2160"/>
 	<column name="kiinteisto_id" not-null="true">
 		<type name="integer" length="0"/>
 		<comment><![CDATA[Kiinteistön yksilöivä sarjanumeromuotoinen tunniste]]></comment>
