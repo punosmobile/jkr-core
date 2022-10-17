@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="397,717" last-zoom="0.45" max-obj-count="49"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="645,717" last-zoom="0.45" max-obj-count="49"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,sopimus,näkymät,alueet,kohde_rakennukset,kohde_henkilöt,koodisto,päätökset,ulkoinen_asiakastieto"
 	 active-layers="0,1,2,3,4,5,6,7,8,9,10,11,12"
@@ -12,16 +12,19 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	 show-layer-names="true" show-layer-rects="true">
 <role name="jkr_admin"
  createrole="true"
+ inherit="true"
  login="true"
  encrypted="true"
  password="jkr_admin"
  sql-disabled="true">
 </role>
 
-<role name="jkr_editor">
+<role name="jkr_editor"
+ inherit="true">
 </role>
 
-<role name="jkr_viewer">
+<role name="jkr_viewer"
+ inherit="true">
 	<roles names="jkr_editor" role-type="member" />
 </role>
 
@@ -3014,11 +3017,11 @@ end;]]></definition>
 
 <policy name="muut_paitsi_master_muokattavissa" table="jkr_qgis_projektit.qgis_projects" command="ALL" permissive="true">
 
-	<expression type="using-exp"><![CDATA[name <> 'Jätteenkuljetusrekisteri [Master]']]></expression>
+	<expression type="using-exp"><![CDATA[name <> 'Jätteenkuljetusrekisteri [Master]'::text]]></expression>
 </policy>
 <policy name="kaikki_luettavissa" table="jkr_qgis_projektit.qgis_projects" command="SELECT" permissive="true">
 
-	<expression type="using-exp"><![CDATA[TRUE]]></expression>
+	<expression type="using-exp"><![CDATA[true]]></expression>
 </policy>
 <view name="v_kohteet_ilman_rakennuksia" layers="6" collapse-mode="2" max-obj-count="1" z-value="0">
 	<schema name="jkr"/>
