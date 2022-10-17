@@ -3,10 +3,10 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="421,296" last-zoom="0.4" max-obj-count="49"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="397,717" last-zoom="0.45" max-obj-count="49"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,sopimus,näkymät,alueet,kohde_rakennukset,kohde_henkilöt,koodisto,päätökset,ulkoinen_asiakastieto"
-	 active-layers="1,2,3,4,5,7,8,9,11,12"
+	 active-layers="0,1,2,3,4,5,6,7,8,9,10,11,12"
 	 layer-name-colors="#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#000000"
 	 layer-rect-colors="#b4b4b4,#dca4b1,#55ff7f,#ff0000,#52ebe6,#9b43ff,#f56e0d,#aaffff,#005e00,#8bd113,#5b5b5b,#0000ff,#bdc2c1"
 	 show-layer-names="true" show-layer-rects="true">
@@ -481,7 +481,7 @@ where
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Tietokantamigraatioiden historiatiedot sisältävä taulu]]></comment>
-	<position x="3560" y="2180"/>
+	<position x="3650" y="2490"/>
 	<column name="installed_rank" not-null="true">
 		<type name="integer" length="0"/>
 		<comment><![CDATA[Järjestysnumero, joka kertoo monesko migraatio on kyseessä]]></comment>
@@ -2150,20 +2150,22 @@ select tallenna_velvoite_status('2020-3-1');
 	<column name="hakusanat">
 		<type name="text" length="0"/>
 	</column>
+	<column name="tapahtumalaji_koodi" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="paatostulos_koodi" alias="paatostulos_koodi">
+		<type name="text" length="0"/>
+	</column>
 	<constraint name="viranomaispaatokset_pk" type="pk-constr" table="jkr.viranomaispaatokset">
 		<columns names="id" ref-type="src-columns"/>
 	</constraint>
 
 	<customidxs object-type="column">
-		<object name="kohde_id" index="9"/>
-		<object name="paatostulos_koodi" index="8"/>
-		<object name="tapahtumalaji_koodi" index="10"/>
+		<object name="kohde_id" index="10"/>
 	</customidxs>
 
 	<customidxs object-type="constraint">
-		<object name="kohde_fk" index="2"/>
-		<object name="paatostulos_fk" index="1"/>
-		<object name="tapahtumalaji_fk" index="3"/>
+		<object name="kohde_fk" index="3"/>
 	</customidxs>
 </table>
 
@@ -2171,7 +2173,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3420" y="2160"/>
+	<position x="3575" y="2210"/>
 	<column name="koodi" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -2199,18 +2201,6 @@ select tallenna_velvoite_status('2020-3-1');
 	</constraint>
 </table>
 
-<relationship name="paatostulos_has_many_viranomaispaatokset" type="rel1n" layers="10"
-	 src-col-pattern="{st}_{sc}"
-	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
-	 src-fk-pattern="{st}_fk"
-	 custom-color="#5b5b5b"
-	 sql-disabled="true"
-	 src-table="jkr_koodistot.paatostulos"
-	 dst-table="jkr.viranomaispaatokset"
-	 src-required="false" dst-required="false"
-	upd-action="CASCADE"
-	del-action="CASCADE"/>
-
 <relationship name="kohde_has_many_viranomaispaatokset" type="rel1n" layers="0,11"
 	 src-col-pattern="{st}_{sc}"
 	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
@@ -2225,18 +2215,6 @@ select tallenna_velvoite_status('2020-3-1');
 		<position x="0" y="0"/>
 	</label>
 </relationship>
-
-<relationship name="tapahtumalaji_has_many_viranomaispaatokset" type="rel1n" layers="10"
-	 src-col-pattern="{st}_{sc}"
-	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
-	 src-fk-pattern="{st}_fk"
-	 custom-color="#5b5b5b"
-	 sql-disabled="true"
-	 src-table="jkr_koodistot.tapahtumalaji"
-	 dst-table="jkr.viranomaispaatokset"
-	 src-required="false" dst-required="false"
-	upd-action="CASCADE"
-	del-action="CASCADE"/>
 
 <table name="kohteen_rakennusehdokkaat" layers="0,2,8" collapse-mode="2" max-obj-count="3" z-value="0">
 	<schema name="jkr"/>
@@ -3146,6 +3124,18 @@ end;]]></definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="dummy_viranomaispaatos_tapahtumalaji_relationship" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="jkr_koodistot.tapahtumalaji" sql-disabled="true" table="jkr.viranomaispaatokset">
+	<columns names="tapahtumalaji_koodi" ref-type="src-columns"/>
+	<columns names="koodi" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="dummy_viranomaispaatos_paatostulos_relationship" type="fk-constr" alias="paatostulos_fk" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr_koodistot.paatostulos" sql-disabled="true" table="jkr.viranomaispaatokset">
+	<columns names="paatostulos_koodi" ref-type="src-columns"/>
+	<columns names="koodi" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_rakennuksen_omistajat_rakennus" type="relfk" layers="0,2,8"
 	 custom-color="#55ff7f"
 	 src-table="jkr.rakennuksen_omistajat"
@@ -3173,5 +3163,16 @@ end;]]></definition>
 	 src-table="jkr.kiinteiston_omistajat"
 	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
 	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_viranomaispaatokset_tapahtumalaji" type="relfk" layers="10"
+	 src-table="jkr.viranomaispaatokset"
+	 dst-table="jkr_koodistot.tapahtumalaji" reference-fk="dummy_viranomaispaatos_tapahtumalaji_relationship"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="paatostulos_has_many_viranomaispaatokset" type="relfk" layers="10"
+	 custom-color="#5b5b5b"
+	 src-table="jkr.viranomaispaatokset"
+	 dst-table="jkr_koodistot.paatostulos" reference-fk="dummy_viranomaispaatos_paatostulos_relationship"
+	 src-required="false" dst-required="false"/>
 
 </dbmodel>
