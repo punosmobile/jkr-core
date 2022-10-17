@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="0,175" last-zoom="0.4" max-obj-count="49"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="421,296" last-zoom="0.4" max-obj-count="49"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,sopimus,näkymät,alueet,kohde_rakennukset,kohde_henkilöt,koodisto,päätökset,ulkoinen_asiakastieto"
 	 active-layers="1,2,3,4,5,7,8,9,11,12"
@@ -2105,14 +2105,6 @@ select tallenna_velvoite_status('2020-3-1');
 		</idxelement>
 </index>
 
-<index name="idx_velvoite_kohde_id" table="jkr.velvoite"
-	 concurrent="false" unique="false" fast-update="false" buffering="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="kohde_id"/>
-		</idxelement>
-</index>
-
 <index name="idx_velvoite_velvoitemalli_id" table="jkr.velvoite"
 	 concurrent="false" unique="false" fast-update="false" buffering="false"
 	 index-type="btree" factor="0">
@@ -2812,109 +2804,6 @@ BEGIN
 END;]]></definition>
 </function>
 
-<function name="kohteet_joilla_sekajate_ok"
-		window-func="false"
-		returns-setof="true"
-		behavior-type="CALLED ON NULL INPUT"
-		function-type="STABLE"
-		security-type="SECURITY INVOKER"
-		parallel-type="PARALLEL UNSAFE"
-		execution-cost="100"
-		row-amount="1000">
-	<schema name="jkr"/>
-	<role name="jkr_admin"/>
-	<language name="sql"/>
-	<return-type>
-	<parameter name="kohde_id">
-		<type name="integer" length="0"/>
-	</parameter>
-	</return-type>
-	<parameter name="_param1" in="true">
-		<type name="date" length="0"/>
-	</parameter>
-	<definition><![CDATA[select
-  distinct k.id
-from
-  jkr.kohde k
-where
-  -- Tyhjennysväli ok
-  exists (
-    select 1
-    from
-      jkr.v_tyhjennysvalit tv
-    where
-      k.id = tv.kohde_id
-      and tv.sopimus_voimassaolo @> $1
-      and tv.jatetyyppi_selite = 'Sekajäte'
-      and (
-        -- tavallinen sallittu tyhjennysväli
-        tv.tyhjennysvali <= 4
-        -- jos biojäte niin sallittu 8
-        or (
-          exists (select 1 from jkr.v_sopimukset s2 where k.id = s2.kohde_id and s2.sopimus_voimassaolo @> $1 and s2.jatetyyppi_selite = 'Biojäte')
-          and tv.tyhjennysvali <= 8
-        )
-        -- jos kompostointi-ilmoitus niin 8
-        or (
-          exists (select 1 from jkr.viranomaispaatokset vp where k.id = vp.kohde_id and vp.tapahtumalaji = 'PKI' and vp.paatostulos = '+' and vp.paatospvm <= $1 and $1 <= vp.paatosvoimassapvm)
-          and tv.tyhjennysvali <= 8
-        )
-        -- jos hyväksytty PJT, niin sen mukainen
-        or
-        (
-        exists (
-          select 1
-          from jkr.viranomaispaatokset vp
-          where
-            k.id = vp.kohde_id
-            and vp.jatetyyppi = (select id from jkr_koodistot.jatetyyppi jt where jt.selite = 'Sekajäte')
-            and vp.tapahtumalaji = 'PJT'
-            and vp.paatostulos = '+'
-            and vp.paatospvm <= $1 and $1 <= vp.paatosvoimassapvm
-            and tv.tyhjennysvali <= 8 --TODO: päätöksen mukainen tyhjennysväli vain tekstikentässä, joten ei voida parsia.
-          )
-        )
-      )
-  )
-  OR
-  -- pjh:n keskeytys
-  exists (
-    select 1
-    from
-      jkr.v_keskeytys ke
-    where
-      k.id = ke.kohde_id
-      and ke.jatetyyppi_selite = 'Sekajäte'
-      and ke.sopimus_voimassaolo @> $1
-      and ke.keskeytys_voimassa @> $1
-  )
-  OR
-  -- PAK Aluejätepisteen käyttöoikeushakemus
-  -- PJK Tyhjennysten keskeyttäminen
-  -- PJP Jätehuoltovelvoitteiden poistaminen
-  exists (
-    select 1
-    from jkr.viranomaispaatokset vp
-    where
-      k.id = vp.kohde_id
-      and vp.tapahtumalaji in ('PAK', 'PJK', 'PJP')
-      and vp.paatostulos = '+'
-      and vp.paatospvm <= $1 and $1 <= vp.paatosvoimassapvm
-  )
-  OR
-  --kimppa
-  -- TODO: tarkista onko kimppaisäntä ok. Ratkaise max-recursive-stack virhe.
-  exists (
-    select 1
-    from
-      jkr.v_sopimukset s
-    where
-      k.id = s.kohde_id
-      and s.kimppaisanta_kohde_id is not null
-      and s.jatetyyppi_selite = 'Sekajäte'
-  )]]></definition>
-</function>
-
 <function name="velvoite_status"
 		window-func="false"
 		returns-setof="true"
@@ -2970,109 +2859,6 @@ BEGIN
 END;]]></definition>
 </function>
 
-<function name="kohteet_joilla_biojate_ok"
-		window-func="false"
-		returns-setof="true"
-		behavior-type="CALLED ON NULL INPUT"
-		function-type="STABLE"
-		security-type="SECURITY INVOKER"
-		parallel-type="PARALLEL UNSAFE"
-		execution-cost="100"
-		row-amount="1000">
-	<schema name="jkr"/>
-	<role name="jkr_admin"/>
-	<language name="sql"/>
-	<return-type>
-	<parameter name="kohde_id">
-		<type name="integer" length="0"/>
-	</parameter>
-	</return-type>
-	<parameter name="_param1" in="true">
-		<type name="date" length="0"/>
-	</parameter>
-	<definition><![CDATA[select
-  distinct k.id
-from
-  jkr.kohde k
-where
-  (
-    --tyhjennysvälit ok
-    (
-      --tyhjennyvsäli ok talvikaudella
-      exists (
-        select 1
-        from jkr.v_tyhjennysvalit tv
-        where
-          k.id = tv.kohde_id
-          and tv.sopimus_voimassaolo @> $1
-          and tv.jatetyyppi_selite = 'Biojäte'
-          and CASE WHEN tv.alkuvko > tv.loppuvko THEN 51 BETWEEN tv.alkuvko AND (tv.loppuvko + 26) ELSE 51 BETWEEN tv.alkuvko AND tv.loppuvko END
-          and tv.tyhjennysvali <= 4
-      )
-      AND
-      --tyhjennyvsäli ok kesäkaudella
-      exists (
-        select 1
-        from jkr.v_tyhjennysvalit tv
-        where
-          k.id = tv.kohde_id
-          and tv.sopimus_voimassaolo @> $1
-          and tv.jatetyyppi_selite = 'Biojäte'
-          and tv.alkuvko < tv.loppuvko AND 26 BETWEEN tv.alkuvko AND tv.loppuvko
-          and tv.tyhjennysvali <= 2
-      )
-    )
-    OR
-    (
-      -- myös kesäkaudella saa olla 4 vko jos syväkeräys
-      exists (
-        select 1
-        from jkr.v_tyhjennysvalit tv
-        where
-          k.id = tv.kohde_id
-          and tv.sopimus_voimassaolo @> $1
-          and tv.jatetyyppi_selite = 'Biojäte'
-          and tv.alkuvko < tv.loppuvko AND 26 BETWEEN tv.alkuvko AND tv.loppuvko
-          and tv.tyhjennysvali <= 4
-      )
-      AND
-      exists (
-        select 1
-        from jkr.v_keraysvalineet kv
-        where
-          k.id = kv.kohde_id
-          and kv.sopimus_voimassaolo @> $1
-          and kv.jatetyyppi_selite = 'Biojäte'
-          and kv.keraysvalinetyyppi_selite = 'SYVÄ'
-      )
-    )
-  )
-  OR
-  exists (
-    select 1
-    from jkr.viranomaispaatokset vp
-    where
-      k.id = vp.kohde_id
-      and vp.tapahtumalaji in ('PKI', 'PJK', 'PJP', 'JMM')
-      and vp.paatostulos = '+'
-      and vp.paatospvm <= $1 and $1 <= vp.paatosvoimassapvm
-  )
-  OR
-  --kimppa
-  -- TODO: tarkista onko kimppaisäntä ok. Ratkaise max-recursive-stack virhe.
-  exists (
-    select 1
-    from
-      jkr.v_sopimukset s
-    where
-      k.id = s.kohde_id
-      and s.jatetyyppi_selite = 'Biojäte'
-      and s.sopimus_voimassaolo @> $1
-      and s.kimppaisanta_kohde_id is not null
-  )
-;]]></definition>
-</function>
-
 <function name="pitka_kitu_2_lyhyt"
 		window-func="false"
 		returns-setof="false"
@@ -3092,98 +2878,6 @@ where
 		<type name="text" length="0"/>
 	</parameter>
 	<definition><![CDATA[  SELECT substring($1,1,3)::int||'-'||substring($1,4,3)::int||'-'||substring($1,7,4)::int||'-'||substring($1,11,4)::int]]></definition>
-</function>
-
-<function name="kohteet_joilla_metalli_ok"
-		window-func="false"
-		returns-setof="true"
-		behavior-type="CALLED ON NULL INPUT"
-		function-type="STABLE"
-		security-type="SECURITY INVOKER"
-		parallel-type="PARALLEL UNSAFE"
-		execution-cost="100"
-		row-amount="1000">
-	<schema name="jkr"/>
-	<role name="jkr_admin"/>
-	<language name="sql"/>
-	<return-type>
-	<parameter name="kohde_id">
-		<type name="integer" length="0"/>
-	</parameter>
-	</return-type>
-	<parameter name="_param1" in="true">
-		<type name="date" length="0"/>
-	</parameter>
-	<definition><![CDATA[select
-  k.id
-from
-  jkr.kohde k
-where
-  exists (
-    select 1
-    from jkr.v_sopimukset s
-    where
-      s.kohde_id = k.id
-      and s.jatetyyppi_selite = 'Metalli'
-      and s.sopimus_voimassaolo @> $1
-  )
-  OR
-  exists (
-    select 1
-    from jkr.viranomaispaatokset vp
-    where
-      k.id = vp.kohde_id
-      and vp.tapahtumalaji in ('PJM', 'PJK', 'PJP', 'JMM')
-      and vp.paatostulos = '+'
-      and vp.paatospvm <= $1 and $1 <= vp.paatosvoimassapvm
-  )]]></definition>
-</function>
-
-<function name="kohteet_joilla_muovi_ok"
-		window-func="false"
-		returns-setof="true"
-		behavior-type="CALLED ON NULL INPUT"
-		function-type="STABLE"
-		security-type="SECURITY INVOKER"
-		parallel-type="PARALLEL UNSAFE"
-		execution-cost="100"
-		row-amount="1000">
-	<schema name="jkr"/>
-	<role name="jkr_admin"/>
-	<language name="sql"/>
-	<return-type>
-	<parameter name="kohde_id">
-		<type name="integer" length="0"/>
-	</parameter>
-	</return-type>
-	<parameter name="_param1" in="true">
-		<type name="date" length="0"/>
-	</parameter>
-	<definition><![CDATA[select
-  k.id
-from
-  jkr.kohde k
-where
-  exists (
-    select 1
-    from
-      jkr.v_tyhjennysvalit tv
-    where
-      k.id = tv.kohde_id
-      and tv.sopimus_voimassaolo @> $1
-      and tv.jatetyyppi_selite = 'Muovi'
-      and tv.tyhjennysvali <= 8
-  )
-  OR
-  exists (
-    select 1
-    from jkr.viranomaispaatokset vp
-    where
-      k.id = vp.kohde_id
-      and vp.tapahtumalaji in ('PJM', 'PJK', 'PJP', 'JMM')
-      and vp.paatostulos = '+'
-      and vp.paatospvm <= $1 and $1 <= vp.paatosvoimassapvm
-  )]]></definition>
 </function>
 
 <index name="uidx_velvoitemalli_selite" table="jkr.velvoitemalli"
