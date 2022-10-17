@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="166,371" last-zoom="0.4" max-obj-count="49"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="0,175" last-zoom="0.4" max-obj-count="49"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,sopimus,näkymät,alueet,kohde_rakennukset,kohde_henkilöt,koodisto,päätökset,ulkoinen_asiakastieto"
 	 active-layers="1,2,3,4,5,7,8,9,11,12"
@@ -104,7 +104,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	</customidxs>
 </table>
 
-<table name="jatehuoltomaarays" layers="0,3" collapse-mode="2" max-obj-count="9" z-value="0">
+<table name="velvoitemalli" layers="0,3" collapse-mode="2" max-obj-count="9" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Taulu, joka sisältää eri velvoitteet, ja niiden voimassaoloajan. Kullakin velvoitteella on näkymän ja funktion nimet, joilla velvoitteen täyttymistä voidaan seurata.]]></comment>
@@ -153,7 +153,7 @@ where
   (loppupvm is null OR '2021-1-1'::date` <= loppupvm)
 ```]]></comment>
 	</column>
-	<constraint name="velvoitemalli_pk" type="pk-constr" table="jkr.jatehuoltomaarays">
+	<constraint name="velvoitemalli_pk" type="pk-constr" table="jkr.velvoitemalli">
 		<columns names="id" ref-type="src-columns"/>
 	</constraint>
 
@@ -203,13 +203,13 @@ where
 	</constraint>
 
 	<customidxs object-type="column">
-		<object name="jatehuoltomaarays_id" index="2"/>
 		<object name="kohde_id" index="1"/>
+		<object name="velvoitemalli_id" index="2"/>
 	</customidxs>
 
 	<customidxs object-type="constraint">
-		<object name="jatehuoltomaarays_fk" index="2"/>
 		<object name="kohde_fk" index="1"/>
+		<object name="velvoitemalli_fk" index="2"/>
 	</customidxs>
 </table>
 
@@ -234,7 +234,7 @@ where
 	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
 	 src-fk-pattern="{st}_fk"
 	 custom-color="#ff0000"
-	 src-table="jkr.jatehuoltomaarays"
+	 src-table="jkr.velvoitemalli"
 	 dst-table="jkr.velvoite"
 	 src-required="true" dst-required="false">
 	<label ref-type="name-label">
@@ -581,7 +581,7 @@ where
 	 src-fk-pattern="{st}_fk"
 	 custom-color="#5b5b5b"
 	 src-table="jkr_koodistot.jatetyyppi"
-	 dst-table="jkr.jatehuoltomaarays"
+	 dst-table="jkr.velvoitemalli"
 	 src-required="true" dst-required="false"
 	upd-action="CASCADE"
 	del-action="CASCADE">
@@ -2117,7 +2117,7 @@ select tallenna_velvoite_status('2020-3-1');
 	 concurrent="false" unique="false" fast-update="false" buffering="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
-			<column name="jatehuoltomaarays_id"/>
+			<column name="velvoitemalli_id"/>
 		</idxelement>
 </index>
 
@@ -2320,7 +2320,7 @@ select tallenna_velvoite_status('2020-3-1');
 			<column name="kohde_id"/>
 		</idxelement>
 		<idxelement use-sorting="false">
-			<column name="jatehuoltomaarays_id"/>
+			<column name="velvoitemalli_id"/>
 		</idxelement>
 </index>
 
@@ -2748,7 +2748,7 @@ select tallenna_velvoite_status('2020-3-1');
 		<type name="text" length="0"/>
 	</column>
 		<reftable name="jkr.kohde"/>
-		<reftable name="jkr.jatehuoltomaarays"/>
+		<reftable name="jkr.velvoitemalli"/>
 		<reftable name="jkr.velvoite"/>
 		<reftable name="jkr.velvoite_status"/>
 	</reference>
@@ -2761,7 +2761,7 @@ select tallenna_velvoite_status('2020-3-1');
 
 <relationship name="rel_v_velvoitteita_rikkovat_velvoitemalli" type="reltv" layers="6"
 	 src-table="jkr.v_velvoitteita_rikkovat"
-	 dst-table="jkr.jatehuoltomaarays"
+	 dst-table="jkr.velvoitemalli"
 	 src-required="false" dst-required="false"/>
 
 <relationship name="rel_v_velvoitteita_rikkovat_velvoite" type="reltv" layers="6"
@@ -3186,7 +3186,7 @@ where
   )]]></definition>
 </function>
 
-<index name="uidx_velvoitemalli_selite" table="jkr.jatehuoltomaarays"
+<index name="uidx_velvoitemalli_selite" table="jkr.velvoitemalli"
 	 concurrent="false" unique="true" fast-update="false" buffering="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
