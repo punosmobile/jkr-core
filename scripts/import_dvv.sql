@@ -21,10 +21,9 @@ insert into jkr_osoite.katu (katunimi_fi, katunimi_sv, kunta_koodi)
 select distinct
     "kadunnimi suomeksi" as katunimi_fi,
     "kadunnimi ruotsiksi" as katunimi_sv,
-    sijainti_kunta as kunta_koodi
+    sijainti_kunta as kunta_koodi -- names may be null. sijaintikunta is never null.
 from jkr_dvv.osoite
-where "kadunnimi suomeksi" is not null or "kadunnimi ruotsiksi" is not null  -- not all places have street address
-on conflict do nothing;
+on conflict do nothing; -- create one empty street for each kunta
 
 -- Insert addresses to jkr.osoite
 insert into jkr.osoite (osoitenumero, katu_id, rakennus_id, posti_numero)
@@ -34,14 +33,13 @@ select
         then (select id from jkr_osoite.katu where osoite."kadunnimi suomeksi" = katu.katunimi_fi and osoite.sijainti_kunta = katu.kunta_koodi)
         when (osoite."kadunnimi ruotsiksi" is not null)
         then (select id from jkr_osoite.katu where osoite."kadunnimi ruotsiksi" = katu.katunimi_sv and osoite.sijainti_kunta = katu.kunta_koodi)
-        else null end as katu_id,
+        else (select id from jkr_osoite.katu where katu.katunimi_fi is null and katu.katunimi_sv is null and osoite.sijainti_kunta = katu.kunta_koodi) end as katu_id, -- each kunta has one empty street
     (select id from jkr.rakennus where osoite.rakennustunnus = rakennus.prt) as rakennus_id,
-    posti_numero as posti_numero
+    nullif(posti_numero, '00000') as posti_numero -- 00000 addresses will be mapped to the empty street
 from jkr_dvv.osoite
 where
     exists (select 1 from jkr.rakennus where osoite.rakennustunnus = rakennus.prt) -- not all addresses have buildings
-    and posti_numero != '00000'
-on conflict do nothing; -- osoitenumero and katu_id may be null. rakennus_id and posti_numero are always provided.
+on conflict do nothing; -- osoitenumero and posti_numero may be null. katu_id always points to known street or empty street.
 
 -- Insert owners to jkr.osapuoli
 -- Step 1: Find distinct people. This will pick the first line with matching henkilötunnus,
