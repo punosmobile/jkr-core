@@ -50,12 +50,7 @@ select distinct on ("henkilötunnus")
     omistaja."omistajan vakinainen kotimainen asuinosoite" as katuosoite,
     omistaja."vakinaisen kotim osoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."vak os posti_ numero" as postinumero,
-    case when (
-        omistaja."omistajan ulkomainen lähiosoite" is not null or
-        omistaja."ulkomaisen osoitteen paikkakunta" is not null or
-        omistaja."ulkomaisen osoitteen valtion postinimi" is not null)
-        then (omistaja."omistajan ulkomainen lähiosoite" || e'\n' || omistaja."ulkomaisen osoitteen paikkakunta" || e'\n' || omistaja."ulkomaisen osoitteen valtion postinimi")
-        else null end as erikoisosoite,
+    concat_ws(e'\n', omistaja."omistajan ulkomainen lähiosoite", omistaja."ulkomaisen osoitteen paikkakunta", omistaja."ulkomaisen osoitteen valtion postinimi") as erikoisosoite,
     omistaja."omist koti_kunta" as kunta,
     omistaja."henkilötunnus" as henkilotunnus
 from jkr_dvv.omistaja
@@ -76,20 +71,32 @@ from jkr_dvv.omistaja
 where omistaja."y_tunnus" is not null
 on conflict do nothing;
 
--- Step 3: Create all owners with missing henkilötunnus/y-tunnus by matching names and addresses.
+-- Step 3: Create all owners with missing henkilötunnus/y-tunnus as separate rows.
 -- Any owners without henkilötunnus/y-tunnus do not have vakinainen asuinosoite or kotikunta or
 -- foreign address.
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero)
-select distinct on ("omistajan nimi", "omistajan postiosoite", "postiosoitteen postitoimipaikka", "postios posti_numero")
+alter table jkr.osapuoli add column rakennustunnus text;
+
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, rakennustunnus)
+select distinct -- There are some duplicate rows with identical address data
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan postiosoite" as katuosoite,
     omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
-    omistaja."postios posti_numero" as postinumero
+    omistaja."postios posti_numero" as postinumero,
+    omistaja."rakennustunnus" as rakennustunnus -- We need rakennustunnus to match each row
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
-    omistaja."y_tunnus" is null
-on conflict do nothing;
+    omistaja."y_tunnus" is null and
+    not exists (
+        select 1 from jkr.rakennus r
+        join jkr.rakennuksen_omistajat ro on r.id = ro.rakennus_id
+        join jkr.osapuoli op on ro.osapuoli_id = op.id
+        where r.prt = omistaja.rakennustunnus and op.nimi = omistaja."omistajan nimi"
+        ) -- Only add those names each building does not have listed as owners yet.
+          -- Note that this may introduce multiple owners with the same name for each building
+          -- if there are multiple such rows in the same file. They will still have different
+          -- addresses, though.
+;
 
 -- Insert owners to jkr.rakennuksen_omistajat
 -- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
@@ -119,15 +126,29 @@ insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where
-        -- all fields must be equal or null to match
+        -- all fields must be equal or null to match.
+        -- some rows are exact duplicates. they should not be present in jkr.osapuoli.
         omistaja."omistajan nimi" is not distinct from osapuoli.nimi and
         omistaja."omistajan postiosoite" is not distinct from osapuoli.katuosoite and
         omistaja."postiosoitteen postitoimipaikka" is not distinct from osapuoli.postitoimipaikka and
-        omistaja."postios posti_numero" is not distinct from osapuoli.postinumero
+        omistaja."postios posti_numero" is not distinct from osapuoli.postinumero and
+        omistaja."rakennustunnus" = osapuoli.rakennustunnus
     ) as osapuoli_id
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
     omistaja."y_tunnus" is null and
-    exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings might be listed
-on conflict do nothing; -- DVV has registered some owners twice
+    exists (
+        select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) and -- not all buildings might be listed
+    not exists (
+        select 1 from jkr.rakennus r
+        join jkr.rakennuksen_omistajat ro on r.id = ro.rakennus_id
+        join jkr.osapuoli op on ro.osapuoli_id = op.id
+        where r.prt = omistaja.rakennustunnus and op.nimi = omistaja."omistajan nimi"
+        ) -- Only add those names each building does not have listed as owners yet.
+          -- Note that this may introduce multiple owners with the same name for each building
+          -- if there are multiple such rows in the same file. They will still have different
+          -- addresses, though.
+on conflict do nothing; -- There are some duplicate rows with identical address data
+
+alter table jkr.osapuoli drop column rakennustunnus;
