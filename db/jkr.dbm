@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="290,470" last-zoom="0.4" max-obj-count="49"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2264,1562" last-zoom="1" max-obj-count="49"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -272,7 +272,7 @@ where
 		</idxelement>
 </index>
 
-<table name="osapuoli" layers="0" collapse-mode="2" max-obj-count="12" z-value="0">
+<table name="osapuoli" layers="0" collapse-mode="2" max-obj-count="13" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Kohteen, rakennuksen ja kiinteistön osapuolien tiedot sisältävä taulu]]></comment>
@@ -311,6 +311,10 @@ where
 	</column>
 	<column name="kunta">
 		<type name="text" length="0"/>
+	</column>
+	<column name="henkilotunnus">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Henkilötunnus,  jos osapuolella on suomalainen henkilötunnus]]></comment>
 	</column>
 	<constraint name="osapuoli_pk" type="pk-constr" table="jkr.osapuoli">
 		<columns names="id" ref-type="src-columns"/>
@@ -737,11 +741,11 @@ where
 	</customidxs>
 </table>
 
-<table name="osoite" layers="0" collapse-mode="2" max-obj-count="6" z-value="0">
+<table name="osoite" layers="0" collapse-mode="2" max-obj-count="8" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Osoitetiedot sisältävä taulu]]></comment>
-	<position x="1260" y="1420"/>
+	<position x="1180" y="1480"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
@@ -1794,7 +1798,7 @@ Sopimustyyppejä: Tyhjennyssopimus, Kimppasopimus, Aluekeräyssopimus]]></commen
 </index>
 
 <index name="idx_osapuoli_ytunnus" table="jkr.osapuoli"
-	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
 			<column name="ytunnus"/>
@@ -3412,6 +3416,125 @@ end;]]></definition>
   ;
   SELECT 1;]]></definition>
 </function>
+
+<index name="idx_osapuoli_henkilotunnus" table="jkr.osapuoli"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="henkilotunnus"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_nimi" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="nimi"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_katuosoite" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="katuosoite"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_postitoimipaikka" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="postitoimipaikka"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_postinumero" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="postinumero"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_erikoisosoite" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="erikoisosoite"/>
+		</idxelement>
+</index>
+
+<index name="idx_katu_kunta" table="jkr_osoite.katu"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jokaisessa kunnassa on yksi katu,  jolla ei ole kadunnimiä.  Tähän katuun liitetään osoitteet,  joista tiedetään sijaintikunta,  mutta katu on tuntematon.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="kunta_koodi"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE katu.katunimi_fi is null and katu.katunimi_sv is null;]]></predicate>
+</index>
+
+<index name="idx_osoite_osoitenumero_katu_id_rakennus_id_posti_numero" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Saman rakennuksen kahdella eri osoitteella ei voi olla sama katu,  osoitenumero ja postinumero.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="osoitenumero"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="posti_numero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is not null;]]></predicate>
+</index>
+
+<index name="idx_osoite_katu_id_rakennus_id_posti_numero" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jos osoitenumero puuttuu, saman rakennuksen kahdella osoitteella ei voi olla sama katu ja postinumero.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="posti_numero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is null and katu_id is not null and posti_numero is not null;]]></predicate>
+</index>
+
+<index name="idx_osoite_rakennus_id_posti_numero" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jos katu ja osoitenumero puuttuvat, saman rakennuksen kahdella osoitteella ei voi olla sama postinumero.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="posti_numero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is null and katu_id is null and posti_numero is not null;]]></predicate>
+</index>
+
+<index name="idx_osoite_katu_id_rakennus_id" table="jkr.osoite"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jos kadunnimi, osoitenumero ja postinumero puuttuvat,  rakennuksesta tiedetään vain sijaintikunta.  Tällöin osoite viittaa kunnassa sijaitsevaan tyhjään katuun.  Samalla rakennuksella voi olla vain yksi tyhjä osoite,  joka sijaitsee tietyssä kunnassa.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is null and katu_id is not null and posti_numero is null;]]></predicate>
+</index>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
