@@ -50,4 +50,4 @@ DROP INDEX jkr.idx_osapuoli_henkilotunnus;
 CREATE UNIQUE INDEX idx_osapuoli_henkilotunnus ON jkr.osapuoli USING btree (henkilotunnus);
 
 DROP INDEX jkr.idx_osapuoli_ytunnus;
-CREATE UNIQUE INDEX idx_osapuoli_ytunnus ON jkr.osapuoli USING btree (henkilotunnus);
+CREATE UNIQUE INDEX idx_osapuoli_ytunnus ON jkr.osapuoli USING btree (ytunnus);
