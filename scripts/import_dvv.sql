@@ -17,12 +17,28 @@ on conflict do nothing
 
 -- Insert streets to jkr_osoite.katu
 -- jkr_osoite.kunta must be filled in the database by running import_posti.sql first!
+-- Step 1: Import streets with names in two languages first. This way, we will not import
+-- incomplete rows if complete rows exist.
 insert into jkr_osoite.katu (katunimi_fi, katunimi_sv, kunta_koodi)
 select distinct
     "kadunnimi suomeksi" as katunimi_fi,
     "kadunnimi ruotsiksi" as katunimi_sv,
     sijainti_kunta as kunta_koodi -- names may be null. sijaintikunta is never null.
 from jkr_dvv.osoite
+where
+    "kadunnimi suomeksi" is not null and "kadunnimi ruotsiksi" is not null
+on conflict do nothing;
+
+-- Step 2: Import streets with max one language name. This way they will not override
+-- any names with two languages.
+insert into jkr_osoite.katu (katunimi_fi, katunimi_sv, kunta_koodi)
+select distinct
+    "kadunnimi suomeksi" as katunimi_fi,
+    "kadunnimi ruotsiksi" as katunimi_sv,
+    sijainti_kunta as kunta_koodi -- names may be null. sijaintikunta is never null.
+from jkr_dvv.osoite
+where
+    "kadunnimi suomeksi" is null or "kadunnimi ruotsiksi" is null
 on conflict do nothing; -- create one empty street for each kunta
 
 -- Insert addresses to jkr.osoite
