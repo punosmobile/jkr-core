@@ -46,8 +46,8 @@ CREATE UNIQUE INDEX idx_osoite_katu_id_rakennus_id
     (katu_id, rakennus_id)
     WHERE osoitenumero is null and katu_id is not null and posti_numero is null;
 
-DROP INDEX idx_osapuoli_henkilotunnus;
+DROP INDEX jkr.idx_osapuoli_henkilotunnus;
 CREATE UNIQUE INDEX idx_osapuoli_henkilotunnus ON jkr.osapuoli USING btree (henkilotunnus);
 
-DROP INDEX idx_osapuoli_ytunnus;
+DROP INDEX jkr.idx_osapuoli_ytunnus;
 CREATE UNIQUE INDEX idx_osapuoli_ytunnus ON jkr.osapuoli USING btree (henkilotunnus);
