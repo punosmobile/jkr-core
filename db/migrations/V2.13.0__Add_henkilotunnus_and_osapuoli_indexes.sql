@@ -1,6 +1,10 @@
 ALTER TABLE jkr.osapuoli
     ADD COLUMN henkilotunnus text;
 
+ALTER TABLE jkr.osapuoli
+    ADD COLUMN tiedontuottaja_tunnus text
+    REFERENCES jkr_koodistot.tiedontuottaja (tunnus);
+
 CREATE INDEX idx_osapuoli_henkilotunnus ON jkr.osapuoli USING btree (henkilotunnus);
 CREATE INDEX idx_osapuoli_nimi ON jkr.osapuoli USING btree (nimi);
 CREATE INDEX idx_osapuoli_katuosoite ON jkr.osapuoli USING btree (katuosoite);

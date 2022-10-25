@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2264,1562" last-zoom="1" max-obj-count="49"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2116,1768" last-zoom="1" max-obj-count="49"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -272,7 +272,7 @@ where
 		</idxelement>
 </index>
 
-<table name="osapuoli" layers="0" collapse-mode="2" max-obj-count="13" z-value="0">
+<table name="osapuoli" layers="0" collapse-mode="2" max-obj-count="15" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Kohteen, rakennuksen ja kiinteistön osapuolien tiedot sisältävä taulu]]></comment>
@@ -315,6 +315,9 @@ where
 	<column name="henkilotunnus">
 		<type name="text" length="0"/>
 		<comment><![CDATA[Henkilötunnus,  jos osapuolella on suomalainen henkilötunnus]]></comment>
+	</column>
+	<column name="tiedontuottaja_tunnus">
+		<type name="text" length="0"/>
 	</column>
 	<constraint name="osapuoli_pk" type="pk-constr" table="jkr.osapuoli">
 		<columns names="id" ref-type="src-columns"/>
@@ -1588,7 +1591,11 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 	 dst-table="jkr.ulkoinen_asiakastieto"
 	 src-required="true" dst-required="false"
 	upd-action="CASCADE"
-	del-action="CASCADE"/>
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
+</relationship>
 
 <index name="uidx_ulkoinen_kohdetunnus" table="jkr.ulkoinen_asiakastieto"
 	 concurrent="false" unique="true" fast-update="false" buffering="false"
@@ -1798,7 +1805,7 @@ Sopimustyyppejä: Tyhjennyssopimus, Kimppasopimus, Aluekeräyssopimus]]></commen
 </index>
 
 <index name="idx_osapuoli_ytunnus" table="jkr.osapuoli"
-	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
 			<column name="ytunnus"/>
@@ -3535,6 +3542,19 @@ end;]]></definition>
 		</idxelement>
 	<predicate><![CDATA[WHERE osoitenumero is null and katu_id is not null and posti_numero is null;]]></predicate>
 </index>
+
+<relationship name="tiedontuottaja_has_many_osapuoli" type="rel1n" layers="0"
+	 src-col-pattern="{sc}_{st}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#601bea"
+	 src-table="jkr_koodistot.tiedontuottaja"
+	 dst-table="jkr.osapuoli"
+	 src-required="false" dst-required="false">
+	<label ref-type="name-label">
+		<position x="-373.458" y="-550.007"/>
+	</label>
+</relationship>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">

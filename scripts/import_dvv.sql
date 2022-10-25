@@ -1,3 +1,8 @@
+-- Add dvv tiedontuottaja
+insert into jkr_koodistot.tiedontuottaja values
+    ('dvv', 'Digi- ja väestötietovirasto')
+on conflict do nothing;
+
 -- Insert buildings to jkr_rakennus
 insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi)
 select 
@@ -60,7 +65,7 @@ on conflict do nothing; -- osoitenumero and posti_numero may be null. katu_id al
 -- Insert owners to jkr.osapuoli
 -- Step 1: Find distinct people. This will pick the first line with matching henkilötunnus,
 -- if a person is listed multiple times.
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, erikoisosoite, kunta, henkilotunnus)
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, erikoisosoite, kunta, henkilotunnus, tiedontuottaja_tunnus)
 select distinct on ("henkilötunnus")
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan vakinainen kotimainen asuinosoite" as katuosoite,
@@ -68,7 +73,8 @@ select distinct on ("henkilötunnus")
     omistaja."vak os posti_ numero" as postinumero,
     concat_ws(e'\n', omistaja."omistajan ulkomainen lähiosoite", omistaja."ulkomaisen osoitteen paikkakunta", omistaja."ulkomaisen osoitteen valtion postinimi") as erikoisosoite,
     omistaja."omist koti_kunta" as kunta,
-    omistaja."henkilötunnus" as henkilotunnus
+    omistaja."henkilötunnus" as henkilotunnus,
+    'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null
@@ -76,13 +82,14 @@ on conflict do nothing;
 
 -- Step 2: Find distinct non-people. Luckily, DVV y-tunnus entries don't have foreign addresses.
 -- y-tunnus does not have kotikunta either. y-tunnus always has postiosoite instead of asuinosoite.
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, ytunnus)
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, ytunnus, tiedontuottaja_tunnus)
 select distinct on ("y_tunnus")
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan postiosoite" as katuosoite,
     omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."postios posti_numero" as postinumero,
-    omistaja."y_tunnus" as ytunnus
+    omistaja."y_tunnus" as ytunnus,
+    'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
 where omistaja."y_tunnus" is not null
 on conflict do nothing;
@@ -92,13 +99,14 @@ on conflict do nothing;
 -- foreign address.
 alter table jkr.osapuoli add column rakennustunnus text;
 
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, rakennustunnus)
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, rakennustunnus, tiedontuottaja_tunnus)
 select distinct -- There are some duplicate rows with identical address data
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan postiosoite" as katuosoite,
     omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."postios posti_numero" as postinumero,
-    omistaja."rakennustunnus" as rakennustunnus -- We need rakennustunnus to match each row
+    omistaja."rakennustunnus" as rakennustunnus, -- We need rakennustunnus to match each row
+    'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
@@ -119,7 +127,7 @@ where
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
-    (select id from jkr.osapuoli where omistaja."henkilötunnus" = osapuoli.henkilotunnus) as osapuoli_id
+    (select id from jkr.osapuoli where omistaja."henkilötunnus" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null and
@@ -130,7 +138,7 @@ on conflict do nothing; -- DVV has registered some owners twice on different dat
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
-    (select id from jkr.osapuoli where omistaja."y_tunnus" = osapuoli.ytunnus) as osapuoli_id
+    (select id from jkr.osapuoli where omistaja."y_tunnus" = osapuoli.ytunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id
 from jkr_dvv.omistaja
 where
     omistaja."y_tunnus" is not null and
@@ -148,7 +156,8 @@ select
         omistaja."omistajan postiosoite" is not distinct from osapuoli.katuosoite and
         omistaja."postiosoitteen postitoimipaikka" is not distinct from osapuoli.postitoimipaikka and
         omistaja."postios posti_numero" is not distinct from osapuoli.postinumero and
-        omistaja."rakennustunnus" = osapuoli.rakennustunnus
+        omistaja."rakennustunnus" = osapuoli.rakennustunnus and
+        osapuoli.tiedontuottaja_tunnus = 'dvv'
     ) as osapuoli_id
 from jkr_dvv.omistaja
 where
