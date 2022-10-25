@@ -3661,7 +3661,7 @@ end;]]></definition>
 	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
 	 src-required="false" dst-required="true"/>
 
-<relationship name="rel_rakennuksen_omistajat_cp_rakennus" type="relfk" layers="0"
+<relationship name="rel_rakennuksen_vanhimmat_rakennus" type="relfk" layers="0"
 	 src-table="jkr.rakennuksen_vanhimmat"
 	 dst-table="jkr.rakennus" reference-fk="rakennus_fk"
 	 src-required="false" dst-required="true">
@@ -3670,9 +3670,13 @@ end;]]></definition>
 	</label>
 </relationship>
 
-<relationship name="rel_rakennuksen_omistajat_cp_osapuoli" type="relfk" layers="0"
+<relationship name="rel_rakennuksen_vanhimmat_osapuoli" type="relfk" layers="0"
 	 src-table="jkr.rakennuksen_vanhimmat"
 	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
-	 src-required="false" dst-required="true"/>
+	 src-required="false" dst-required="true">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
+</relationship>
 
 </dbmodel>
