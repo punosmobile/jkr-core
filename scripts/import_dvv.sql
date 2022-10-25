@@ -177,3 +177,29 @@ where
 on conflict do nothing; -- There are some duplicate rows with identical address data
 
 alter table jkr.osapuoli drop column rakennustunnus;
+
+-- Insert elders to jkr.osapuoli
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, kunta, henkilotunnus, tiedontuottaja_tunnus)
+select distinct on ("huoneiston vanhin asukas (henkilötunnus)")
+    concat_ws(' ', vanhin."sukunimi", vanhin."etunimet") as nimi,
+    vanhin."vakinainen kotimainen asuinosoite" as katuosoite,
+    vanhin."vakinaisen kotim osoitteen postitoimipaikka" as postitoimipaikka,
+    vanhin."vak os posti_ numero" as postinumero,
+    vanhin.sijainti_kunta as kunta,
+    vanhin."huoneiston vanhin asukas (henkilötunnus)" as henkilotunnus,
+    'dvv' as tiedontuottaja_tunnus
+from jkr_dvv.vanhin
+where
+    vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null
+on conflict do nothing; -- some elders (e.g. owners) already exist
+
+-- Insert elders to jkr.rakennuksen_vanhimmat
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id)
+select
+    (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
+    (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id
+from jkr_dvv.vanhin
+where
+    vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
+    exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
+on conflict do nothing;
