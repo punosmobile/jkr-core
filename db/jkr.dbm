@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1644,1356" last-zoom="1" max-obj-count="50"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1509,1400" last-zoom="1" max-obj-count="50"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -3571,7 +3571,7 @@ end;]]></definition>
 	<predicate><![CDATA[WHERE tiedontuottaja_tunnus = "dvv";]]></predicate>
 </index>
 
-<table name="rakennuksen_vanhimmat" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+<table name="rakennuksen_vanhimmat" layers="0" collapse-mode="2" max-obj-count="6" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Rakennuksen vanhimmat asukkaat sisältävä taulu]]></comment>
@@ -3583,6 +3583,18 @@ end;]]></definition>
 	<column name="osapuoli_id" alias="osapuoli_id" not-null="true">
 		<type name="integer" length="0"/>
 		<comment><![CDATA[Osapuolen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="huoneistonumero">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Asukkaan huoneistonumero]]></comment>
+	</column>
+	<column name="huoneistokirjain">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Asukkaan huoneistokirjain]]></comment>
+	</column>
+	<column name="jakokirjain">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Asunnon jakokirjain]]></comment>
 	</column>
 	<constraint name="rakennuksen_vanhimmat_pk" type="pk-constr" table="jkr.rakennuksen_vanhimmat">
 		<columns names="rakennus_id,osapuoli_id" ref-type="src-columns"/>
