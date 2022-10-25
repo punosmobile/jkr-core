@@ -3,6 +3,9 @@
 CREATE TABLE jkr.rakennuksen_vanhimmat (
 	rakennus_id integer NOT NULL,
 	osapuoli_id integer NOT NULL,
+    huoneistokirjain text,
+    huoneistonumero integer,
+    jakokirjain text,
 	CONSTRAINT rakennuksen_vanhimmat_pk PRIMARY KEY (rakennus_id,osapuoli_id)
 );
 -- ddl-end --

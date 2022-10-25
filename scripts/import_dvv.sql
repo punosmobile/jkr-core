@@ -194,10 +194,13 @@ where
 on conflict do nothing; -- some elders (e.g. owners) already exist
 
 -- Insert elders to jkr.rakennuksen_vanhimmat
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
-    (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id
+    (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
+    nullif(vanhin."huo_neisto_kirjain", ' ') as huoneistokirjain,
+    nullif(vanhin."huo_neisto_numero", '000')::integer as huoneistonumero,
+    nullif(vanhin."jako_kirjain", ' ') as jakokirjain
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
