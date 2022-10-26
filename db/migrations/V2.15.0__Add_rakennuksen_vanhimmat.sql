@@ -6,7 +6,7 @@ CREATE TABLE jkr.rakennuksen_vanhimmat (
     huoneistokirjain text,
     huoneistonumero integer,
     jakokirjain text,
-	CONSTRAINT rakennuksen_vanhimmat_pk PRIMARY KEY (rakennus_id,osapuoli_id)
+	CONSTRAINT rakennuksen_vanhimmat_pk PRIMARY KEY (osapuoli_id)
 );
 -- ddl-end --
 ALTER TABLE jkr.rakennuksen_vanhimmat OWNER TO jkr_admin;
@@ -34,10 +34,36 @@ USING btree
 	rakennus_id
 );
 
--- object: idx_rakennuksen_vanhimmat_osapuoli_id | type: INDEX --
--- DROP INDEX IF EXISTS jkr.idx_rakennuksen_vanhimmat_osapuoli_id CASCADE;
-CREATE INDEX idx_rakennuksen_vanhimmat_osapuoli_id ON jkr.rakennuksen_vanhimmat
-USING btree
-(
-	osapuoli_id
-);
+-- Some vanhimmat have no extra fields
+CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat_rakennus_id
+    ON jkr.rakennuksen_vanhimmat
+    (rakennus_id)
+    WHERE huoneistokirjain is null and huoneistonumero is null and jakokirjain is null;
+
+-- Some vanhimmat have one extra field
+CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat_huoneistokirjain
+    ON jkr.rakennuksen_vanhimmat
+    (rakennus_id, huoneistokirjain)
+    WHERE huoneistokirjain is not null and huoneistonumero is null and jakokirjain is null;
+
+CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat_huoneistonumero
+    ON jkr.rakennuksen_vanhimmat
+    (rakennus_id, huoneistonumero)
+    WHERE huoneistokirjain is null and huoneistonumero is not null and jakokirjain is null;
+
+-- Some vanhimmat have two extra fields
+CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat_huoneistokirjain_huoneistonumero
+    ON jkr.rakennuksen_vanhimmat
+    (rakennus_id, huoneistokirjain, huoneistonumero)
+    WHERE huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is null;
+
+CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat_huoneistonumero_jakokirjain
+    ON jkr.rakennuksen_vanhimmat
+    (rakennus_id, huoneistonumero, jakokirjain)
+    WHERE huoneistokirjain is null and huoneistonumero is not null and jakokirjain is not null;
+
+-- Some vanhimmat have all fields
+CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat_huoneistokirjain_huoneistonumero_jakokirjain
+    ON jkr.rakennuksen_vanhimmat
+    (rakennus_id, huoneistokirjain, huoneistonumero, jakokirjain)
+    WHERE huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is not null;
