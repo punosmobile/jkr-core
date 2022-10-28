@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="290,470" last-zoom="0.4" max-obj-count="49"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1393,1511" last-zoom="1" max-obj-count="50"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -272,7 +272,7 @@ where
 		</idxelement>
 </index>
 
-<table name="osapuoli" layers="0" collapse-mode="2" max-obj-count="12" z-value="0">
+<table name="osapuoli" layers="0" collapse-mode="2" max-obj-count="14" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Kohteen, rakennuksen ja kiinteistön osapuolien tiedot sisältävä taulu]]></comment>
@@ -312,16 +312,22 @@ where
 	<column name="kunta">
 		<type name="text" length="0"/>
 	</column>
+	<column name="henkilotunnus">
+		<type name="text" length="0"/>
+		<comment><![CDATA[Henkilötunnus,  jos osapuolella on suomalainen henkilötunnus]]></comment>
+	</column>
 	<constraint name="osapuoli_pk" type="pk-constr" table="jkr.osapuoli">
 		<columns names="id" ref-type="src-columns"/>
 	</constraint>
 
 	<customidxs object-type="column">
 		<object name="osapuolenlaji_koodi" index="8"/>
+		<object name="tiedontuottaja_tunnus" index="11"/>
 	</customidxs>
 
 	<customidxs object-type="constraint">
 		<object name="osapuolenlaji_fk" index="1"/>
+		<object name="tiedontuottaja_fk" index="2"/>
 	</customidxs>
 </table>
 
@@ -737,11 +743,11 @@ where
 	</customidxs>
 </table>
 
-<table name="osoite" layers="0" collapse-mode="2" max-obj-count="6" z-value="0">
+<table name="osoite" layers="0" collapse-mode="2" max-obj-count="8" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Osoitetiedot sisältävä taulu]]></comment>
-	<position x="1260" y="1420"/>
+	<position x="1180" y="1480"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
@@ -1584,7 +1590,11 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 	 dst-table="jkr.ulkoinen_asiakastieto"
 	 src-required="true" dst-required="false"
 	upd-action="CASCADE"
-	del-action="CASCADE"/>
+	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
+</relationship>
 
 <index name="uidx_ulkoinen_kohdetunnus" table="jkr.ulkoinen_asiakastieto"
 	 concurrent="false" unique="true" fast-update="false" buffering="false"
@@ -1657,7 +1667,7 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Rakennuksen omistajat sisältävä taulu]]></comment>
-	<position x="2260" y="1760"/>
+	<position x="2120" y="1600"/>
 	<column name="rakennus_id" alias="rakennus_id" not-null="true">
 		<type name="integer" length="0"/>
 		<comment><![CDATA[Rakennuksen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
@@ -3195,7 +3205,11 @@ where
 	 src-table="jkr_koodistot.tiedontuottaja"
 	 dst-table="jkr.sopimus"
 	 src-required="true" dst-required="false"
-	del-action="RESTRICT"/>
+	del-action="RESTRICT">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
+</relationship>
 
 <relationship name="tiedontuottaja_has_many_kuljetus" type="rel1n" layers="0"
 	 src-col-pattern="{st}_{sc}"
@@ -3413,6 +3427,269 @@ end;]]></definition>
   SELECT 1;]]></definition>
 </function>
 
+<index name="uidx_osapuoli_henkilotunnus" table="jkr.osapuoli"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="henkilotunnus"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_nimi" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="nimi"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_katuosoite" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="katuosoite"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_postitoimipaikka" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="postitoimipaikka"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_postinumero" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="postinumero"/>
+		</idxelement>
+</index>
+
+<index name="idx_osapuoli_erikoisosoite" table="jkr.osapuoli"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="erikoisosoite"/>
+		</idxelement>
+</index>
+
+<index name="uidx_katu_kunta" table="jkr_osoite.katu"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jokaisessa kunnassa on yksi katu,  jolla ei ole kadunnimiä.  Tähän katuun liitetään osoitteet,  joista tiedetään sijaintikunta,  mutta katu on tuntematon.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="kunta_koodi"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE katu.katunimi_fi is null and katu.katunimi_sv is null;]]></predicate>
+</index>
+
+<index name="uidx_osoite_osoitenumero_katu_id_rakennus_id_posti_numero" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Saman rakennuksen kahdella eri osoitteella ei voi olla sama katu,  osoitenumero ja postinumero.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="osoitenumero"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="posti_numero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is not null;]]></predicate>
+</index>
+
+<index name="uidx_osoite_katu_id_rakennus_id_posti_numero" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jos osoitenumero puuttuu, saman rakennuksen kahdella osoitteella ei voi olla sama katu ja postinumero.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="posti_numero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is null and katu_id is not null and posti_numero is not null;]]></predicate>
+</index>
+
+<index name="uidx_osoite_rakennus_id_posti_numero" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jos katu ja osoitenumero puuttuvat, saman rakennuksen kahdella osoitteella ei voi olla sama postinumero.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="posti_numero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is null and katu_id is null and posti_numero is not null;]]></predicate>
+</index>
+
+<index name="uidx_osoite_katu_id_rakennus_id" table="jkr.osoite"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Jos kadunnimi, osoitenumero ja postinumero puuttuvat,  rakennuksesta tiedetään vain sijaintikunta.  Tällöin osoite viittaa kunnassa sijaitsevaan tyhjään katuun.  Samalla rakennuksella voi olla vain yksi tyhjä osoite,  joka sijaitsee tietyssä kunnassa.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="katu_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE osoitenumero is null and katu_id is not null and posti_numero is null;]]></predicate>
+</index>
+
+<relationship name="tiedontuottaja_has_many_osapuoli" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#601bea"
+	 src-table="jkr_koodistot.tiedontuottaja"
+	 dst-table="jkr.osapuoli"
+	 src-required="false" dst-required="false">
+	<label ref-type="name-label">
+		<position x="-373.458" y="-550.007"/>
+	</label>
+</relationship>
+
+<index name="uidx_osapuoli_ytunnus_dvv" table="jkr.osapuoli"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="ytunnus"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE tiedontuottaja_tunnus = "dvv";]]></predicate>
+</index>
+
+<table name="rakennuksen_vanhimmat" layers="0" collapse-mode="2" max-obj-count="8" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Rakennuksen vanhimmat asukkaat sisältävä taulu]]></comment>
+	<position x="1800" y="1760"/>
+	<column name="rakennus_id" alias="rakennus_id" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Rakennuksen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="osapuoli_id" alias="osapuoli_id" not-null="true">
+		<type name="integer" length="0"/>
+		<comment><![CDATA[Osapuolen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="huoneistokirjain">
+		<type name="text" length="0"/>
+	</column>
+	<column name="huoneistonumero">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="jakokirjain">
+		<type name="text" length="0"/>
+	</column>
+	<constraint name="rakennuksen_vanhimmat_pk" type="pk-constr" table="jkr.rakennuksen_vanhimmat">
+		<columns names="osapuoli_id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<index name="idx_rakennuksen_vanhimmat_rakennus_id" table="jkr.rakennuksen_vanhimmat"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+</index>
+
+<index name="uidx_rakennuksen_vanhimmat_rakennus_id" table="jkr.rakennuksen_vanhimmat"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Rakennuksessa voi olla vain yksi vanhin,  jos huoneistoja on vain yksi.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE huoneistokirjain is null and huoneistonumero is null and jakokirjain is null;]]></predicate>
+</index>
+
+<index name="uidx_rakennuksen_vanhimmat_huoneistokirjain" table="jkr.rakennuksen_vanhimmat"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Huoneistossa voi olla vain yksi vanhin.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="huoneistokirjain"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE huoneistokirjain is not null and huoneistonumero is null and jakokirjain is null;]]></predicate>
+</index>
+
+<index name="uidx_rakennuksen_vanhimmat_huoneistonumero" table="jkr.rakennuksen_vanhimmat"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Huoneistossa voi olla vain yksi vanhin.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="huoneistonumero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE huoneistokirjain is null and huoneistonumero is not null and jakokirjain is null;]]></predicate>
+</index>
+
+<index name="uidx_rakennuksen_vanhimmat_huoneistokirjain_huoneistonumero" table="jkr.rakennuksen_vanhimmat"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Huoneistossa voi olla vain yksi vanhin.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="huoneistokirjain"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="huoneistonumero"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is null;]]></predicate>
+</index>
+
+<index name="uidx_rakennuksen_vanhimmat_huoneistonumero_jakokirjain" table="jkr.rakennuksen_vanhimmat"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Huoneistossa voi olla vain yksi vanhin.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="huoneistonumero"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="jakokirjain"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE huoneistokirjain is null and huoneistonumero is not null and jakokirjain is not null;]]></predicate>
+</index>
+
+<index name="uidx_rakennuksen_vanhimmat_huoneistokirjain_huoneistonumero_jak" table="jkr.rakennuksen_vanhimmat"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+	<comment><![CDATA[Huoneistossa voi olla vain yksi vanhin.]]></comment>
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="huoneistokirjain"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="huoneistonumero"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="jakokirjain"/>
+		</idxelement>
+	<predicate><![CDATA[WHERE huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is not null;]]></predicate>
+</index>
+
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
 	<columns names="rakennus_id" ref-type="src-columns"/>
@@ -3437,6 +3714,18 @@ end;]]></definition>
 	<columns names="id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_vanhimmat">
+	<columns names="rakennus_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="osapuoli_fk" type="fk-constr" alias="osapuoli_fk" comparison-type="MATCH FULL"
+	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.osapuoli" table="jkr.rakennuksen_vanhimmat">
+	<columns names="osapuoli_id" ref-type="src-columns"/>
+	<columns names="id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_rakennuksen_omistajat_rakennus" type="relfk" layers="0"
 	 src-table="jkr.rakennuksen_omistajat"
 	 dst-table="jkr.rakennus" reference-fk="rakennus_fk"
@@ -3456,5 +3745,23 @@ end;]]></definition>
 	 src-table="jkr.kiinteiston_omistajat"
 	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
 	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_rakennuksen_vanhimmat_rakennus" type="relfk" layers="0"
+	 src-table="jkr.rakennuksen_vanhimmat"
+	 dst-table="jkr.rakennus" reference-fk="rakennus_fk"
+	 src-required="false" dst-required="true">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
+</relationship>
+
+<relationship name="rel_rakennuksen_vanhimmat_osapuoli" type="relfk" layers="0"
+	 src-table="jkr.rakennuksen_vanhimmat"
+	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
+	 src-required="false" dst-required="true">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
+</relationship>
 
 </dbmodel>
