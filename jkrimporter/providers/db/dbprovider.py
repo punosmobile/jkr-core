@@ -20,6 +20,7 @@ from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
     create_new_kohde,
     create_single_asunto_kohteet,
+    create_paritalo_kohteet,
     find_kohde_by_asiakastiedot,
     get_kohde_by_asiakasnumero,
     get_ulkoinen_asiakastieto,
@@ -170,12 +171,16 @@ def import_dvv_kohteet(session: Session):
     # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
     single_asunto_kohteet = create_single_asunto_kohteet(session)
 
-    # 3) Kerros ja rivitalot: Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
     # 4) Paritalot: molemmille huoneistoille omat kohteet
-    # 6) Muut asumisen rakennukset (asuntola, palvelutalo): käyttötarkoitus + omistaja + kiinteistö
-    # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
+    paritalo_kohteet = create_paritalo_kohteet(session)
+    # 6) Muut asumisen rakennukset (asuntola, palvelutalo): käyttötarkoitus + omistaja
+    # + kiinteistö
     # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
     # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
+
+    # 3) Kerros ja rivitalot: Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
+    # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
+
     session.commit()
 
 

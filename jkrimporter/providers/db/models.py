@@ -86,6 +86,15 @@ class KohteenRakennukset(Base):
     kohde_id = Column(ForeignKey('jkr.kohde.id'), primary_key=True)
 
 
+# Multiple many-to-many relations mean ORM gets all confused and we will have to query
+# this association table manually too.
+class RakennuksenOmistajat(Base):
+    __tablename__ = 'rakennuksen_omistajat'
+    __table_args__ = {"schema": "jkr"}
+    rakennus_id = Column(ForeignKey('jkr.rakennus.id'), primary_key=True)
+    osapuoli_id = Column(ForeignKey('jkr.osapuoli.id'), primary_key=True)
+
+
 # Rest of the tables can be defined automatically
 with warnings.catch_warnings():
     warnings.filterwarnings(
@@ -183,6 +192,7 @@ __all__ = [
     "Posti",
     "Rakennuksenkayttotarkoitus",
     "Rakennuksenolotila",
+    "RakennuksenOmistajat",
     "RakennuksenVanhimmat",
     "Rakennus",
     "Sopimus",

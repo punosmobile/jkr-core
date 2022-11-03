@@ -7,11 +7,12 @@ from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
 from sqlalchemy import or_, select
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.sql import text
 
 from jkrimporter.model import Yhteystieto
 
 from .. import codes
-from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi
+from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi
 from ..models import (
     Katu,
     Kohde,
@@ -21,6 +22,7 @@ from ..models import (
     Osapuoli,
     Osoite,
     Rakennus,
+    RakennuksenOmistajat,
     RakennuksenVanhimmat,
     UlkoinenAsiakastieto,
 )
@@ -30,6 +32,7 @@ if TYPE_CHECKING:
     from typing import Union, List
 
     from sqlalchemy.orm import Session
+    from sqlalchemy.sql.selectable import Select
 
     from jkrimporter.model import Asiakas, Tunnus
 
@@ -242,41 +245,23 @@ def create_new_kohde(session: "Session", asiakas: "Asiakas"):
     return kohde
 
 
-def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
-    kiinteistotunnus_with_single_rakennus = (
-        select(Rakennus.kiinteistotunnus)
-        # do not import rakennus with existing kohteet
-        .filter(~Rakennus.kohde_collection.any())
-        .group_by(Rakennus.kiinteistotunnus)
-        .having(sqlalchemyFunc.count(Rakennus.id) == 1)
-    )
-
-    single_rakennus_on_kiinteisto = (
-        select(Rakennus.id)
-        .filter(Rakennus.kiinteistotunnus.in_(kiinteistotunnus_with_single_rakennus))
-    )
-    single_vanhimmat = (
-        select(
-            RakennuksenVanhimmat.rakennus_id,
-            sqlalchemyFunc.count(RakennuksenVanhimmat.osapuoli_id)
-            )
-        .filter(RakennuksenVanhimmat.rakennus_id.in_(single_rakennus_on_kiinteisto))
-        .group_by(RakennuksenVanhimmat.rakennus_id)
-        .having(sqlalchemyFunc.count(RakennuksenVanhimmat.osapuoli_id) == 1)
-    )
-    single_vanhimmat_ids = (
-        select(single_vanhimmat.subquery().c.rakennus_id)
-    )
-
-    # iterate these to create kohde with the right name, client and building
+def create_kohteet_from_vanhimmat(session: "Session", ids: "Select"):
+    """
+    Create separate kohde for each RakennuksenVanhimmat osapuoli id provided by
+    the select query.
+    """
+    # iterate vanhimmat to create kohde with the right name, client and building
     vanhimmat_osapuolet_query = (
         select(RakennuksenVanhimmat, Osapuoli)
         .join(RakennuksenVanhimmat.osapuoli)
-        .filter(RakennuksenVanhimmat.rakennus_id.in_(single_vanhimmat_ids))
+        .filter(RakennuksenVanhimmat.osapuoli_id.in_(ids))
     )
     vanhimmat_osapuolet = session.execute(vanhimmat_osapuolet_query).all()
-    print(f"Found {len(vanhimmat_osapuolet)} single houses without kohde")
+    print(vanhimmat_osapuolet_query)
+    print(vanhimmat_osapuolet)
+    print(f"Found {len(vanhimmat_osapuolet)} vanhimmat without kohde")
     kohteet = []
+    # assert False
     for vanhin_osapuoli in vanhimmat_osapuolet:
         # create kohde first
         kohde_display_name = form_display_name(
@@ -306,3 +291,102 @@ def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
         )
         session.add(asiakas)
     return kohteet
+
+
+def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
+    # also consider multiple buildings with only one combined inhabitant and owner
+    # we have to do explicit joins since sqlalchemy ORM gets terribly confused
+    # and refuses to cooperate with multiple many-to-many relations between rakennus
+    # and osapuoli :(
+
+    # kiinteistotunnus_with_single_omistaja = (
+    #     select(Rakennus.kiinteistotunnus, RakennuksenOmistajat.osapuoli_id)
+    #     .join(RakennuksenOmistajat, Rakennus.id == RakennuksenOmistajat.rakennus_id)
+    #     .group_by(Rakennus.kiinteistotunnus, RakennuksenOmistajat.osapuoli_id)
+    #     # This returns kiinteistötunnus for all owners that only own one rakennus!
+    #     # .having(sqlalchemyFunc.count(RakennuksenOmistajat.osapuoli_id) == 1)
+    #     # vs. owners for all kiinteistötunnus that only have one rakennus
+    #     # .having(sqlalchemyFunc.count(Rakennus.kiinteistotunnus) == 1)
+    #     # TODO: check owners for all rakennus with same kiinteistotunnus
+    # )
+
+    # Why do we need same omistajat? Cannot find a single case where it matters for now.
+    # same_omistajat_for_all_rakennus_on_kiinteisto = (
+    #     select(RakennuksenOmistajat.osapuoli_id, Rakennus.kiinteistotunnus)
+    #     .join(Rakennus, Rakennus.id == RakennuksenOmistajat.rakennus_id)
+    #     # all distinct owners for kiinteistötunnus
+    #     .distinct(RakennuksenOmistajat.osapuoli_id, Rakennus.kiinteistotunnus)
+    #     # TODO: check they own all buildings
+    #     .having()
+    # )
+
+    # print(same_omistajat_for_all_rakennus_on_kiinteisto)
+    # result = session.execute(same_omistajat_for_all_rakennus_on_kiinteisto).all()
+    # print(result)
+    # print(len(result))
+
+    # Why do we need same omistajat? Cannot find a single case where it matters for now.
+    # rakennus_in_single_omistaja_kiinteisto = (
+    #     select(Rakennus.id)
+    #     # do not import any rakennus with existing kohteet
+    #     .filter(~Rakennus.kohde_collection.any())
+    #     .filter(Rakennus.kiinteistotunnus.in_(kiinteistotunnus_with_single_omistaja))
+    # )
+
+    rakennus_id_without_kohde = (
+        select(Rakennus.id)
+        .filter(~Rakennus.kohde_collection.any())
+    )
+    # TODO: this will import also those cases where all buildings have different
+    # inhabitants, but each building only has one inhabitant, even if they have a
+    # common or separate owners on same kiinteistö.
+    single_vanhimmat = (
+        select(
+            RakennuksenVanhimmat.rakennus_id,
+            sqlalchemyFunc.count(RakennuksenVanhimmat.osapuoli_id)
+            )
+        .filter(RakennuksenVanhimmat.rakennus_id.in_(rakennus_id_without_kohde))
+        .group_by(RakennuksenVanhimmat.rakennus_id)
+        .having(sqlalchemyFunc.count(RakennuksenVanhimmat.osapuoli_id) == 1)
+    )
+    single_vanhimmat_rakennus_ids = (
+        select(single_vanhimmat.subquery().c.rakennus_id)
+    )
+    single_vanhimmat_osapuoli_ids = (
+        select(RakennuksenVanhimmat.osapuoli_id)
+        .filter(RakennuksenVanhimmat.rakennus_id.in_(single_vanhimmat_rakennus_ids))
+    )
+
+    print('Creating single house kohteet...')
+    return create_kohteet_from_vanhimmat(session, single_vanhimmat_osapuoli_ids)
+
+
+def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
+    # Each paritalo can belong to a maximum of two kohde. Therefore, we cannot filter
+    # out those which already have e.g. one kohde. Filter any osapuoli without kohde?
+    paritalo_rakennus_id_without_kohde = (
+        select(Rakennus.id)
+        .filter(
+            Rakennus.rakennuksenkayttotarkoitus == codes.rakennuksenkayttotarkoitukset[
+                RakennuksenKayttotarkoitusTyyppi.PARITALO
+            ]
+            )
+        .filter(~Rakennus.kohde_collection.any())
+    )
+    result = session.execute(paritalo_rakennus_id_without_kohde).all()
+    print(result)
+    print(paritalo_rakennus_id_without_kohde)
+    print(f"Found {len(result)} double houses without kohde")
+
+    vanhimmat_ids = (
+        select(RakennuksenVanhimmat.osapuoli_id)
+        .filter(
+            RakennuksenVanhimmat.rakennus_id.in_(paritalo_rakennus_id_without_kohde)
+            )
+    )
+    result = session.execute(vanhimmat_ids).all()
+    print(result)
+    print(vanhimmat_ids)
+    print(f"Found {len(result)} vanhimmat ids without paritalo kohde")
+    print('Creating paritalo kohteet...')
+    return create_kohteet_from_vanhimmat(session, vanhimmat_ids)
