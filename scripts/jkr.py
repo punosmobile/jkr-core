@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -24,6 +25,17 @@ def import_data(
     jkr_data = translator.as_jkr_data()
     db = DbProvider()
     db.write(jkr_data, urakoitsija)
+
+    print("VALMIS!")
+
+
+@app.command("import_dvv", help="Import DVV data to JKR.")
+def import_dvv(
+    siirtotiedosto: Optional[Path] = typer.Argument(None, help="Siirtotiedoston kansio")
+):
+    # TODO: call the dvv import script with the given file
+    db = DbProvider()
+    db.write_dvv_kohteet()
 
     print("VALMIS!")
 

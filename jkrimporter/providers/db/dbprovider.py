@@ -19,6 +19,7 @@ from .services.buildings import find_buildings_for_kohde
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
     create_new_kohde,
+    create_single_asunto_kohteet,
     find_kohde_by_asiakastiedot,
     get_kohde_by_asiakasnumero,
     get_ulkoinen_asiakastieto,
@@ -159,6 +160,25 @@ def import_asiakastiedot(
     session.commit()
 
 
+def import_dvv_kohteet(session: Session):
+    # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
+    # asukas.
+    # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
+    # rakennuksilla sama omistaja. Voi olla yksi tai monta rakennusta.Yhdessä
+    # rakennuksessa voi olla asukkaita.
+    # 5) Muut rakennukset, joissa huoneistotieto eli asukas: DVV:n tiedoissa
+    # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
+    single_asunto_kohteet = create_single_asunto_kohteet(session)
+
+    # 3) Kerros ja rivitalot: Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
+    # 4) Paritalot: molemmille huoneistoille omat kohteet
+    # 6) Muut asumisen rakennukset (asuntola, palvelutalo): käyttötarkoitus + omistaja + kiinteistö
+    # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
+    # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
+    # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
+    session.commit()
+
+
 class DbProvider:
     def write(self, jkr_data: JkrData, tiedontuottaja_lyhenne: str):
         try:
@@ -204,6 +224,18 @@ class DbProvider:
                     session.commit()
 
                 progress.complete()
+
+        except Exception as e:
+            logger.exception(e)
+        finally:
+            logger.debug(building_counts)
+
+    def write_dvv_kohteet(self):
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print("Luodaan kohteet")
+                import_dvv_kohteet(session)
 
         except Exception as e:
             logger.exception(e)
