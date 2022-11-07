@@ -31,11 +31,13 @@ def import_data(
 
 @app.command("import_dvv", help="Import DVV data to JKR.")
 def import_dvv(
-    siirtotiedosto: Optional[Path] = typer.Argument(None, help="Siirtotiedoston kansio")
+    siirtotiedosto: Path = typer.Argument(None, help="Siirtotiedoston kansio"),
+    perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteritiedosto")
 ):
     # TODO: call the dvv import script with the given file
+    # run_script(import_dvv, siirtotiedosto)
     db = DbProvider()
-    db.write_dvv_kohteet()
+    db.write_dvv_kohteet(perusmaksutiedosto)
 
     print("VALMIS!")
 

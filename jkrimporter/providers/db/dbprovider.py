@@ -1,7 +1,8 @@
 import datetime
 import logging
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,9 +19,11 @@ from .services.buildings import counts as building_counts
 from .services.buildings import find_buildings_for_kohde
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
+    create_multiple_asunto_kohteet,
     create_new_kohde,
-    create_single_asunto_kohteet,
     create_paritalo_kohteet,
+    create_perusmaksurekisteri_kohteet,
+    create_single_asunto_kohteet,
     find_kohde_by_asiakastiedot,
     get_kohde_by_asiakasnumero,
     get_ulkoinen_asiakastieto,
@@ -161,7 +164,17 @@ def import_asiakastiedot(
     session.commit()
 
 
-def import_dvv_kohteet(session: Session):
+def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
+    # Perusmaksurekisteri may combine buildings and kiinteistöt to a single kohde.
+    # 3) Kerros ja rivitalot: Perusmaksurekisterin aineistosta asiakasnumero. Voi olla
+    # yksi tai monta rakennusta.
+    # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta
+    # asiakasnumero. Voi olla yksi tai monta rakennusta.
+    if perusmaksutiedosto:
+        perusmaksukohteet = create_perusmaksurekisteri_kohteet(
+            session, perusmaksutiedosto
+        )
+    print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
     # asukas.
     # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
@@ -169,18 +182,24 @@ def import_dvv_kohteet(session: Session):
     # rakennuksessa voi olla asukkaita.
     # 5) Muut rakennukset, joissa huoneistotieto eli asukas: DVV:n tiedoissa
     # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
+    # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
     single_asunto_kohteet = create_single_asunto_kohteet(session)
+    print(
+        f"Imported {len(single_asunto_kohteet)} single kohteet without perusmaksu"
+    )
 
-    # 4) Paritalot: molemmille huoneistoille omat kohteet
+    # # 4) Paritalot: molemmille huoneistoille omat kohteet
+    # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
     paritalo_kohteet = create_paritalo_kohteet(session)
+    print(f"Imported {len(paritalo_kohteet)} paritalokohteet without perusmaksu")
+
+    # Remaining buildings will be combined by owner and kiinteistö.
     # 6) Muut asumisen rakennukset (asuntola, palvelutalo): käyttötarkoitus + omistaja
     # + kiinteistö
     # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
     # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
-
-    # 3) Kerros ja rivitalot: Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
-    # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta asiakasnumero. Voi olla yksi tai monta rakennusta.
-
+    # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
+    # multiple_asunto_kohteet = create_multiple_asunto_kohteet(session)
     session.commit()
 
 
@@ -235,12 +254,18 @@ class DbProvider:
         finally:
             logger.debug(building_counts)
 
-    def write_dvv_kohteet(self):
+    def write_dvv_kohteet(self, perusmaksutiedosto: Optional[Path]):
+        """
+        This method creates kohteet from dvv data existing in the database.
+
+        Optionally, a perusmaksurekisteri xlsx file may be provided to
+        combine dvv buildings with the same customer id.
+        """
         try:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Luodaan kohteet")
-                import_dvv_kohteet(session)
+                import_dvv_kohteet(session, perusmaksutiedosto)
 
         except Exception as e:
             logger.exception(e)
