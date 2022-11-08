@@ -19,7 +19,7 @@ from .services.buildings import counts as building_counts
 from .services.buildings import find_buildings_for_kohde
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
-    create_multiple_asunto_kohteet,
+    create_multiple_and_uninhabited_kohteet,
     create_new_kohde,
     create_paritalo_kohteet,
     create_perusmaksurekisteri_kohteet,
@@ -184,9 +184,7 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
     # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
     single_asunto_kohteet = create_single_asunto_kohteet(session)
-    print(
-        f"Imported {len(single_asunto_kohteet)} single kohteet without perusmaksu"
-    )
+    print(f"Imported {len(single_asunto_kohteet)} single kohteet without perusmaksu")
 
     # # 4) Paritalot: molemmille huoneistoille omat kohteet
     # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
@@ -199,7 +197,10 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
     # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
     # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
-    # multiple_asunto_kohteet = create_multiple_asunto_kohteet(session)
+    multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(session)
+    print(
+        f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet without perusmaksu"
+    )
     session.commit()
 
 
