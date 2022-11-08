@@ -33,6 +33,21 @@ asoy_regexps = [
     for string in asoy_strings
 ]
 
+yhteiso_strings = (
+    "yhtymä",
+    "yhdistys",
+    " kaupunki",
+    " kunta",
+    " seurakunta",
+    " ry",
+    " r.y."
+)
+
+yhteiso_regexps = [
+    re.compile(rf"{re.escape(string)}$", flags=re.IGNORECASE)
+    for string in yhteiso_strings
+]
+
 
 def clean_asoy_name(name: str):
     for pattern in asoy_regexps:
@@ -49,8 +64,17 @@ def is_company(name: str) -> bool:
     return any(pattern.search(name) for pattern in oy_regexps)
 
 
+def is_yhteiso(name: str) -> bool:
+    return any(pattern.search(name) for pattern in yhteiso_regexps)
+
+
 def form_display_name(haltija: "Yhteystieto") -> str:
-    if haltija.ytunnus or is_company(haltija.nimi) or is_asoy(haltija.nimi):
+    if not haltija.henkilotunnus and (
+        haltija.ytunnus
+        or is_company(haltija.nimi)
+        or is_asoy(haltija.nimi)
+        or is_yhteiso(haltija.nimi)
+    ):
         display_name = haltija.nimi.title()
     else:
         display_name = haltija.nimi.split()[0].title()
