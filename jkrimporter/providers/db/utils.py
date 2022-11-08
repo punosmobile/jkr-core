@@ -39,6 +39,7 @@ yhteiso_strings = (
     " kaupunki",
     " kunta",
     " seurakunta",
+    " sr",
     " ry",
     " r.y."
 )
