@@ -175,6 +175,7 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
             session, perusmaksutiedosto
         )
+    session.commit()
     print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
 
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
@@ -186,11 +187,13 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
     # Lasku asukkaalle.
     single_asunto_kohteet = create_single_asunto_kohteet(session)
+    session.commit()
     print(f"Imported {len(single_asunto_kohteet)} single kohteet")
 
     # 4) Paritalot: molemmille huoneistoille omat kohteet
     # Lasku asukkaalle.
     paritalo_kohteet = create_paritalo_kohteet(session)
+    session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
     # Remaining buildings will be combined by owner and kiinteistö.
@@ -199,6 +202,7 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
     # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
     # Lasku suurimmalle omistajalle.
+    session.commit()
     multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(session)
     print(
         f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet"
