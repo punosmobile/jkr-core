@@ -281,12 +281,10 @@ def create_new_kohde_from_buildings(
             rakennus_id=rakennus_id, kohde_id=kohde.id
         )
         session.add(kohteen_rakennus)
-    # TODO: a separate query to get all the owners, or is it okay just to pick the first
-    # owner as *the* yhteystieto?
     asiakas = KohteenOsapuolet(
         osapuoli_id=osapuoli.id,
         kohde_id=kohde.id,
-        osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO],
+        osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
     )
     session.add(asiakas)
     return kohde
@@ -307,6 +305,7 @@ def create_kohteet_from_vanhimmat(session: "Session", ids: "Select"):
     print(f"Found {len(vanhimmat_osapuolet)} vanhimmat without kohde")
     kohteet = []
     for (vanhin, osapuoli) in vanhimmat_osapuolet:
+        # the oldest inhabitant is the customer
         kohde = create_new_kohde_from_buildings(session, [vanhin.rakennus_id], osapuoli)
         kohteet.append(kohde)
     return kohteet
@@ -389,6 +388,7 @@ def create_kohteet_from_kiinteisto(session: "Session", kiinteistotunnukset: "Sel
                 )
             )
             first_owner, buildings_owned = next(iter(owners_by_buildings_owned.items()))
+            # the owner is the customer
             kohde = create_new_kohde_from_buildings(
                 session, list(buildings_owned), first_owner
             )
@@ -498,18 +498,20 @@ def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
                 RakennuksenKayttotarkoitusTyyppi.PARITALO
             ]
         )
-        .filter(~Rakennus.kohde_collection.any())
+        # Here, miraculously, we want *all* paritalot. No matter how many inhabitants,
+        # we want to create two kohde (or one if one inhabitant is missing, or zero).
+        # .filter(~Rakennus.kohde_collection.any())
     )
     vanhimmat_ids = select(RakennuksenVanhimmat.osapuoli_id).filter(
         RakennuksenVanhimmat.rakennus_id.in_(paritalo_rakennus_id_without_kohde)
     )
-    print("Creating paritalo kohteet...")
+    print("Creating paritalokohteet...")
     return create_kohteet_from_vanhimmat(session, vanhimmat_ids)
 
 
 def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)":
     # One kiinteistö and omistaja -> one kohde.
-    # - Name after first omistaja if there are multiple.
+    # - Name after largest omistaja if there are multiple.
     # - Separate buildings in kiinteistö if omistajas differ.
 
     kiinteistotunnus_without_kohde = (
@@ -524,7 +526,8 @@ def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)"
             != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
         )
         # do not import any rakennus with existing kohteet
-        .filter(~Rakennus.kohde_collection.any()).group_by(Rakennus.kiinteistotunnus)
+        .filter(~Rakennus.kohde_collection.any())
+        .group_by(Rakennus.kiinteistotunnus)
     )
     print("Creating remaining kohteet...")
     return create_kohteet_from_kiinteisto(session, kiinteistotunnus_without_kohde)
@@ -617,8 +620,10 @@ def create_perusmaksurekisteri_kohteet(session: "Session", perusmaksutiedosto: "
         if len(rakennustiedot) == 0:
             print("No DVV buildings found for asiakas, skipping asiakas")
             continue
-        # TODO: Try to find an osapuoli with y-tunnus for better naming
+        # TODO: a separate query to get all the owners, or is it okay just to pick the
+        # first owner as *the* yhteystieto?
         osapuoli = rakennustiedot[0]["osapuoli"]
+        # the owner is the customer, since these are not single houses
         kohde = create_new_kohde_from_buildings(
             session, [entry["rakennus_id"] for entry in rakennustiedot], osapuoli
         )

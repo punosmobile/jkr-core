@@ -170,11 +170,13 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # yksi tai monta rakennusta.
     # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta
     # asiakasnumero. Voi olla yksi tai monta rakennusta.
+    # Lasku ensimmäiselle omistajalle.
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
             session, perusmaksutiedosto
         )
     print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
+
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
     # asukas.
     # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
@@ -182,24 +184,24 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # rakennuksessa voi olla asukkaita.
     # 5) Muut rakennukset, joissa huoneistotieto eli asukas: DVV:n tiedoissa
     # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
-    # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
+    # Lasku asukkaalle.
     single_asunto_kohteet = create_single_asunto_kohteet(session)
-    print(f"Imported {len(single_asunto_kohteet)} single kohteet without perusmaksu")
+    print(f"Imported {len(single_asunto_kohteet)} single kohteet")
 
-    # # 4) Paritalot: molemmille huoneistoille omat kohteet
-    # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
+    # 4) Paritalot: molemmille huoneistoille omat kohteet
+    # Lasku asukkaalle.
     paritalo_kohteet = create_paritalo_kohteet(session)
-    print(f"Imported {len(paritalo_kohteet)} paritalokohteet without perusmaksu")
+    print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
     # Remaining buildings will be combined by owner and kiinteistö.
     # 6) Muut asumisen rakennukset (asuntola, palvelutalo): käyttötarkoitus + omistaja
     # + kiinteistö
     # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
     # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
-    # TODO: Why do we do this? Puuttuuko monelta perusmaksut, vaikka asukas on olemassa?
+    # Lasku suurimmalle omistajalle.
     multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(session)
     print(
-        f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet without perusmaksu"
+        f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet"
     )
     session.commit()
 
