@@ -17,6 +17,7 @@ from .models import (
     Osapuolenlaji,
     Osapuolenrooli,
     Rakennuksenkayttotarkoitus,
+    Rakennuksenolotila,
     SopimusTyyppi,
 )
 
@@ -54,7 +55,20 @@ class OsapuolenrooliTyyppi(Enum):
 
 
 class RakennuksenKayttotarkoitusTyyppi(Enum):
+    YKSITTAISTALO = "Yhden asunnon talot"
     PARITALO = "Kahden asunnon talot"
+    KERROSTALO = "Muut asuinkerrostalot"
+    RIVITALO = "Rivitalot"
+    KETJUTALO = "Ketjutalot"
+    LUHTITALO = "Luhtitalot"
+    VAPAA_AJANASUNTO = "Vapaa-ajan asuinrakennukset"
+    PAIVAKOTI = "Lasten päiväkodit"
+    OPPILAITOS = "Yleissivistävien oppilaitosten rakennukset"
+
+
+class RakennuksenOlotilaTyyppi(Enum):
+    MUU = "muu (sauna, liiteri, kellotapuli, ym.)"
+    TYHJILLAAN = "tyhjillään (esim. myynnissä)"
 
 
 def _init_lookup_codes(session, model, enumtype: Enum):
@@ -68,6 +82,7 @@ osapuolenlajit = {}
 jatetyypit = {}
 osapuolenroolit = {}
 rakennuksenkayttotarkoitukset = {}
+rakennuksenolotilat = {}
 sopimustyypit = {}
 keraysvalinetyypit = {}
 
@@ -76,6 +91,10 @@ def init_code_objects(session):
     global rakennuksenkayttotarkoitukset
     rakennuksenkayttotarkoitukset = _init_lookup_codes(
         session, Rakennuksenkayttotarkoitus, RakennuksenKayttotarkoitusTyyppi
+    )
+    global rakennuksenolotilat
+    rakennuksenolotilat = _init_lookup_codes(
+        session, Rakennuksenolotila, RakennuksenOlotilaTyyppi
     )
 
     global kohdetyypit

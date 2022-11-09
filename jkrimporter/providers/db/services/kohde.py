@@ -13,7 +13,12 @@ from sqlalchemy.sql import text
 from jkrimporter.model import Yhteystieto
 
 from .. import codes
-from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi
+from ..codes import (
+    KohdeTyyppi,
+    OsapuolenrooliTyyppi,
+    RakennuksenKayttotarkoitusTyyppi,
+    RakennuksenOlotilaTyyppi,
+)
 from ..models import (
     Katu,
     Kohde,
@@ -324,13 +329,21 @@ def create_kohteet_from_kiinteisto(session: "Session", kiinteistotunnukset: "Sel
     print(f"Found {len(kiinteistotunnukset)} kiinteistötunnukset without kohde")
 
     # Fastest to load everything to memory first.
-    # We must also filter out buildings with existing kohde here, since the same
-    # kiinteistö might have buildings both with and without kohde. We create
-    # the missing kohde if any owners are found for these buildings.
     rakennus_ids = session.execute(
         select(Rakennus.kiinteistotunnus, Rakennus.id)
+        # filter out empty buildings from each kiinteistö:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        ).filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
+        # We must also filter out buildings with existing kohde here, since the same
+        # kiinteistö might have buildings both with and without kohde. We create
+        # the missing kohde if any owners are found for these buildings.
         .filter(~Rakennus.kohde_collection.any())
-        ).all()
+    ).all()
     rakennus_ids_by_kiinteistotunnus = {}
     for (tunnus, rakennus_id) in rakennus_ids:
         if tunnus not in rakennus_ids_by_kiinteistotunnus:
@@ -426,6 +439,21 @@ def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
 
     rakennus_id_without_kohde = (
         select(Rakennus.id)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        ).filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
+        # paritalot will be considered separately?
+        # .filter(
+        #     Rakennus.rakennuksenkayttotarkoitus
+        #     != codes.rakennuksenkayttotarkoitukset[
+        #         RakennuksenKayttotarkoitusTyyppi.PARITALO
+        #     ]
+        # )
         # do not import any rakennus with existing kohteet
         .filter(~Rakennus.kohde_collection.any())
     )
@@ -455,6 +483,15 @@ def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
     # out those which already have e.g. one kohde. Filter any osapuoli without kohde?
     paritalo_rakennus_id_without_kohde = (
         select(Rakennus.id)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        )
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
         .filter(
             Rakennus.rakennuksenkayttotarkoitus
             == codes.rakennuksenkayttotarkoitukset[
@@ -477,6 +514,15 @@ def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)"
 
     kiinteistotunnus_without_kohde = (
         select(Rakennus.kiinteistotunnus)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        )
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
         # do not import any rakennus with existing kohteet
         .filter(~Rakennus.kohde_collection.any()).group_by(Rakennus.kiinteistotunnus)
     )
@@ -513,6 +559,39 @@ def create_perusmaksurekisteri_kohteet(session: "Session", perusmaksutiedosto: "
     # Just pick the first owner to name the kohde with.
     dvv_rakennustiedot_query = (
         select(Rakennus.prt, Rakennus.id, Osapuoli).join(Rakennus.osapuoli_collection)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        )
+        # Do not import all manner of random schools etc. combined under one bill:
+        # Seems that the sqlalchemy 'not_in()' operator is not implemented for classes
+        # mapped with foreign keys, go figure, so would have to fetch the actual
+        # numbers (foreign keys). Will just go with combining filters here.
+        .filter(
+            or_(
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.KERROSTALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.RIVITALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.LUHTITALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.KETJUTALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.VAPAA_AJANASUNTO
+                ],
+            )
+        )
         # do not import any rakennus with existing kohteet
         .filter(~Rakennus.kohde_collection.any())
     )
