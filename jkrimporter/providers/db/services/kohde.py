@@ -1,4 +1,5 @@
 import datetime
+from collections import defaultdict
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -339,14 +340,13 @@ def create_kohteet_from_kiinteisto(session: "Session", kiinteistotunnukset: "Sel
             != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
         )
         # We must also filter out buildings with existing kohde here, since the same
-        # kiinteistö might have buildings both with and without kohde. We create
-        # the missing kohde if any owners are found for these buildings.
+        # kiinteistö might have buildings both with and without kohde, if somebody
+        # lives in a single building in the kiinteistö. We create the missing kohde if
+        # any owners are found for the remaining buildings.
         .filter(~Rakennus.kohde_collection.any())
     ).all()
-    rakennus_ids_by_kiinteistotunnus = {}
+    rakennus_ids_by_kiinteistotunnus = defaultdict(set)
     for (tunnus, rakennus_id) in rakennus_ids:
-        if tunnus not in rakennus_ids_by_kiinteistotunnus:
-            rakennus_ids_by_kiinteistotunnus[tunnus] = set()
         rakennus_ids_by_kiinteistotunnus[tunnus].add(rakennus_id)
 
     rakennus_owners = session.execute(
@@ -354,13 +354,9 @@ def create_kohteet_from_kiinteisto(session: "Session", kiinteistotunnukset: "Sel
             Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id
         )
     ).all()
-    owners_by_rakennus_id = {}
-    rakennus_ids_by_owner_id = {}
+    owners_by_rakennus_id = defaultdict(set)
+    rakennus_ids_by_owner_id = defaultdict(set)
     for (rakennus_id, owner) in rakennus_owners:
-        if rakennus_id not in owners_by_rakennus_id:
-            owners_by_rakennus_id[rakennus_id] = set()
-        if owner.id not in rakennus_ids_by_owner_id:
-            rakennus_ids_by_owner_id[owner.id] = set()
         owners_by_rakennus_id[rakennus_id].add(owner)
         rakennus_ids_by_owner_id[owner.id].add(rakennus_id)
 
@@ -380,14 +376,12 @@ def create_kohteet_from_kiinteisto(session: "Session", kiinteistotunnukset: "Sel
                 for owner in owners
             }
             # Start from the owner with the most buildings
-            owners_by_buildings_owned = dict(
-                sorted(
+            owners_by_buildings_owned = sorted(
                     buildings_by_owner.items(),
                     key=lambda item: len(item[1]),
                     reverse=True,
                 )
-            )
-            first_owner, buildings_owned = next(iter(owners_by_buildings_owned.items()))
+            first_owner, buildings_owned = owners_by_buildings_owned[0]
             # the owner is the customer
             kohde = create_new_kohde_from_buildings(
                 session, list(buildings_owned), first_owner
@@ -398,44 +392,13 @@ def create_kohteet_from_kiinteisto(session: "Session", kiinteistotunnukset: "Sel
 
 
 def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
-    # also consider multiple buildings with only one combined inhabitant and owner
-    # we have to do explicit joins since sqlalchemy ORM gets terribly confused
-    # and refuses to cooperate with multiple many-to-many relations between rakennus
-    # and osapuoli :(
-
-    # kiinteistotunnus_with_single_omistaja = (
-    #     select(Rakennus.kiinteistotunnus, RakennuksenOmistajat.osapuoli_id)
-    #     .join(RakennuksenOmistajat, Rakennus.id == RakennuksenOmistajat.rakennus_id)
-    #     .group_by(Rakennus.kiinteistotunnus, RakennuksenOmistajat.osapuoli_id)
-    #     # This returns kiinteistötunnus for all owners that only own one rakennus!
-    #     # .having(sqlalchemyFunc.count(RakennuksenOmistajat.osapuoli_id) == 1)
-    #     # vs. owners for all kiinteistötunnus that only have one rakennus
-    #     # .having(sqlalchemyFunc.count(Rakennus.kiinteistotunnus) == 1)
-    #     # TODO: check owners for all rakennus with same kiinteistotunnus
-    # )
-
-    # Why do we need same omistajat? Cannot find a single case where it matters for now.
-    # same_omistajat_for_all_rakennus_on_kiinteisto = (
-    #     select(RakennuksenOmistajat.osapuoli_id, Rakennus.kiinteistotunnus)
-    #     .join(Rakennus, Rakennus.id == RakennuksenOmistajat.rakennus_id)
-    #     # all distinct owners for kiinteistötunnus
-    #     .distinct(RakennuksenOmistajat.osapuoli_id, Rakennus.kiinteistotunnus)
-    #     # TODO: check they own all buildings
-    #     .having()
-    # )
-
-    # print(same_omistajat_for_all_rakennus_on_kiinteisto)
-    # result = session.execute(same_omistajat_for_all_rakennus_on_kiinteisto).all()
-    # print(result)
-    # print(len(result))
-
-    # Why do we need same omistajat? Cannot find a single case where it matters for now.
-    # rakennus_in_single_omistaja_kiinteisto = (
-    #     select(Rakennus.id)
-    #     # do not import any rakennus with existing kohteet
-    #     .filter(~Rakennus.kohde_collection.any())
-    #     .filter(Rakennus.kiinteistotunnus.in_(kiinteistotunnus_with_single_omistaja))
-    # )
+    """
+    Create kohteet from all buildings that have a single vanhin and do not have kohde.
+    """
+    # TODO: should we check kiinteistöt here? If the same kiinteistö has several
+    # buildings with inhabitants, should we filter them out here and import later at
+    # create multiple_and_uninhabited_kohteet? That way, kiinteistö owner (not each
+    # inhabitant) would become asiakas.
 
     rakennus_id_without_kohde = (
         select(Rakennus.id)
@@ -447,17 +410,12 @@ def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
             Rakennus.rakennuksenolotila
             != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
         )
-        # paritalot will be considered separately?
-        # .filter(
-        #     Rakennus.rakennuksenkayttotarkoitus
-        #     != codes.rakennuksenkayttotarkoitukset[
-        #         RakennuksenKayttotarkoitusTyyppi.PARITALO
-        #     ]
-        # )
+        # No need to filter out paritalot. If they only have one inhabitant, they
+        # may just as well be imported here.
         # do not import any rakennus with existing kohteet
         .filter(~Rakennus.kohde_collection.any())
     )
-    # TODO: this will import also those cases where all buildings have different
+    # TODO: This will separate also those cases where all buildings have different
     # inhabitants, but each building only has one inhabitant, even if they have a
     # common or separate owners on same kiinteistö.
     single_vanhimmat = (
@@ -479,8 +437,13 @@ def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
 
 
 def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
-    # Each paritalo can belong to a maximum of two kohde. Therefore, we cannot filter
-    # out those which already have e.g. one kohde. Filter any osapuoli without kohde?
+    """
+    Create kohteet from all paritalo buildings that do not have kohde.
+    """
+    # Each paritalo can belong to a maximum of two kohde. Create both in this
+    # step. If there is only one inhabitant (i.e. another flat is empty, flats
+    # are combined, etc.), the building already has one kohde from previous
+    # step and needs not be imported here.
     paritalo_rakennus_id_without_kohde = (
         select(Rakennus.id)
         # filter out empty buildings:
@@ -498,9 +461,8 @@ def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
                 RakennuksenKayttotarkoitusTyyppi.PARITALO
             ]
         )
-        # Here, miraculously, we want *all* paritalot. No matter how many inhabitants,
-        # we want to create two kohde (or one if one inhabitant is missing, or zero).
-        # .filter(~Rakennus.kohde_collection.any())
+        # do not import any rakennus with existing kohteet
+        .filter(~Rakennus.kohde_collection.any())
     )
     vanhimmat_ids = select(RakennuksenVanhimmat.osapuoli_id).filter(
         RakennuksenVanhimmat.rakennus_id.in_(paritalo_rakennus_id_without_kohde)
@@ -510,6 +472,9 @@ def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
 
 
 def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)":
+    """
+    Create kohteet from all kiinteistötunnus that do not have kohde.
+    """
     # One kiinteistö and omistaja -> one kohde.
     # - Name after largest omistaja if there are multiple.
     # - Separate buildings in kiinteistö if omistajas differ.
@@ -536,12 +501,13 @@ def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)"
 def create_perusmaksurekisteri_kohteet(session: "Session", perusmaksutiedosto: "Path"):
     """
     Create kohteet combining all dvv buildings that have the same asiakasnumero in
-    perusmaksurekisteri. No need to import anything from perusmaksurekisteri, so
-    we don't want a complete provider for the file.
+    perusmaksurekisteri and have the desired type. No need to import anything from
+    perusmaksurekisteri, so we don't want a complete provider for the file.
     """
     perusmaksut = load_workbook(filename=perusmaksutiedosto)
     sheet = perusmaksut["Tietopyyntö asiakasrekisteristä"]
-    buildings_to_combine = {}
+    # some asiakasnumero occur multiple times for the same prt
+    buildings_to_combine = defaultdict(lambda: {"prt": set()})
     for index, row in enumerate(sheet.values):
         # skip header
         if index == 0:
@@ -552,12 +518,7 @@ def create_perusmaksurekisteri_kohteet(session: "Session", perusmaksutiedosto: "
         # yhteyshenkilon_nimi = row[7].value
         # katuosoite = row[8].value
         # postitoimipaikka = row[9].value
-        if asiakasnumero not in buildings_to_combine:
-            buildings_to_combine[asiakasnumero] = {}
-            # some asiakasnumero occur multiple times for the same prt
-            buildings_to_combine[asiakasnumero]["prt"] = set((prt,))
-        else:
-            buildings_to_combine[asiakasnumero]["prt"].add(prt)
+        buildings_to_combine[asiakasnumero]["prt"].add(prt)
     print(f"Found {len(buildings_to_combine)} perusmaksu clients")
     # Just pick the first owner to name the kohde with.
     dvv_rakennustiedot_query = (
