@@ -50,6 +50,7 @@ class Yhteystieto:
     nimi: str
     osoite: Osoite
     ytunnus: Optional[str] = None
+    henkilotunnus: Optional[str] = None
 
 
 @dataclass

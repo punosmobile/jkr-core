@@ -1,7 +1,9 @@
 import warnings
 
 from geoalchemy2 import Geometry  # noqa: F401, must be imported for Geometry reflect
-from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.ext.automap import automap_base, generate_relationship
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy import Column, ForeignKey, Integer, Table
 
 from jkrimporter.providers.db.database import engine
 
@@ -40,7 +42,17 @@ def name_for_collection(base, local_cls, referred_cls, constraint):
             collection_name = "sopimus_collection"
         elif constraint.name == "kimppaisanta_kohde_fk":
             collection_name = "kimppasopimus_collection"
-
+    # this is needed so that kohde_collection won't map to rakennusehdokkaat.
+    # with multiple many-to-many relationships, the mapping order may be random
+    # and the second relationship will not get a collection at all.
+    if local_cls.__name__ in ("kohde", "rakennus") and referred_cls.__name__ in (
+        "kohde",
+        "rakennus",
+    ):
+        if constraint.name == "ehdokaskohde_fk":
+            collection_name = "ehdokasrakennus_collection"
+        elif constraint.name == "ehdokasrakennus_fk":
+            collection_name = "ehdokaskohde_collection"
     return collection_name
 
 
@@ -64,6 +76,26 @@ def name_for_collection(base, local_cls, referred_cls, constraint):
 #     else:
 #         raise TypeError("Unknown relationship function: %s" % return_fn)
 
+
+# Define any association tables that need to be directly insertable.
+# Sqlalchemy only generates them automatically if they have extra columns.
+class KohteenRakennukset(Base):
+    __tablename__ = 'kohteen_rakennukset'
+    __table_args__ = {"schema": "jkr"}
+    rakennus_id = Column(ForeignKey('jkr.rakennus.id'), primary_key=True)
+    kohde_id = Column(ForeignKey('jkr.kohde.id'), primary_key=True)
+
+
+# Multiple many-to-many relations mean ORM gets all confused and we will have to query
+# this association table manually too.
+class RakennuksenOmistajat(Base):
+    __tablename__ = 'rakennuksen_omistajat'
+    __table_args__ = {"schema": "jkr"}
+    rakennus_id = Column(ForeignKey('jkr.rakennus.id'), primary_key=True)
+    osapuoli_id = Column(ForeignKey('jkr.osapuoli.id'), primary_key=True)
+
+
+# Rest of the tables can be defined automatically
 with warnings.catch_warnings():
     warnings.filterwarnings(
         "ignore",
@@ -103,6 +135,7 @@ Pohjavesialue = Base.classes.pohjavesialue
 Posti = Base.classes.posti
 Rakennuksenkayttotarkoitus = Base.classes.rakennuksenkayttotarkoitus
 Rakennuksenolotila = Base.classes.rakennuksenolotila
+RakennuksenVanhimmat = Base.classes.rakennuksen_vanhimmat
 Rakennus = Base.classes.rakennus
 Sopimus = Base.classes.sopimus
 SopimusTyyppi = Base.classes.sopimustyyppi
@@ -148,6 +181,7 @@ __all__ = [
     "Kohde",
     "Kohdetyyppi",
     "KohteenOsapuolet",
+    "KohteenRakennukset",
     "Kuljetus",
     "Kunta",
     "Osapuolenlaji",
@@ -158,6 +192,8 @@ __all__ = [
     "Posti",
     "Rakennuksenkayttotarkoitus",
     "Rakennuksenolotila",
+    "RakennuksenOmistajat",
+    "RakennuksenVanhimmat",
     "Rakennus",
     "Sopimus",
     "Taajama",

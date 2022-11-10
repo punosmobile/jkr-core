@@ -1,31 +1,46 @@
 import datetime
+from collections import defaultdict
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
+from openpyxl import load_workbook
 from psycopg2.extras import DateRange
 from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
 from sqlalchemy import or_, select
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.sql import text
+
+from jkrimporter.model import Yhteystieto
 
 from .. import codes
-from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi
+from ..codes import (
+    KohdeTyyppi,
+    OsapuolenrooliTyyppi,
+    RakennuksenKayttotarkoitusTyyppi,
+    RakennuksenOlotilaTyyppi,
+)
 from ..models import (
     Katu,
     Kohde,
     KohteenOsapuolet,
+    KohteenRakennukset,
     Kunta,
     Osapuoli,
     Osoite,
+    RakennuksenOmistajat,
+    RakennuksenVanhimmat,
     Rakennus,
     UlkoinenAsiakastieto,
 )
 from ..utils import form_display_name
 
 if TYPE_CHECKING:
-    from typing import Union
+    from pathlib import Path
+    from typing import Dict, List, Optional, Set, Union
 
     from sqlalchemy.orm import Session
+    from sqlalchemy.sql.selectable import Select
 
     from jkrimporter.model import Asiakas, Tunnus
 
@@ -236,3 +251,342 @@ def create_new_kohde(session: "Session", asiakas: "Asiakas"):
     )
 
     return kohde
+
+
+def create_new_kohde_from_buildings(
+    session: "Session",
+    rakennus_ids: "List[int]",
+    osapuoli: "Osapuoli",
+):
+    """
+    Create combined kohde for the given list of building ids. Osapuoli will be
+    used for kohde name and contact info.
+    """
+    kohde_display_name = form_display_name(
+        Yhteystieto(
+            osapuoli.nimi, osapuoli.katuosoite, osapuoli.ytunnus, osapuoli.henkilotunnus
+        )
+    )
+    kohde = Kohde(
+        nimi=kohde_display_name,
+        kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
+        alkupvm=datetime.date.today(),
+    )
+    session.add(kohde)
+    # we need to get the id for the kohde from db
+    session.flush()
+
+    # create dependent objects
+    for rakennus_id in rakennus_ids:
+        kohteen_rakennus = KohteenRakennukset(
+            rakennus_id=rakennus_id, kohde_id=kohde.id
+        )
+        session.add(kohteen_rakennus)
+    asiakas = KohteenOsapuolet(
+        osapuoli_id=osapuoli.id,
+        kohde_id=kohde.id,
+        osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
+    )
+    session.add(asiakas)
+    return kohde
+
+
+def create_kohteet_from_vanhimmat(session: "Session", ids: "Select"):
+    """
+    Create one kohde for each RakennuksenVanhimmat osapuoli id provided by
+    the select query.
+    """
+    # iterate vanhimmat to create kohde with the right name, client and building
+    vanhimmat_osapuolet_query = (
+        select(RakennuksenVanhimmat, Osapuoli)
+        .join(RakennuksenVanhimmat.osapuoli)
+        .filter(RakennuksenVanhimmat.osapuoli_id.in_(ids))
+    )
+    vanhimmat_osapuolet = session.execute(vanhimmat_osapuolet_query).all()
+    print(f"Found {len(vanhimmat_osapuolet)} vanhimmat without kohde")
+    kohteet = []
+    for (vanhin, osapuoli) in vanhimmat_osapuolet:
+        # the oldest inhabitant is the customer
+        kohde = create_new_kohde_from_buildings(session, [vanhin.rakennus_id], osapuoli)
+        kohteet.append(kohde)
+    return kohteet
+
+
+def create_kohteet_from_kiinteisto(session: "Session", kiinteistotunnukset: "Select"):
+    """
+    Create at least one kohde from each kiinteistotunnus provided by the select query.
+
+    If the same kiinteistotunnus has buildings with multiple owners,
+    first kohde will contain all buildings owned by the owner with the most buildings.
+
+    Then, create second kohde from remaining buildings owned by the owner with the
+    second largest number of buildings, etc., until all buildings have kohde named
+    after their owner.
+    """
+    kiinteistotunnukset = [
+        result[0] for result in session.execute(kiinteistotunnukset).all()
+    ]
+    print(f"Found {len(kiinteistotunnukset)} kiinteistötunnukset without kohde")
+
+    # Fastest to load everything to memory first.
+    rakennus_ids = session.execute(
+        select(Rakennus.kiinteistotunnus, Rakennus.id)
+        # filter out empty buildings from each kiinteistö:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        ).filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
+        # We must also filter out buildings with existing kohde here, since the same
+        # kiinteistö might have buildings both with and without kohde, if somebody
+        # lives in a single building in the kiinteistö. We create the missing kohde if
+        # any owners are found for the remaining buildings.
+        .filter(~Rakennus.kohde_collection.any())
+    ).all()
+    rakennus_ids_by_kiinteistotunnus = defaultdict(set)
+    for (tunnus, rakennus_id) in rakennus_ids:
+        rakennus_ids_by_kiinteistotunnus[tunnus].add(rakennus_id)
+
+    rakennus_owners = session.execute(
+        select(RakennuksenOmistajat.rakennus_id, Osapuoli).join(
+            Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id
+        )
+    ).all()
+    owners_by_rakennus_id = defaultdict(set)
+    rakennus_ids_by_owner_id = defaultdict(set)
+    for (rakennus_id, owner) in rakennus_owners:
+        owners_by_rakennus_id[rakennus_id].add(owner)
+        rakennus_ids_by_owner_id[owner.id].add(rakennus_id)
+
+    kohteet = []
+    for kiinteistotunnus in kiinteistotunnukset:
+        if not kiinteistotunnus:
+            # some buildings have missing kiinteistötunnus. cannot import them here.
+            continue
+        ids_to_add = rakennus_ids_by_kiinteistotunnus[kiinteistotunnus]
+        # some buildings have no owner. cannot import them here.
+        ids_to_add = ids_to_add & set(owners_by_rakennus_id.keys())
+        while ids_to_add:
+            owners = set().union(*[owners_by_rakennus_id[id] for id in ids_to_add])
+            # list all buildings on *this* kiinteistö per owner
+            buildings_by_owner = {
+                owner: ids_to_add & rakennus_ids_by_owner_id[owner.id]
+                for owner in owners
+            }
+            # Start from the owner with the most buildings
+            owners_by_buildings_owned = sorted(
+                    buildings_by_owner.items(),
+                    key=lambda item: len(item[1]),
+                    reverse=True,
+                )
+            first_owner, buildings_owned = owners_by_buildings_owned[0]
+            # the owner is the customer
+            kohde = create_new_kohde_from_buildings(
+                session, list(buildings_owned), first_owner
+            )
+            ids_to_add -= buildings_owned
+            kohteet.append(kohde)
+    return kohteet
+
+
+def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
+    """
+    Create kohteet from all buildings that have a single vanhin and do not have kohde.
+    """
+    # TODO: should we check kiinteistöt here? If the same kiinteistö has several
+    # buildings with inhabitants, should we filter them out here and import later at
+    # create multiple_and_uninhabited_kohteet? That way, kiinteistö owner (not each
+    # inhabitant) would become asiakas.
+
+    rakennus_id_without_kohde = (
+        select(Rakennus.id)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        ).filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
+        # No need to filter out paritalot. If they only have one inhabitant, they
+        # may just as well be imported here.
+        # do not import any rakennus with existing kohteet
+        .filter(~Rakennus.kohde_collection.any())
+    )
+    # TODO: This will separate also those cases where all buildings have different
+    # inhabitants, but each building only has one inhabitant, even if they have a
+    # common or separate owners on same kiinteistö.
+    single_vanhimmat = (
+        select(
+            RakennuksenVanhimmat.rakennus_id,
+            sqlalchemyFunc.count(RakennuksenVanhimmat.osapuoli_id),
+        )
+        .filter(RakennuksenVanhimmat.rakennus_id.in_(rakennus_id_without_kohde))
+        .group_by(RakennuksenVanhimmat.rakennus_id)
+        .having(sqlalchemyFunc.count(RakennuksenVanhimmat.osapuoli_id) == 1)
+    )
+    single_vanhimmat_rakennus_ids = select(single_vanhimmat.subquery().c.rakennus_id)
+    single_vanhimmat_osapuoli_ids = select(RakennuksenVanhimmat.osapuoli_id).filter(
+        RakennuksenVanhimmat.rakennus_id.in_(single_vanhimmat_rakennus_ids)
+    )
+
+    print("Creating single house kohteet...")
+    return create_kohteet_from_vanhimmat(session, single_vanhimmat_osapuoli_ids)
+
+
+def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
+    """
+    Create kohteet from all paritalo buildings that do not have kohde.
+    """
+    # Each paritalo can belong to a maximum of two kohde. Create both in this
+    # step. If there is only one inhabitant (i.e. another flat is empty, flats
+    # are combined, etc.), the building already has one kohde from previous
+    # step and needs not be imported here.
+    paritalo_rakennus_id_without_kohde = (
+        select(Rakennus.id)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        )
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
+        .filter(
+            Rakennus.rakennuksenkayttotarkoitus
+            == codes.rakennuksenkayttotarkoitukset[
+                RakennuksenKayttotarkoitusTyyppi.PARITALO
+            ]
+        )
+        # do not import any rakennus with existing kohteet
+        .filter(~Rakennus.kohde_collection.any())
+    )
+    vanhimmat_ids = select(RakennuksenVanhimmat.osapuoli_id).filter(
+        RakennuksenVanhimmat.rakennus_id.in_(paritalo_rakennus_id_without_kohde)
+    )
+    print("Creating paritalokohteet...")
+    return create_kohteet_from_vanhimmat(session, vanhimmat_ids)
+
+
+def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)":
+    """
+    Create kohteet from all kiinteistötunnus that do not have kohde.
+    """
+    # One kiinteistö and omistaja -> one kohde.
+    # - Name after largest omistaja if there are multiple.
+    # - Separate buildings in kiinteistö if omistajas differ.
+
+    kiinteistotunnus_without_kohde = (
+        select(Rakennus.kiinteistotunnus)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        )
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.MUU]
+        )
+        # do not import any rakennus with existing kohteet
+        .filter(~Rakennus.kohde_collection.any())
+        .group_by(Rakennus.kiinteistotunnus)
+    )
+    print("Creating remaining kohteet...")
+    return create_kohteet_from_kiinteisto(session, kiinteistotunnus_without_kohde)
+
+
+def create_perusmaksurekisteri_kohteet(session: "Session", perusmaksutiedosto: "Path"):
+    """
+    Create kohteet combining all dvv buildings that have the same asiakasnumero in
+    perusmaksurekisteri and have the desired type. No need to import anything from
+    perusmaksurekisteri, so we don't want a complete provider for the file.
+    """
+    perusmaksut = load_workbook(filename=perusmaksutiedosto)
+    sheet = perusmaksut["Tietopyyntö asiakasrekisteristä"]
+    # some asiakasnumero occur multiple times for the same prt
+    buildings_to_combine = defaultdict(lambda: {"prt": set()})
+    for index, row in enumerate(sheet.values):
+        # skip header
+        if index == 0:
+            continue
+        asiakasnumero = str(row[1])
+        prt = str(row[3])
+        # asiakkaan_nimi = row[6].value
+        # yhteyshenkilon_nimi = row[7].value
+        # katuosoite = row[8].value
+        # postitoimipaikka = row[9].value
+        buildings_to_combine[asiakasnumero]["prt"].add(prt)
+    print(f"Found {len(buildings_to_combine)} perusmaksu clients")
+    # Just pick the first owner to name the kohde with.
+    dvv_rakennustiedot_query = (
+        select(Rakennus.prt, Rakennus.id, Osapuoli).join(Rakennus.osapuoli_collection)
+        # filter out empty buildings:
+        .filter(
+            Rakennus.rakennuksenolotila
+            != codes.rakennuksenolotilat[RakennuksenOlotilaTyyppi.TYHJILLAAN]
+        )
+        # Do not import all manner of random schools etc. combined under one bill:
+        # Seems that the sqlalchemy 'not_in()' operator is not implemented for classes
+        # mapped with foreign keys, go figure, so would have to fetch the actual
+        # numbers (foreign keys). Will just go with combining filters here.
+        .filter(
+            or_(
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.KERROSTALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.RIVITALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.LUHTITALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.KETJUTALO
+                ],
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.VAPAA_AJANASUNTO
+                ],
+            )
+        )
+        # do not import any rakennus with existing kohteet
+        .filter(~Rakennus.kohde_collection.any())
+    )
+    dvv_rakennustiedot_by_prt = {
+        prt: {"rakennus_id": rakennus_id, "osapuoli": osapuoli}
+        for prt, rakennus_id, osapuoli in session.execute(
+            dvv_rakennustiedot_query
+        ).all()
+    }
+    print(f"Found {len(dvv_rakennustiedot_by_prt)} DVV buildings without kohde")
+    print("Checking if they are perusmaksu clients...")
+    kohteet = []
+    for kohde_datum in buildings_to_combine.values():
+        kohde_prt = kohde_datum["prt"]
+        rakennustiedot = []
+        for prt in kohde_prt:
+            try:
+                rakennustieto = dvv_rakennustiedot_by_prt[prt]
+            except KeyError:
+                print(f"PRT {prt} not found in DVV data, skipping building")
+                continue
+            rakennustiedot.append(rakennustieto)
+        if len(rakennustiedot) == 0:
+            print("No DVV buildings found for asiakas, skipping asiakas")
+            continue
+        # TODO: a separate query to get all the owners, or is it okay just to pick the
+        # first owner as *the* yhteystieto?
+        osapuoli = rakennustiedot[0]["osapuoli"]
+        # the owner is the customer, since these are not single houses
+        kohde = create_new_kohde_from_buildings(
+            session, [entry["rakennus_id"] for entry in rakennustiedot], osapuoli
+        )
+        kohteet.append(kohde)
+    return kohteet

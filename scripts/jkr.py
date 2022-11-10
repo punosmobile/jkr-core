@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -24,6 +25,18 @@ def import_data(
     jkr_data = translator.as_jkr_data()
     db = DbProvider()
     db.write(jkr_data, urakoitsija)
+
+    print("VALMIS!")
+
+
+@app.command("create_dvv_kohteet", help="Create kohteet from DVV data in database.")
+def create_dvv_kohteet(
+    perusmaksutiedosto: Optional[Path] = typer.Argument(
+        None, help="Perusmaksurekisteritiedosto"
+    ),
+):
+    db = DbProvider()
+    db.write_dvv_kohteet(perusmaksutiedosto)
 
     print("VALMIS!")
 
