@@ -29,6 +29,17 @@ class Osoite:
 
         return osoite
 
+    def katuosoite(self):
+        osoite = ""
+        if self.katunimi:
+            osoite += self.katunimi.title()
+        if self.osoitenumero:
+            osoite += f" {self.osoitenumero}"
+        if self.huoneistotunnus:
+            osoite += f" {self.huoneistotunnus}"
+
+        return osoite
+
     def __str__(self):
         osoite = ""
         if self.katunimi:
