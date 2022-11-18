@@ -4,7 +4,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from jkrimporter.model import Asiakas, JkrData
@@ -12,9 +11,9 @@ from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.progress import Progress
 
 from . import codes
-from .codes import OsapuolenlajiTyyppi, init_code_objects
+from .codes import init_code_objects
 from .database import engine
-from .models import Kohde, Kuljetus, Osapuoli
+from .models import Kohde, Kuljetus, Tiedontuottaja
 from .services.buildings import counts as building_counts
 from .services.buildings import find_buildings_for_kohde
 from .services.kohde import (
@@ -37,20 +36,6 @@ from .services.osapuoli import (
 from .services.sopimus import update_sopimukset_for_kohde
 
 logger = logging.getLogger(__name__)
-
-
-def get_or_create_urakoitsija(session: "Session"):
-    statement = select(Osapuoli).where(Osapuoli.nimi == "Pirkanmaan Jätehuolto Oy")
-    osapuoli = session.execute(statement).scalar_one()
-
-    if not osapuoli:
-        osapuolilaji = codes.osapuolenlajit[OsapuolenlajiTyyppi.JULKINEN]
-
-        osapuoli = Osapuoli(
-            ytunnus="0968008-1", nimi="Pirkanmaan Jätehuolto Oy", rooli=osapuolilaji
-        )
-
-    return osapuoli
 
 
 def count(jkr_data: JkrData) -> Tuple[Dict[str, int], Dict[str, int]]:
@@ -76,7 +61,7 @@ def insert_kuljetukset(
     tyhjennystapahtumat: List[JkrTyhjennystapahtuma],
     raportointi_alkupvm,
     raportointi_loppupvm,
-    urakoitsija,
+    urakoitsija: Tiedontuottaja,
 ):
     for tyhjennys in tyhjennystapahtumat:
         alkupvm = tyhjennys.pvm or raportointi_alkupvm
@@ -106,7 +91,7 @@ def insert_kuljetukset(
                 tyhjennyskerrat=tyhjennys.tyhjennyskerrat,
                 massa=tyhjennys.massa,
                 tilavuus=tyhjennys.tilavuus,
-                osapuoli=urakoitsija,
+                tiedontuottaja=urakoitsija,
             )
             session.add(db_kuljetus)
 
@@ -135,7 +120,7 @@ def import_asiakastiedot(
     asiakas: Asiakas,
     alkupvm: datetime.date,
     loppupvm: datetime.date,
-    urakoitsija: Osapuoli,
+    urakoitsija: Tiedontuottaja,
     prt_counts: Dict[str, int],
     kitu_counts: Dict[str, int],
     address_counts: Dict[str, int],
@@ -255,7 +240,9 @@ class DbProvider:
             with Session(engine) as session:
                 init_code_objects(session)
 
-                urakoitsija = get_or_create_urakoitsija(session)
+                urakoitsija = session.get(
+                    Tiedontuottaja, tiedontuottaja_lyhenne
+                )
 
                 print("Importoidaan asiakastiedot")
                 for asiakas in jkr_data.asiakkaat.values():

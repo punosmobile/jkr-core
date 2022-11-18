@@ -98,7 +98,7 @@ def find_or_create_asiakastieto(
         db_asiakastieto = session.execute(query).scalar_one()
     except NoResultFound:
         db_asiakastieto = UlkoinenAsiakastieto(
-            tiedontuottaja_tunnus="PJH", ulkoinen_id=tunnus.tunnus
+            tiedontuottaja_tunnus=tunnus.jarjestelma, ulkoinen_id=tunnus.tunnus
         )
 
     return db_asiakastieto

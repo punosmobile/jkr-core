@@ -140,6 +140,7 @@ Rakennus = Base.classes.rakennus
 Sopimus = Base.classes.sopimus
 SopimusTyyppi = Base.classes.sopimustyyppi
 Taajama = Base.classes.taajama
+Tiedontuottaja = Base.classes.tiedontuottaja
 Tyhjennysvali = Base.classes.tyhjennysvali
 UlkoinenAsiakastieto = Base.classes.ulkoinen_asiakastieto
 Velvoite = Base.classes.velvoite
@@ -197,6 +198,7 @@ __all__ = [
     "Rakennus",
     "Sopimus",
     "Taajama",
+    "Tiedontuottaja",
     "Tyhjennysvali",
     "UlkoinenAsiakastieto",
     "Velvoite",

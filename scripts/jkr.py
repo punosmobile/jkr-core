@@ -4,6 +4,12 @@ from typing import Optional
 import typer
 
 from jkrimporter.providers.db.dbprovider import DbProvider
+from jkrimporter.providers.db.services.tiedontuottaja import (
+    get_tiedontuottaja,
+    insert_tiedontuottaja,
+    list_tiedontuottajat,
+    remove_tiedontuottaja,
+ )
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 
@@ -18,8 +24,16 @@ app.add_typer(
 @app.command("import", help="Import transportation data to JKR.")
 def import_data(
     siirtotiedosto: Path = typer.Argument(..., help="Siirtotiedoston kansio"),
-    urakoitsija: str = typer.Argument(..., help="Urakoitsijan tunnus. Esim. 'PJH'"),
+    urakoitsija: str = typer.Argument(
+        ..., help="Tiedon toimittajan tunnus. Esim. 'PJH', 'HKO', 'LSJ'"
+    ),
 ):
+    tiedontuottaja = get_tiedontuottaja(urakoitsija)
+    if not tiedontuottaja:
+        typer.echo(
+            f"Urakoitsijaa {urakoitsija} ei löydy järjestelmästä. Lisää komennolla `jkr urakoitsija add`"
+        )
+        raise typer.Exit()
     pjhdata = PjhSiirtotiedosto(siirtotiedosto)
     translator = PjhTranslator(pjhdata)
     jkr_data = translator.as_jkr_data()
@@ -46,12 +60,20 @@ def urakoitsija_add_new(
     tunnus: str = typer.Argument(..., help="Urakoitsijan tunnus. Esim. 'PJH'"),
     name: str = typer.Argument(..., help="Urakoitsijan nimi."),
 ):
-    print(f"Lisättiin uusi urakoitsija {tunnus}({name})")
+    insert_tiedontuottaja(tunnus.upper(), name)
+
+
+@urakoitsija_app.command("remove", help="Poista urakoitsija järjestelmästä.")
+def urakoitsija_remove(
+    tunnus: str = typer.Argument(..., help="Urakoitsijan tunnus. Esim. 'PJH'")
+):
+    remove_tiedontuottaja(tunnus.upper())
 
 
 @urakoitsija_app.command("list", help="Listaa järjestelmästä löytyvät urakoitsijat.")
 def urakoitsija_list():
-    print("PJH \t Pirkanmaan Jätehuolto Oy\n")
+    for tiedontuottaja in list_tiedontuottajat():
+        print(f"{tiedontuottaja.tunnus}\t{tiedontuottaja.nimi}")
 
 
 if __name__ == "__main__":

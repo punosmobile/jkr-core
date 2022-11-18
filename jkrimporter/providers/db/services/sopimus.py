@@ -8,7 +8,7 @@ from jkrimporter.providers.db.models import Keskeytys
 
 from .. import codes
 from ..codes import KohdeTyyppi
-from ..models import Keraysvaline, Sopimus, Tyhjennysvali
+from ..models import Keraysvaline, Sopimus, Tiedontuottaja, Tyhjennysvali
 from .kohde import get_kohde_by_asiakasnumero, get_or_create_pseudokohde
 
 if TYPE_CHECKING:
@@ -58,7 +58,7 @@ def merge_loppupvm(db_sopimus, jkr_sopimus):
 def create_or_update_sopimus(
     session: "Session",
     kohde,
-    pjh,
+    tiedontuottaja: Tiedontuottaja,
     jkr_sopimus: "Union[TyhjennysSopimus, KimppaSopimus]",
 ) -> Sopimus:
     sopimustyyppi = codes.sopimustyypit[jkr_sopimus.sopimustyyppi]
@@ -112,7 +112,7 @@ def create_or_update_sopimus(
             jatetyyppi=jatetyyppi,
             alkupvm=jkr_sopimus.alkupvm,
             loppupvm=jkr_sopimus.loppupvm,
-            osapuoli=pjh,
+            tiedontuottaja=tiedontuottaja,
             kimppaisanta_kohde=kimppaisanta,
         )
         session.add(db_sopimus)
@@ -215,11 +215,11 @@ def update_sopimukset_for_kohde(
     asiakas: "Asiakas",
     kohde,
     sopimukset: "List[Union[TyhjennysSopimus, KimppaSopimus]]",
-    pjh,
+    urakoitsija: Tiedontuottaja,
     raportointi_loppupvm,
 ):
     for sopimus in sopimukset:
-        db_sopimus = create_or_update_sopimus(session, kohde, pjh, sopimus)
+        db_sopimus = create_or_update_sopimus(session, kohde, urakoitsija, sopimus)
         if db_sopimus:
             update_kesteytykset(db_sopimus, sopimus.keskeytykset)
 
