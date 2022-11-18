@@ -15,7 +15,7 @@ packages = [
 ]
 
 [tool.poetry.scripts]
-jkr = 'scripts.jkr:app'
+jkr = 'jkrimporter.cli.jkr:app'
 
 
 [tool.poetry.dependencies]
