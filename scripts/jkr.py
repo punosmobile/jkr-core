@@ -3,6 +3,7 @@ from typing import Optional
 
 import typer
 
+from jkrimporter import __version__
 from jkrimporter.providers.db.dbprovider import DbProvider
 from jkrimporter.providers.db.services.tiedontuottaja import (
     get_tiedontuottaja,
@@ -13,7 +14,26 @@ from jkrimporter.providers.db.services.tiedontuottaja import (
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 
-app = typer.Typer()
+
+def version_callback(value: bool):
+    if value:
+        print(__version__)
+        raise typer.Exit()
+
+
+def main_callback(
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        callback=version_callback,
+        is_eager=True,
+        help="Kertoo lataustyökalun versionumeron.",
+    ),
+):
+    ...
+
+
+app = typer.Typer(callback=main_callback)
 
 urakoitsija_app = typer.Typer()
 app.add_typer(
@@ -78,5 +98,3 @@ def urakoitsija_list():
 
 if __name__ == "__main__":
     app()
-
-    # import_data(Path("data/pjh/PJHn data/2020 ja 2021/2021"), "PJH")

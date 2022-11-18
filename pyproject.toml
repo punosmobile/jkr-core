@@ -10,6 +10,7 @@ authors = ["Lauri Kajan <lauri.kajan@gispo.fi>"]
 license = "GPL-3.0-or-later"
 packages = [
     { include = "jkrimporter" },
+    { include = "jkr" },
     { include = "tests", format = "sdist" },
 ]
 
