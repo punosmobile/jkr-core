@@ -165,12 +165,32 @@ def import_asiakastiedot(
 
 
 def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
+    # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
+    # asukas.
+    # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
+    # rakennuksilla sama omistaja. Voi olla yksi tai monta rakennusta.Yhdessä
+    # rakennuksessa voi olla asukkaita.
+    # - Asiakas on vanhin asukas.
+    # - Kiinteistön muut rakennukset asumattomia (esim. lomarakennukset, saunat),
+    #  joten ne liitetään, jos sama omistaja ja osoite.
+    # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
+    # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
+    # - Kohdetta ei tuoda, jos samalla kiinteistöllä muita asuttuja rakennuksia.
+    single_asunto_kohteet = create_single_asunto_kohteet(session)
+    session.commit()
+    print(f"Imported {len(single_asunto_kohteet)} single kohteet")
+
     # Perusmaksurekisteri may combine buildings and kiinteistöt to a single kohde.
     # 3) Kerros ja rivitalot: Perusmaksurekisterin aineistosta asiakasnumero. Voi olla
     # yksi tai monta rakennusta.
     # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta
     # asiakasnumero. Voi olla yksi tai monta rakennusta.
-    # Lasku ensimmäiselle omistajalle.
+    # - Kohteeseen yhdistetään rakennukset kiinteistöistä riippumatta.
+    # - Asiakkaiksi tallennetaan kaikki kohteen rakennusten omistajat.
+    # - Saunat ja talousrakennukset liitetään, jos sama kiinteistö, omistaja ja osoite
+    # kuin jollakin rakennuksista.
+    # - Kiinteistö(je)n muita rakennuksia ei liitetä, sillä niissä voi olla asukkaita,
+    # joilla erilliset sopimukset.
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
             session, perusmaksutiedosto
@@ -178,36 +198,52 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     session.commit()
     print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
 
-    # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
-    # asukas.
-    # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
-    # rakennuksilla sama omistaja. Voi olla yksi tai monta rakennusta.Yhdessä
-    # rakennuksessa voi olla asukkaita.
-    # 5) Muut rakennukset, joissa huoneistotieto eli asukas: DVV:n tiedoissa
-    # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
-    # Lasku asukkaalle.
-    single_asunto_kohteet = create_single_asunto_kohteet(session)
-    session.commit()
-    print(f"Imported {len(single_asunto_kohteet)} single kohteet")
-
     # 4) Paritalot: molemmille huoneistoille omat kohteet
-    # Lasku asukkaalle.
+    # Does it matter this is imported after 7? -No, because paritalot will not
+    # interact with 7.
+    # - Asiakas on kumpikin vanhin asukas erikseen.
+    # - Kiinteistöllä kaksi kohdetta joilla sama rakennus, muita rakennuksia ei liitetä.
+    # TODO: add all buildings on kiinteistö?
     paritalo_kohteet = create_paritalo_kohteet(session)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
     # Remaining buildings will be combined by owner and kiinteistö.
+    # TODO: limit imported types
+
+    # 5) Muut rakennukset, joissa huoneistotieto eli asukas: DVV:n tiedoissa
+    # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
+    # TODO: näihin vielä asukas omistajan sijaan asiakkaaksi. TODO: makes no sense.
+    # Siinä tapauksessa vahtimestari saa koko koulun jätehuollon laskut, ja koulua
+    # ei tuodakaan omistajan nimellä.
+
+    # Does it matter this is imported after 7? - Ei. Näitä on *yksi* vapaa-ajanasuntojen
+    # kanssa samalla kiinteistöllä *koko alueella*, siinäkin useampi asukas.
+    # Tällä kiinteistöllä on yhden asunnon talo,
+    # muu pientalo, vapaa-ajanasunto ja autotalli. Autotalli eri osoitteessa, joten siitä
+    # joka tapauksessa oma kohde. Kaikilla samat omistajat. Vapaa-ajanasunto tuotu ensin.
+    # Yhden asunnon talo ja muu pientalo tuodaan lopuksi, koska kummassakin asukkaita.
+
     # 6) Muut asumisen rakennukset (asuntola, palvelutalo): käyttötarkoitus + omistaja
     # + kiinteistö
+    # Does it matter this is imported after 7? - Ei, koska käyttötarkoituksen mukaan
+    # rajataan kuitenkin erilliset kohteet.
+
     # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
     # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
-    # Lasku suurimmalle omistajalle.
-    session.commit()
+    # TODO: näihin omistaja asiakkaaksi. Voiko tehdä yhdessä 5:n kanssa?
+    # Does it matter if this is imported at the same time as 6 & 8? Voi tehdä, jos
+    # halutaan alkuperäinen järjestys, eli kouluille asiakkaaksi ainoa asukas eikä omistaja.
+    # Useamman asukkaan kohteille asiakkaaksi omistaja.
+
+    # - Asiakas on suurin omistaja.
+    # - Kiinteistön rakennukset yhdistetään omistajan ja osoitteen mukaan.
+    # TODO: limit added buildings on kiinteistö?
+    # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
+    # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
     multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(session)
-    print(
-        f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet"
-    )
     session.commit()
+    print(f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet")
 
 
 class DbProvider:

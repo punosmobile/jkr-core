@@ -64,6 +64,8 @@ class RakennuksenKayttotarkoitusTyyppi(Enum):
     VAPAA_AJANASUNTO = "Vapaa-ajan asuinrakennukset"
     PAIVAKOTI = "Lasten päiväkodit"
     OPPILAITOS = "Yleissivistävien oppilaitosten rakennukset"
+    SAUNA = "Saunarakennukset"
+    TALOUSRAKENNUS = "Talousrakennukset"
 
 
 class RakennuksenOlotilaTyyppi(Enum):
