@@ -108,12 +108,12 @@ def find_and_update_kohde(
 
         kohde = ulkoinen_asiakastieto.kohde
         if do_update:
-            update_kohde(kohde, asiakas, do_update)
+            update_kohde(kohde, asiakas)
     else:
         kohde = find_kohde_by_asiakastiedot(session, asiakas)
         if kohde:
             if do_update:
-                update_kohde(kohde, asiakas, do_update)
+                update_kohde(kohde, asiakas)
         else:
             kohde = create_new_kohde(session, asiakas)
 
