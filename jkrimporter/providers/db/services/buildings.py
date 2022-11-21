@@ -45,6 +45,18 @@ def match_omistaja(rakennus, haltija, preprocessor=lambda x: x):
 counts: Dict[str, int] = defaultdict(int)
 
 
+def prt_on_single_customer_or_double_house(rakennukset, prt_counts):
+    paritalo = codes.rakennuksenkayttotarkoitukset[
+        RakennuksenKayttotarkoitusTyyppi.PARITALO
+    ]
+    return all(
+        prt_counts[rakennus.prt] == 1
+        or prt_counts[rakennus.prt] == 2
+        and rakennus.rakennuksenkayttotarkoitus == paritalo
+        for rakennus in rakennukset
+    )
+
+
 def find_buildings_for_kohde(
     session: "Session",
     asiakas: "Asiakas",
@@ -67,14 +79,8 @@ def find_buildings_for_kohde(
             counts["prt vain yhdella tai kahdella asiakkaalla"] += 1
             rakennukset = _find_by_prt(session, asiakas.rakennukset)
             if rakennukset:
-                if all(
-                    prt_counts[rakennus.prt] == 1
-                    or prt_counts[rakennus.prt] == 2
-                    and rakennus.rakennuksenkayttotarkoitus
-                    == codes.rakennuksenkayttotarkoitukset[
-                        RakennuksenKayttotarkoitusTyyppi.PARITALO
-                    ]
-                    for rakennus in rakennukset
+                if prt_on_single_customer_or_double_house(
+                    rakennukset, on_how_many_customers
                 ):
                     counts["prt yhdellä tai jos kahdella, niin kaikki paritaloja"] += 1
 
@@ -88,7 +94,7 @@ def find_buildings_for_kohde(
             else:
                 counts["uniikki prt - rakennuksia ei löydy"] += 1
 
-    elif asiakas.kiinteistot:
+    if asiakas.kiinteistot:
         counts["on kitu"] += 1
         if all(
             kitu_counts[kitu].count_overlapping(asiakas.voimassa) == 1
@@ -99,12 +105,10 @@ def find_buildings_for_kohde(
             rakennukset = _find_by_kiinteisto(session, asiakas.kiinteistot)
             if rakennukset:
                 omistajat = set()
-                for rakennus in rakennukset:
-                    omistajat.add(
-                        frozenset(
-                            osapuoli.id for osapuoli in rakennus.osapuoli_collection
-                        )
-                    )
+                omistajat = {
+                    frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
+                    for rakennus in rakennukset
+                }
                 if len(omistajat) == 1:
                     if len(rakennukset) > 1:
                         area = convex_hull_area_of_buildings(rakennukset)
@@ -118,7 +122,7 @@ def find_buildings_for_kohde(
             else:
                 counts["uniikki kitu - rakennuksia ei löydy"] += 1
 
-    elif asiakas.haltija.ytunnus and is_asoy(asiakas.haltija.nimi):
+    if asiakas.haltija.ytunnus and is_asoy(asiakas.haltija.nimi):
         rakennukset = _find_by_ytunnus(session, asiakas.haltija)
         if rakennukset:
             counts["asoy"] += 1
