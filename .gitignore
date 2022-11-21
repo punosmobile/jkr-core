@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Mac
+.DS_Store
+
 # Distribution / packaging
 .Python
 build/
@@ -35,6 +38,7 @@ htmlcov/
 # Environments
 env
 /.jkr_venv/
+.python-version
 
 # Rope project settings
 .ropeproject
