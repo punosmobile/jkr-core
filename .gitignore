@@ -40,7 +40,8 @@ env
 .ropeproject
 
 # dotenv
-.env
+.env*
+!.env.template
 
 # ide
 /.idea/
@@ -57,3 +58,5 @@ wb-xlate*
 muistiot/
 pjh-virheelliset-osoitteet.csv
 *.qgs~
+jkrconfig
+pg_service.conf
