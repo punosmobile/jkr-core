@@ -4,10 +4,12 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+
 from sqlalchemy.orm import Session
 
 from jkrimporter.model import Asiakas, JkrData
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
+from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.progress import Progress
 
 from . import codes
@@ -38,21 +40,19 @@ from .services.sopimus import update_sopimukset_for_kohde
 logger = logging.getLogger(__name__)
 
 
-def count(jkr_data: JkrData) -> Tuple[Dict[str, int], Dict[str, int]]:
-    prt_counts: Dict[str, int] = defaultdict(int)
-    kitu_counts: Dict[str, int] = defaultdict(int)
-    address_counts: Dict[str, int] = defaultdict(int)
+def count(jkr_data: JkrData):
+    prt_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
+    kitu_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
+    address_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
 
     for asiakas in jkr_data.asiakkaat.values():
         for prt in asiakas.rakennukset:
-            prt_counts[prt] += 1
+            prt_counts[prt].append(asiakas.voimassa)
         for kitu in asiakas.kiinteistot:
-            kitu_counts[kitu] += 1
+            kitu_counts[kitu].append(asiakas.voimassa)
         addr = asiakas.haltija.osoite.osoite_rakennus()
         if addr:
-            address_counts[addr] += 1
-
-    return prt_counts, kitu_counts, address_counts
+            address_counts[addr].append(asiakas.voimassa)
 
 
 def insert_kuljetukset(

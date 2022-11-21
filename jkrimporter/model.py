@@ -3,6 +3,8 @@ from datetime import date
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Union
 
+from jkrimporter.utils.intervals import Interval
+
 Kiinteistonumero = str
 Rakennustunnus = str
 
@@ -85,8 +87,8 @@ class Jatelaji(str, Enum):
     muovi = "Muovi"
     metalli = "Metalli"
     liete = "Liete"
-    harmaaliete = "Harmaa liete"
-    mustaliete = "Musta liete"
+    harmaaliete = "Harmaaliete"
+    mustaliete = "Mustaliete"
     pahvi = "Pahvi"
     energia = "Energia"
     muu = "Muu"
@@ -120,8 +122,8 @@ class Keskeytys(NamedTuple):
 
 @dataclass
 class Keraysvaline:
-    tilavuus: int
     maara: int
+    tilavuus: Optional[int] = None
     tyyppi: Optional[KeraysvalineTyyppi] = None
 
 
@@ -136,8 +138,8 @@ class Tyhjennystapahtuma:
     jatelaji: Jatelaji
     pvm: Optional[date]
     tyhjennyskerrat: int
-    massa: Optional[int]
     tilavuus: Optional[int]
+    massa: Optional[int] = None
 
 
 class SopimusTyyppi(str, Enum):
@@ -171,8 +173,7 @@ class KimppaSopimus(BaseSopimus):
 class Asiakas:
     asiakasnumero: Tunnus
     ulkoinen_asiakastieto: dict
-    alkupvm: date
-    loppupvm: Optional[date]
+    voimassa: Interval
     haltija: Yhteystieto
     yhteyshenkilo: Optional[Yhteystieto] = None
     kiinteistot: List[Kiinteistonumero] = field(default_factory=list)

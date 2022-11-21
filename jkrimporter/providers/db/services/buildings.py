@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
@@ -48,17 +48,23 @@ counts: Dict[str, int] = defaultdict(int)
 def find_buildings_for_kohde(
     session: "Session",
     asiakas: "Asiakas",
-    prt_counts: Optional[Dict[str, int]] = None,
-    kitu_counts: Optional[Dict[str, int]] = None,
-    address_counts: Optional[Dict[str, int]] = None,
+    prt_counts: Dict[str, "IntervalCounter"],
+    kitu_counts: Dict[str, "IntervalCounter"],
+    address_counts: Dict[str, "IntervalCounter"],
 ):
     counts["asiakkaita"] += 1
     rakennukset = []
     if asiakas.rakennukset:
         counts["on prt"] += 1
-        if all(prt_counts[prt] in (1, 2) for prt in asiakas.rakennukset):
+        on_how_many_customers = {
+            prt: prt_counts[prt].count_overlapping(asiakas.voimassa)
+            for prt in asiakas.rakennukset
+        }
+        if all(
+            customer_count in (1, 2)
+            for customer_count in on_how_many_customers.values()
+        ):
             counts["prt vain yhdella tai kahdella asiakkaalla"] += 1
-
             rakennukset = _find_by_prt(session, asiakas.rakennukset)
             if rakennukset:
                 if all(
@@ -84,7 +90,10 @@ def find_buildings_for_kohde(
 
     elif asiakas.kiinteistot:
         counts["on kitu"] += 1
-        if all(kitu_counts[kitu] == 1 for kitu in asiakas.kiinteistot):
+        if all(
+            kitu_counts[kitu].count_overlapping(asiakas.voimassa) == 1
+            for kitu in asiakas.kiinteistot
+        ):
             counts["uniikki kitu"] += 1
 
             rakennukset = _find_by_kiinteisto(session, asiakas.kiinteistot)
@@ -126,7 +135,12 @@ def find_buildings_for_kohde(
             else:
                 counts["asoy - väärä omistaja"] += 1
 
-    elif address_counts[asiakas.haltija.osoite.osoite_rakennus()] == 1:
+    if (
+        address_counts[asiakas.haltija.osoite.osoite_rakennus()].count_overlapping(
+            asiakas.voimassa
+        )
+        == 1
+    ):
         rakennukset = _find_by_address(session, asiakas.haltija)
         if rakennukset:
             counts["osoitteella löytyi"] += 1

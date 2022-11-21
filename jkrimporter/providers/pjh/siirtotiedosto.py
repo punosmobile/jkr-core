@@ -1,9 +1,8 @@
 import datetime
 import logging
 import os
-from abc import ABCMeta, abstractmethod
 from enum import Enum
-from typing import Generic, Iterator, List, Optional, TypeVar, Union
+from typing import List, Optional, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
@@ -11,97 +10,20 @@ from jkrimporter.datasheets import (
     CsvSheetCollection,
     ExcelFileSheetCollection,
     ExcelSheetCollection,
-    SheetCollection,
+    SiirtotiedostoSheet,
 )
-from jkrimporter.utils.date import parse_date_string
+from jkrimporter.utils.validators import (
+    date_pre_validator,
+    date_range_root_validator,
+    int_validator,
+    split_by_comma,
+    trim_ytunnus,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def split_by_comma(value: Union[str, None]) -> List[str]:
-    if value is None:
-        return []
-    return value.split(",") if value else []
-
-
-def trim_ytunnus(value: Union[str, None]) -> Union[str, None]:
-    if value is None:
-        return value
-
-    ytunnus = value.strip()
-
-    if ytunnus in ("-", "000"):
-        ytunnus = None
-
-    return ytunnus
-
-
-def normalize_date(v: Union[datetime.date, str, None]) -> Union[datetime.date, None]:
-    if isinstance(v, str):
-        if v:
-            return parse_date_string(v)
-        else:
-            return None
-
-    return v
-
-
-def date_pre_validator(*attributes):
-    return validator(*attributes, allow_reuse=True, pre=True)(normalize_date)
-
-
 T = TypeVar("T")
-
-
-def empty_to_none(v: Union[T, None]) -> Optional[T]:
-    if not v:
-        return None
-
-    return v
-
-
-def int_validator(*attributes):
-    return validator(*attributes, allow_reuse=True, pre=True)(empty_to_none)
-
-
-def check_alkupvm_lt_loppupvm(cls, values):
-    alku, loppu = values.get("alkupvm"), values.get("loppupvm")
-    if alku is not None and loppu is not None and loppu < alku:
-        raise ValueError("alkupvm must be less than loppupvm")
-    return values
-
-
-def date_range_root_validator():
-    return root_validator(allow_reuse=True)(check_alkupvm_lt_loppupvm)
-
-
-T = TypeVar("T")
-
-
-class SiirtotiedostoSheet(Generic[T], metaclass=ABCMeta):
-    def __init__(self, sheet_collection: SheetCollection, sheet_name: str):
-        self._sheet = sheet_collection._open_sheet(sheet_name)
-        self._error_sheet = sheet_collection._open_error_sheet(
-            sheet_name, self._sheet.headers
-        )
-
-    @abstractmethod
-    def _obj_from_dict(data) -> T:
-        raise NotImplementedError
-
-    def __iter__(self) -> Iterator[T]:
-        for row in self._sheet:
-            try:
-                obj = self._obj_from_dict(row)
-            except ValidationError as e:
-                error = "; ".join(
-                    f"{''.join(error['loc'])}: {error['msg']}" for error in e.errors()
-                )
-                row_with_error = {**row, "virhe": error}
-                self._error_sheet.writerow(row_with_error)
-                continue
-
-            yield obj
 
 
 class Jatelaji(str, Enum):

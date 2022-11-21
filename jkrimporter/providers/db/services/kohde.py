@@ -159,8 +159,8 @@ def find_kohde_by_asiakastiedot(
             ~ulkoinen_asiakastieto_exists,
             Kohde.voimassaolo.overlaps(
                 DateRange(
-                    asiakas.alkupvm or datetime.date.min,
-                    asiakas.loppupvm or datetime.date.max,
+                    asiakas.voimassa.lower or datetime.date.min,
+                    asiakas.voimassa.upper or datetime.date.max,
                 )
             ),
             KohteenOsapuolet.osapuolenrooli
@@ -188,10 +188,10 @@ def find_kohde_by_asiakastiedot(
 
 
 def update_kohde(kohde: Kohde, asiakas: "Asiakas"):
-    if kohde.alkupvm != asiakas.alkupvm:
-        kohde.alkupvm = asiakas.alkupvm
-    if kohde.loppupvm != asiakas.loppupvm:
-        kohde.loppupvm = asiakas.loppupvm
+    if kohde.alkupvm != asiakas.voimassa.lower:
+        kohde.alkupvm = asiakas.voimassa.lower
+    if kohde.loppupvm != asiakas.voimassa.upper:
+        kohde.loppupvm = asiakas.voimassa.upper
 
 
 def get_kohde_by_asiakasnumero(
@@ -257,8 +257,8 @@ def create_new_kohde(session: "Session", asiakas: "Asiakas"):
     kohde = Kohde(
         nimi=kohde_display_name,
         kohdetyyppi=kohdetyyppi,
-        alkupvm=asiakas.alkupvm,
-        loppupvm=asiakas.loppupvm,
+        alkupvm=asiakas.voimassa.lower,
+        loppupvm=asiakas.voimassa.upper,
     )
 
     return kohde

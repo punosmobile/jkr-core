@@ -1,6 +1,7 @@
 import csv
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Set
+from abc import ABC, ABCMeta, abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Set, TypeVar
+from pydantic import ValidationError
 
 from openpyxl.reader.excel import load_workbook
 
@@ -103,3 +104,32 @@ class ExcelSheetCollection(SheetCollection):
 
     def _open_sheet(self, key):
         return ExcelSheet(self._workbook[key])
+
+
+T = TypeVar("T")
+
+
+class SiirtotiedostoSheet(Generic[T], metaclass=ABCMeta):
+    def __init__(self, sheet_collection: SheetCollection, sheet_name: str):
+        self._sheet = sheet_collection._open_sheet(sheet_name)
+        self._error_sheet = sheet_collection._open_error_sheet(
+            sheet_name, self._sheet.headers
+        )
+
+    @abstractmethod
+    def _obj_from_dict(data) -> T:
+        raise NotImplementedError
+
+    def __iter__(self) -> Iterator[T]:
+        for row in self._sheet:
+            try:
+                obj = self._obj_from_dict(row)
+            except ValidationError as e:
+                error = "; ".join(
+                    f"{''.join(error['loc'])}: {error['msg']}" for error in e.errors()
+                )
+                row_with_error = {**row, "virhe": error}
+                self._error_sheet.writerow(row_with_error)
+                continue
+
+            yield obj

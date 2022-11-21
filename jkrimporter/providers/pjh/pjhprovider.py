@@ -20,6 +20,7 @@ from jkrimporter.model import (
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import Yhteystieto
+from jkrimporter.utils.intervals import Interval
 
 from .siirtotiedosto import PjhSiirtotiedosto
 
@@ -143,8 +144,7 @@ class PjhTranslator:
             asiakas = JkrAsiakas(
                 asiakasnumero=tunnus,
                 ulkoinen_asiakastieto=row,
-                alkupvm=row.alkupvm,
-                loppupvm=row.loppupvm,
+                voimassa=Interval(row.alkupvm, row.loppupvm),
                 kiinteistot=row.kiinteistotunnukset,
                 rakennukset=row.rakennustunnukset,
                 haltija=haltija,
