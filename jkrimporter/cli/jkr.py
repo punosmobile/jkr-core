@@ -47,6 +47,13 @@ def import_data(
     urakoitsija: str = typer.Argument(
         ..., help="Tiedon toimittajan tunnus. Esim. 'PJH', 'HKO', 'LSJ'"
     ),
+    ala_paivita: bool = typer.Option(
+        False,
+        "--ala_paivita",
+        help="Älä päivitä yhteystietoja tai kohteen voimassaoloaikaa tästä datasta.",
+    ),
+    alkupvm: str = typer.Argument(None, help="Importoitavan datan alkupvm"),
+    loppupvm: str = typer.Argument(None, help="Importoitavan datan loppupvm"),
 ):
     tiedontuottaja = get_tiedontuottaja(urakoitsija)
     if not tiedontuottaja:
@@ -58,7 +65,7 @@ def import_data(
     translator = PjhTranslator(pjhdata)
     jkr_data = translator.as_jkr_data()
     db = DbProvider()
-    db.write(jkr_data, urakoitsija)
+    db.write(jkr_data, urakoitsija, ala_paivita)
 
     print("VALMIS!")
 

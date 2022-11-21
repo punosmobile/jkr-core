@@ -17,7 +17,10 @@ from .codes import init_code_objects
 from .database import engine
 from .models import Kohde, Kuljetus, Tiedontuottaja
 from .services.buildings import counts as building_counts
-from .services.buildings import find_buildings_for_kohde
+from .services.buildings import (
+    find_building_candidates_for_kohde,
+    find_buildings_for_kohde,
+)
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
     create_multiple_and_uninhabited_kohteet,
@@ -96,17 +99,21 @@ def insert_kuljetukset(
             session.add(db_kuljetus)
 
 
-def find_and_update_kohde(session: "Session", asiakas: "Asiakas") -> Kohde:
+def find_and_update_kohde(
+     session: "Session", asiakas: "Asiakas", do_update: bool
+ ) -> Kohde:
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
     if ulkoinen_asiakastieto:
         update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
 
         kohde = ulkoinen_asiakastieto.kohde
-        update_kohde(kohde, asiakas)
+        if do_update:
+            update_kohde(kohde, asiakas, do_update)
     else:
         kohde = find_kohde_by_asiakastiedot(session, asiakas)
         if kohde:
-            update_kohde(kohde, asiakas)
+            if do_update:
+                update_kohde(kohde, asiakas, do_update)
         else:
             kohde = create_new_kohde(session, asiakas)
 
@@ -121,15 +128,16 @@ def import_asiakastiedot(
     alkupvm: datetime.date,
     loppupvm: datetime.date,
     urakoitsija: Tiedontuottaja,
+    do_update: bool,
     prt_counts: Dict[str, int],
     kitu_counts: Dict[str, int],
     address_counts: Dict[str, int],
 ):
 
-    kohde = find_and_update_kohde(session, asiakas)
+    kohde = find_and_update_kohde(session, asiakas, do_update)
 
-    create_or_update_haltija_osapuoli(session, kohde, asiakas)
-    create_or_update_yhteystieto_osapuoli(session, kohde, asiakas)
+    create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
+    create_or_update_yhteystieto_osapuoli(session, kohde, asiakas, do_update)
     insert_kuljetukset(
         session,
         kohde,
@@ -145,6 +153,11 @@ def import_asiakastiedot(
         )
         if buildings:
             kohde.rakennus_collection = buildings
+
+        elif not kohde.ehdokasrakennus_collection:
+            building_candidates = find_building_candidates_for_kohde(session, asiakas)
+            if building_candidates:
+                kohde.ehdokasrakennus_collection = building_candidates
 
     session.commit()
 
@@ -232,7 +245,12 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
 
 
 class DbProvider:
-    def write(self, jkr_data: JkrData, tiedontuottaja_lyhenne: str):
+    def write(
+        self,
+        jkr_data: JkrData,
+        tiedontuottaja_lyhenne: str,
+        ala_paivita: bool,
+    ):
         try:
             progress = Progress(len(jkr_data.asiakkaat))
 

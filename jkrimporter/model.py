@@ -16,6 +16,7 @@ class Osoite:
     huoneistotunnus: Optional[str] = None
     postinumero: Optional[str] = None
     postitoimipaikka: Optional[str] = None
+    kunta: Optional[str] = None
     erikoisosoite: Optional[str] = None
 
     def osoite_rakennus(self):

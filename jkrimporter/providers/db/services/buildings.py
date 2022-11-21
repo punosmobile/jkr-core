@@ -169,6 +169,17 @@ def find_buildings_for_kohde(
     return []
 
 
+def find_building_candidates_for_kohde(session: "Session", asiakas: "Asiakas"):
+    if asiakas.rakennukset:
+        return _find_by_prt(session, asiakas.rakennukset)
+    elif asiakas.kiinteistot:
+        return _find_by_kiinteisto(session, asiakas.kiinteistot)
+    elif asiakas.haltija.ytunnus and is_asoy(asiakas.haltija.nimi):
+        return _find_by_ytunnus(session, asiakas.haltija)
+
+    return _find_by_address(session, asiakas.haltija)
+
+
 def _find_by_ytunnus(session: "Session", haltija: "Yhteystieto"):
     if haltija.ytunnus:
         statement = (

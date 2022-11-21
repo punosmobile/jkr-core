@@ -1,5 +1,6 @@
 import csv
 from abc import ABC, ABCMeta, abstractmethod
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Set, TypeVar
 from pydantic import ValidationError
 
@@ -44,7 +45,7 @@ class ExcelSheet:
 
 class SheetCollection(ABC):
     def __init__(self, path):
-        self._path = path
+        self._path = Path(path)
         self._opened_error_files = set()
 
     def __del__(self):
@@ -56,10 +57,11 @@ class SheetCollection(ABC):
         raise NotImplementedError
 
     def _open_error_sheet(self, name: str, headers: List[str]):
+        log_path = self._path if self._path.is_dir() else self._path.parent
         error_file = open(
-            self._path / f"{name}_virheet.csv", "w", newline="", encoding="utf-8"
+            log_path / f"{name}_virheet.csv", "w", newline="", encoding="utf-8"
         )
-        writer = csv.DictWriter(error_file, fieldnames=headers + ["virhe"])
+        writer = csv.DictWriter(error_file, fieldnames=list(headers) + ["virhe"])
         writer.writeheader()
 
         self._opened_error_files.add(error_file)
