@@ -51,9 +51,10 @@ class CombinedExcelSheet:
             self.sheets = [ExcelSheet(workbook.active) for workbook in workbooks]
         self.headers = self.sheets[0].headers
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Dict[str, Any]]:
         for sheet in self.sheets:
-            yield next(sheet)
+            rows = iter(sheet)
+            yield from rows
 
 
 class SheetCollection(ABC):
@@ -119,8 +120,10 @@ class ExcelCombinedFileSheetCollection(ExcelFileSheetCollection):
     def __init__(self, path):
         super().__init__(path)
         for f in self._path.iterdir():
-            workbook = load_workbook(filename=f, data_only=True, read_only=True)
-            self._opened_workbooks.add(workbook)
+            # do not read any extra files, such as any error csvs present
+            if f.suffix == ".xlsx":
+                workbook = load_workbook(filename=f, data_only=True, read_only=True)
+                self._opened_workbooks.add(workbook)
 
     def _open_sheet(self, key: str = None):
         return CombinedExcelSheet(self._opened_workbooks, key)

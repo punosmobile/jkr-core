@@ -252,6 +252,8 @@ class DbProvider:
         ala_paivita: bool,
     ):
         try:
+            print(jkr_data.asiakkaat)
+            print(len(jkr_data.asiakkaat))
             progress = Progress(len(jkr_data.asiakkaat))
 
             prt_counts, kitu_counts, address_counts = count(jkr_data)

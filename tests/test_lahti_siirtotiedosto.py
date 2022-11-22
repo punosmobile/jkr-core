@@ -6,5 +6,5 @@ def test_readable(datadir):
 
 
 def test_kohteet(datadir):
-    kohteet = LahtiSiirtotiedosto(datadir).kohteet
-    assert 'UrakoitsijaId' in kohteet.headers
+    asiakastiedot = LahtiSiirtotiedosto(datadir).asiakastiedot
+    assert 'UrakoitsijaId' in asiakastiedot.headers

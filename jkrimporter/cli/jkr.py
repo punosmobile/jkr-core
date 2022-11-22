@@ -64,7 +64,7 @@ app.add_typer(
 @app.command("import", help="Import transportation data to JKR.")
 def import_data(
     siirtotiedosto: Path = typer.Argument(..., help="Siirtotiedoston kansio"),
-    tiedontuottaja: str = typer.Argument(
+    tiedontuottajatunnus: str = typer.Argument(
         ..., help="Tiedon toimittajan tunnus. Esim. 'PJH', 'HKO', 'LSJ'"
     ),
     ala_paivita: bool = typer.Option(
@@ -75,15 +75,15 @@ def import_data(
     alkupvm: str = typer.Argument(None, help="Importoitavan datan alkupvm"),
     loppupvm: str = typer.Argument(None, help="Importoitavan datan loppupvm"),
 ):
-    tiedontuottaja = get_tiedontuottaja(tiedontuottaja)
+    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
     if not tiedontuottaja:
         typer.echo(
             f"Tiedontuottajaa {tiedontuottaja} ei löydy järjestelmästä. Lisää komennolla `jkr tiedontuottaja add`"
         )
         raise typer.Exit()
-    provider = PROVIDERS[tiedontuottaja]
+    provider = PROVIDERS[tiedontuottajatunnus]
     data = provider.Siirtotiedosto(siirtotiedosto)
-    if tiedontuottaja == "HKO":
+    if tiedontuottajatunnus == "HKO":
         ala_paivita = True
         try:
             alkupvm = parse_date_string(alkupvm)
@@ -91,8 +91,10 @@ def import_data(
         except (TypeError, ValueError):
             typer.echo("Nokian importin yhteydessä päivämäärät ovat pakolliset")
             raise typer.Exit()
-    translator = provider.Translator(data)
-    jkr_data = translator.as_jkr_data()
+    translator = provider.Translator(data, tiedontuottajatunnus)
+    jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
+    print(jkr_data)
+    print('writing to db...')
     db = DbProvider()
     db.write(jkr_data, tiedontuottaja, ala_paivita)
 

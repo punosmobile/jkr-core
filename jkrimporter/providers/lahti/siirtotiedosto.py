@@ -243,7 +243,7 @@ class LahtiSiirtotiedosto:
         return False
 
     @property
-    def kohteet(self):
+    def asiakastiedot(self):
         return AsiakastiedotSheet(
             # Obviously, the sheet we want to import is informatively called 'in'
             self._sheet_collection,
