@@ -9,9 +9,7 @@ from openpyxl.reader.excel import load_workbook
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
 from jkrimporter.datasheets import (
-    CsvSheetCollection,
-    ExcelFileSheetCollection,
-    ExcelSheetCollection,
+    ExcelCombinedFileSheetCollection,
     SiirtotiedostoSheet,
 )
 from jkrimporter.utils.validators import (
@@ -224,25 +222,19 @@ class AsiakastiedotSheet(SiirtotiedostoSheet[Asiakas]):
 
 class LahtiSiirtotiedosto:
     # Lahti has no set sheet names. It has a directory with different sheets
-    # for different providers, all having identical format.
+    # for different providers, all having identical format. We try to parse
+    # the provider name for each provider id from the file name.
 
     def __init__(self, path):
-        sheet_collection_cls = LahtiSiirtotiedosto._class_getter(path)
-        self._sheet_collection = sheet_collection_cls(path)
+        self._sheet_collection = ExcelCombinedFileSheetCollection(path)
 
     @classmethod
     def readable_by_me(cls, path):
         p = Path(path)
-        print(path)
         for f in p.iterdir():
-            print(f)
             if f.is_file() and f.suffix == ".xlsx":
-                print("found excel file")
                 try:
-                    workbook = load_workbook(
-                        filename=f, data_only=True, read_only=True
-                    )
-                    print(workbook)
+                    workbook = load_workbook(filename=f, data_only=True, read_only=True)
                     sheets = workbook.sheetnames
                     if "in" in sheets:
                         return True
@@ -250,24 +242,10 @@ class LahtiSiirtotiedosto:
                     pass
         return False
 
-    @classmethod
-    def _class_getter(cls, path):
-        sheet_cls = None
-        if not path.exists():
-            raise FileNotFoundError("path {} does not exists".format(path))
-        if os.path.isdir(path):
-            dir_content = os.listdir(path)
-            if LahtiSiirtotiedosto.SheetNames.ASIAKASTIEDOT + ".xlsx" in dir_content:
-                sheet_cls = ExcelFileSheetCollection
-        else:
-            _, ext = os.path.splitext(path)
-            if ext == "xlsx":
-                sheet_cls = ExcelSheetCollection
-
-        return sheet_cls
-
     @property
     def kohteet(self):
         return AsiakastiedotSheet(
-            self._sheet_collection, LahtiSiirtotiedosto.SheetNames.ASIAKASTIEDOT
+            # Obviously, the sheet we want to import is informatively called 'in'
+            self._sheet_collection,
+            "in",
         )
