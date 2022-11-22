@@ -14,8 +14,11 @@ from jkrimporter.providers.db.services.tiedontuottaja import (
  )
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
+from jkrimporter.providers.nokia.nokiaprovider import NokiaTranslator
+from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
 from jkrimporter.providers.lahti.lahtiprovider import LahtiTranslator
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
+from jkrimporter.utils.date import parse_date_string
 
 
 @dataclass
@@ -27,6 +30,7 @@ class Provider:
 PROVIDERS = {
     # we may also add other providers using the *same* formats
     "PJH": Provider(Translator=PjhTranslator, Siirtotiedosto=PjhSiirtotiedosto),
+    "HKO": Provider(Translator=NokiaTranslator, Siirtotiedosto=NokiaSiirtotiedosto),
     "LSJ": Provider(Translator=LahtiTranslator, Siirtotiedosto=LahtiSiirtotiedosto)
 }
 
@@ -79,6 +83,14 @@ def import_data(
         raise typer.Exit()
     provider = PROVIDERS[tiedontuottaja]
     data = provider.Siirtotiedosto(siirtotiedosto)
+    if tiedontuottaja == "HKO":
+        ala_paivita = True
+        try:
+            alkupvm = parse_date_string(alkupvm)
+            loppupvm = parse_date_string(loppupvm)
+        except (TypeError, ValueError):
+            typer.echo("Nokian importin yhteydessä päivämäärät ovat pakolliset")
+            raise typer.Exit()
     translator = provider.Translator(data)
     jkr_data = translator.as_jkr_data()
     db = DbProvider()
