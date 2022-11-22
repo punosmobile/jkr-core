@@ -2,8 +2,10 @@ import datetime
 import logging
 import os
 from enum import Enum
+from pathlib import Path
 from typing import List, Optional
 
+from openpyxl.reader.excel import load_workbook
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
 from jkrimporter.datasheets import (
@@ -221,12 +223,32 @@ class AsiakastiedotSheet(SiirtotiedostoSheet[Asiakas]):
 
 
 class LahtiSiirtotiedosto:
-    # class SheetNames:
-    #     ASIAKASTIEDOT = "in"
+    # Lahti has no set sheet names. It has a directory with different sheets
+    # for different providers, all having identical format.
 
     def __init__(self, path):
         sheet_collection_cls = LahtiSiirtotiedosto._class_getter(path)
         self._sheet_collection = sheet_collection_cls(path)
+
+    @classmethod
+    def readable_by_me(cls, path):
+        p = Path(path)
+        print(path)
+        for f in p.iterdir():
+            print(f)
+            if f.is_file() and f.suffix == ".xlsx":
+                print("found excel file")
+                try:
+                    workbook = load_workbook(
+                        filename=f, data_only=True, read_only=True
+                    )
+                    print(workbook)
+                    sheets = workbook.sheetnames
+                    if "in" in sheets:
+                        return True
+                except Exception:
+                    pass
+        return False
 
     @classmethod
     def _class_getter(cls, path):
