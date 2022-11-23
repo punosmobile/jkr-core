@@ -3,6 +3,8 @@ from datetime import date
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Union
 
+from jkrimporter.utils.intervals import Interval
+
 Kiinteistonumero = str
 Rakennustunnus = str
 
@@ -14,6 +16,7 @@ class Osoite:
     huoneistotunnus: Optional[str] = None
     postinumero: Optional[str] = None
     postitoimipaikka: Optional[str] = None
+    kunta: Optional[str] = None
     erikoisosoite: Optional[str] = None
 
     def osoite_rakennus(self):
@@ -26,6 +29,17 @@ class Osoite:
             osoite += f", {self.postinumero}"
         if self.postitoimipaikka:
             osoite += f" {self.postitoimipaikka.title()}"
+
+        return osoite
+
+    def katuosoite(self):
+        osoite = ""
+        if self.katunimi:
+            osoite += self.katunimi.title()
+        if self.osoitenumero:
+            osoite += f" {self.osoitenumero}"
+        if self.huoneistotunnus:
+            osoite += f" {self.huoneistotunnus}"
 
         return osoite
 
@@ -74,8 +88,8 @@ class Jatelaji(str, Enum):
     muovi = "Muovi"
     metalli = "Metalli"
     liete = "Liete"
-    harmaaliete = "Harmaa liete"
-    mustaliete = "Musta liete"
+    harmaaliete = "Harmaaliete"
+    mustaliete = "Mustaliete"
     pahvi = "Pahvi"
     energia = "Energia"
     muu = "Muu"
@@ -109,8 +123,8 @@ class Keskeytys(NamedTuple):
 
 @dataclass
 class Keraysvaline:
-    tilavuus: int
     maara: int
+    tilavuus: Optional[int] = None
     tyyppi: Optional[KeraysvalineTyyppi] = None
 
 
@@ -125,8 +139,8 @@ class Tyhjennystapahtuma:
     jatelaji: Jatelaji
     pvm: Optional[date]
     tyhjennyskerrat: int
-    massa: Optional[int]
     tilavuus: Optional[int]
+    massa: Optional[int] = None
 
 
 class SopimusTyyppi(str, Enum):
@@ -160,8 +174,7 @@ class KimppaSopimus(BaseSopimus):
 class Asiakas:
     asiakasnumero: Tunnus
     ulkoinen_asiakastieto: dict
-    alkupvm: date
-    loppupvm: Optional[date]
+    voimassa: Interval
     haltija: Yhteystieto
     yhteyshenkilo: Optional[Yhteystieto] = None
     kiinteistot: List[Kiinteistonumero] = field(default_factory=list)

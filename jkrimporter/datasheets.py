@@ -1,6 +1,8 @@
 import csv
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Set
+from abc import ABC, ABCMeta, abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Generic, Iterator, List, Set, TypeVar
+from pydantic import ValidationError
 
 from openpyxl.reader.excel import load_workbook
 
@@ -43,7 +45,7 @@ class ExcelSheet:
 
 class SheetCollection(ABC):
     def __init__(self, path):
-        self._path = path
+        self._path = Path(path)
         self._opened_error_files = set()
 
     def __del__(self):
@@ -55,10 +57,11 @@ class SheetCollection(ABC):
         raise NotImplementedError
 
     def _open_error_sheet(self, name: str, headers: List[str]):
+        log_path = self._path if self._path.is_dir() else self._path.parent
         error_file = open(
-            self._path / f"{name}_virheet.csv", "w", newline="", encoding="utf-8"
+            log_path / f"{name}_virheet.csv", "w", newline="", encoding="utf-8"
         )
-        writer = csv.DictWriter(error_file, fieldnames=headers + ["virhe"])
+        writer = csv.DictWriter(error_file, fieldnames=list(headers) + ["virhe"])
         writer.writeheader()
 
         self._opened_error_files.add(error_file)
@@ -103,3 +106,32 @@ class ExcelSheetCollection(SheetCollection):
 
     def _open_sheet(self, key):
         return ExcelSheet(self._workbook[key])
+
+
+T = TypeVar("T")
+
+
+class SiirtotiedostoSheet(Generic[T], metaclass=ABCMeta):
+    def __init__(self, sheet_collection: SheetCollection, sheet_name: str):
+        self._sheet = sheet_collection._open_sheet(sheet_name)
+        self._error_sheet = sheet_collection._open_error_sheet(
+            sheet_name, self._sheet.headers
+        )
+
+    @abstractmethod
+    def _obj_from_dict(data) -> T:
+        raise NotImplementedError
+
+    def __iter__(self) -> Iterator[T]:
+        for row in self._sheet:
+            try:
+                obj = self._obj_from_dict(row)
+            except ValidationError as e:
+                error = "; ".join(
+                    f"{''.join(error['loc'])}: {error['msg']}" for error in e.errors()
+                )
+                row_with_error = {**row, "virhe": error}
+                self._error_sheet.writerow(row_with_error)
+                continue
+
+            yield obj

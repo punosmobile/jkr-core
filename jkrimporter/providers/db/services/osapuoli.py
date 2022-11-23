@@ -11,7 +11,9 @@ if TYPE_CHECKING:
     from jkrimporter.model import Asiakas as JkrAsiakas
 
 
-def create_or_update_haltija_osapuoli(session, kohde, asiakas: "Asiakas"):
+def create_or_update_haltija_osapuoli(
+    session, kohde, asiakas: "Asiakas", update_contacts: bool
+):
     """
     Luo kohteelle haltijaosapuolen
 
@@ -27,13 +29,13 @@ def create_or_update_haltija_osapuoli(session, kohde, asiakas: "Asiakas"):
 
     exists = any(
         db_haltija.nimi == asiakas.haltija.nimi
-        and db_haltija.katuosoite == asiakas.haltija.osoite.katunimi
+        and db_haltija.katuosoite == str(asiakas.haltija.osoite)
         for db_haltija in db_haltijat
     )
-    if not exists:
+    if not db_haltijat or (update_contacts and not exists):
         jatteenhaltija = Osapuoli(
             nimi=asiakas.haltija.nimi,
-            katuosoite=asiakas.haltija.osoite.katunimi,
+            katuosoite=str(asiakas.haltija.osoite),
             postinumero=asiakas.haltija.osoite.postinumero,
             postitoimipaikka=asiakas.haltija.osoite.postitoimipaikka,
             ytunnus=asiakas.haltija.ytunnus,
@@ -50,7 +52,9 @@ def create_or_update_haltija_osapuoli(session, kohde, asiakas: "Asiakas"):
         session.add(kohteen_osapuoli)
 
 
-def create_or_update_yhteystieto_osapuoli(session, kohde, asiakas: "JkrAsiakas"):
+def create_or_update_yhteystieto_osapuoli(
+    session, kohde, asiakas: "JkrAsiakas", update_contacts: bool
+):
     yhteystietorooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO]
 
     db_yhteyshenkilo = next(
@@ -61,7 +65,7 @@ def create_or_update_yhteystieto_osapuoli(session, kohde, asiakas: "JkrAsiakas")
         ),
         None,
     )
-    if db_yhteyshenkilo:
+    if db_yhteyshenkilo and update_contacts:
         if (
             db_yhteyshenkilo.nimi != asiakas.yhteyshenkilo.nimi
             or db_yhteyshenkilo.katuosoite != asiakas.yhteyshenkilo.osoite.katunimi
@@ -83,6 +87,7 @@ def create_or_update_yhteystieto_osapuoli(session, kohde, asiakas: "JkrAsiakas")
             katuosoite=asiakas.yhteyshenkilo.osoite.katunimi,
             postinumero=asiakas.yhteyshenkilo.osoite.postinumero,
             postitoimipaikka=asiakas.yhteyshenkilo.osoite.postitoimipaikka,
+            kunta=asiakas.yhteyshenkilo.osoite.kunta,
             ytunnus=asiakas.yhteyshenkilo.ytunnus,
         )
 

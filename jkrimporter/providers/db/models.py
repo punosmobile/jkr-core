@@ -49,8 +49,12 @@ def name_for_collection(base, local_cls, referred_cls, constraint):
         "kohde",
         "rakennus",
     ):
-        if constraint.name == "ehdokaskohde_fk":
+        if constraint.name == "kohde_fk":
+            collection_name = "rakennus_collection"
+        elif constraint.name == "ehdokaskohde_fk":
             collection_name = "ehdokasrakennus_collection"
+        if constraint.name == "rakennus_fk":
+            collection_name = "kohde_collection"
         elif constraint.name == "ehdokasrakennus_fk":
             collection_name = "ehdokaskohde_collection"
     return collection_name
@@ -140,6 +144,7 @@ Rakennus = Base.classes.rakennus
 Sopimus = Base.classes.sopimus
 SopimusTyyppi = Base.classes.sopimustyyppi
 Taajama = Base.classes.taajama
+Tiedontuottaja = Base.classes.tiedontuottaja
 Tyhjennysvali = Base.classes.tyhjennysvali
 UlkoinenAsiakastieto = Base.classes.ulkoinen_asiakastieto
 Velvoite = Base.classes.velvoite
@@ -197,6 +202,7 @@ __all__ = [
     "Rakennus",
     "Sopimus",
     "Taajama",
+    "Tiedontuottaja",
     "Tyhjennysvali",
     "UlkoinenAsiakastieto",
     "Velvoite",

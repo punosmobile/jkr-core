@@ -1,6 +1,7 @@
 import datetime
 import logging
-from typing import TYPE_CHECKING
+from datetime import date
+from typing import TYPE_CHECKING, Union
 
 from addrparser import AddressParser
 
@@ -20,21 +21,17 @@ from jkrimporter.model import (
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import Yhteystieto
+from jkrimporter.utils.intervals import Interval
+from jkrimporter.utils.osoite import osoite_from_parsed_address
 
 from .siirtotiedosto import PjhSiirtotiedosto
 
 if TYPE_CHECKING:
-    from addrparser import Address
-
     from .siirtotiedosto import Asiakas
 
 logger = logging.getLogger(__name__)
 
 address_parser = AddressParser("fi")
-
-
-def tunnus_from_asiakasnumero(asiakasnro: str) -> Tunnus:
-    return Tunnus("PJH", asiakasnro)
 
 
 def overlap(a: TyhjennysSopimus, b: TyhjennysSopimus) -> bool:
@@ -44,22 +41,6 @@ def overlap(a: TyhjennysSopimus, b: TyhjennysSopimus) -> bool:
     b2 = b.loppupvm or datetime.date.max
 
     return a1 <= b2 and b1 <= a2
-
-
-def osoite_from_parsed_address(address: "Address") -> Osoite:
-
-    huoneistotunnus = (
-        " ".join(
-            part for part in (address.entrance, address.apartment) if part is not None
-        )
-        or None
-    )
-
-    return Osoite(
-        katunimi=address.street_name or address.post_office_box,
-        osoitenumero=address.house_number,
-        huoneistotunnus=huoneistotunnus,
-    )
 
 
 def create_haltija(row: "Asiakas"):
@@ -110,10 +91,10 @@ def create_yhteyshenkilo(row: "Asiakas"):
 
 
 class PjhTranslator:
-    def __init__(self, pjhsiirtotiedosto: PjhSiirtotiedosto):
+    def __init__(self, pjhsiirtotiedosto: PjhSiirtotiedosto, tiedontuottajatunnus: str):
         self._source = pjhsiirtotiedosto
 
-    def as_jkr_data(self):
+    def as_jkr_data(self, alkupvm: Union[None, date], loppupvm: Union[None, date]):
         data = JkrData()
         data = self._add_meta(data)
         data = self._append_asiakkaat(data)
@@ -133,9 +114,12 @@ class PjhTranslator:
 
         return jkr_data
 
+    def tunnus_from_asiakasnumero(self, asiakasnro: str) -> Tunnus:
+        return Tunnus(self._tiedontuottaja_tunnus, asiakasnro)
+
     def _append_asiakkaat(self, jkr_data: JkrData):
         for row in self._source.asiakastiedot:
-            tunnus = tunnus_from_asiakasnumero(row.asiakasnumero)
+            tunnus = self.tunnus_from_asiakasnumero(row.asiakasnumero)
 
             haltija = create_haltija(row)
             yhteyshenkilo = create_yhteyshenkilo(row)
@@ -143,8 +127,7 @@ class PjhTranslator:
             asiakas = JkrAsiakas(
                 asiakasnumero=tunnus,
                 ulkoinen_asiakastieto=row,
-                alkupvm=row.alkupvm,
-                loppupvm=row.loppupvm,
+                voimassa=Interval(row.alkupvm, row.loppupvm),
                 kiinteistot=row.kiinteistotunnukset,
                 rakennukset=row.rakennustunnukset,
                 haltija=haltija,
@@ -161,7 +144,7 @@ class PjhTranslator:
 
     def _append_sopimukset(self, jkr_data: JkrData):
         for tyhjennysvali_row in self._source.tyhjennysvalit:
-            tunnus = tunnus_from_asiakasnumero(tyhjennysvali_row.asiakasnumero)
+            tunnus = self.tunnus_from_asiakasnumero(tyhjennysvali_row.asiakasnumero)
             if tunnus not in jkr_data.asiakkaat:
                 logger.warning(
                     "Ohitetaan sopimus. Ei asiakasta: "
@@ -219,7 +202,7 @@ class PjhTranslator:
 
     def _append_tyhjennykset(self, jkr_data: JkrData):
         for row in self._source.tyhennystapahtumat:
-            tunnus = tunnus_from_asiakasnumero(row.asiakasnumero)
+            tunnus = self.tunnus_from_asiakasnumero(row.asiakasnumero)
             try:
                 jatelaji = JkrJatelaji(row.jatelaji)
             except ValueError:
@@ -247,7 +230,7 @@ class PjhTranslator:
 
     def _append_keraysvalineet(self, jkr_data: JkrData):
         for row in self._source.keraysvalineet:
-            tunnus = tunnus_from_asiakasnumero(row.asiakasnumero)
+            tunnus = self.tunnus_from_asiakasnumero(row.asiakasnumero)
             if tunnus not in jkr_data.asiakkaat:
                 logger.warning(
                     "Ohitetaan keräysväline. Ei asiakasta: " f"'{row.asiakasnumero}'"
@@ -289,7 +272,7 @@ class PjhTranslator:
 
     def _append_keskeytykset(self, jkr_data: JkrData):
         for row in self._source.keskeytykset:
-            tunnus = tunnus_from_asiakasnumero(row.asiakasnumero)
+            tunnus = self.tunnus_from_asiakasnumero(row.asiakasnumero)
             if tunnus not in jkr_data.asiakkaat:
                 logger.warning(
                     "Ohitetaan keskeytys. Ei asiakasta: " f"'{row.asiakasnumero}'"
@@ -317,7 +300,7 @@ class PjhTranslator:
 
     def _append_kimpat(self, jkr_data: JkrData):
         for kimppa_row in self._source.kimpat:
-            tunnus = tunnus_from_asiakasnumero(kimppa_row.asiakasnumero)
+            tunnus = self.tunnus_from_asiakasnumero(kimppa_row.asiakasnumero)
             if tunnus not in jkr_data.asiakkaat:
                 logger.warning(
                     "Ohitetaan kimppasopimus. Ei asiakasta: "
@@ -332,7 +315,7 @@ class PjhTranslator:
             else:
                 sopimustyyppi = SopimusTyyppi.kimppasopimus
 
-            kimppaisanta = tunnus_from_asiakasnumero(kimppa_row.kimppaisanta)
+            kimppaisanta = self.tunnus_from_asiakasnumero(kimppa_row.kimppaisanta)
             if (
                 sopimustyyppi == SopimusTyyppi.kimppasopimus
                 and kimppaisanta not in jkr_data.asiakkaat

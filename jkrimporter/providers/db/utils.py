@@ -36,16 +36,19 @@ asoy_regexps = [
 yhteiso_strings = (
     "yhtymä",
     "yhdistys",
-    " kaupunki",
-    " kunta",
-    " seurakunta",
-    " sr",
-    " ry",
-    " r.y."
+    "yhtiö",
+    "tmi",
+    "kaupunki",
+    "kunta",
+    "seurakunta",
+    "sr",
+    "ry",
+    "r.y."
 )
 
 yhteiso_regexps = [
-    re.compile(rf"{re.escape(string)}$", flags=re.IGNORECASE)
+    # some strings have an extra space in the end
+    re.compile(rf"{re.escape(string)} ?$", flags=re.IGNORECASE)
     for string in yhteiso_strings
 ]
 
