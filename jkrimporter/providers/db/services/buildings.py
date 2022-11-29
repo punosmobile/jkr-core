@@ -167,29 +167,27 @@ def find_buildings_for_kohde(
         print("found some")
         print([rakennus.id for rakennus in rakennukset])
         counts["osoitteella löytyi"] += 1
-        if rakennukset:
-            omistajat = set()
-            for rakennus in rakennukset:
-                omistajat.add(
-                    frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
-                )
-            print("has omistajat")
-            print(omistajat)
-            #
-            # How about we return the building(s) with owners?
-            omistajat = set(filter(lambda osapuolet: osapuolet, omistajat))
-            print(omistajat)
-            return rakennukset
-            # TODO: whenever the address has buildings with different owners,
-            # this will not return any buildings. This is as intended in Tampere,
-            # but no idea why.
-            # if len(omistajat) == 1:
-            #     counts["osoitteella löytyi - kaikilla sama omistaja"] += 1
-            #     if len(rakennukset) > 1:
-            #         area = convex_hull_area_of_buildings(rakennukset)
-            #     if len(rakennukset) == 1 or area < AREA_LIMIT:
-            #         counts["osoitteella löytyi - kaikilla sama omistaja - koko ok"] += 1
-            #         return rakennukset
+        omistajat = set()
+        for rakennus in rakennukset:
+            omistajat.add(
+                frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
+            )
+        print("has omistajat")
+        print(omistajat)
+        omistajat = set(filter(lambda osapuolet: osapuolet, omistajat))
+        print(omistajat)
+        # At the moment, return all buildings, even if they have different owners.
+        return rakennukset
+        # TODO: whenever the address has buildings with different owners,
+        # this will not return any buildings. This is as intended in Tampere,
+        # but no idea why.
+        # if len(omistajat) == 1:
+        #     counts["osoitteella löytyi - kaikilla sama omistaja"] += 1
+        #     if len(rakennukset) > 1:
+        #         area = convex_hull_area_of_buildings(rakennukset)
+        #     if len(rakennukset) == 1 or area < AREA_LIMIT:
+        #         counts["osoitteella löytyi - kaikilla sama omistaja - koko ok"] += 1
+        #         return rakennukset
     print("couldnt find")
     return []
 
