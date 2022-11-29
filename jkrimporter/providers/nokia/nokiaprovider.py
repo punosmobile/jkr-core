@@ -172,7 +172,7 @@ class NokiaTranslator:
 
                 data.asiakkaat[tunnus].tyhjennystapahtumat.append(
                     Tyhjennystapahtuma(
-                        pvm=row.pvm,
+                        loppupvm=row.pvm,
                         jatelaji=jatelaji_map[row.jatelaji],
                         tyhjennyskerrat=1,
                         tilavuus=row.tilavuus * 1000,

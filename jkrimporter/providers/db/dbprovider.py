@@ -2,9 +2,9 @@ import datetime
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set
 
-
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from jkrimporter.model import Asiakas, JkrData
@@ -15,7 +15,7 @@ from jkrimporter.utils.progress import Progress
 from . import codes
 from .codes import init_code_objects
 from .database import engine
-from .models import Kohde, Kuljetus, Tiedontuottaja
+from .models import Kohde, KohteenRakennukset, Kuljetus, Tiedontuottaja
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
@@ -48,27 +48,39 @@ def count(jkr_data: JkrData):
     kitu_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
     address_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
 
+    # TODO: So we have duplicate asiakkaat in the same address for the same interval.
+    # So what? Jukka will have biojäte, sekajäte, energia. So will Aija.
     for asiakas in jkr_data.asiakkaat.values():
         for prt in asiakas.rakennukset:
             prt_counts[prt].append(asiakas.voimassa)
         for kitu in asiakas.kiinteistot:
             kitu_counts[kitu].append(asiakas.voimassa)
+        # this just saves all the buildings with the same address string together
         addr = asiakas.haltija.osoite.osoite_rakennus()
         if addr:
             address_counts[addr].append(asiakas.voimassa)
+
+    return prt_counts, kitu_counts, address_counts
 
 
 def insert_kuljetukset(
     session,
     kohde,
     tyhjennystapahtumat: List[JkrTyhjennystapahtuma],
-    raportointi_alkupvm,
-    raportointi_loppupvm,
+    raportointi_alkupvm: Optional[datetime.date],
+    raportointi_loppupvm: Optional[datetime.date],
     urakoitsija: Tiedontuottaja,
 ):
     for tyhjennys in tyhjennystapahtumat:
-        alkupvm = tyhjennys.pvm or raportointi_alkupvm
-        loppupvm = tyhjennys.pvm or raportointi_loppupvm
+        print("importing tyhjennys")
+        print(tyhjennys)
+        if not tyhjennys.alkupvm:
+            # In many cases, only one date is known for tyhjennys. Looks like
+            # in those cases the date is marked as the end date.
+            alkupvm = tyhjennys.loppupvm or raportointi_alkupvm
+        else:
+            alkupvm = tyhjennys.alkupvm
+        loppupvm = tyhjennys.loppupvm or raportointi_loppupvm
 
         jatetyyppi = codes.jatetyypit[tyhjennys.jatelaji]
         if not jatetyyppi:

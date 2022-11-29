@@ -212,19 +212,23 @@ def update_tyhjennysvalit(
 
 def update_sopimukset_for_kohde(
     session,
-    asiakas: "Asiakas",
     kohde,
-    sopimukset: "List[Union[TyhjennysSopimus, KimppaSopimus]]",
-    urakoitsija: Tiedontuottaja,
+    asiakas: "Asiakas",
+    # sopimukset: "List[Union[TyhjennysSopimus, KimppaSopimus]]",
     raportointi_loppupvm,
+    urakoitsija: Tiedontuottaja,
 ):
-    for sopimus in sopimukset:
+    for sopimus in asiakas.sopimukset:
         db_sopimus = create_or_update_sopimus(session, kohde, urakoitsija, sopimus)
         if db_sopimus:
             update_kesteytykset(db_sopimus, sopimus.keskeytykset)
 
             if not isinstance(sopimus, KimppaSopimus):
                 update_keraysvalineet(
-                    db_sopimus, sopimus.keraysvalineet, raportointi_loppupvm
+                    db_sopimus,
+                    sopimus.keraysvalineet,
+                    raportointi_loppupvm
+                    if raportointi_loppupvm
+                    else asiakas.voimassa.upper,
                 )
                 update_tyhjennysvalit(session, asiakas, db_sopimus, sopimus)

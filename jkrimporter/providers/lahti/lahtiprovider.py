@@ -17,10 +17,11 @@ from jkrimporter.model import (
     SopimusTyyppi,
     Tunnus,
     TyhjennysSopimus,
+    Tyhjennystapahtuma,
 )
-from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import Yhteystieto
+from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
