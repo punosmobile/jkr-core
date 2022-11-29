@@ -1,7 +1,8 @@
 import datetime
 import re
+from datetime import date
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
@@ -72,15 +73,18 @@ class Asiakas(BaseModel):
         return value
 
     @validator("kimppa", pre=True)
-    def parse_kimppa(value: str):
+    def parse_kimppa(value: Union[bool, str]):
         # no idea why pydantic has trouble with coercing empty strings
         # to boolean
         return bool(value)
 
     @validator("koko", "paino", pre=True)
-    def parse_float(value: str):
-        # okay, so floats might have . or , as the separator
-        return float(value.replace(",", "."))
+    def parse_float(value: Union[float, str]):
+        # If float wasn't parsed, let's parse them
+        if type(value) is str:
+            # we might have . or , as the separator
+            return float(value.replace(",", "."))
+        return value
 
     @validator("tyyppiIdEWC", pre=True)
     def parse_jatelaji(value: str):
@@ -89,13 +93,13 @@ class Asiakas(BaseModel):
         return value.title()
 
     @validator("Pvmalk", "Pvmasti", pre=True)
-    def parse_date(value: str):
-        # date may be in a variety of formats. Pydantic cannot parse all
+    def parse_date(value: Union[date, str]):
+        # If date wasn't parsed, let's parse them.
+        # Date may be in a variety of formats. Pydantic cannot parse all
         # of them by default
-        if "/" in value:
-            return value
-        if "." in value:
+        if type(value) is str and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        return value
 
     @validator(
         "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti", pre=True
