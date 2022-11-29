@@ -1,5 +1,7 @@
 import datetime
 import logging
+import warnings
+from collections import defaultdict
 from datetime import date
 from typing import TYPE_CHECKING, Union
 
@@ -7,9 +9,7 @@ from addrparser import AddressParser
 
 from jkrimporter.model import Asiakas as JkrAsiakas
 from jkrimporter.model import Jatelaji as JkrJatelaji
-from jkrimporter.model import JkrData
-from jkrimporter.model import Keraysvaline as JkrKeraysvaline
-from jkrimporter.model import KeraysvalineTyyppi as JkrKeraysvalineTyyppi
+from jkrimporter.model import JkrData, Keraysvaline, KeraysvalineTyyppi
 from jkrimporter.model import Keskeytys as JkrKeskeytys
 from jkrimporter.model import (
     KimppaSopimus,

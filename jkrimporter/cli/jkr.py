@@ -68,6 +68,11 @@ def import_data(
     tiedontuottajatunnus: str = typer.Argument(
         ..., help="Tiedon toimittajan tunnus. Esim. 'PJH', 'HKO', 'LSJ'"
     ),
+    ala_luo: bool = typer.Option(
+        False,
+        "--ala_luo",
+        help="Älä luo uusia kohteita tästä datasta."
+    ),
     ala_paivita: bool = typer.Option(
         False,
         "--ala_paivita",
@@ -97,7 +102,7 @@ def import_data(
     print(jkr_data)
     print('writing to db...')
     db = DbProvider()
-    db.write(jkr_data, tiedontuottaja, ala_paivita)
+    db.write(jkr_data, tiedontuottajatunnus, ala_luo, ala_paivita)
 
     print("VALMIS!")
 

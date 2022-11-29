@@ -100,8 +100,14 @@ def insert_kuljetukset(
 
 
 def find_and_update_kohde(
-     session: "Session", asiakas: "Asiakas", do_update: bool
- ) -> Kohde:
+    session: "Session",
+    asiakas: "Asiakas",
+    do_create: bool,
+    do_update: bool,
+    prt_counts: Dict[str, int],
+    kitu_counts: Dict[str, int],
+    address_counts: Dict[str, int],
+) -> Kohde:
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
     if ulkoinen_asiakastieto:
         update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
@@ -114,10 +120,48 @@ def find_and_update_kohde(
         if kohde:
             if do_update:
                 update_kohde(kohde, asiakas)
-        else:
+        elif do_create:
             kohde = create_new_kohde(session, asiakas)
 
-        add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
+    if not kohde or not kohde.rakennus_collection:
+        print("No kohde found. Looking for buildings...")
+        buildings = find_buildings_for_kohde(
+            session, asiakas, prt_counts, kitu_counts, address_counts
+        )
+        if kohde:
+            if buildings:
+                kohde.rakennus_collection = buildings
+
+            elif not kohde.ehdokasrakennus_collection:
+                building_candidates = find_building_candidates_for_kohde(
+                    session, asiakas
+                )
+                if building_candidates:
+                    kohde.ehdokasrakennus_collection = building_candidates
+        else:
+            print("got buildings")
+            print(buildings)
+            kohde_ids = session.execute(
+                select(KohteenRakennukset.kohde_id).where(
+                    KohteenRakennukset.rakennus_id.in_(
+                        [building.id for building in buildings]
+                    )
+                )
+            ).all()
+            print("got kohde ids")
+            print(kohde_ids)
+            # There may be several. Paritalot must be selected by customer
+            # name, we might not know if they inhabit A or B. Pick the last
+            # one if no name matches.
+            for kohde_id in kohde_ids:
+                kohde = session.get(Kohde, kohde_id)
+                print("we have kohde")
+                print(kohde)
+                # if match_asukas(kohde, asiakas.haltija):
+                #     break
+
+        if kohde:
+            add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
 
     return kohde
 
@@ -125,19 +169,29 @@ def find_and_update_kohde(
 def import_asiakastiedot(
     session: Session,
     asiakas: Asiakas,
-    alkupvm: datetime.date,
-    loppupvm: datetime.date,
+    alkupvm: Optional[datetime.date],
+    loppupvm: Optional[datetime.date],
     urakoitsija: Tiedontuottaja,
+    do_create: bool,
     do_update: bool,
-    prt_counts: Dict[str, int],
-    kitu_counts: Dict[str, int],
-    address_counts: Dict[str, int],
+    prt_counts: Dict[str, IntervalCounter],
+    kitu_counts: Dict[str, IntervalCounter],
+    address_counts: Dict[str, IntervalCounter],
 ):
 
-    kohde = find_and_update_kohde(session, asiakas, do_update)
+    kohde = find_and_update_kohde(
+        session, asiakas, do_create, do_update, prt_counts, kitu_counts, address_counts
+    )
+    if not kohde:
+        print(f"Could not find kohde for asiakas {asiakas}, skipping...")
+        return
 
+    # Update osapuolet from the same tiedontuottaja. These functions will not
+    # touch data from other tiedontuottajat.
     create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
     create_or_update_yhteystieto_osapuoli(session, kohde, asiakas, do_update)
+
+    update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
     insert_kuljetukset(
         session,
         kohde,
@@ -146,18 +200,6 @@ def import_asiakastiedot(
         loppupvm,
         urakoitsija,
     )
-
-    if not kohde.rakennus_collection:
-        buildings = find_buildings_for_kohde(
-            session, asiakas, prt_counts, kitu_counts, address_counts
-        )
-        if buildings:
-            kohde.rakennus_collection = buildings
-
-        elif not kohde.ehdokasrakennus_collection:
-            building_candidates = find_building_candidates_for_kohde(session, asiakas)
-            if building_candidates:
-                kohde.ehdokasrakennus_collection = building_candidates
 
     session.commit()
 
@@ -249,55 +291,96 @@ class DbProvider:
         self,
         jkr_data: JkrData,
         tiedontuottaja_lyhenne: str,
+        ala_luo: bool,
         ala_paivita: bool,
     ):
         try:
-            print(jkr_data.asiakkaat)
             print(len(jkr_data.asiakkaat))
             progress = Progress(len(jkr_data.asiakkaat))
 
             prt_counts, kitu_counts, address_counts = count(jkr_data)
+            # print(prt_counts)
+            # print(kitu_counts)
+            # print(address_counts)
             with Session(engine) as session:
                 init_code_objects(session)
 
-                urakoitsija = session.get(
-                    Tiedontuottaja, tiedontuottaja_lyhenne
-                )
+                tiedoston_tuottaja = session.get(Tiedontuottaja, tiedontuottaja_lyhenne)
+
+                # The same tiedontuottaja may contain data from multiple
+                # urakoitsijat. Create all urakoitsijat in the db first.
+                print("Importoidaan urakoitsijat")
+                urakoitsijat: Set[str] = set()
+                for asiakas in jkr_data.asiakkaat.values():
+                    if asiakas.asiakasnumero.jarjestelma not in urakoitsijat:
+                        print(f"found urakoitsija {asiakas.asiakasnumero.jarjestelma}")
+                        urakoitsijat.add(asiakas.asiakasnumero.jarjestelma)
+                tiedontuottajat: Dict[str, Tiedontuottaja] = {}
+                for urakoitsija_tunnus in urakoitsijat:
+                    print("checking or adding urakoitsija")
+                    tiedontuottaja = session.get(Tiedontuottaja, urakoitsija_tunnus)
+                    print(tiedontuottaja)
+                    if not tiedontuottaja:
+                        print("not found, adding")
+                        tiedontuottaja = Tiedontuottaja(
+                            # let's create the urakoitsijat using only y-tunnus for now.
+                            # We can create tiedontuottaja-nimi maps later.
+                            tunnus=urakoitsija_tunnus,
+                            nimi=urakoitsija_tunnus,
+                        )
+                        session.add(tiedontuottaja)
+                    tiedontuottajat[urakoitsija_tunnus] = tiedontuottaja
+                session.commit()
 
                 print("Importoidaan asiakastiedot")
                 for asiakas in jkr_data.asiakkaat.values():
+                    print("---------")
+                    print("importing")
+                    print(asiakas)
                     progress.tick()
+
+                    # Asiakastieto may come from different urakoitsija than the
+                    # immediate tiedontuottaja. In such a case, the asiakas
+                    # information takes precedence.
+                    urakoitsija_tunnus = asiakas.asiakasnumero.jarjestelma
 
                     import_asiakastiedot(
                         session,
                         asiakas,
                         jkr_data.alkupvm,
                         jkr_data.loppupvm,
-                        urakoitsija,
+                        tiedontuottajat[urakoitsija_tunnus],
+                        not ala_luo,
+                        not ala_paivita,
                         prt_counts,
                         kitu_counts,
                         address_counts,
                     )
-
+                session.commit()
                 progress.complete()
 
-                print("Importoidaan sopimukset")
-                progress.reset()
-                for asiakas in jkr_data.asiakkaat.values():
-                    progress.tick()
+                # print("Importoidaan sopimukset")
+                # progress.reset()
+                # for asiakas in jkr_data.asiakkaat.values():
+                #     progress.tick()
 
-                    kohde = get_kohde_by_asiakasnumero(session, asiakas.asiakasnumero)
-                    update_sopimukset_for_kohde(
-                        session,
-                        asiakas,
-                        kohde,
-                        asiakas.sopimukset,
-                        urakoitsija,
-                        jkr_data.loppupvm,
-                    )
-                    session.commit()
+                #     # Asiakastieto may come from different urakoitsija than the
+                #     # immediate tiedontuottaja. In such a case, the asiakas
+                #     # information takes precedence.
+                #     urakoitsija_tunnus = asiakas.asiakasnumero.jarjestelma
 
-                progress.complete()
+                #     kohde = get_kohde_by_asiakasnumero(session, asiakas.asiakasnumero)
+                #     update_sopimukset_for_kohde(
+                #         session,
+                #         asiakas,
+                #         kohde,
+                #         asiakas.sopimukset,
+                #         urakoitsija,
+                #         jkr_data.loppupvm,
+                #     )
+                #     session.commit()
+                #     break
+                # progress.complete()
 
         except Exception as e:
             logger.exception(e)
