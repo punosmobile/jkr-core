@@ -11,6 +11,7 @@ from jkrimporter.providers.db.services.tiedontuottaja import (
     insert_tiedontuottaja,
     list_tiedontuottajat,
     remove_tiedontuottaja,
+    rename_tiedontuottaja
  )
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
@@ -119,6 +120,14 @@ def tiedontuottaja_add_new(
     name: str = typer.Argument(..., help="Tiedontuottajan nimi."),
 ):
     insert_tiedontuottaja(tunnus.upper(), name)
+
+
+@provider_app.command("rename", help="Muuta tiedontuottajan nimi järjestelmässä.")
+def tiedontuottaja_rename(
+    tunnus: str = typer.Argument(..., help="Tiedontuottajan tunnus. Esim. 'PJH'"),
+    name: str = typer.Argument(..., help="Tiedontuottajan uusi nimi."),
+):
+    rename_tiedontuottaja(tunnus.upper(), name)
 
 
 @provider_app.command("remove", help="Poista tiedontuottaja järjestelmästä.")
