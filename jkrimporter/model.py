@@ -83,7 +83,7 @@ class Jatelaji(str, Enum):
     sekajate = "Sekajäte"
     bio = "Biojäte"
     lasi = "Lasi"
-    peperi = "Paperi"
+    paperi = "Paperi"
     kartonki = "Kartonki"
     muovi = "Muovi"
     metalli = "Metalli"

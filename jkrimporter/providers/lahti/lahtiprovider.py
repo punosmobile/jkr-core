@@ -85,33 +85,60 @@ def create_yhteyshenkilo(row: "Asiakas"):
             yhteyshenkilon_osoite.huoneistotunnus = o.huoneistotunnus
 
     yhteyshenkilo = Yhteystieto(
-        nimi=row.yhteyshenkilo_nimi,
+        nimi=row.Haltijanyhteyshlo.title()
+        if row.Haltijanyhteyshlo
+        else row.Haltijannimi.title(),
         osoite=yhteyshenkilon_osoite,
     )
+    print("got yhteyshenkilö")
+    print(yhteyshenkilo)
     return yhteyshenkilo
 
 
+jatelaji_map = {
+    Jatelaji.seka: JkrJatelaji.sekajate,
+    Jatelaji.energia: JkrJatelaji.energia,
+    Jatelaji.bio: JkrJatelaji.bio,
+    Jatelaji.kartonki: JkrJatelaji.kartonki,
+    Jatelaji.pahvi: JkrJatelaji.pahvi,
+    Jatelaji.metalli: JkrJatelaji.metalli,
+    Jatelaji.lasi: JkrJatelaji.lasi,
+    Jatelaji.paperi: JkrJatelaji.paperi,
+    Jatelaji.muovi: JkrJatelaji.muovi,
+}
+
+
 class LahtiTranslator:
+    """
+    In Lahti, tiedontuottaja PJH is different from urakoitsija. The same tiedontuottaja
+    file contains multiple urakoitsija, which must be saved with their original ids. In
+    most cases, then, we don't use tiedontuottajatunnus, we will use the tunnus for each
+    urakoitsija separately to identify clients.
+    """
+
     def __init__(
-        self, siirtotiedosto: LahtiSiirtotiedosto, tiedontuottajatunnus: str
+        self,
+        siirtotiedosto: LahtiSiirtotiedosto,
+        tiedontuottajatunnus: str,
     ):
         self._source = siirtotiedosto
         self._tiedontuottaja_tunnus = tiedontuottajatunnus
-        self._asiakastunnus_to_tunnus = {}
+        self._tunnus_by_urakoitsija_and_asiakasnro = defaultdict(dict)
 
     def as_jkr_data(self, alkupvm: Union[None, date], loppupvm: Union[None, date]):
         data = JkrData()
 
         data = self._add_meta(data, alkupvm, loppupvm)
+        # If alkupvm and loppupvm are not known, Lahti data may contain clients
+        # with lots of different intervals. Just import everything in the data.
         data = self._append_asiakkaat(data, alkupvm, loppupvm)
-        # data = self._append_sopimukset_keraysvalineet_kuljetukset(
-        #     data, alkupvm, loppupvm
-        # )
 
         return data
 
-    def tunnus_from_asiakasnumero(self, asiakasnro: str) -> Tunnus:
-        return Tunnus(self._tiedontuottaja_tunnus, asiakasnro)
+    def tunnus_from_urakoitsija_and_asiakasnumero(
+        self, urakoitsija: str, asiakasnro: str
+    ) -> Tunnus:
+        return Tunnus(urakoitsija, asiakasnro)
 
     def _add_meta(self, data: JkrData, alkupvm, loppupvm):
         data.alkupvm = alkupvm
@@ -119,79 +146,101 @@ class LahtiTranslator:
 
         return data
 
-    def _append_asiakkaat(self, data: JkrData, alkupvm, loppupvm):
-        print('appending asiakkaat')
-        for row in self._source.asiakastiedot:
-            print('got asiakastiedot')
-            print(row)
-            tunnus = self.tunnus_from_asiakasnumero(row.asiakasnumero)
-            self._asiakastunnus_to_tunnus[row.asiakas_tunnus] = tunnus
-            haltija = create_haltija(row)
-            yhteyshenkilo = create_yhteyshenkilo(row)
-            asiakas = JkrAsiakas(
-                asiakasnumero=tunnus,
-                voimassa=Interval(None, None),
-                ulkoinen_asiakastieto=row,
-                kiinteistot=row.kiinteistotunnukset,
-                haltija=haltija,
-                yhteyshenkilo=yhteyshenkilo,
-            )
-
-            data.asiakkaat[tunnus] = asiakas
-        return data
-
-    def _append_sopimukset_keraysvalineet_kuljetukset(
-        self, data: JkrData, alkupvm: date, loppupvm: date
+    def _append_asiakkaat(
+        self, data: JkrData, alkupvm: Union[None, date], loppupvm: Union[None, date]
     ):
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
-            for row in self._source.kuljetustiedot:
-                tunnus = self._asiakastunnus_to_tunnus.get(row.asiakas_tunnus, None)
-                if not tunnus:
-                    logger.warning(
-                        "Ohitetaan kuljetustapahtuma. Ei asiakasta: "
-                        f"'{row.asiakas_tunnus}'"
-                    )
+        for row in self._source.asiakastiedot:
+            print("-------")
+            print("got asiakastiedot")
+            print(row)
+            if alkupvm:
+                print(alkupvm)
+                print(row.Pvmasti)
+                if row.Pvmasti < alkupvm:
+                    print('skipping, too early')
                     continue
-
-                sopimus = next(
-                    (
-                        s
-                        for s in data.asiakkaat[tunnus].sopimukset
-                        if s.jatelaji == jatelaji_map[row.jatelaji]
-                    ),
-                    None,
+            if loppupvm:
+                print(loppupvm)
+                print(row.Pvmalk)
+                if row.Pvmalk > loppupvm:
+                    print('skipping, too late')
+                    continue
+            tunnus = self.tunnus_from_urakoitsija_and_asiakasnumero(
+                row.UrakoitsijaId, row.UrakoitsijankohdeId
+            )
+            # In Lahti data, each row only contains information on one kuljetus and
+            # sopimus. If the asiakas already exists, do not add them again, just
+            # append to their kuljetukset and sopimukset. Luckily, UrakoitsijankohdeId
+            # means any different buildings will always be imported as separate
+            # asiakas, even if their name etc. is the same. This way, each Asiakas
+            # will always only have a single rakennus and its sopimukset.
+            if tunnus not in data.asiakkaat.keys():
+                self._tunnus_by_urakoitsija_and_asiakasnro[row.UrakoitsijaId][
+                    row.UrakoitsijankohdeId
+                ] = tunnus
+                haltija = create_haltija(row)
+                yhteyshenkilo = create_yhteyshenkilo(row)
+                asiakas = JkrAsiakas(
+                    asiakasnumero=tunnus,
+                    voimassa=Interval(row.Pvmalk, row.Pvmasti),
+                    ulkoinen_asiakastieto=row,
+                    # obviously, prt is called Kiinteistotunnus in Lahti data
+                    rakennukset=[row.Kiinteistotunnus] if row.Kiinteistotunnus else [],
+                    haltija=haltija,
+                    yhteyshenkilo=yhteyshenkilo,
                 )
-                if not sopimus:
-                    sopimus = TyhjennysSopimus(
-                        sopimustyyppi=SopimusTyyppi.tyhjennyssopimus,
-                        jatelaji=jatelaji_map[row.jatelaji],
-                        alkupvm=alkupvm,
-                        loppupvm=loppupvm,
-                    )
-                    data.asiakkaat[tunnus].sopimukset.append(sopimus)
+                # print(asiakas)
+                data.asiakkaat[tunnus] = asiakas
+                print(f"Added new asiakas {tunnus}")
+            else:
+                print(f"Asiakas {tunnus} found already")
 
-                keraysvaline = next(
-                    (
-                        k
-                        for k in sopimus.keraysvalineet
-                        if k.tyyppi == kaivotyyppi_map[row.kaivon_tyyppi]
-                    ),
-                    None,
-                )
-                if not keraysvaline:
-                    keraysvaline = Keraysvaline(
-                        maara=1, tyyppi=kaivotyyppi_map[row.kaivon_tyyppi]
-                    )
-                    sopimus.keraysvalineet.append(keraysvaline)
-
-                data.asiakkaat[tunnus].tyhjennystapahtumat.append(
-                    Tyhjennystapahtuma(
-                        pvm=row.pvm,
-                        jatelaji=jatelaji_map[row.jatelaji],
-                        tyhjennyskerrat=1,
-                        tilavuus=row.tilavuus * 1000,
+            # Lahti saves aluekeräys in the same field as jätelajit
+            if row.tyyppiIdEWC == Jatelaji.aluekerays:
+                sopimustyyppi = SopimusTyyppi.aluekerayssopimus
+                jatelaji = JkrJatelaji.muu
+            else:
+                sopimustyyppi = SopimusTyyppi.tyhjennyssopimus
+                jatelaji = jatelaji_map[row.tyyppiIdEWC]
+            sopimus = TyhjennysSopimus(
+                sopimustyyppi=sopimustyyppi,
+                jatelaji=jatelaji,
+                alkupvm=row.Pvmalk,
+                loppupvm=row.Pvmasti,
+            )
+            if row.tyhjennysvali:
+                # tyhjennysväli is missing from some data
+                sopimus.tyhjennysvalit.append(
+                    JkrTyhjennysvali(
+                        alkuvko=row.Voimassaoloviikotalkaen,
+                        loppuvko=row.Voimassaoloviikotasti,
+                        tyhjennysvali=row.tyhjennysvali,
                     )
                 )
+            data.asiakkaat[tunnus].sopimukset.append(sopimus)
+            # print(data.asiakkaat[tunnus].sopimukset)
 
-            return data
+            keraysvaline = Keraysvaline(
+                maara=row.astiamaara,
+                tilavuus=row.koko * 1000 if row.koko else None,
+                tyyppi=KeraysvalineTyyppi.SAILIO,
+            )
+            sopimus.keraysvalineet.append(keraysvaline)
+            # print(sopimus.keraysvalineet)
+
+            massa = row.paino * 1000 if row.paino else None
+            data.asiakkaat[tunnus].tyhjennystapahtumat.append(
+                Tyhjennystapahtuma(
+                    alkupvm=row.Pvmalk,
+                    loppupvm=row.Pvmasti,
+                    jatelaji=jatelaji,
+                    tyhjennyskerrat=row.kaynnit,
+                    tilavuus=row.koko * 1000 if row.koko else None,
+                    massa=massa,
+                )
+            )
+            # print(data.asiakkaat[tunnus].tyhjennystapahtumat)
+            # TODO: Add kimppa data!!
+            print("------")
+
+        return data
