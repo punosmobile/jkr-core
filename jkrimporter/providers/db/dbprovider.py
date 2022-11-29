@@ -31,6 +31,7 @@ from .services.kohde import (
     find_kohde_by_asiakastiedot,
     get_kohde_by_asiakasnumero,
     get_ulkoinen_asiakastieto,
+    match_asukas,
     update_kohde,
     update_ulkoinen_asiakastieto,
 )

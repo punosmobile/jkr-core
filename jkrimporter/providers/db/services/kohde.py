@@ -56,6 +56,22 @@ if TYPE_CHECKING:
 #     osoitteet: FrozenSet[Osoite]
 
 
+def match_asukas(kohde, asukas, preprocessor=lambda x: x):
+    print('matching asukas from paritalo')
+    kohteen_asukkaat = kohde.kohteen_osapuolet_collection
+    print(asukas)
+    print(kohteen_asukkaat)
+    # TODO: refactor this to fetch all the needed stuff from the db.
+    # kohteen_asukkaat is the many to many table and doesn't have the names.
+    for kohteen_asukas in kohteen_asukkaat:
+        print(kohteen_asukas.nimi)
+        print(asukas.nimi)
+    return any(
+        preprocessor(asukas.nimi).lower() == preprocessor(kohteen_asukkaat.nimi).lower()
+        for kohteen_asukas in kohteen_asukkaat
+    )
+
+
 def is_aluekerays(asiakas: "Asiakas") -> bool:
     return "aluejätepiste" in asiakas.haltija.nimi.lower()
 

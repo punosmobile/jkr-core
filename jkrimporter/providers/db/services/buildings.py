@@ -4,15 +4,24 @@ from typing import TYPE_CHECKING, Dict, List
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
+from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from jkrimporter.model import Rakennustunnus
 from jkrimporter.providers.db.utils import clean_asoy_name, is_asoy
 
 from .. import codes
 from ..codes import RakennuksenKayttotarkoitusTyyppi
-from ..models import Katu, Kunta, Osapuoli, Osoite, Posti, Rakennus
+from ..models import (
+    Katu,
+    Kunta,
+    Osapuoli,
+    Osoite,
+    Posti,
+    RakennuksenVanhimmat,
+    Rakennus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +102,7 @@ def find_buildings_for_kohde(
                         counts["uniikki prt - koko liian iso"] += 1
             else:
                 counts["uniikki prt - rakennuksia ei löydy"] += 1
+        # TODO: liitetään asiakkaaseen vaikka asiakkaita olisi useampi!
 
     if asiakas.kiinteistot:
         counts["on kitu"] += 1
@@ -220,16 +230,70 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto"):
     except AttributeError:
         return ""
 
+    # The osoitenumero may contain dash. In that case, the buildings may be
+    # listed as separate in DVV data.
+    if haltija.osoite.osoitenumero and "-" in haltija.osoite.osoitenumero:
+        osoitenumerot = haltija.osoite.osoitenumero.split("-", maxsplit=1)
+    else:
+        osoitenumerot = [haltija.osoite.osoitenumero]
+
+    # The address parser parses Metsätie 33 A so that 33 is osoitenumero and A is
+    # huoneistotunnus. While the parsing is correct, it may very well also mean (and
+    # in many cases it means) osoitenumero 33a and empty huoneistonumero.
+    potential_osoitenumero_suffix = (
+        haltija.osoite.huoneistotunnus.lower() if haltija.osoite.huoneistotunnus else ""
+    )
+    if potential_osoitenumero_suffix:
+        # Find Metsätie 33a by Metsätie 33 A. For simplicity, let's not assume
+        # 31-33a exists.
+        osoitenumero_condition = and_(
+            Osoite.osoitenumero.ilike(haltija.osoite.osoitenumero + "%"),
+            Osoite.osoitenumero.ilike("%" + potential_osoitenumero_suffix),
+        )
+    else:
+        # Do *NOT* find Mukkulankatu 51 *AND* Mukkulankatu 51b by Mukkulankatu 51.
+        osoitenumero_condition = Osoite.osoitenumero.in_(osoitenumerot)
+
+    # Do *NOT* find Sokeritopankatu 18 *AND* Sokeritopankatu 18a by
+    # Sokeritopankatu 18 A. Looks like Sokeritopankatu 18, 18 A and 18 B are *all*
+    # separate.
+    huoneistokirjain_exists_condition = and_(
+        # 1) if A is inhabited, do not match to 18 without A. Vanhin must live in the
+        # huoneisto with the same kirjain.
+        Osoite.osoitenumero.in_(osoitenumerot),
+        RakennuksenVanhimmat.huoneistokirjain is not None,
+        RakennuksenVanhimmat.huoneistokirjain == haltija.osoite.huoneistotunnus,
+    )
+    huoneistokirjain_does_not_exist_condition = and_(
+        # 2) If A is not inhabited, match to 18 without A. Vanhin must not have kirjain
+        # in their huoneisto.
+        Osoite.osoitenumero.in_(osoitenumerot),
+        RakennuksenVanhimmat.huoneistokirjain is None,
+    )
+
+    print(osoitenumero_condition)
+    print(osoitenumerot)
+    print(haltija.osoite.osoitenumero)
+    print(haltija.osoite.postinumero)
+    print(katunimi_lower)
     statement = (
         select(Rakennus)
         .join(Osoite)
         .join(Katu)
-        .join(Kunta)
-        .join(Posti)
+        .join(RakennuksenVanhimmat)
         .where(
-            Posti.numero == haltija.osoite.postinumero,
+            Osoite.posti_numero == haltija.osoite.postinumero,
             sqlalchemyFunc.lower(Katu.katunimi_fi) == katunimi_lower,
-            Osoite.osoitenumero == haltija.osoite.osoitenumero,
+            or_(
+                osoitenumero_condition,
+                huoneistokirjain_exists_condition,
+                huoneistokirjain_does_not_exist_condition
+                # Find Metsätähtikatu 3 by Metsätähtikatu 3 B. This is a case of paritalo, where
+                # the owner of one half has address 3 B, although the building only has address 3.
+                # TODO: In case of paritalo, the *asukas* address tells us which is which. The
+                # building address is not enough. So let's check the inhabitant address *after* we
+                # return the building for kohteet.
+            ),
         )
         .distinct()
     )

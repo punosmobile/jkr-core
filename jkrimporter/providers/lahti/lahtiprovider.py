@@ -45,39 +45,47 @@ def overlap(a: TyhjennysSopimus, b: TyhjennysSopimus) -> bool:
 
 
 def create_haltija(row: "Asiakas"):
-    kohteen_osoite = Osoite(
-        postinumero=row.kohde_postinumero,
-        postitoimipaikka=row.kohde_postitoimipaikka,
-    )
-    if row.kohde_katuosoite:
+    postinumero, postitoimipaikka = row.Kiinteistonposti.split(" ", maxsplit=1)
+    kohteen_osoite = Osoite(postinumero=postinumero, postitoimipaikka=postitoimipaikka)
+    if row.Kiinteistonkatuosoite:
         try:
-            parsed_address = address_parser.parse(row.kohde_katuosoite)
+            parsed_address = address_parser.parse(row.Kiinteistonkatuosoite)
         except ValueError:
-            kohteen_osoite.erikoisosoite = row.kohde_katuosoite
+            kohteen_osoite.erikoisosoite = row.Kiinteistonkatuosoite
         else:
             o = osoite_from_parsed_address(parsed_address)
             kohteen_osoite.katunimi = o.katunimi
             kohteen_osoite.osoitenumero = o.osoitenumero
             kohteen_osoite.huoneistotunnus = o.huoneistotunnus
+        kohteen_osoite.kunta = row.Kuntatun
 
     haltija = Yhteystieto(
-        nimi=row.haltija_nimi,
-        ytunnus=row.haltija_ytunnus,
+        nimi=row.Haltijannimi.title(),
         osoite=kohteen_osoite,
     )
+    print("got haltija")
+    print(haltija)
     return haltija
 
 
 def create_yhteyshenkilo(row: "Asiakas"):
+    postinumero, postitoimipaikka = row.Haltijanposti.split(" ", maxsplit=1)
     yhteyshenkilon_osoite = Osoite(
-        postinumero=row.yhteyshenkilo_postinumero,
-        postitoimipaikka=row.yhteyshenkilo_postitoimipaikka,
+        postinumero=postinumero, postitoimipaikka=postitoimipaikka
     )
-    if row.yhteyshenkilo_katuosoite:
+    # of course, Haltijankatuosoite is *not* haltijan katuosoite in Lahti data.
+    # It is the katuosoite of haltija *or* their yhteyshenkilö, whenever yhteyshenkilö
+    # differs from haltija. Therefore, it should always be used for yhteyshenkilö.
+    # - In our terminology, *haltija* is the one living in the building.
+    # - In Lahti terminology, *haltija* is the owner, i.e. yhteyshenkilö.
+    # Even in case the haltija has no external yhteyshenkilö (private owners), their
+    # address may differ from that of the kohde address, and they should always be
+    # saved.
+    if row.Haltijankatuosoite:
         try:
-            parsed_address = address_parser.parse(row.kohde_katuosoite)
+            parsed_address = address_parser.parse(row.Haltijankatuosoite)
         except ValueError:
-            yhteyshenkilon_osoite.erikoisosoite = row.yhteyshenkilo_katuosoite
+            yhteyshenkilon_osoite.erikoisosoite = row.Haltijankatuosoite
         else:
             o = osoite_from_parsed_address(parsed_address)
             yhteyshenkilon_osoite.katunimi = o.katunimi
