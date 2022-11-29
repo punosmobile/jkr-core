@@ -109,8 +109,11 @@ def create_or_update_sopimus(
         None,
     )
     if db_sopimus:
+        print('found db sopimus')
+        print(db_sopimus)
         merge_alkupvm(db_sopimus, jkr_sopimus)
         merge_loppupvm(db_sopimus, jkr_sopimus)
+        print('updated sopimus')
     else:
         db_sopimus = Sopimus(
             kohde=kohde,
@@ -122,6 +125,7 @@ def create_or_update_sopimus(
             kimppaisanta_kohde=kimppaisanta,
         )
         session.add(db_sopimus)
+        print("created new sopimus")
 
     return db_sopimus
 
@@ -154,6 +158,9 @@ def update_keraysvalineet(
     keraysvalineet: "List[JkrKeraysvaline]",
     raportointi_loppupvm: datetime.date,
 ):
+    print("updating keraysvaline")
+    print(keraysvalineet)
+    print(raportointi_loppupvm)
     for keraysvaline in keraysvalineet:
         db_keraysvaline = next(
             (
@@ -165,8 +172,10 @@ def update_keraysvalineet(
             None,
         )
         if db_keraysvaline:
+            print("väline in db")
             db_keraysvaline.pvm = raportointi_loppupvm
         else:
+            print("creating new väline")
             db_keraysvaline = Keraysvaline(
                 pvm=raportointi_loppupvm,
                 tilavuus=keraysvaline.tilavuus,
@@ -200,6 +209,8 @@ def update_tyhjennysvalit(
                 session.delete(db_tyhjennysvali)
 
     for jkr_tyhjennysvali in sopimus.tyhjennysvalit:
+        print('got tyhjennysväli')
+        print(jkr_tyhjennysvali)
         exists = any(
             db_tyhjennysvali.alkuvko == jkr_tyhjennysvali.alkuvko
             and db_tyhjennysvali.loppuvko == jkr_tyhjennysvali.loppuvko

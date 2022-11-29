@@ -73,9 +73,11 @@ def find_buildings_for_kohde(
     kitu_counts: Dict[str, "IntervalCounter"],
     address_counts: Dict[str, "IntervalCounter"],
 ):
+    print("looking for buildings")
     counts["asiakkaita"] += 1
     rakennukset = []
     if asiakas.rakennukset:
+        print("has buildings already")
         counts["on prt"] += 1
         on_how_many_customers = {
             prt: prt_counts[prt].count_overlapping(asiakas.voimassa)
@@ -105,6 +107,7 @@ def find_buildings_for_kohde(
         # TODO: liitetään asiakkaaseen vaikka asiakkaita olisi useampi!
 
     if asiakas.kiinteistot:
+        print("has kiinteistöt")
         counts["on kitu"] += 1
         if all(
             kitu_counts[kitu].count_overlapping(asiakas.voimassa) == 1
