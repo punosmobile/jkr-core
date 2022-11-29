@@ -23,14 +23,12 @@ def create_or_update_haltija_osapuoli(
     # override data coming from other tiedontuottajat, including DVV.
     tiedontuottaja = asiakas.asiakasnumero.jarjestelma
     # this is any asiakas from the same source
-    db_haltijat = (
+    db_haltijat = [
         kohteen_osapuoli.osapuoli
         for kohteen_osapuoli in kohde.kohteen_osapuolet_collection
         if kohteen_osapuoli.osapuolenrooli == asiakasrooli and
         kohteen_osapuoli.osapuoli.tiedontuottaja_tunnus == tiedontuottaja
-    )
-    print('found haltijat in db')
-    print(db_haltijat)
+    ]
 
     # this is asiakas with the same name and address
     exists = any(
