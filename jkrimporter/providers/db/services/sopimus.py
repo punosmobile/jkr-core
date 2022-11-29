@@ -90,7 +90,13 @@ def create_or_update_sopimus(
             )
     else:
         kimppaisanta = None
+    print('got jkr sopimus')
+    print(jkr_sopimus)
 
+    # TODO: potentially we have to separate sopimukset for the same
+    # jatetyyppi even if they overlap. So we might need to check a
+    # separate field, i.e. the sopimus id or the customer id, to make
+    # sure that we are combining the right sopimus, not different ones?
     db_sopimus = next(
         (
             sopimus

@@ -91,6 +91,10 @@ def insert_kuljetukset(
             )
             continue
 
+        # TODO: here we have the assumption that there is only one kuljetus
+        # for a given period and jatetyyppi. It may be false, there may even
+        # be more than one kuljetus for a period and jatetyyppi with the *same*
+        # urakoitsija, with the same *or* different customer ids.
         exists = any(
             k.jatetyyppi == jatetyyppi
             and k.alkupvm == alkupvm
@@ -163,7 +167,7 @@ def find_and_update_kohde(
             ).all()
             print("got kohde ids")
             print(kohde_ids)
-            # There may be several. Paritalot must be selected by customer
+            # TODO: There may be several. Paritalot must be selected by customer
             # name, we might not know if they inhabit A or B. Pick the last
             # one if no name matches.
             for kohde_id in kohde_ids:
@@ -371,29 +375,6 @@ class DbProvider:
                     )
                 session.commit()
                 progress.complete()
-
-                # print("Importoidaan sopimukset")
-                # progress.reset()
-                # for asiakas in jkr_data.asiakkaat.values():
-                #     progress.tick()
-
-                #     # Asiakastieto may come from different urakoitsija than the
-                #     # immediate tiedontuottaja. In such a case, the asiakas
-                #     # information takes precedence.
-                #     urakoitsija_tunnus = asiakas.asiakasnumero.jarjestelma
-
-                #     kohde = get_kohde_by_asiakasnumero(session, asiakas.asiakasnumero)
-                #     update_sopimukset_for_kohde(
-                #         session,
-                #         asiakas,
-                #         kohde,
-                #         asiakas.sopimukset,
-                #         urakoitsija,
-                #         jkr_data.loppupvm,
-                #     )
-                #     session.commit()
-                #     break
-                # progress.complete()
 
         except Exception as e:
             logger.exception(e)
