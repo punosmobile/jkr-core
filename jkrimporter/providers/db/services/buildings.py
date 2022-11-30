@@ -7,6 +7,7 @@ from shapely.geometry import MultiPoint
 from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
 from sqlalchemy import or_, select
+from sqlalchemy.sql import false
 
 from jkrimporter.model import Rakennustunnus
 from jkrimporter.providers.db.utils import clean_asoy_name, is_asoy
@@ -175,6 +176,8 @@ def find_buildings_for_kohde(
             omistajat.add(
                 frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
             )
+            # How about using Rakennustiedot struct for the whole, fetching it beforehand and
+            # creating all the dicts we need??
         print("has omistajat")
         print(omistajat)
         omistajat = set(filter(lambda osapuolet: osapuolet, omistajat))
@@ -255,52 +258,68 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto"):
         # Do *NOT* find Mukkulankatu 51 *AND* Mukkulankatu 51b by Mukkulankatu 51.
         osoitenumero_condition = Osoite.osoitenumero.in_(osoitenumerot)
 
+    # # Find Mukkulankatu 51 by Mukkulankatu 51 B.
+    # # Only find Mukkulankatu 51 by Mukkulankatu 51.
+    # # Only find Mukkulankatu 51b by Mukkulankatu 51b.
+    # osoitenumero_condition = Osoite.osoitenumero.in_(osoitenumerot)
+
     # Do *NOT* find Sokeritopankatu 18 *AND* Sokeritopankatu 18a by
     # Sokeritopankatu 18 A. Looks like Sokeritopankatu 18, 18 A and 18 B are *all*
     # separate.
-    huoneistokirjain_exists_condition = and_(
-        # 1) if A is inhabited, do not match to 18 without A. Vanhin must live in the
-        # huoneisto with the same kirjain.
-        Osoite.osoitenumero.in_(osoitenumerot),
-        RakennuksenVanhimmat.huoneistokirjain is not None,
-        RakennuksenVanhimmat.huoneistokirjain == haltija.osoite.huoneistotunnus,
+    # For some unfathomable reason, huoneistotunnus contains merged kirjain and asunto.
+    # Why didn't we parse letter and apartment number separately?
+    huoneistokirjain, huoneistonumero = (
+        haltija.osoite.huoneistotunnus.split(" ", maxsplit=1)
+        if haltija.osoite.huoneistotunnus and " " in haltija.osoite.huoneistotunnus
+        else (haltija.osoite.huoneistotunnus, None)
     )
-    huoneistokirjain_does_not_exist_condition = and_(
-        # 2) If A is not inhabited, match to 18 without A. Vanhin must not have kirjain
-        # in their huoneisto.
+    huoneisto_condition = and_(
+        # Vanhin must live in the huoneisto with the same kirjain (and apartment number if present).
         Osoite.osoitenumero.in_(osoitenumerot),
-        RakennuksenVanhimmat.huoneistokirjain is None,
+        RakennuksenVanhimmat.huoneistokirjain == huoneistokirjain,
+        RakennuksenVanhimmat.huoneistonumero == huoneistonumero,
     )
+    # TODO: We should also find buildings that do not have RakennuksenVanhimmat yet.
+    # They are vapaa-ajanrakennukset.
+    # Cannot just use join, this means uninhabited buildings are left out.
+    # How about using Rakennustiedot struct for the whole, fetching it beforehand and
+    # creating all the dicts we need??
 
     print(osoitenumero_condition)
     print(osoitenumerot)
     print(haltija.osoite.osoitenumero)
     print(haltija.osoite.postinumero)
     print(katunimi_lower)
+    print(huoneisto_condition)
+    print(haltija.osoite.huoneistotunnus)
     statement = (
         select(Rakennus)
         .join(Osoite)
         .join(Katu)
         .join(RakennuksenVanhimmat)
         .where(
+            # TODO: alternatively match kuntanumero (postinumero has errors), tho kunta is often
+            # missing too?
             Osoite.posti_numero == haltija.osoite.postinumero,
             sqlalchemyFunc.lower(Katu.katunimi_fi) == katunimi_lower,
             or_(
                 osoitenumero_condition,
-                huoneistokirjain_exists_condition,
-                huoneistokirjain_does_not_exist_condition
+                huoneisto_condition
                 # Find Metsätähtikatu 3 by Metsätähtikatu 3 B. This is a case of paritalo, where
                 # the owner of one half has address 3 B, although the building only has address 3.
                 # TODO: In case of paritalo, the *asukas* address tells us which is which. The
                 # building address is not enough. So let's check the inhabitant address *after* we
                 # return the building for kohteet.
+                # How about using Rakennustiedot struct for the whole, fetching it beforehand and
+                # creating all the dicts we need??
             ),
         )
         .distinct()
     )
 
     rakennukset = session.execute(statement).scalars().all()
-
+    print('query returned buildings')
+    print(rakennukset)
     return rakennukset
 
 

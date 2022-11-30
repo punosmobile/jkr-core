@@ -170,6 +170,8 @@ def find_and_update_kohde(
             # TODO: There may be several. Paritalot must be selected by customer
             # name, we might not know if they inhabit A or B. Pick the last
             # one if no name matches.
+            # How about using Rakennustiedot struct for the whole, fetching it beforehand and
+            # creating all the dicts we need??
             for kohde_id in kohde_ids:
                 kohde = session.get(Kohde, kohde_id)
                 print("we have kohde")
