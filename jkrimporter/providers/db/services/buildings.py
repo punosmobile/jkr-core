@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, FrozenSet, List, NamedTuple, Set
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
@@ -34,6 +34,17 @@ if TYPE_CHECKING:
     from jkrimporter.model import Asiakas, Yhteystieto
 
 
+class Osoitetiedot(NamedTuple):
+    osoite: Osoite
+    katu: Katu
+
+
+class Rakennustiedot(NamedTuple):
+    rakennus: Rakennus
+    osapuolet: FrozenSet[Osapuoli]
+    osoitteet: FrozenSet[Osoitetiedot]
+
+
 def convex_hull_area_of_buildings(buildings):
     points = [to_shape(building.geom) for building in buildings if building.geom]
     multipoint = MultiPoint(points)
@@ -44,12 +55,12 @@ def convex_hull_area_of_buildings(buildings):
     return area
 
 
-def match_omistaja(rakennus, haltija, preprocessor=lambda x: x):
-    omistajat = rakennus.osapuoli_collection
-    return any(
-        preprocessor(haltija.nimi).lower() == preprocessor(omistaja.nimi).lower()
-        for omistaja in omistajat
-    )
+# def match_omistaja(rakennus, haltija, preprocessor=lambda x: x):
+#     omistajat = rakennus.osapuoli_collection
+#     return any(
+#         preprocessor(haltija.nimi).lower() == preprocessor(omistaja.nimi).lower()
+#         for omistaja in omistajat
+#     )
 
 
 counts: Dict[str, int] = defaultdict(int)
@@ -68,7 +79,10 @@ def prt_on_single_customer_or_double_house(rakennukset, prt_counts):
 
 
 def find_buildings_for_kohde(
-    session: "Session",
+    rakennustiedot_by_prt: dict[str, Rakennustiedot],
+    rakennustiedot_by_kiinteistotunnus: dict[str, Set[Rakennustiedot]],
+    rakennustiedot_by_ytunnus: dict[str, Set[Rakennustiedot]],
+    rakennustiedot_by_address: dict[tuple, Set[Rakennustiedot]],
     asiakas: "Asiakas",
     prt_counts: Dict[str, "IntervalCounter"],
     kitu_counts: Dict[str, "IntervalCounter"],
@@ -89,7 +103,9 @@ def find_buildings_for_kohde(
             for customer_count in on_how_many_customers.values()
         ):
             counts["prt vain yhdella tai kahdella asiakkaalla"] += 1
-            rakennukset = _find_by_prt(session, asiakas.rakennukset)
+            rakennukset = [
+                rakennustiedot_by_prt[prt].rakennus for prt in asiakas.rakennukset
+            ]
             if rakennukset:
                 if prt_on_single_customer_or_double_house(
                     rakennukset, on_how_many_customers
@@ -116,14 +132,18 @@ def find_buildings_for_kohde(
         ):
             counts["uniikki kitu"] += 1
 
-            rakennukset = _find_by_kiinteisto(session, asiakas.kiinteistot)
-            if rakennukset:
+            rakennus_sets = [
+                rakennustiedot_by_kiinteistotunnus[kitu] for kitu in asiakas.kiinteistot
+            ]
+            rakennustiedot = [tiedot for tiedot in rakennus_sets for tiedot in tiedot]
+            if rakennustiedot:
                 omistajat = set()
                 omistajat = {
-                    frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
-                    for rakennus in rakennukset
+                    frozenset(osapuoli.id for osapuoli in tiedot.osapuolet)
+                    for tiedot in rakennustiedot
                 }
                 if len(omistajat) == 1:
+                    rakennukset = [tiedot.rakennus for tiedot in rakennustiedot]
                     if len(rakennukset) > 1:
                         area = convex_hull_area_of_buildings(rakennukset)
                     if len(rakennukset) == 1 or area < AREA_LIMIT:
@@ -137,14 +157,21 @@ def find_buildings_for_kohde(
                 counts["uniikki kitu - rakennuksia ei löydy"] += 1
 
     if asiakas.haltija.ytunnus and is_asoy(asiakas.haltija.nimi):
-        rakennukset = _find_by_ytunnus(session, asiakas.haltija)
-        if rakennukset:
+        print("trying to find by ytunnus")
+        # rakennukset = _find_by_ytunnus(session, asiakas.haltija)
+        rakennustiedot = rakennustiedot_by_ytunnus[asiakas.haltija.ytunnus]
+        if rakennustiedot:
             counts["asoy"] += 1
+            asoy_name = clean_asoy_name(asiakas.haltija.nimi)
             if all(
-                match_omistaja(rakennus, asiakas.haltija, preprocessor=clean_asoy_name)
-                for rakennus in rakennukset
+                any(
+                    asoy_name.lower() == osapuoli.nimi.lower()
+                    for osapuoli in tiedot.osapuolet
+                )
+                for tiedot in rakennustiedot
             ):
                 counts["asoy - omistaja ok"] += 1
+                rakennukset = [tiedot.rakennus for tiedot in rakennustiedot]
                 if len(rakennukset) > 1:
                     area = convex_hull_area_of_buildings(rakennukset)
                 if len(rakennukset) == 1 or area < AREA_LIMIT:
@@ -166,24 +193,20 @@ def find_buildings_for_kohde(
     #     == 1
     # ):
     print("trying to find by address")
-    rakennukset = _find_by_address(session, asiakas.haltija)
-    if rakennukset:
+    rakennustiedot = _find_by_address(rakennustiedot_by_address, asiakas.haltija)
+    if rakennustiedot:
         print("found some")
-        print([rakennus.id for rakennus in rakennukset])
+        print([tiedot for tiedot in rakennustiedot])
         counts["osoitteella löytyi"] += 1
         omistajat = set()
-        for rakennus in rakennukset:
-            omistajat.add(
-                frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
-            )
-            # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-            # creating all the dicts we need??
+        for tiedot in rakennustiedot:
+            omistajat.add(frozenset(osapuoli.id for osapuoli in tiedot.osapuolet))
         print("has omistajat")
         print(omistajat)
         omistajat = set(filter(lambda osapuolet: osapuolet, omistajat))
         print(omistajat)
         # At the moment, return all buildings, even if they have different owners.
-        return rakennukset
+        return [tiedot.rakennus for tiedot in rakennustiedot]
         # TODO: whenever the address has buildings with different owners,
         # this will not return any buildings. This is as intended in Tampere,
         # but no idea why.
@@ -228,7 +251,9 @@ def _find_by_kiinteisto(session: "Session", kitu_list: List[str]):
     return rakennukset
 
 
-def _find_by_address(session: "Session", haltija: "Yhteystieto"):
+def _find_by_address(
+    rakennustiedot_by_address: dict[tuple, Set[Rakennustiedot]], haltija: "Yhteystieto"
+):
     try:
         katunimi_lower = haltija.osoite.katunimi.lower().strip()
     except AttributeError:
@@ -247,80 +272,75 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto"):
     potential_osoitenumero_suffix = (
         haltija.osoite.huoneistotunnus.lower() if haltija.osoite.huoneistotunnus else ""
     )
-    if potential_osoitenumero_suffix:
-        # Find Metsätie 33a by Metsätie 33 A. For simplicity, let's not assume
-        # 31-33a exists.
-        osoitenumero_condition = and_(
-            Osoite.osoitenumero.ilike(haltija.osoite.osoitenumero + "%"),
-            Osoite.osoitenumero.ilike("%" + potential_osoitenumero_suffix),
-        )
-    else:
-        # Do *NOT* find Mukkulankatu 51 *AND* Mukkulankatu 51b by Mukkulankatu 51.
-        osoitenumero_condition = Osoite.osoitenumero.in_(osoitenumerot)
 
-    # # Find Mukkulankatu 51 by Mukkulankatu 51 B.
-    # # Only find Mukkulankatu 51 by Mukkulankatu 51.
-    # # Only find Mukkulankatu 51b by Mukkulankatu 51b.
-    # osoitenumero_condition = Osoite.osoitenumero.in_(osoitenumerot)
-
-    # Do *NOT* find Sokeritopankatu 18 *AND* Sokeritopankatu 18a by
+    print(
+        [
+            rakennustiedot_by_address[
+                (
+                    haltija.osoite.postinumero,
+                    katunimi_lower,
+                    osoitenumero,
+                )
+            ]
+            for osoitenumero in osoitenumerot
+        ]
+    )
+    # - Do *NOT* find Sokeritopankatu 18 *AND* Sokeritopankatu 18a by
     # Sokeritopankatu 18 A. Looks like Sokeritopankatu 18, 18 A and 18 B are *all*
     # separate.
-    # For some unfathomable reason, huoneistotunnus contains merged kirjain and asunto.
-    # Why didn't we parse letter and apartment number separately?
-    huoneistokirjain, huoneistonumero = (
-        haltija.osoite.huoneistotunnus.split(" ", maxsplit=1)
-        if haltija.osoite.huoneistotunnus and " " in haltija.osoite.huoneistotunnus
-        else (haltija.osoite.huoneistotunnus, None)
-    )
-    huoneisto_condition = and_(
-        # Vanhin must live in the huoneisto with the same kirjain (and apartment number if present).
-        Osoite.osoitenumero.in_(osoitenumerot),
-        RakennuksenVanhimmat.huoneistokirjain == huoneistokirjain,
-        RakennuksenVanhimmat.huoneistonumero == huoneistonumero,
-    )
-    # TODO: We should also find buildings that do not have RakennuksenVanhimmat yet.
-    # They are vapaa-ajanrakennukset.
-    # Cannot just use join, this means uninhabited buildings are left out.
-    # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-    # creating all the dicts we need??
+    # - Do *NOT* find Mukkulankatu 51 *AND* Mukkulankatu 51b by Mukkulankatu 51.
+    # - Find Mukkulankatu 51 by Mukkulankatu 51 B.
+    # - Only find Mukkulankatu 51 by Mukkulankatu 51.
+    # - Only find Mukkulankatu 51b by Mukkulankatu 51b.
+    rakennustiedot_from_osoitenumerot = [
+        # first, check if the letter is actually part of osoitenumero
+        rakennustiedot_by_address[
+            (
+                haltija.osoite.postinumero,
+                katunimi_lower,
+                osoitenumero + potential_osoitenumero_suffix,
+            )
+        ]
+        or
+        # if the letter is not found in osoitenumero, it is huoneistotunnus
+        rakennustiedot_by_address[
+            (
+                haltija.osoite.postinumero,
+                katunimi_lower,
+                osoitenumero,
+            )
+        ]
+        for osoitenumero in osoitenumerot
+    ]
+    rakennustiedot = [
+        tiedot
+        for tiedot in rakennustiedot_from_osoitenumerot
+        for tiedot in tiedot
+        if tiedot
+    ]
+    print("osoitenumerot yielded rakennustiedot")
+    print(rakennustiedot)
+    return rakennustiedot
 
-    print(osoitenumero_condition)
-    print(osoitenumerot)
-    print(haltija.osoite.osoitenumero)
-    print(haltija.osoite.postinumero)
-    print(katunimi_lower)
-    print(huoneisto_condition)
-    print(haltija.osoite.huoneistotunnus)
-    statement = (
-        select(Rakennus)
-        .join(Osoite)
-        .join(Katu)
-        .join(RakennuksenVanhimmat)
-        .where(
-            # TODO: alternatively match kuntanumero (postinumero has errors), tho kunta is often
-            # missing too?
-            Osoite.posti_numero == haltija.osoite.postinumero,
-            sqlalchemyFunc.lower(Katu.katunimi_fi) == katunimi_lower,
-            or_(
-                osoitenumero_condition,
-                huoneisto_condition
-                # Find Metsätähtikatu 3 by Metsätähtikatu 3 B. This is a case of paritalo, where
-                # the owner of one half has address 3 B, although the building only has address 3.
-                # TODO: In case of paritalo, the *asukas* address tells us which is which. The
-                # building address is not enough. So let's check the inhabitant address *after* we
-                # return the building for kohteet.
-                # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-                # creating all the dicts we need??
-            ),
-        )
-        .distinct()
-    )
-
-    rakennukset = session.execute(statement).scalars().all()
-    print('query returned buildings')
-    print(rakennukset)
-    return rakennukset
+    # # For some unfathomable reason, huoneistotunnus contains merged kirjain and asunto.
+    # # Why didn't we parse letter and apartment number separately?
+    # huoneistokirjain, huoneistonumero = (
+    #     haltija.osoite.huoneistotunnus.split(" ", maxsplit=1)
+    #     if haltija.osoite.huoneistotunnus and " " in haltija.osoite.huoneistotunnus
+    #     else (haltija.osoite.huoneistotunnus, None)
+    # )
+    # huoneisto_condition = and_(
+    #     # Vanhin must live in the huoneisto with the same kirjain (and apartment number if present).
+    #     Osoite.osoitenumero.in_(osoitenumerot),
+    #     RakennuksenVanhimmat.huoneistokirjain == huoneistokirjain,
+    #     RakennuksenVanhimmat.huoneistonumero == huoneistonumero,
+    # )
+    #
+    # Find Metsätähtikatu 3 by Metsätähtikatu 3 B. This is a case of paritalo, where
+    # the owner of one half has address 3 B, although the building only has address 3.
+    # TODO: In case of paritalo, the *asukas* address tells us which is which. The
+    # building address is not enough. So let's check the inhabitant address *after* we
+    # return the building for kohteet.
 
 
 def _find_by_prt(session: "Session", prt_list: List[Rakennustunnus]) -> List[Rakennus]:

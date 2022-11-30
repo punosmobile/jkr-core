@@ -2,7 +2,7 @@ import datetime
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +15,17 @@ from jkrimporter.utils.progress import Progress
 from . import codes
 from .codes import init_code_objects
 from .database import engine
-from .models import Kohde, KohteenRakennukset, Kuljetus, Tiedontuottaja
+from .models import (
+    Katu,
+    Kohde,
+    KohteenRakennukset,
+    Kuljetus,
+    Osapuoli,
+    Osoite,
+    Rakennus,
+    Tiedontuottaja,
+)
+from .services.buildings import Rakennustiedot
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
@@ -116,113 +126,6 @@ def insert_kuljetukset(
             session.add(db_kuljetus)
 
 
-def find_and_update_kohde(
-    session: "Session",
-    asiakas: "Asiakas",
-    do_create: bool,
-    do_update: bool,
-    prt_counts: Dict[str, int],
-    kitu_counts: Dict[str, int],
-    address_counts: Dict[str, int],
-) -> Kohde:
-    ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
-    if ulkoinen_asiakastieto:
-        update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
-
-        kohde = ulkoinen_asiakastieto.kohde
-        if do_update:
-            update_kohde(kohde, asiakas)
-    else:
-        kohde = find_kohde_by_asiakastiedot(session, asiakas)
-        if kohde:
-            if do_update:
-                update_kohde(kohde, asiakas)
-        elif do_create:
-            kohde = create_new_kohde(session, asiakas)
-
-    if not kohde or not kohde.rakennus_collection:
-        print("No kohde found. Looking for buildings...")
-        buildings = find_buildings_for_kohde(
-            session, asiakas, prt_counts, kitu_counts, address_counts
-        )
-        if kohde:
-            if buildings:
-                kohde.rakennus_collection = buildings
-
-            elif not kohde.ehdokasrakennus_collection:
-                building_candidates = find_building_candidates_for_kohde(
-                    session, asiakas
-                )
-                if building_candidates:
-                    kohde.ehdokasrakennus_collection = building_candidates
-        else:
-            print("got buildings")
-            print(buildings)
-            kohde_ids = session.execute(
-                select(KohteenRakennukset.kohde_id).where(
-                    KohteenRakennukset.rakennus_id.in_(
-                        [building.id for building in buildings]
-                    )
-                )
-            ).all()
-            print("got kohde ids")
-            print(kohde_ids)
-            # TODO: There may be several. Paritalot must be selected by customer
-            # name, we might not know if they inhabit A or B. Pick the last
-            # one if no name matches.
-            # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-            # creating all the dicts we need??
-            for kohde_id in kohde_ids:
-                kohde = session.get(Kohde, kohde_id)
-                print("we have kohde")
-                print(kohde)
-                # if match_asukas(kohde, asiakas.haltija):
-                #     break
-
-        if kohde:
-            add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
-
-    return kohde
-
-
-def import_asiakastiedot(
-    session: Session,
-    asiakas: Asiakas,
-    alkupvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date],
-    urakoitsija: Tiedontuottaja,
-    do_create: bool,
-    do_update: bool,
-    prt_counts: Dict[str, IntervalCounter],
-    kitu_counts: Dict[str, IntervalCounter],
-    address_counts: Dict[str, IntervalCounter],
-):
-
-    kohde = find_and_update_kohde(
-        session, asiakas, do_create, do_update, prt_counts, kitu_counts, address_counts
-    )
-    if not kohde:
-        print(f"Could not find kohde for asiakas {asiakas}, skipping...")
-        return
-
-    # Update osapuolet from the same tiedontuottaja. These functions will not
-    # touch data from other tiedontuottajat.
-    create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
-    create_or_update_yhteystieto_osapuoli(session, kohde, asiakas, do_update)
-
-    update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
-    insert_kuljetukset(
-        session,
-        kohde,
-        asiakas.tyhjennystapahtumat,
-        alkupvm,
-        loppupvm,
-        urakoitsija,
-    )
-
-    session.commit()
-
-
 def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
     # asukas.
@@ -306,6 +209,176 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
 
 
 class DbProvider:
+    # preload all the important data indexed in memory so we don't have to do expensive
+    # db queries at every point
+    rakennustiedot_by_prt: dict[str, Rakennustiedot] = {}
+    rakennustiedot_by_kiinteistotunnus: dict[str, Set[Rakennustiedot]] = defaultdict(
+        set
+    )
+    rakennustiedot_by_ytunnus: dict[str, Set[Rakennustiedot]] = defaultdict(set)
+    rakennustiedot_by_address: dict[tuple, Set[Rakennustiedot]] = defaultdict(set)
+
+    def init_rakennustiedot(self, session):
+        db_rakennustiedot: "List[(Rakennus, Osapuoli, Osoite, Katu)]" = session.execute(
+            select(Rakennus, Osapuoli, Osoite, Katu)
+            .join(Rakennus.osapuoli_collection)
+            .join(Rakennus.osoite_collection)
+            .join(Osoite.katu)
+        ).all()
+        # construct rakennustiedot tuples, indexing with prt
+        for rakennus, osapuoli, osoite, katu in db_rakennustiedot:
+            print("adding rakennustiedot")
+            if rakennus.prt not in self.rakennustiedot_by_prt:
+                # Rakennustiedot must contain sets, no frozen sets, at this point.
+                # TODO: Will typecast to frozen sets after constructing.
+                self.rakennustiedot_by_prt[rakennus.prt] = (rakennus, set(), set())
+            self.rakennustiedot_by_prt[rakennus.prt][1].add(osapuoli)
+            osoitetiedot = (osoite, katu)
+            self.rakennustiedot_by_prt[rakennus.prt][2].add(osoitetiedot)
+        # create all other indexes
+        for (rakennus, osapuolet, osoitetiedot) in self.rakennustiedot_by_prt.values():
+            rakennustiedot = Rakennustiedot(
+                rakennus, frozenset(osapuolet), frozenset(osoitetiedot)
+            )
+            self.rakennustiedot_by_kiinteistotunnus[rakennus.kiinteistotunnus].add(
+                rakennustiedot
+            )
+            for osapuoli in osapuolet:
+                if osapuoli.ytunnus:
+                    self.rakennustiedot_by_ytunnus[osapuoli.ytunnus].add(rakennustiedot)
+            for osoite, katu in osoitetiedot:
+                if katu.katunimi_fi:
+                    # here again, osoite identity must be its salient strings combined,
+                    # not the duplicated object
+                    postinumero = osoite.posti_numero
+                    katu = katu.katunimi_fi.lower()
+                    osoitenumero = osoite.osoitenumero
+                    self.rakennustiedot_by_address[
+                        ((postinumero, katu, osoitenumero))
+                    ].add(rakennustiedot)
+
+    def find_and_update_kohde(
+        self,
+        session: "Session",
+        asiakas: "Asiakas",
+        do_create: bool,
+        do_update: bool,
+        prt_counts: Dict[str, int],
+        kitu_counts: Dict[str, int],
+        address_counts: Dict[str, int],
+    ) -> Kohde:
+        ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(
+            session, asiakas.asiakasnumero
+        )
+        if ulkoinen_asiakastieto:
+            update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
+
+            kohde = ulkoinen_asiakastieto.kohde
+            if do_update:
+                update_kohde(kohde, asiakas)
+        else:
+            kohde = find_kohde_by_asiakastiedot(session, asiakas)
+            if kohde:
+                if do_update:
+                    update_kohde(kohde, asiakas)
+            elif do_create:
+                kohde = create_new_kohde(session, asiakas)
+
+        if not kohde or not kohde.rakennus_collection:
+            print("No kohde found. Looking for buildings...")
+            buildings = find_buildings_for_kohde(
+                self.rakennustiedot_by_prt,
+                self.rakennustiedot_by_kiinteistotunnus,
+                self.rakennustiedot_by_ytunnus,
+                self.rakennustiedot_by_address,
+                asiakas,
+                prt_counts,
+                kitu_counts,
+                address_counts,
+            )
+            if kohde:
+                if buildings:
+                    kohde.rakennus_collection = buildings
+
+                elif not kohde.ehdokasrakennus_collection:
+                    building_candidates = find_building_candidates_for_kohde(
+                        session, asiakas
+                    )
+                    if building_candidates:
+                        kohde.ehdokasrakennus_collection = building_candidates
+            else:
+                print("got buildings")
+                print(buildings)
+                kohde_ids = session.execute(
+                    select(KohteenRakennukset.kohde_id).where(
+                        KohteenRakennukset.rakennus_id.in_(
+                            [building.id for building in buildings]
+                        )
+                    )
+                ).all()
+                print("got kohde ids")
+                print(kohde_ids)
+                # TODO: There may be several. Paritalot must be selected by customer
+                # name, we might not know if they inhabit A or B. Pick the last
+                # one if no name matches.
+                # How about using Rakennustiedot struct for the whole, fetching it beforehand and
+                # creating all the dicts we need??
+                for kohde_id in kohde_ids:
+                    kohde = session.get(Kohde, kohde_id)
+                    print("we have kohde")
+                    print(kohde)
+                    # if match_asukas(kohde, asiakas.haltija):
+                    #     break
+
+            if kohde:
+                add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
+
+        return kohde
+
+    def import_asiakastiedot(
+        self,
+        session: Session,
+        asiakas: Asiakas,
+        alkupvm: Optional[datetime.date],
+        loppupvm: Optional[datetime.date],
+        urakoitsija: Tiedontuottaja,
+        do_create: bool,
+        do_update: bool,
+        prt_counts: Dict[str, IntervalCounter],
+        kitu_counts: Dict[str, IntervalCounter],
+        address_counts: Dict[str, IntervalCounter],
+    ):
+
+        kohde = self.find_and_update_kohde(
+            session,
+            asiakas,
+            do_create,
+            do_update,
+            prt_counts,
+            kitu_counts,
+            address_counts,
+        )
+        if not kohde:
+            print(f"Could not find kohde for asiakas {asiakas}, skipping...")
+            return
+
+        # Update osapuolet from the same tiedontuottaja. These functions will not
+        # touch data from other tiedontuottajat.
+        create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
+        create_or_update_yhteystieto_osapuoli(session, kohde, asiakas, do_update)
+
+        update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
+        insert_kuljetukset(
+            session,
+            kohde,
+            asiakas.tyhjennystapahtumat,
+            alkupvm,
+            loppupvm,
+            urakoitsija,
+        )
+
+        session.commit()
+
     def write(
         self,
         jkr_data: JkrData,
@@ -323,6 +396,7 @@ class DbProvider:
             # print(address_counts)
             with Session(engine) as session:
                 init_code_objects(session)
+                self.init_rakennustiedot(session)
 
                 tiedoston_tuottaja = session.get(Tiedontuottaja, tiedontuottaja_lyhenne)
 
@@ -363,7 +437,7 @@ class DbProvider:
                     # information takes precedence.
                     urakoitsija_tunnus = asiakas.asiakasnumero.jarjestelma
 
-                    import_asiakastiedot(
+                    self.import_asiakastiedot(
                         session,
                         asiakas,
                         jkr_data.alkupvm,

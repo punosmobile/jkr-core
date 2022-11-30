@@ -1,6 +1,5 @@
 import datetime
 from collections import defaultdict
-from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -39,21 +38,17 @@ from ..utils import form_display_name, is_asoy, is_company, is_yhteiso
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from typing import Dict, FrozenSet, List, Set, Tuple, Union
+    from typing import Dict, FrozenSet, List, Set, Union, NamedTuple
 
     from sqlalchemy.orm import Session
     from sqlalchemy.sql.selectable import Select
 
     from jkrimporter.model import Asiakas, Tunnus
 
-    Rakennustiedot = Tuple[Rakennus, FrozenSet[Osapuoli], FrozenSet[Osoite]]
-
-
-# @dataclass
-# class Rakennustiedot:
-#     rakennus: Rakennus
-#     osapuolet: FrozenSet[Osapuoli]
-#     osoitteet: FrozenSet[Osoite]
+    class Rakennustiedot(NamedTuple):
+        rakennus: Rakennus
+        osapuolet: FrozenSet[Osapuoli]
+        osoitteet: FrozenSet[Osoite]
 
 
 def match_asukas(kohde, asukas, preprocessor=lambda x: x):
