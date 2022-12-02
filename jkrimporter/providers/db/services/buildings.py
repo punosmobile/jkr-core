@@ -338,13 +338,17 @@ def find_by_address(
     # - Only find Mukkulankatu 51b by Mukkulankatu 51b.
     rakennustiedot_from_osoitenumerot = [
         # first, check if the letter is actually part of osoitenumero
-        rakennustiedot_by_address[
-            (
-                haltija.osoite.postinumero,
-                katunimi_lower,
-                osoitenumero + potential_osoitenumero_suffix,
-            )
-        ]
+        (
+            rakennustiedot_by_address[
+                (
+                    haltija.osoite.postinumero,
+                    katunimi_lower,
+                    osoitenumero + potential_osoitenumero_suffix,
+                )
+            ]
+            if osoitenumero
+            else None
+        )
         or
         # if the letter is not found in osoitenumero, it is huoneistotunnus
         rakennustiedot_by_address[
