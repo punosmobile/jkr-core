@@ -1,6 +1,16 @@
 import logging
-from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, FrozenSet, List, NamedTuple, Set
+from collections import Iterable, defaultdict
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Set,
+    Union,
+    get_type_hints,
+)
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
@@ -16,12 +26,15 @@ from .. import codes
 from ..codes import RakennuksenKayttotarkoitusTyyppi
 from ..models import (
     Katu,
+    Kohde,
+    KohteenOsapuolet,
     Kunta,
     Osapuoli,
     Osoite,
     Posti,
     RakennuksenVanhimmat,
     Rakennus,
+    UlkoinenAsiakastieto,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,15 +47,46 @@ if TYPE_CHECKING:
     from jkrimporter.model import Asiakas, Yhteystieto
 
 
+def freeze(unfrozen: Iterable) -> Union[tuple, FrozenSet]:
+    """
+    Recursively freezes the given iterable. Any contained sets are converted to frozen
+    sets and other iterables are converted to tuples for hashing.
+    """
+    print("freezing")
+    print(unfrozen)
+    frozen = []
+    for item in unfrozen:
+        if issubclass(type(item), (set, tuple)):
+            item = freeze(item)
+        frozen.append(item)
+    print("returning")
+    print(frozen)
+    if type(unfrozen) is set:
+        return frozenset(frozen)
+    return tuple(frozen)
+
+
 class Osoitetiedot(NamedTuple):
     osoite: Osoite
     katu: Katu
 
 
+class Kohdetiedot(NamedTuple):
+    kohde: Kohde
+    ulkoiset_asiakastiedot: Union[
+        Set[UlkoinenAsiakastieto], FrozenSet[UlkoinenAsiakastieto]
+    ]
+    # Osapuoli ids are only ever needed to match paritalot, the devilish fiends.
+    kohteen_osapuolet: Union[Set[KohteenOsapuolet], FrozenSet[KohteenOsapuolet]]
+
+
 class Rakennustiedot(NamedTuple):
     rakennus: Rakennus
-    osapuolet: FrozenSet[Osapuoli]
-    osoitteet: FrozenSet[Osoitetiedot]
+    osapuolet: Union[Set[Osapuoli], FrozenSet[Osapuoli]]
+    osoitteet: Union[Set[Osoitetiedot], FrozenSet[Osoitetiedot]]
+    # Vanhimmat are only ever needed to match paritalot, the devilish fiends.
+    vanhimmat: Union[Set[RakennuksenVanhimmat], FrozenSet[RakennuksenVanhimmat]]
+    kohteet: Union[Set[Kohdetiedot], FrozenSet[Kohdetiedot]]
 
 
 def convex_hull_area_of_buildings(buildings):
@@ -83,11 +127,12 @@ def find_buildings_for_kohde(
     rakennustiedot_by_kiinteistotunnus: dict[str, Set[Rakennustiedot]],
     rakennustiedot_by_ytunnus: dict[str, Set[Rakennustiedot]],
     rakennustiedot_by_address: dict[tuple, Set[Rakennustiedot]],
+    osapuolet_by_id: dict[str, Osapuoli],
     asiakas: "Asiakas",
     prt_counts: Dict[str, "IntervalCounter"],
     kitu_counts: Dict[str, "IntervalCounter"],
     address_counts: Dict[str, "IntervalCounter"],
-):
+) -> List[Rakennustiedot]:
     print("looking for buildings")
     counts["asiakkaita"] += 1
     rakennukset = []
@@ -103,10 +148,9 @@ def find_buildings_for_kohde(
             for customer_count in on_how_many_customers.values()
         ):
             counts["prt vain yhdella tai kahdella asiakkaalla"] += 1
-            rakennukset = [
-                rakennustiedot_by_prt[prt].rakennus for prt in asiakas.rakennukset
-            ]
-            if rakennukset:
+            rakennustiedot = [rakennustiedot_by_prt[prt] for prt in asiakas.rakennukset]
+            if rakennustiedot:
+                rakennukset = [tiedot.rakennus for tiedot in rakennustiedot]
                 if prt_on_single_customer_or_double_house(
                     rakennukset, on_how_many_customers
                 ):
@@ -116,7 +160,7 @@ def find_buildings_for_kohde(
                         area = convex_hull_area_of_buildings(rakennukset)
                     if len(rakennukset) == 1 or area < AREA_LIMIT:
                         counts["uniikki prt - koko ok"] += 1
-                        return rakennukset
+                        return rakennustiedot
                     else:
                         counts["uniikki prt - koko liian iso"] += 1
             else:
@@ -148,7 +192,7 @@ def find_buildings_for_kohde(
                         area = convex_hull_area_of_buildings(rakennukset)
                     if len(rakennukset) == 1 or area < AREA_LIMIT:
                         counts["uniikki kitu - koko ok"] += 1
-                        return rakennukset
+                        return rakennustiedot
                     else:
                         counts["uniikki kitu - koko liian iso"] += 1
                 else:
@@ -176,7 +220,7 @@ def find_buildings_for_kohde(
                     area = convex_hull_area_of_buildings(rakennukset)
                 if len(rakennukset) == 1 or area < AREA_LIMIT:
                     counts["asoy - omistaja ok - koko ok"] += 1
-                    return rakennukset
+                    return rakennustiedot
             else:
                 counts["asoy - väärä omistaja"] += 1
 
@@ -193,7 +237,7 @@ def find_buildings_for_kohde(
     #     == 1
     # ):
     print("trying to find by address")
-    rakennustiedot = _find_by_address(rakennustiedot_by_address, asiakas.haltija)
+    rakennustiedot = find_by_address(rakennustiedot_by_address, asiakas.haltija)
     if rakennustiedot:
         print("found some")
         print([tiedot for tiedot in rakennustiedot])
@@ -206,7 +250,7 @@ def find_buildings_for_kohde(
         omistajat = set(filter(lambda osapuolet: osapuolet, omistajat))
         print(omistajat)
         # At the moment, return all buildings, even if they have different owners.
-        return [tiedot.rakennus for tiedot in rakennustiedot]
+        return rakennustiedot
         # TODO: whenever the address has buildings with different owners,
         # this will not return any buildings. This is as intended in Tampere,
         # but no idea why.
@@ -229,7 +273,7 @@ def find_building_candidates_for_kohde(session: "Session", asiakas: "Asiakas"):
     elif asiakas.haltija.ytunnus and is_asoy(asiakas.haltija.nimi):
         return _find_by_ytunnus(session, asiakas.haltija)
 
-    return _find_by_address(session, asiakas.haltija)
+    return find_by_address(session, asiakas.haltija)
 
 
 def _find_by_ytunnus(session: "Session", haltija: "Yhteystieto"):
@@ -251,9 +295,9 @@ def _find_by_kiinteisto(session: "Session", kitu_list: List[str]):
     return rakennukset
 
 
-def _find_by_address(
+def find_by_address(
     rakennustiedot_by_address: dict[tuple, Set[Rakennustiedot]], haltija: "Yhteystieto"
-):
+) -> List[Rakennustiedot]:
     try:
         katunimi_lower = haltija.osoite.katunimi.lower().strip()
     except AttributeError:

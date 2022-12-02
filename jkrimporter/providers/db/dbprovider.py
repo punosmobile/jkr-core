@@ -2,12 +2,12 @@ import datetime
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set, Union
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from jkrimporter.model import Asiakas, JkrData
+from jkrimporter.model import Asiakas, JkrData, Tunnus
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.progress import Progress
@@ -18,18 +18,22 @@ from .database import engine
 from .models import (
     Katu,
     Kohde,
+    KohteenOsapuolet,
     KohteenRakennukset,
     Kuljetus,
     Osapuoli,
     Osoite,
+    RakennuksenVanhimmat,
     Rakennus,
     Tiedontuottaja,
+    UlkoinenAsiakastieto,
 )
-from .services.buildings import Rakennustiedot
+from .services.buildings import Kohdetiedot, Rakennustiedot
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
     find_buildings_for_kohde,
+    freeze,
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -39,9 +43,7 @@ from .services.kohde import (
     create_perusmaksurekisteri_kohteet,
     create_single_asunto_kohteet,
     find_kohde_by_asiakastiedot,
-    get_kohde_by_asiakasnumero,
-    get_ulkoinen_asiakastieto,
-    match_asukas,
+    match_asiakastieto,
     update_kohde,
     update_ulkoinen_asiakastieto,
 )
@@ -126,7 +128,9 @@ def insert_kuljetukset(
             session.add(db_kuljetus)
 
 
-def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
+def import_dvv_kohteet(
+    session: Session, alkupvm: str, loppupvm: str, perusmaksutiedosto: Optional[Path]
+):
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
     # asukas.
     # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
@@ -138,7 +142,7 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
     # - Kohdetta ei tuoda, jos samalla kiinteistöllä muita asuttuja rakennuksia.
-    single_asunto_kohteet = create_single_asunto_kohteet(session)
+    single_asunto_kohteet = create_single_asunto_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(single_asunto_kohteet)} single kohteet")
 
@@ -155,7 +159,7 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # joilla erilliset sopimukset.
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
-            session, perusmaksutiedosto
+            session, alkupvm, loppupvm, perusmaksutiedosto
         )
     session.commit()
     print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
@@ -166,7 +170,7 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # - Asiakas on kumpikin vanhin asukas erikseen.
     # - Kiinteistöllä kaksi kohdetta joilla sama rakennus, muita rakennuksia ei liitetä.
     # TODO: add all buildings on kiinteistö?
-    paritalo_kohteet = create_paritalo_kohteet(session)
+    paritalo_kohteet = create_paritalo_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
@@ -203,7 +207,9 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # TODO: limit added buildings on kiinteistö?
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
-    multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(session)
+    multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(
+        session, alkupvm, loppupvm
+    )
     session.commit()
     print(f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet")
 
@@ -217,45 +223,144 @@ class DbProvider:
     )
     rakennustiedot_by_ytunnus: dict[str, Set[Rakennustiedot]] = defaultdict(set)
     rakennustiedot_by_address: dict[tuple, Set[Rakennustiedot]] = defaultdict(set)
+    rakennustiedot_by_asiakastunnus: dict[Tunnus, Set[Rakennustiedot]] = defaultdict(
+        set
+    )
+    osapuolet_by_id: dict[str, Osapuoli] = {}
+    # This extra step is because mutable sets are not hashable.
+    kohdetiedot_by_prt_and_kohde_id: dict[str, dict[str, Kohdetiedot]] = defaultdict(
+        defaultdict
+    )
 
-    def init_rakennustiedot(self, session):
-        db_rakennustiedot: "List[(Rakennus, Osapuoli, Osoite, Katu)]" = session.execute(
-            select(Rakennus, Osapuoli, Osoite, Katu)
+    def init_provider(self, session):
+        print("Caching osapuolet to memory...")
+        osapuolet = session.execute(select(Osapuoli)).all()
+        self.osapuolet_by_id = {row[0].id: row[0] for row in osapuolet}
+
+        print("Caching building information to memory...")
+        # This is the huge query, will take some seconds and then some.
+        db_rakennustiedot: List[
+            (
+                Rakennus,
+                RakennuksenVanhimmat,
+                Osapuoli,
+                Osoite,
+                Katu,
+                Kohde,
+                UlkoinenAsiakastieto,
+                KohteenOsapuolet,
+            )
+        ] = session.execute(
+            select(
+                Rakennus,
+                RakennuksenVanhimmat,
+                Osapuoli,
+                Osoite,
+                Katu,
+                Kohde,
+                UlkoinenAsiakastieto,
+                KohteenOsapuolet,
+            )
+            # include buildings without inhabitants, e.g. vapaa-ajanasunnot
+            .join(Rakennus.rakennuksen_vanhimmat_collection, isouter=True)
             .join(Rakennus.osapuoli_collection)
             .join(Rakennus.osoite_collection)
             .join(Osoite.katu)
+            .join(Rakennus.kohde_collection)
+            # include kohteet that don't yet have asiakas
+            .join(Kohde.ulkoinen_asiakastieto_collection, isouter=True)
+            .join(Kohde.kohteen_osapuolet_collection)
         ).all()
-        # construct rakennustiedot tuples, indexing with prt
-        for rakennus, osapuoli, osoite, katu in db_rakennustiedot:
-            print("adding rakennustiedot")
+        # construct rakennustiedot and kohdetiedot tuples, indexing with prt
+        for (
+            rakennus,
+            vanhin,
+            osapuoli,
+            osoite,
+            katu,
+            kohde,
+            asiakastieto,
+            kohteen_osapuoli,
+        ) in db_rakennustiedot:
+            # Rakennustiedot must contain sets, no frozen sets, at this point.
+            # Will typecast to frozen sets *after* constructing.
             if rakennus.prt not in self.rakennustiedot_by_prt:
-                # Rakennustiedot must contain sets, no frozen sets, at this point.
-                # TODO: Will typecast to frozen sets after constructing.
-                self.rakennustiedot_by_prt[rakennus.prt] = (rakennus, set(), set())
-            self.rakennustiedot_by_prt[rakennus.prt][1].add(osapuoli)
+                self.rakennustiedot_by_prt[rakennus.prt] = Rakennustiedot(
+                    rakennus,
+                    set(),
+                    set(),
+                    set(),
+                    set(),
+                )
+            self.rakennustiedot_by_prt[rakennus.prt].osapuolet.add(osapuoli)
             osoitetiedot = (osoite, katu)
-            self.rakennustiedot_by_prt[rakennus.prt][2].add(osoitetiedot)
+            self.rakennustiedot_by_prt[rakennus.prt].osoitteet.add(osoitetiedot)
+            if vanhin:
+                self.rakennustiedot_by_prt[rakennus.prt].vanhimmat.add(vanhin)
+            # Kohdetiedot must contain sets, no frozen sets, at this point.
+            # Will typecast to frozen sets *after* constructing.
+            if kohde:
+                if kohde.id not in self.kohdetiedot_by_prt_and_kohde_id[rakennus.prt]:
+                    self.kohdetiedot_by_prt_and_kohde_id[rakennus.prt][
+                        kohde.id
+                    ] = Kohdetiedot(
+                        kohde,
+                        set(),
+                        set(),
+                    )
+                self.kohdetiedot_by_prt_and_kohde_id[rakennus.prt][
+                    kohde.id
+                ].kohteen_osapuolet.add(kohteen_osapuoli)
+                if asiakastieto:
+                    self.kohdetiedot_by_prt_and_kohde_id[rakennus.prt][
+                        kohde.id
+                    ].ulkoiset_asiakastiedot.add(asiakastieto)
+        # Combine kohdetiedot and rakennustiedot.
+        for prt, kohdetiedot_dict in self.kohdetiedot_by_prt_and_kohde_id.items():
+            # print('combining rakennustiedot')
+            *rakennustiedot, empty_kohteet = self.rakennustiedot_by_prt[prt]
+            kohteet = frozenset(
+                Kohdetiedot(*freeze(kohdetiedot))
+                for kohdetiedot in kohdetiedot_dict.values()
+            )
+            # print('got kohteet')
+            # print(kohteet)
+            self.rakennustiedot_by_prt[prt] = Rakennustiedot(
+                *freeze(rakennustiedot), kohteet
+            )
+            # print('got rakennustiedot')
+            # print(self.rakennustiedot_by_prt[prt])
+
         # create all other indexes
-        for (rakennus, osapuolet, osoitetiedot) in self.rakennustiedot_by_prt.values():
-            rakennustiedot = Rakennustiedot(
-                rakennus, frozenset(osapuolet), frozenset(osoitetiedot)
-            )
-            self.rakennustiedot_by_kiinteistotunnus[rakennus.kiinteistotunnus].add(
-                rakennustiedot
-            )
-            for osapuoli in osapuolet:
+        for rakennustiedot in self.rakennustiedot_by_prt.values():
+            # print('creating indexes')
+            self.rakennustiedot_by_kiinteistotunnus[
+                rakennustiedot.rakennus.kiinteistotunnus
+            ].add(rakennustiedot)
+            # print('got rakennustiedot')
+            # print(rakennustiedot)
+            for osapuoli in rakennustiedot.osapuolet:
                 if osapuoli.ytunnus:
                     self.rakennustiedot_by_ytunnus[osapuoli.ytunnus].add(rakennustiedot)
-            for osoite, katu in osoitetiedot:
+            for osoite, katu in rakennustiedot.osoitteet:
                 if katu.katunimi_fi:
                     # here again, osoite identity must be its salient strings combined,
-                    # not the duplicated object
+                    # not the duplicated object. Don't use the whole Osoite model, we
+                    # don't want to match osoitekirjain and asuntonumero here.
                     postinumero = osoite.posti_numero
                     katu = katu.katunimi_fi.lower()
                     osoitenumero = osoite.osoitenumero
                     self.rakennustiedot_by_address[
                         ((postinumero, katu, osoitenumero))
                     ].add(rakennustiedot)
+            for kohdetiedot in rakennustiedot.kohteet:
+                asiakastiedot = kohdetiedot.ulkoiset_asiakastiedot
+                for asiakas in asiakastiedot:
+                    tunnus = asiakas.tiedontuottaja_tunnus
+                    ulkoinen_id = asiakas.ulkoinen_id
+                    self.rakennustiedot_by_asiakastunnus[(tunnus, ulkoinen_id)].add(
+                        rakennustiedot
+                    )
 
     def find_and_update_kohde(
         self,
@@ -266,72 +371,73 @@ class DbProvider:
         prt_counts: Dict[str, int],
         kitu_counts: Dict[str, int],
         address_counts: Dict[str, int],
-    ) -> Kohde:
-        ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(
-            session, asiakas.asiakasnumero
-        )
-        if ulkoinen_asiakastieto:
-            update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
+    ) -> "Union[Kohde, None]":
+        kohde = None
+        print("trying to find rakennustiedot with asiakasnumero")
+        print(asiakas.asiakasnumero)
+        rakennustiedot = self.rakennustiedot_by_asiakastunnus[asiakas.asiakasnumero]
+        if rakennustiedot:
+            print("Tunnus found")
+            # Same asiakastunnus may have multiple rakennus and each rakennus
+            # may have multiple kohde.
+            # Just check the kohteet for first rakennus.
+            kohdetiedot = next(iter(rakennustiedot)).kohteet
+            for tiedot in kohdetiedot:
+                kohde = tiedot.kohde
+                ulkoinen_asiakastieto = match_asiakastieto(
+                    tiedot.ulkoiset_asiakastiedot, asiakas.asiakasnumero
+                )
+                # For paritalot, we must to pick the kohde that had matching
+                # asiakastieto.
+                if ulkoinen_asiakastieto:
+                    break
 
-            kohde = ulkoinen_asiakastieto.kohde
+            update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
             if do_update:
                 update_kohde(kohde, asiakas)
         else:
-            kohde = find_kohde_by_asiakastiedot(session, asiakas)
-            if kohde:
-                if do_update:
-                    update_kohde(kohde, asiakas)
-            elif do_create:
-                kohde = create_new_kohde(session, asiakas)
-
-        if not kohde or not kohde.rakennus_collection:
-            print("No kohde found. Looking for buildings...")
-            buildings = find_buildings_for_kohde(
+            print("Tunnus not found, looking by prt, address and other data")
+            kohde = find_kohde_by_asiakastiedot(
                 self.rakennustiedot_by_prt,
                 self.rakennustiedot_by_kiinteistotunnus,
                 self.rakennustiedot_by_ytunnus,
                 self.rakennustiedot_by_address,
+                self.osapuolet_by_id,
                 asiakas,
-                prt_counts,
-                kitu_counts,
-                address_counts,
             )
-            if kohde:
-                if buildings:
-                    kohde.rakennus_collection = buildings
 
+            if kohde:
+                print("Kohde found")
+                add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
+                if do_update:
+                    update_kohde(kohde, asiakas)
+            elif do_create:
+                print("Kohde not found, creating new kohde")
+                kohde = create_new_kohde(session, asiakas)
+            if kohde and not kohde.rakennus_collection:
+                print("Adding new buildings for kohde...")
+                rakennustiedot = find_buildings_for_kohde(
+                    self.rakennustiedot_by_prt,
+                    self.rakennustiedot_by_kiinteistotunnus,
+                    self.rakennustiedot_by_ytunnus,
+                    self.rakennustiedot_by_address,
+                    self.osapuolet_by_id,
+                    asiakas,
+                    prt_counts,
+                    kitu_counts,
+                    address_counts,
+                )
+                if rakennustiedot:
+                    kohde.rakennus_collection = [
+                        tiedot.rakennus for tiedot in rakennustiedot
+                    ]
                 elif not kohde.ehdokasrakennus_collection:
+                    # TODO: refactor to need no queries if this happens often
                     building_candidates = find_building_candidates_for_kohde(
                         session, asiakas
                     )
                     if building_candidates:
                         kohde.ehdokasrakennus_collection = building_candidates
-            else:
-                print("got buildings")
-                print(buildings)
-                kohde_ids = session.execute(
-                    select(KohteenRakennukset.kohde_id).where(
-                        KohteenRakennukset.rakennus_id.in_(
-                            [building.id for building in buildings]
-                        )
-                    )
-                ).all()
-                print("got kohde ids")
-                print(kohde_ids)
-                # TODO: There may be several. Paritalot must be selected by customer
-                # name, we might not know if they inhabit A or B. Pick the last
-                # one if no name matches.
-                # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-                # creating all the dicts we need??
-                for kohde_id in kohde_ids:
-                    kohde = session.get(Kohde, kohde_id)
-                    print("we have kohde")
-                    print(kohde)
-                    # if match_asukas(kohde, asiakas.haltija):
-                    #     break
-
-            if kohde:
-                add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
 
         return kohde
 
@@ -396,7 +502,7 @@ class DbProvider:
             # print(address_counts)
             with Session(engine) as session:
                 init_code_objects(session)
-                self.init_rakennustiedot(session)
+                self.init_provider(session)
 
                 tiedoston_tuottaja = session.get(Tiedontuottaja, tiedontuottaja_lyhenne)
 
@@ -457,9 +563,13 @@ class DbProvider:
         finally:
             logger.debug(building_counts)
 
-    def write_dvv_kohteet(self, perusmaksutiedosto: Optional[Path]):
+    def write_dvv_kohteet(
+        self, alkupvm: str, loppupvm: str, perusmaksutiedosto: Optional[Path]
+    ):
         """
         This method creates kohteet from dvv data existing in the database.
+        Alkupvm and loppupvm may be used to define the period the kohteet
+        should be considered to be valid.
 
         Optionally, a perusmaksurekisteri xlsx file may be provided to
         combine dvv buildings with the same customer id.
@@ -468,7 +578,7 @@ class DbProvider:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Luodaan kohteet")
-                import_dvv_kohteet(session, perusmaksutiedosto)
+                import_dvv_kohteet(session, alkupvm, loppupvm, perusmaksutiedosto)
 
         except Exception as e:
             logger.exception(e)
