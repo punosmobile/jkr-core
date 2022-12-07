@@ -111,12 +111,14 @@ def import_data(
 
 @app.command("create_dvv_kohteet", help="Create kohteet from DVV data in database.")
 def create_dvv_kohteet(
+    alkupvm: str = typer.Argument(None, help="Importoitavan datan alkupvm"),
+    loppupvm: str = typer.Argument(None, help="Importoitavan datan loppupvm"),
     perusmaksutiedosto: Optional[Path] = typer.Argument(
         None, help="Perusmaksurekisteritiedosto"
     ),
 ):
     db = DbProvider()
-    db.write_dvv_kohteet(perusmaksutiedosto)
+    db.write_dvv_kohteet(alkupvm, loppupvm, perusmaksutiedosto)
 
     print("VALMIS!")
 
