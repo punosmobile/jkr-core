@@ -45,7 +45,13 @@ def overlap(a: TyhjennysSopimus, b: TyhjennysSopimus) -> bool:
 
 
 def create_haltija(row: "Asiakas"):
-    postinumero, postitoimipaikka = row.Kiinteistonposti.split(" ", maxsplit=1)
+    try:
+        postinumero, postitoimipaikka = row.Kiinteistonposti.split(" ", maxsplit=1)
+    except ValueError:
+        if row.Kiinteistonposti.isdigit():
+            postinumero, postitoimipaikka = row.Kiinteistonposti, None
+        else:
+            postinumero, postitoimipaikka = None, row.Kiinteistonposti
     kohteen_osoite = Osoite(postinumero=postinumero, postitoimipaikka=postitoimipaikka)
     if row.Kiinteistonkatuosoite:
         try:
@@ -69,7 +75,13 @@ def create_haltija(row: "Asiakas"):
 
 
 def create_yhteyshenkilo(row: "Asiakas"):
-    postinumero, postitoimipaikka = row.Haltijanposti.split(" ", maxsplit=1)
+    try:
+        postinumero, postitoimipaikka = row.Haltijanposti.split(" ", maxsplit=1)
+    except ValueError:
+        if row.Haltijanposti.isdigit():
+            postinumero, postitoimipaikka = row.Haltijanposti, None
+        else:
+            postinumero, postitoimipaikka = None, row.Haltijanposti
     yhteyshenkilon_osoite = Osoite(
         postinumero=postinumero, postitoimipaikka=postitoimipaikka
     )

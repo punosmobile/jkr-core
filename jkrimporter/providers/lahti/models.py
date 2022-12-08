@@ -2,7 +2,7 @@ import datetime
 import re
 from datetime import date
 from enum import Enum
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
@@ -35,13 +35,13 @@ class Asiakas(BaseModel):
     UrakoitsijaId: str
     UrakoitsijankohdeId: str
     Kiinteistotunnus: Optional[str] = None
-    Kiinteistonkatuosoite: str
+    Kiinteistonkatuosoite: Optional[str] = None
     Kiinteistonposti: str
     kimppa: Optional[bool] = False
     kimppaid: Optional[str] = None
     Haltijannimi: str
     Haltijanyhteyshlo: Optional[str] = None
-    Haltijankatuosoite: str
+    Haltijankatuosoite: Optional[str] = None
     Haltijanposti: str
     Haltijanmaakoodi: Optional[str] = None
     Haltijanulkomaanpaikkakunta: Optional[str] = None
@@ -56,9 +56,38 @@ class Asiakas(BaseModel):
     Voimassaoloviikotalkaen: Optional[int] = None
     Voimassaoloviikotasti: Optional[int] = None
     Kuntatun: Optional[int] = None
+    # Keskeytysalkaen: Optional[datetime.date] = None,
+    # Keskeytysasti: Optional[datetime.date] = None,
+    # Kompostoi: Optional[str] = None,
+    # Kaatopaikka: Optional[str] = None
+
+    # @validator("UrakoitsijankohdeId", pre=True)
+    # TODO: Cannot construct id from name. Name is validated later.
+    # def construct_missing_id(value: Union[str, None], values: Dict):
+    #     print(value)
+    #     print(values)
+    #     if not value:
+    #         try:
+    #             value = values["Haltijannimi"].lower().replace(" ", "_")
+    #         except AttributeError:
+    #             raise ValidationError("Asiakas must have name or id.")
+    #     return str(value)
+
+    @validator("Haltijannimi", pre=True)
+    def construct_missing_name(value: Union[str, None], values: Dict):
+        print(values)
+        if not value:
+            try:
+                value = str(values["UrakoitsijankohdeId"])
+            except KeyError:
+                raise ValidationError("Asiakas must have name or id.")
+        return str(value)
 
     @validator("Kiinteistonkatuosoite", "Haltijankatuosoite", pre=True)
-    def fix_katuosoite(value: str):
+    def fix_katuosoite(value: Union[str, None]):
+        # address may be missing
+        if not value:
+            return None
         # osoite must be in title case for parsing
         value = value.title()
         # asunto abbreviation should be lowercase
@@ -67,7 +96,9 @@ class Asiakas(BaseModel):
         return re.sub(asunto_without_dot_regex, asunto_with_dot_regex, value)
 
     @validator("Haltijanposti", "Kiinteistonposti", pre=True)
-    def fix_double_spaces(value: str):
+    def fix_posti(value: Union[str, int]):
+        # looks like some postiosoite only have postinumero
+        value = str(value)
         while "  " in value:
             value = value.replace("  ", " ")
         return value
