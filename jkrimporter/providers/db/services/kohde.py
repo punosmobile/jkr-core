@@ -283,28 +283,32 @@ def create_new_kohde(session: "Session", asiakas: "Asiakas"):
 def create_new_kohde_from_buildings(
     session: "Session",
     rakennus_ids: "List[int]",
-    asiakkaat: "List[Osapuoli]",
+    asiakkaat: "Set[Osapuoli]",
+    yhteystiedot: "Set[Osapuoli]",
+    alkupvm: "Optional[str]",
+    loppupvm: "Optional[str]",
 ):
     """
     Create combined kohde for the given list of building ids. Asiakkaat will be
-    used for kohde name and contact info.
+    used for kohde name and osapuoli. Yhteystiedot will be added as additional contacts
+    for kohde, i.e. they are additional inhabitants and/or owners.
     """
     # prefer companies over private owners when naming combined objects
-    asoy_asiakkaat = [osapuoli for osapuoli in asiakkaat if is_asoy(osapuoli.nimi)]
-    company_asiakkaat = [
+    asoy_asiakkaat = {osapuoli for osapuoli in asiakkaat if is_asoy(osapuoli.nimi)}
+    company_asiakkaat = {
         osapuoli for osapuoli in asiakkaat if is_company(osapuoli.nimi)
-    ]
-    yhteiso_asiakkaat = [
+    }
+    yhteiso_asiakkaat = {
         osapuoli for osapuoli in asiakkaat if is_yhteiso(osapuoli.nimi)
-    ]
+    }
     if asoy_asiakkaat:
-        asiakas = asoy_asiakkaat[0]
+        asiakas = next(iter(asoy_asiakkaat))
     elif company_asiakkaat:
-        asiakas = company_asiakkaat[0]
+        asiakas = next(iter(company_asiakkaat))
     elif yhteiso_asiakkaat:
-        asiakas = yhteiso_asiakkaat[0]
+        asiakas = next(iter(yhteiso_asiakkaat))
     else:
-        asiakas = asiakkaat[0]
+        asiakas = next(iter(asiakkaat))
     kohde_display_name = form_display_name(
         Yhteystieto(
             asiakas.nimi,
@@ -316,7 +320,8 @@ def create_new_kohde_from_buildings(
     kohde = Kohde(
         nimi=kohde_display_name,
         kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
-        alkupvm=datetime.date.today(),
+        alkupvm=alkupvm,
+        loppupvm=loppupvm,
     )
     session.add(kohde)
     # we need to get the id for the kohde from db
@@ -335,10 +340,23 @@ def create_new_kohde_from_buildings(
             osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
         )
         session.add(asiakas)
+    # yhteystiedot should not duplicate asiakas data
+    for osapuoli in yhteystiedot - asiakkaat:
+        yhteystieto = KohteenOsapuolet(
+            osapuoli_id=osapuoli.id,
+            kohde_id=kohde.id,
+            osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO],
+        )
+        session.add(yhteystieto)
     return kohde
 
 
-def create_kohteet_from_vanhimmat(session: "Session", ids: "Select"):
+def create_kohteet_from_vanhimmat(
+    session: "Session",
+    ids: "Select",
+    alkupvm: "Optional[str]",
+    loppupvm: "Optional[str]",
+):
     """
     Create one kohde for each RakennuksenVanhimmat osapuoli id provided by
     the select query.
@@ -353,9 +371,17 @@ def create_kohteet_from_vanhimmat(session: "Session", ids: "Select"):
     print(f"Found {len(vanhimmat_osapuolet)} vanhimmat without kohde")
     kohteet = []
     for (vanhin, osapuoli) in vanhimmat_osapuolet:
-        # the oldest inhabitant is the customer
+        # The oldest inhabitant is the customer. Also save owners as backup
+        # contacts.
+        omistajat_query = (
+            select(RakennuksenOmistajat, Osapuoli)
+            .join(RakennuksenOmistajat.osapuoli)
+            .where(RakennuksenOmistajat.rakennus_id == vanhin.rakennus_id)
+        )
+        omistajat = {row[1] for row in session.execute(omistajat_query).all()}
+        print(f"Building {vanhin.rakennus_id} has owners {omistajat}")
         kohde = create_new_kohde_from_buildings(
-            session, [vanhin.rakennus_id], [osapuoli]
+            session, [vanhin.rakennus_id], {osapuoli}, omistajat, alkupvm, loppupvm
         )
         kohteet.append(kohde)
     return kohteet
@@ -484,12 +510,15 @@ def _add_auxiliary_buildings(
 def create_kohteet_from_kiinteisto(
     session: "Session",
     kiinteistotunnukset: "Select",
-    customer_table: "DeclarativeMeta" = None,
+    alkupvm: "Optional[str]",
+    loppupvm: "Optional[str]",
+    customer_table: "Optional[DeclarativeMeta]",
 ):
     """
     Create at least one kohde from each kiinteistotunnus provided by the select query.
     Customer_table is the optional additional table to use for customer id. By default,
-    each kohde will have building owner as its customer.
+    each kohde will have all owners as its customer. In this case, owners will be added
+    as additional contacts.
 
     If the same kiinteistotunnus has buildings with multiple owners,
     first kohde will contain all buildings owned by the owner with the most buildings.
@@ -603,6 +632,14 @@ def create_kohteet_from_kiinteisto(
                 (street, number), buildings_at_address = addresses_by_buildings[0]
                 print(f"Processing street {street} osoitenumero {number}")
                 print(f"with buildings {buildings_at_address}")
+                # Add all owners as contact info
+                owners = {
+                    owner
+                    for owner, buildings in buildings_by_owner.items()
+                    if buildings & buildings_at_address
+                }
+                print(f"Address has owners {owners}")
+
                 # Customer may be the owner or the inhabitant.
                 customer = None
                 if customer_table:
@@ -623,7 +660,12 @@ def create_kohteet_from_kiinteisto(
                     customer = first_owner
                 print(f"Creating kohde {customer}: {buildings_at_address}")
                 kohde = create_new_kohde_from_buildings(
-                    session, list(buildings_at_address), [customer]
+                    session,
+                    list(buildings_at_address),
+                    {customer},
+                    owners,
+                    alkupvm,
+                    loppupvm,
                 )
                 # do not import the building again from second address
                 buildings_owned -= buildings_at_address
@@ -632,7 +674,11 @@ def create_kohteet_from_kiinteisto(
     return kohteet
 
 
-def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
+def create_single_asunto_kohteet(
+    session: "Session",
+    alkupvm: "Optional[str]",
+    loppupvm: "Optional[str]",
+) -> "List(Kohde)":
     """
     Create kohteet from all yksittäistalot that do not have kohde. Also consider
     yksittäistalot that do not have an inhabitant.
@@ -667,11 +713,15 @@ def create_single_asunto_kohteet(session: "Session") -> "List(Kohde)":
     # same owner. Separate owners will get separate kohde, OR
     # TODO: optionally, do not create separate kohteet after all??
     return create_kohteet_from_kiinteisto(
-        session, single_asunto_kiinteistotunnus, RakennuksenVanhimmat
+        session, single_asunto_kiinteistotunnus, alkupvm, loppupvm, RakennuksenVanhimmat
     )
 
 
-def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
+def create_paritalo_kohteet(
+    session: "Session",
+    alkupvm: "Optional[str]",
+    loppupvm: "Optional[str]",
+) -> "List(Kohde)":
     """
     Create kohteet from all paritalo buildings that do not have kohde.
     """
@@ -695,10 +745,12 @@ def create_paritalo_kohteet(session: "Session") -> "List(Kohde)":
     print("Creating paritalokohteet...")
     # TODO: instead, merge all empty buildings on kiinteistö to the main building
     # Where to merge? We have two identical owners. Better not merge at all?
-    return create_kohteet_from_vanhimmat(session, vanhimmat_ids)
+    return create_kohteet_from_vanhimmat(session, vanhimmat_ids, alkupvm, loppupvm)
 
 
-def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)":
+def create_multiple_and_uninhabited_kohteet(
+    session: "Session", alkupvm: "Optional[str]", loppupvm: "Optional[str]"
+) -> "List(Kohde)":
     """
     Create kohteet from all kiinteistötunnus that do not have kohde.
     """
@@ -722,7 +774,9 @@ def create_multiple_and_uninhabited_kohteet(session: "Session") -> "List(Kohde)"
     # Merge all empty buildings with same owner to the main building.
     # Separate owners will get separate kohde, OR
     # TODO: optionally, do not create separate kohteet after all??
-    return create_kohteet_from_kiinteisto(session, kiinteistotunnus_without_kohde)
+    return create_kohteet_from_kiinteisto(
+        session, kiinteistotunnus_without_kohde, alkupvm, loppupvm, None
+    )
 
 
 def _should_have_perusmaksu_kohde(rakennus: "Rakennus"):
@@ -742,7 +796,12 @@ def _should_have_perusmaksu_kohde(rakennus: "Rakennus"):
     )
 
 
-def create_perusmaksurekisteri_kohteet(session: "Session", perusmaksutiedosto: "Path"):
+def create_perusmaksurekisteri_kohteet(
+    session: "Session",
+    perusmaksutiedosto: "Path",
+    alkupvm: "Optional[str]",
+    loppupvm: "Optional[str]",
+):
     """
     Create kohteet combining all dvv buildings that have the same asiakasnumero in
     perusmaksurekisteri and have the desired type. No need to import anything from
@@ -822,12 +881,10 @@ def create_perusmaksurekisteri_kohteet(session: "Session", perusmaksutiedosto: "
         # We have no idea who should pay, and the buildings do not always
         # have common owners at all.
         owner_sets = [rakennustiedot[1] for rakennustiedot in building_set]
-        owners = list(set().union(*owner_sets))
+        owners = set().union(*owner_sets)
         print(f"Having owners {owners}")
         kohde = create_new_kohde_from_buildings(
-            session,
-            rakennus_ids,
-            owners,
+            session, rakennus_ids, owners, owners, alkupvm, loppupvm
         )
         kohteet.append(kohde)
     return kohteet

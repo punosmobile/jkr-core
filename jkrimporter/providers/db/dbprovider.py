@@ -223,19 +223,24 @@ def import_asiakastiedot(
     session.commit()
 
 
-def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
+def import_dvv_kohteet(
+    session: Session,
+    alkupvm: Optional[str],
+    loppupvm: Optional[str],
+    perusmaksutiedosto: Optional[Path],
+):
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
     # asukas.
     # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
     # rakennuksilla sama omistaja. Voi olla yksi tai monta rakennusta.Yhdessä
     # rakennuksessa voi olla asukkaita.
-    # - Asiakas on vanhin asukas.
+    # - Asiakas on vanhin asukas. Tuodaan myös kaikki omistajat yhteystiedoiksi.
     # - Kiinteistön muut rakennukset asumattomia (esim. lomarakennukset, saunat),
     #  joten ne liitetään, jos sama omistaja ja osoite.
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
     # - Kohdetta ei tuoda, jos samalla kiinteistöllä muita asuttuja rakennuksia.
-    single_asunto_kohteet = create_single_asunto_kohteet(session)
+    single_asunto_kohteet = create_single_asunto_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(single_asunto_kohteet)} single kohteet")
 
@@ -252,7 +257,7 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # joilla erilliset sopimukset.
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
-            session, perusmaksutiedosto
+            session, perusmaksutiedosto, alkupvm, loppupvm
         )
     session.commit()
     print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
@@ -260,10 +265,10 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # 4) Paritalot: molemmille huoneistoille omat kohteet
     # Does it matter this is imported after 7? -No, because paritalot will not
     # interact with 7.
-    # - Asiakas on kumpikin vanhin asukas erikseen.
+    # - Asiakas on kumpikin vanhin asukas erikseen. Tuodaan myös kaikki omistajat yhteystiedoiksi.
     # - Kiinteistöllä kaksi kohdetta joilla sama rakennus, muita rakennuksia ei liitetä.
     # TODO: add all buildings on kiinteistö?
-    paritalo_kohteet = create_paritalo_kohteet(session)
+    paritalo_kohteet = create_paritalo_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
@@ -300,7 +305,9 @@ def import_dvv_kohteet(session: Session, perusmaksutiedosto: Optional[Path]):
     # TODO: limit added buildings on kiinteistö?
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
-    multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(session)
+    multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(
+        session, alkupvm, loppupvm
+    )
     session.commit()
     print(f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet")
 
@@ -383,7 +390,12 @@ class DbProvider:
         finally:
             logger.debug(building_counts)
 
-    def write_dvv_kohteet(self, perusmaksutiedosto: Optional[Path]):
+    def write_dvv_kohteet(
+        self,
+        alkupvm: Optional[str],
+        loppupvm: Optional[str],
+        perusmaksutiedosto: Optional[Path],
+    ):
         """
         This method creates kohteet from dvv data existing in the database.
 
@@ -394,7 +406,7 @@ class DbProvider:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Luodaan kohteet")
-                import_dvv_kohteet(session, perusmaksutiedosto)
+                import_dvv_kohteet(session, alkupvm, loppupvm, perusmaksutiedosto)
 
         except Exception as e:
             logger.exception(e)

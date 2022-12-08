@@ -37,7 +37,7 @@ def create_or_update_haltija_osapuoli(
         for db_haltija in db_haltijat
     )
     if not db_haltijat or (update_contacts and not exists):
-        print("Haltija changed in data, creating new haltija!")
+        print("Haltija changed or not found in db, creating new haltija!")
         # Haltija has changed. We must create a new osapuoli. The old
         # haltija is still valid for the old data, so we don't want to
         # delete them.
