@@ -7,7 +7,6 @@ from shapely.geometry import MultiPoint
 from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
 from sqlalchemy import or_, select
-from sqlalchemy.sql import false
 
 from jkrimporter.model import Rakennustunnus
 from jkrimporter.providers.db.utils import clean_asoy_name, is_asoy
@@ -16,10 +15,8 @@ from .. import codes
 from ..codes import RakennuksenKayttotarkoitusTyyppi
 from ..models import (
     Katu,
-    Kunta,
     Osapuoli,
     Osoite,
-    Posti,
     RakennuksenVanhimmat,
     Rakennus,
 )
@@ -105,7 +102,9 @@ def find_buildings_for_kohde(
                         counts["uniikki prt - koko liian iso"] += 1
             else:
                 counts["uniikki prt - rakennuksia ei löydy"] += 1
-        # TODO: liitetään asiakkaaseen vaikka asiakkaita olisi useampi!
+        # TODO: liitetään asiakkaaseen vaikka asiakkaita olisi useampi! Halutaan luoda
+        # uusi kohde, vaikka vanha kohde vielä voimassa (asiakas muuttunut). Tosin
+        # kuljetustiedoissa ei yleensä prt:tä? => ei ajankohtaista?
 
     if asiakas.kiinteistot:
         print("has kiinteistöt")
@@ -176,17 +175,18 @@ def find_buildings_for_kohde(
             omistajat.add(
                 frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
             )
-            # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-            # creating all the dicts we need??
         print("has omistajat")
         print(omistajat)
         omistajat = set(filter(lambda osapuolet: osapuolet, omistajat))
         print(omistajat)
         # At the moment, return all buildings, even if they have different owners.
+        # TODO: group buildings by owner sets. We are creating new kohteet here,
+        # better use the same rules as with old dvv kohteet. Let's ask first if
+        # there should be any differences compared to original dvv import, tho.
         return rakennukset
         # TODO: whenever the address has buildings with different owners,
-        # this will not return any buildings. This is as intended in Tampere,
-        # but no idea why.
+        # the below will not return any buildings. This is as intended in Tampere,
+        # but no idea why, let's ask Lauri.
         # if len(omistajat) == 1:
         #     counts["osoitteella löytyi - kaikilla sama omistaja"] += 1
         #     if len(rakennukset) > 1:
@@ -236,6 +236,7 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto"):
 
     # The osoitenumero may contain dash. In that case, the buildings may be
     # listed as separate in DVV data.
+    # Also. osoitenumero may be None and we must match to None too.
     if haltija.osoite.osoitenumero and "-" in haltija.osoite.osoitenumero:
         osoitenumerot = haltija.osoite.osoitenumero.split("-", maxsplit=1)
     else:
@@ -274,16 +275,12 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto"):
         else (haltija.osoite.huoneistotunnus, None)
     )
     huoneisto_condition = and_(
-        # Vanhin must live in the huoneisto with the same kirjain (and apartment number if present).
+        # Vanhin must live in the huoneisto with the same kirjain (and apartment number
+        # *if* present).
         Osoite.osoitenumero.in_(osoitenumerot),
         RakennuksenVanhimmat.huoneistokirjain == huoneistokirjain,
         RakennuksenVanhimmat.huoneistonumero == huoneistonumero,
     )
-    # TODO: We should also find buildings that do not have RakennuksenVanhimmat yet.
-    # They are vapaa-ajanrakennukset.
-    # Cannot just use join, this means uninhabited buildings are left out.
-    # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-    # creating all the dicts we need??
 
     print(osoitenumero_condition)
     print(osoitenumerot)
@@ -296,29 +293,25 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto"):
         select(Rakennus)
         .join(Osoite)
         .join(Katu)
-        .join(RakennuksenVanhimmat)
+        .join(RakennuksenVanhimmat, outer=True)  # allow vapaa-ajanrakennukset
         .where(
-            # TODO: alternatively match kuntanumero (postinumero has errors), tho kunta is often
-            # missing too?
             Osoite.posti_numero == haltija.osoite.postinumero,
             sqlalchemyFunc.lower(Katu.katunimi_fi) == katunimi_lower,
             or_(
+                # Find vapaa-ajanrakennukset even if osoitenumero and kirjain and
+                # everything is empty.
                 osoitenumero_condition,
+                # Find Metsätähtikatu 3 by Metsätähtikatu 3 B. This is a case of
+                # paritalo, where the owner of one half has address 3 B, although the
+                # building only has address 3. We are creating a new kohde here.
                 huoneisto_condition
-                # Find Metsätähtikatu 3 by Metsätähtikatu 3 B. This is a case of paritalo, where
-                # the owner of one half has address 3 B, although the building only has address 3.
-                # TODO: In case of paritalo, the *asukas* address tells us which is which. The
-                # building address is not enough. So let's check the inhabitant address *after* we
-                # return the building for kohteet.
-                # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-                # creating all the dicts we need??
             ),
         )
         .distinct()
     )
 
     rakennukset = session.execute(statement).scalars().all()
-    print('query returned buildings')
+    print("query returned buildings")
     print(rakennukset)
     return rakennukset
 

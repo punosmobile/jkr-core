@@ -2,9 +2,8 @@ import datetime
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Union
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from jkrimporter.model import Asiakas, JkrData
@@ -15,7 +14,7 @@ from jkrimporter.utils.progress import Progress
 from . import codes
 from .codes import init_code_objects
 from .database import engine
-from .models import Kohde, KohteenRakennukset, Kuljetus, Tiedontuottaja
+from .models import Kohde, Kuljetus, Tiedontuottaja
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
@@ -28,10 +27,10 @@ from .services.kohde import (
     create_paritalo_kohteet,
     create_perusmaksurekisteri_kohteet,
     create_single_asunto_kohteet,
-    find_kohde_by_asiakastiedot,
-    get_kohde_by_asiakasnumero,
+    find_kohde_by_address,
+    find_kohde_by_kiinteisto,
+    find_kohde_by_prt,
     get_ulkoinen_asiakastieto,
-    match_asukas,
     update_kohde,
     update_ulkoinen_asiakastieto,
 )
@@ -95,6 +94,8 @@ def insert_kuljetukset(
         # for a given period and jatetyyppi. It may be false, there may even
         # be more than one kuljetus for a period and jatetyyppi with the *same*
         # urakoitsija, with the same *or* different customer ids.
+        # TODO: If the customer id is the same, just let it be. If the customer id
+        # is different, we should create a new kohde.
         exists = any(
             k.jatetyyppi == jatetyyppi
             and k.alkupvm == alkupvm
@@ -124,63 +125,59 @@ def find_and_update_kohde(
     prt_counts: Dict[str, int],
     kitu_counts: Dict[str, int],
     address_counts: Dict[str, int],
-) -> Kohde:
+) -> Union[Kohde, None]:
+
+    kohde = None
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
     if ulkoinen_asiakastieto:
+        print("Kohde found by customer id.")
         update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
 
         kohde = ulkoinen_asiakastieto.kohde
         if do_update:
             update_kohde(kohde, asiakas)
     else:
-        kohde = find_kohde_by_asiakastiedot(session, asiakas)
-        if kohde:
-            if do_update:
-                update_kohde(kohde, asiakas)
+        # TODO: Add check_name parameter here. If
+        # 1) Jätelaji is sekajäte,
+        # 2) Customer id is not found (we have a new customer) AND
+        # 3) The location already has a kohde for sekajäte with another customer id
+        #    AND the same time period,
+        # 4) The other customer id has a *different name*?,
+        # we should create a new kohde.
+        print("Customer id not found. Searching for kohde by customer data...")
+        if asiakas.rakennukset:
+            kohde = find_kohde_by_prt(session, asiakas)
+        if not kohde and asiakas.kiinteistot:
+            kohde = find_kohde_by_kiinteisto(session, asiakas)
+        if (
+            not kohde
+            and asiakas.haltija.osoite.postinumero
+            and asiakas.haltija.osoite.katunimi
+        ):
+            kohde = find_kohde_by_address(session, asiakas)
+        if kohde and do_update:
+            update_kohde(kohde, asiakas)
         elif do_create:
+            # this creates kohde without buildings
+            print("Kohde not found, creating new one...")
             kohde = create_new_kohde(session, asiakas)
+        if kohde:
+            add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
+        else:
+            print("Could not find kohde.")
 
-    if not kohde or not kohde.rakennus_collection:
-        print("No kohde found. Looking for buildings...")
+    if do_create and not kohde.rakennus_collection:
+        print("New kohde created. Looking for buildings...")
         buildings = find_buildings_for_kohde(
             session, asiakas, prt_counts, kitu_counts, address_counts
         )
-        if kohde:
-            if buildings:
-                kohde.rakennus_collection = buildings
+        if buildings:
+            kohde.rakennus_collection = buildings
 
-            elif not kohde.ehdokasrakennus_collection:
-                building_candidates = find_building_candidates_for_kohde(
-                    session, asiakas
-                )
-                if building_candidates:
-                    kohde.ehdokasrakennus_collection = building_candidates
-        else:
-            print("got buildings")
-            print(buildings)
-            kohde_ids = session.execute(
-                select(KohteenRakennukset.kohde_id).where(
-                    KohteenRakennukset.rakennus_id.in_(
-                        [building.id for building in buildings]
-                    )
-                )
-            ).all()
-            print("got kohde ids")
-            print(kohde_ids)
-            # TODO: There may be several. Paritalot must be selected by customer
-            # name, we might not know if they inhabit A or B. Pick the last
-            # one if no name matches.
-            # How about using Rakennustiedot struct for the whole, fetching it beforehand and
-            # creating all the dicts we need??
-            for kohde_id in kohde_ids:
-                kohde = session.get(Kohde, kohde_id)
-                print("we have kohde")
-                print(kohde)
-                # if match_asukas(kohde, asiakas.haltija):
-                #     break
-
-        if kohde:
-            add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
+        elif not kohde.ehdokasrakennus_collection:
+            building_candidates = find_building_candidates_for_kohde(session, asiakas)
+            if building_candidates:
+                kohde.ehdokasrakennus_collection = building_candidates
 
     return kohde
 
@@ -207,7 +204,9 @@ def import_asiakastiedot(
 
     # Update osapuolet from the same tiedontuottaja. These functions will not
     # touch data from other tiedontuottajat.
+    # TODO: set osapuoli type based on type of kuljetus
     create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
+    # TODO: do not create yhteystieto on Lahti request
     create_or_update_yhteystieto_osapuoli(session, kohde, asiakas, do_update)
 
     update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
