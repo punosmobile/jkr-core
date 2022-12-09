@@ -240,12 +240,15 @@ def update_sopimukset_for_kohde(
         if db_sopimus:
             update_kesteytykset(db_sopimus, sopimus.keskeytykset)
 
-            if not isinstance(sopimus, KimppaSopimus):
-                update_keraysvalineet(
-                    db_sopimus,
-                    sopimus.keraysvalineet,
-                    raportointi_loppupvm
-                    if raportointi_loppupvm
-                    else asiakas.voimassa.upper,
-                )
-                update_tyhjennysvalit(session, asiakas, db_sopimus, sopimus)
+            # Why wouldn't we save the data on each sopimus? Yeah it is duplicated.
+            # But it is there in the data already, and the qgis users wants to
+            # see the data in the form.
+            # if not isinstance(sopimus, KimppaSopimus):
+            update_keraysvalineet(
+                db_sopimus,
+                sopimus.keraysvalineet,
+                raportointi_loppupvm
+                if raportointi_loppupvm
+                else asiakas.voimassa.upper,
+            )
+            update_tyhjennysvalit(session, asiakas, db_sopimus, sopimus)

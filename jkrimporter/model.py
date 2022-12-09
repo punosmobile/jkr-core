@@ -167,7 +167,7 @@ class TyhjennysSopimus(BaseSopimus):
 
 
 @dataclass
-class KimppaSopimus(BaseSopimus):
+class KimppaSopimus(TyhjennysSopimus):
     isannan_asiakasnumero: Optional[Tunnus] = None
 
 

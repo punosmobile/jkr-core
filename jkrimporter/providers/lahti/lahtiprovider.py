@@ -252,8 +252,6 @@ class LahtiTranslator:
 
             # Lahti saves kimppasopimukset along with regular sopimukset
             if row.palveluKimppakohdeId:
-                Sopimus = KimppaSopimus
-                sopimustyyppi = SopimusTyyppi.kimppasopimus
                 isannan_asiakasnumero = self.tunnus_from_urakoitsija_and_asiakasnumero(
                     row.UrakoitsijaId, row.palveluKimppakohdeId
                 )
@@ -261,19 +259,23 @@ class LahtiTranslator:
                     data.asiakkaat[isannan_asiakasnumero] = self._create_asiakas(
                         isannan_asiakasnumero, row
                     )
-                    print(f"Added new kimppaisäntä {tunnus}")
+                    print(f"Added new kimppaisäntä {isannan_asiakasnumero}")
                 else:
-                    print(f"Kimppaisäntä {tunnus} found already")
+                    print(f"Kimppaisäntä {isannan_asiakasnumero} found already")
+                sopimus = KimppaSopimus(
+                    sopimustyyppi=SopimusTyyppi.kimppasopimus,
+                    jatelaji=jatelaji,
+                    alkupvm=row.Pvmalk,
+                    loppupvm=row.Pvmasti,
+                    isannan_asiakasnumero=isannan_asiakasnumero,
+                )
             else:
-                Sopimus = TyhjennysSopimus
-                isannan_asiakasnumero = None
-            sopimus = Sopimus(
-                sopimustyyppi=sopimustyyppi,
-                jatelaji=jatelaji,
-                alkupvm=row.Pvmalk,
-                loppupvm=row.Pvmasti,
-                isannan_asiakasnumero=isannan_asiakasnumero,
-            )
+                sopimus = TyhjennysSopimus(
+                    sopimustyyppi=sopimustyyppi,
+                    jatelaji=jatelaji,
+                    alkupvm=row.Pvmalk,
+                    loppupvm=row.Pvmasti
+                )
             if row.tyhjennysvali:
                 # tyhjennysväli is missing from some data
                 sopimus.tyhjennysvalit.append(
