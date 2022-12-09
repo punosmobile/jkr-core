@@ -37,8 +37,8 @@ class Asiakas(BaseModel):
     Kiinteistotunnus: Optional[str] = None
     Kiinteistonkatuosoite: Optional[str] = None
     Kiinteistonposti: str
-    kimppa: Optional[bool] = False
-    kimppaid: Optional[str] = None
+    # kimppa: Optional[bool] = False
+    # kimppaid: Optional[str] = None
     Haltijannimi: str
     Haltijanyhteyshlo: Optional[str] = None
     Haltijankatuosoite: Optional[str] = None
@@ -56,6 +56,10 @@ class Asiakas(BaseModel):
     Voimassaoloviikotalkaen: Optional[int] = None
     Voimassaoloviikotasti: Optional[int] = None
     Kuntatun: Optional[int] = None
+    palveluKimppakohdeId: Optional[str] = None
+    kimpanNimi: Optional[str] = None
+    Kimpankatuosoite: Optional[str] = None
+    Kimpanposti: Optional[str] = None
     # Keskeytysalkaen: Optional[datetime.date] = None,
     # Keskeytysasti: Optional[datetime.date] = None,
     # Kompostoi: Optional[str] = None,
@@ -83,7 +87,9 @@ class Asiakas(BaseModel):
                 raise ValidationError("Asiakas must have name or id.")
         return str(value)
 
-    @validator("Kiinteistonkatuosoite", "Haltijankatuosoite", pre=True)
+    @validator(
+        "Kiinteistonkatuosoite", "Haltijankatuosoite", "Kimpankatuosoite", pre=True
+    )
     def fix_katuosoite(value: Union[str, None]):
         # address may be missing
         if not value:
@@ -95,7 +101,7 @@ class Asiakas(BaseModel):
         asunto_with_dot_regex = r"\1as.\3"
         return re.sub(asunto_without_dot_regex, asunto_with_dot_regex, value)
 
-    @validator("Haltijanposti", "Kiinteistonposti", pre=True)
+    @validator("Haltijanposti", "Kiinteistonposti", "Kimpanposti", pre=True)
     def fix_posti(value: Union[str, int]):
         # looks like some postiosoite only have postinumero
         value = str(value)
@@ -103,11 +109,11 @@ class Asiakas(BaseModel):
             value = value.replace("  ", " ")
         return value
 
-    @validator("kimppa", pre=True)
-    def parse_kimppa(value: Union[bool, str]):
-        # no idea why pydantic has trouble with coercing empty strings
-        # to boolean
-        return bool(value)
+    # @validator("kimppa", pre=True)
+    # def parse_kimppa(value: Union[bool, str]):
+    #     # no idea why pydantic has trouble with coercing empty strings
+    #     # to boolean
+    #     return bool(value)
 
     @validator("koko", "paino", pre=True)
     def parse_float(value: Union[float, str]):

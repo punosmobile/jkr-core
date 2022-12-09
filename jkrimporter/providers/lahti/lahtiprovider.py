@@ -75,13 +75,22 @@ def create_haltija(row: "Asiakas"):
 
 
 def create_yhteyshenkilo(row: "Asiakas"):
-    try:
-        postinumero, postitoimipaikka = row.Haltijanposti.split(" ", maxsplit=1)
-    except ValueError:
-        if row.Haltijanposti.isdigit():
-            postinumero, postitoimipaikka = row.Haltijanposti, None
-        else:
-            postinumero, postitoimipaikka = None, row.Haltijanposti
+    if row.palveluKimppakohdeId:
+        try:
+            postinumero, postitoimipaikka = row.Kimpanposti.split(" ", maxsplit=1)
+        except ValueError:
+            if row.Kimpanposti.isdigit():
+                postinumero, postitoimipaikka = row.Kimpanposti, None
+            else:
+                postinumero, postitoimipaikka = None, row.Kimpanposti
+    else:
+        try:
+            postinumero, postitoimipaikka = row.Haltijanposti.split(" ", maxsplit=1)
+        except ValueError:
+            if row.Haltijanposti.isdigit():
+                postinumero, postitoimipaikka = row.Haltijanposti, None
+            else:
+                postinumero, postitoimipaikka = None, row.Haltijanposti
     yhteyshenkilon_osoite = Osoite(
         postinumero=postinumero, postitoimipaikka=postitoimipaikka
     )
@@ -93,7 +102,17 @@ def create_yhteyshenkilo(row: "Asiakas"):
     # Even in case the haltija has no external yhteyshenkilö (private owners), their
     # address may differ from that of the kohde address, and they should always be
     # saved.
-    if row.Haltijankatuosoite:
+    if row.Kimpankatuosoite:
+        try:
+            parsed_address = address_parser.parse(row.Kimpankatuosoite)
+        except ValueError:
+            yhteyshenkilon_osoite.erikoisosoite = row.Kimpankatuosoite
+        else:
+            o = osoite_from_parsed_address(parsed_address)
+            yhteyshenkilon_osoite.katunimi = o.katunimi
+            yhteyshenkilon_osoite.osoitenumero = o.osoitenumero
+            yhteyshenkilon_osoite.huoneistotunnus = o.huoneistotunnus
+    elif row.Haltijankatuosoite:
         try:
             parsed_address = address_parser.parse(row.Haltijankatuosoite)
         except ValueError:
@@ -104,10 +123,16 @@ def create_yhteyshenkilo(row: "Asiakas"):
             yhteyshenkilon_osoite.osoitenumero = o.osoitenumero
             yhteyshenkilon_osoite.huoneistotunnus = o.huoneistotunnus
 
+    if row.kimpanNimi:
+        nimi = row.kimpanNimi.title()
+    else:
+        nimi = (
+            row.Haltijanyhteyshlo.title()
+            if row.Haltijanyhteyshlo
+            else row.Haltijannimi.title()
+        )
     yhteyshenkilo = Yhteystieto(
-        nimi=row.Haltijanyhteyshlo.title()
-        if row.Haltijanyhteyshlo
-        else row.Haltijannimi.title(),
+        nimi=nimi,
         osoite=yhteyshenkilon_osoite,
     )
     print("got yhteyshenkilö")
@@ -143,7 +168,7 @@ class LahtiTranslator:
     ):
         self._source = siirtotiedosto
         self._tiedontuottaja_tunnus = tiedontuottajatunnus
-        self._tunnus_by_urakoitsija_and_asiakasnro = defaultdict(dict)
+        # self._tunnus_by_urakoitsija_and_asiakasnro = defaultdict(dict)
 
     def as_jkr_data(self, alkupvm: Union[None, date], loppupvm: Union[None, date]):
         data = JkrData()
@@ -166,6 +191,23 @@ class LahtiTranslator:
 
         return data
 
+    def _create_asiakas(self, tunnus: Tunnus, row: Asiakas) -> JkrAsiakas:
+        # self._tunnus_by_urakoitsija_and_asiakasnro[row.UrakoitsijaId][
+        #     row.UrakoitsijankohdeId
+        # ] = tunnus
+        haltija = create_haltija(row)
+        yhteyshenkilo = create_yhteyshenkilo(row)
+        asiakas = JkrAsiakas(
+            asiakasnumero=tunnus,
+            voimassa=Interval(row.Pvmalk, row.Pvmasti),
+            ulkoinen_asiakastieto=row,
+            # obviously, prt is called Kiinteistotunnus in Lahti data
+            rakennukset=[row.Kiinteistotunnus] if row.Kiinteistotunnus else [],
+            haltija=haltija,
+            yhteyshenkilo=yhteyshenkilo,
+        )
+        return asiakas
+
     def _append_asiakkaat(
         self, data: JkrData, alkupvm: Union[None, date], loppupvm: Union[None, date]
     ):
@@ -177,13 +219,13 @@ class LahtiTranslator:
                 print(alkupvm)
                 print(row.Pvmasti)
                 if row.Pvmasti < alkupvm:
-                    print('skipping, too early')
+                    print("skipping, too early")
                     continue
             if loppupvm:
                 print(loppupvm)
                 print(row.Pvmalk)
                 if row.Pvmalk > loppupvm:
-                    print('skipping, too late')
+                    print("skipping, too late")
                     continue
             tunnus = self.tunnus_from_urakoitsija_and_asiakasnumero(
                 row.UrakoitsijaId, row.UrakoitsijankohdeId
@@ -193,24 +235,9 @@ class LahtiTranslator:
             # append to their kuljetukset and sopimukset. Luckily, UrakoitsijankohdeId
             # means any different buildings will always be imported as separate
             # asiakas, even if their name etc. is the same. This way, each Asiakas
-            # will always only have a single rakennus and its sopimukset.
+            # will always only have a single kohde and its sopimukset.
             if tunnus not in data.asiakkaat.keys():
-                self._tunnus_by_urakoitsija_and_asiakasnro[row.UrakoitsijaId][
-                    row.UrakoitsijankohdeId
-                ] = tunnus
-                haltija = create_haltija(row)
-                yhteyshenkilo = create_yhteyshenkilo(row)
-                asiakas = JkrAsiakas(
-                    asiakasnumero=tunnus,
-                    voimassa=Interval(row.Pvmalk, row.Pvmasti),
-                    ulkoinen_asiakastieto=row,
-                    # obviously, prt is called Kiinteistotunnus in Lahti data
-                    rakennukset=[row.Kiinteistotunnus] if row.Kiinteistotunnus else [],
-                    haltija=haltija,
-                    yhteyshenkilo=yhteyshenkilo,
-                )
-                # print(asiakas)
-                data.asiakkaat[tunnus] = asiakas
+                data.asiakkaat[tunnus] = self._create_asiakas(tunnus, row)
                 print(f"Added new asiakas {tunnus}")
             else:
                 print(f"Asiakas {tunnus} found already")
@@ -222,11 +249,30 @@ class LahtiTranslator:
             else:
                 sopimustyyppi = SopimusTyyppi.tyhjennyssopimus
                 jatelaji = jatelaji_map[row.tyyppiIdEWC]
-            sopimus = TyhjennysSopimus(
+
+            # Lahti saves kimppasopimukset along with regular sopimukset
+            if row.palveluKimppakohdeId:
+                Sopimus = KimppaSopimus
+                sopimustyyppi = SopimusTyyppi.kimppasopimus
+                isannan_asiakasnumero = self.tunnus_from_urakoitsija_and_asiakasnumero(
+                    row.UrakoitsijaId, row.palveluKimppakohdeId
+                )
+                if isannan_asiakasnumero not in data.asiakkaat.keys():
+                    data.asiakkaat[isannan_asiakasnumero] = self._create_asiakas(
+                        isannan_asiakasnumero, row
+                    )
+                    print(f"Added new kimppaisäntä {tunnus}")
+                else:
+                    print(f"Kimppaisäntä {tunnus} found already")
+            else:
+                Sopimus = TyhjennysSopimus
+                isannan_asiakasnumero = None
+            sopimus = Sopimus(
                 sopimustyyppi=sopimustyyppi,
                 jatelaji=jatelaji,
                 alkupvm=row.Pvmalk,
                 loppupvm=row.Pvmasti,
+                isannan_asiakasnumero=isannan_asiakasnumero,
             )
             if row.tyhjennysvali:
                 # tyhjennysväli is missing from some data
@@ -260,7 +306,6 @@ class LahtiTranslator:
                 )
             )
             # print(data.asiakkaat[tunnus].tyhjennystapahtumat)
-            # TODO: Add kimppa data!!
             print("------")
 
         return data
