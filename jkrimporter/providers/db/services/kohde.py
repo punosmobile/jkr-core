@@ -863,7 +863,7 @@ def create_perusmaksurekisteri_kohteet(
         # skip header
         if index == 0:
             continue
-        asiakasnumero = str(row[1])
+        asiakasnumero = str(row[2])
         prt = str(row[3])
         # asiakkaan_nimi = row[6].value
         # yhteyshenkilon_nimi = row[7].value
