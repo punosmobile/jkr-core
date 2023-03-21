@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1393,1511" last-zoom="1" max-obj-count="50"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="782,1098" last-zoom="0.8" max-obj-count="50"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -1663,7 +1663,7 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 		</idxelement>
 </index>
 
-<table name="rakennuksen_omistajat" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
+<table name="rakennuksen_omistajat" layers="0" collapse-mode="2" max-obj-count="4" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Rakennuksen omistajat sisältävä taulu]]></comment>
@@ -1675,6 +1675,14 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 	<column name="osapuoli_id" alias="osapuoli_id" not-null="true">
 		<type name="integer" length="0"/>
 		<comment><![CDATA[Osapuolen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
+	</column>
+	<column name="omistuksen_alkupvm" alias="omistuksen_alkupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Omistuksen alkamispäivämäärä]]></comment>
+	</column>
+	<column name="omistuksen_loppupvm" alias="omistuksen_loppupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Omistuksen loppumispäivämäärä]]></comment>
 	</column>
 	<constraint name="rakennuksen_omistajat_pk" type="pk-constr" table="jkr.rakennuksen_omistajat">
 		<columns names="rakennus_id,osapuoli_id" ref-type="src-columns"/>
@@ -2383,7 +2391,11 @@ select tallenna_velvoite_status('2020-3-1');
 <relationship name="rel_v_yli_5_asunnon_kohteet_kohteen_rakennukset" type="reltv" layers="0"
 	 src-table="jkr.v_yli_5_asunnon_kohteet"
 	 dst-table="jkr.kohteen_rakennukset"
-	 src-required="false" dst-required="false"/>
+	 src-required="false" dst-required="false">
+	<label ref-type="name-label">
+		<position x="49.3284" y="-9.91418"/>
+	</label>
+</relationship>
 
 <view name="v_sopimukset" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
 	<schema name="jkr"/>
@@ -3572,7 +3584,7 @@ end;]]></definition>
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Rakennuksen vanhimmat asukkaat sisältävä taulu]]></comment>
-	<position x="1800" y="1760"/>
+	<position x="1740" y="1800"/>
 	<column name="rakennus_id" alias="rakennus_id" not-null="true">
 		<type name="integer" length="0"/>
 		<comment><![CDATA[Rakennuksen yksilöivä sarjanumeromuotoinen tunniste]]></comment>
@@ -3589,6 +3601,14 @@ end;]]></definition>
 	</column>
 	<column name="jakokirjain">
 		<type name="text" length="0"/>
+	</column>
+	<column name="alkupvm" alias="alkupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Rakennuksen vanhimman alkamispäivämäärä.]]></comment>
+	</column>
+	<column name="loppupvm" alias="loppupvm">
+		<type name="date" length="0"/>
+		<comment><![CDATA[Rakennuksen vanhimman loppumispäivämäärä]]></comment>
 	</column>
 	<constraint name="rakennuksen_vanhimmat_pk" type="pk-constr" table="jkr.rakennuksen_vanhimmat">
 		<columns names="osapuoli_id" ref-type="src-columns"/>
