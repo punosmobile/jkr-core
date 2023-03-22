@@ -328,40 +328,48 @@ def create_new_kohde(session: "Session", asiakas: "Asiakas"):
 def create_new_kohde_from_buildings(
     session: "Session",
     rakennus_ids: "List[int]",
-    asiakkaat: "Set[Osapuoli]",
-    yhteystiedot: "Set[Osapuoli]",
-    alkupvm: "Optional[str]",
-    loppupvm: "Optional[str]",
+    asukkaat: "Set[Osapuoli]",
+    omistajat: "Set[Osapuoli]",
+    alkupvm: "Optional[datetime.date]",
+    loppupvm: "Optional[datetime.date]",
 ):
     """
-    Create combined kohde for the given list of building ids. Asiakkaat will be
-    used for kohde name and osapuoli. Yhteystiedot will be added as additional contacts
-    for kohde, i.e. they are additional inhabitants and/or owners.
+    Create combined kohde for the given list of building ids. Asukkaat or, if empty,
+    omistajat will be used for kohde name. Asukkaat will be added as asiakkaat, and
+    omistajat will be added as yhteystiedot.
     """
-    # prefer companies over private owners when naming combined objects
-    asoy_asiakkaat = {osapuoli for osapuoli in asiakkaat if is_asoy(osapuoli.nimi)}
-    company_asiakkaat = {
-        osapuoli for osapuoli in asiakkaat if is_company(osapuoli.nimi)
-    }
-    yhteiso_asiakkaat = {
-        osapuoli for osapuoli in asiakkaat if is_yhteiso(osapuoli.nimi)
-    }
-    if asoy_asiakkaat:
-        asiakas = next(iter(asoy_asiakkaat))
-    elif company_asiakkaat:
-        asiakas = next(iter(company_asiakkaat))
-    elif yhteiso_asiakkaat:
-        asiakas = next(iter(yhteiso_asiakkaat))
+    if asukkaat:
+        asiakas = next(iter(asukkaat))
     else:
-        asiakas = next(iter(asiakkaat))
-    kohde_display_name = form_display_name(
-        Yhteystieto(
-            asiakas.nimi,
-            asiakas.katuosoite,
-            asiakas.ytunnus,
-            asiakas.henkilotunnus,
+        # prefer companies over private owners when naming combined objects
+        asoy_asiakkaat = {osapuoli for osapuoli in omistajat if is_asoy(osapuoli.nimi)}
+        company_asiakkaat = {
+            osapuoli for osapuoli in omistajat if is_company(osapuoli.nimi)
+        }
+        yhteiso_asiakkaat = {
+            osapuoli for osapuoli in omistajat if is_yhteiso(osapuoli.nimi)
+        }
+        if asoy_asiakkaat:
+            asiakas = next(iter(asoy_asiakkaat))
+        elif company_asiakkaat:
+            asiakas = next(iter(company_asiakkaat))
+        elif yhteiso_asiakkaat:
+            asiakas = next(iter(yhteiso_asiakkaat))
+        elif omistajat:
+            asiakas = next(iter(omistajat))
+        else:
+            asiakas = None
+    if asiakas:
+        kohde_display_name = form_display_name(
+            Yhteystieto(
+                asiakas.nimi,
+                asiakas.katuosoite,
+                asiakas.ytunnus,
+                asiakas.henkilotunnus,
+            )
         )
-    )
+    else:
+        kohde_display_name = "Tuntematon"
     kohde = Kohde(
         nimi=kohde_display_name,
         kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
@@ -378,7 +386,7 @@ def create_new_kohde_from_buildings(
             rakennus_id=rakennus_id, kohde_id=kohde.id
         )
         session.add(kohteen_rakennus)
-    for osapuoli in asiakkaat:
+    for osapuoli in asukkaat:
         asiakas = KohteenOsapuolet(
             osapuoli_id=osapuoli.id,
             kohde_id=kohde.id,
@@ -386,7 +394,7 @@ def create_new_kohde_from_buildings(
         )
         session.add(asiakas)
     # yhteystiedot should not duplicate asiakas data
-    for osapuoli in yhteystiedot - asiakkaat:
+    for osapuoli in omistajat - asukkaat:
         yhteystieto = KohteenOsapuolet(
             osapuoli_id=osapuoli.id,
             kohde_id=kohde.id,
