@@ -22,14 +22,14 @@ from .services.buildings import (
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
-    create_multiple_and_uninhabited_kohteet,
     create_new_kohde,
-    create_paritalo_kohteet,
     create_perusmaksurekisteri_kohteet,
-    create_single_asunto_kohteet,
     find_kohde_by_address,
     find_kohde_by_kiinteisto,
     find_kohde_by_prt,
+    get_or_create_multiple_and_uninhabited_kohteet,
+    get_or_create_paritalo_kohteet,
+    get_or_create_single_asunto_kohteet,
     get_ulkoinen_asiakastieto,
     update_kohde,
     update_ulkoinen_asiakastieto,
@@ -239,7 +239,9 @@ def import_dvv_kohteet(
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
     # - Kohdetta ei tuoda, jos samalla kiinteistöllä muita asuttuja rakennuksia.
-    single_asunto_kohteet = create_single_asunto_kohteet(session, alkupvm, loppupvm)
+    single_asunto_kohteet = get_or_create_single_asunto_kohteet(
+        session, alkupvm, loppupvm
+    )
     session.commit()
     print(f"Imported {len(single_asunto_kohteet)} single kohteet")
 
@@ -267,7 +269,7 @@ def import_dvv_kohteet(
     # - Asiakas on kumpikin vanhin asukas erikseen. Tuodaan myös kaikki omistajat yhteystiedoiksi.
     # - Kiinteistöllä kaksi kohdetta joilla sama rakennus, muita rakennuksia ei liitetä.
     # TODO: add all buildings on kiinteistö?
-    paritalo_kohteet = create_paritalo_kohteet(session, alkupvm, loppupvm)
+    paritalo_kohteet = get_or_create_paritalo_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
@@ -304,7 +306,7 @@ def import_dvv_kohteet(
     # TODO: limit added buildings on kiinteistö?
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
-    multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(
+    multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, alkupvm, loppupvm
     )
     session.commit()
