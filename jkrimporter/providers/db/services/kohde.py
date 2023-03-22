@@ -399,8 +399,8 @@ def create_new_kohde_from_buildings(
 def create_kohteet_from_vanhimmat(
     session: "Session",
     ids: "Select",
-    alkupvm: "Optional[str]",
-    loppupvm: "Optional[str]",
+    alkupvm: "Optional[datetime.date]",
+    loppupvm: "Optional[datetime.date]",
 ):
     """
     Create one kohde for each RakennuksenVanhimmat osapuoli id provided by
@@ -555,15 +555,13 @@ def _add_auxiliary_buildings(
 def create_kohteet_from_kiinteisto(
     session: "Session",
     kiinteistotunnukset: "Select",
-    alkupvm: "Optional[str]",
-    loppupvm: "Optional[str]",
-    customer_table: "Optional[DeclarativeMeta]",
+    alkupvm: "Optional[datetime.date]",
+    loppupvm: "Optional[datetime.date]",
 ):
     """
-    Create at least one kohde from each kiinteistotunnus provided by the select query.
-    Customer_table is the optional additional table to use for customer id. By default,
-    each kohde will have all owners as its customer. In this case, owners will be added
-    as additional contacts.
+    Create at least one kohde from each kiinteistotunnus provided by the select query,
+    if the kiinteistotunnus has any buildings without existing kohde for the provided
+    time period.
 
     If the same kiinteistotunnus has buildings with multiple owners,
     first kohde will contain all buildings owned by the owner with the most buildings.
@@ -721,8 +719,8 @@ def create_kohteet_from_kiinteisto(
 
 def create_single_asunto_kohteet(
     session: "Session",
-    alkupvm: "Optional[str]",
-    loppupvm: "Optional[str]",
+    alkupvm: "Optional[datetime.date]",
+    loppupvm: "Optional[datetime.date]",
 ) -> "List(Kohde)":
     """
     Create kohteet from all yksittäistalot that do not have kohde. Also consider
@@ -844,8 +842,8 @@ def _should_have_perusmaksu_kohde(rakennus: "Rakennus"):
 def create_perusmaksurekisteri_kohteet(
     session: "Session",
     perusmaksutiedosto: "Path",
-    alkupvm: "Optional[str]",
-    loppupvm: "Optional[str]",
+    alkupvm: "Optional[datetime.date]",
+    loppupvm: "Optional[datetime.date]",
 ):
     """
     Create kohteet combining all dvv buildings that have the same asiakasnumero in

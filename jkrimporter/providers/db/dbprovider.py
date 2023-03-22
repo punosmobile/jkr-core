@@ -224,8 +224,8 @@ def import_asiakastiedot(
 
 def import_dvv_kohteet(
     session: Session,
-    alkupvm: Optional[str],
-    loppupvm: Optional[str],
+    alkupvm: Optional[datetime.date],
+    loppupvm: Optional[datetime.date],
     perusmaksutiedosto: Optional[Path],
 ):
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
@@ -391,8 +391,8 @@ class DbProvider:
 
     def write_dvv_kohteet(
         self,
-        alkupvm: Optional[str],
-        loppupvm: Optional[str],
+        alkupvm: Optional[datetime.date],
+        loppupvm: Optional[datetime.date],
         perusmaksutiedosto: Optional[Path],
     ):
         """
