@@ -256,6 +256,14 @@ def import_dvv_kohteet(
     # kuin jollakin rakennuksista.
     # - Kiinteistö(je)n muita rakennuksia ei liitetä, sillä niissä voi olla asukkaita,
     # joilla erilliset sopimukset.
+    # TODO: pitäisikö kuitenkin tuoda kaikki samalla perusmaksulla olevat rakennukset
+    # rakennustyypistä riippumatta? Esim. paritalo. Kysytään Lahdelta.
+    # TODO: pitäisikö erotella eri kohteiksi rakennukset, joilla on monta perusmaksua?
+    # Esim. rivitalot, pienkerrostalot. Jokaiselle kohteelle tulee samat omistajat =>
+    # tällä hetkellä ei luoda useampia kohteita samalla rakennuksella ja samoilla
+    # omistajilla. Perusmaksutiedostosta ei lueta perusmaksun tilaajien nimiä => ei
+    # tiedetä mille asukkaalle mikäkin perusmaksu kuuluu.
+    # TODO: katsottava mitä tapahtuu kun tiedostoa ei ole.
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
             session, perusmaksutiedosto, alkupvm, loppupvm
