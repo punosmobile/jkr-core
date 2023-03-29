@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="782,1098" last-zoom="0.8" max-obj-count="50"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1542,947" last-zoom="0.8" max-obj-count="50"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -1475,6 +1475,9 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 	 src-required="true" dst-required="false"
 	upd-action="CASCADE"
 	del-action="CASCADE">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
 	<constraint name="kohteen_osapuolet_pk" type="pk-constr" alias="kohteen_osapuolet_pk" protected="true" table="jkr.kohteen_osapuolet">
 		</constraint>
 	<special-pk-cols indexes="0"/>
@@ -1489,7 +1492,11 @@ Rooleja on tällä hetkellä Asiakas ja Yhteystieto]]></comment>
 	 dst-table="jkr.kohteen_osapuolet"
 	 src-required="false" dst-required="false"
 	upd-action="CASCADE"
-	del-action="CASCADE"/>
+	del-action="CASCADE">
+	<constraint name="kohteen_osapuolet_pk" type="pk-constr" alias="kohteen_osapuolet_pk" protected="true" table="jkr.kohteen_osapuolet">
+		</constraint>
+	<special-pk-cols indexes="0"/>
+</relationship>
 
 <table name="kohteen_rakennukset" layers="0" collapse-mode="2" max-obj-count="3" z-value="0">
 	<schema name="jkr"/>
