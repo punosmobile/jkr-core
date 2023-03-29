@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import (
         Callable,
+        DefaultDict,
         Dict,
         FrozenSet,
         Hashable,
@@ -372,81 +373,65 @@ def _is_significant_building(rakennustiedot: "Rakennustiedot"):
     Determines which buildings should always be contained in a kohde, either separate
     or combined with other buildings. This function requires rakennustiedot, because
     any building with a permanent inhabitant (no matter what the building type) is
-    always significant, if it has an owner. Conversely, if owners are not found, the
-    building cannot be created separately as kohde.
+    always significant. Also buildings without owners may be significant.
     """
     rakennus = rakennustiedot[0]
     asukkaat = rakennustiedot[1]
-    omistajat = rakennustiedot[2]
-    return omistajat and (
-        asukkaat
-        or rakennus.rakennuksenkayttotarkoitus
-        in (
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.YKSITTAISTALO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.PARITALO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.MUU_PIENTALO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.RIVITALO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.LUHTITALO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.KETJUTALO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.KERROSTALO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.VAPAA_AJANASUNTO
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.MUU_ASUNTOLA
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.VANHAINKOTI
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.LASTENKOTI
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.KEHITYSVAMMAHOITOLAITOS
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.MUU_HUOLTOLAITOS
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.PAIVAKOTI
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.MUU_SOSIAALITOIMEN_RAKENNUS
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.YLEISSIVISTAVA_OPPILAITOS
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.AMMATILLINEN_OPPILAITOS
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.KORKEAKOULU
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.TUTKIMUSLAITOS
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.OPETUSRAKENNUS
-            ],
-            codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.MUU_OPETUSRAKENNUS
-            ],
-            codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA],
-        )
+    return asukkaat or rakennus.rakennuksenkayttotarkoitus in (
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.YKSITTAISTALO
+        ],
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.PARITALO],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.MUU_PIENTALO
+        ],
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.RIVITALO],
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.LUHTITALO],
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.KETJUTALO],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.KERROSTALO
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.VAPAA_AJANASUNTO
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.MUU_ASUNTOLA
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.VANHAINKOTI
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.LASTENKOTI
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.KEHITYSVAMMAHOITOLAITOS
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.MUU_HUOLTOLAITOS
+        ],
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.PAIVAKOTI],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.MUU_SOSIAALITOIMEN_RAKENNUS
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.YLEISSIVISTAVA_OPPILAITOS
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.AMMATILLINEN_OPPILAITOS
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.KORKEAKOULU
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.TUTKIMUSLAITOS
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.OPETUSRAKENNUS
+        ],
+        codes.rakennuksenkayttotarkoitukset[
+            RakennuksenKayttotarkoitusTyyppi.MUU_OPETUSRAKENNUS
+        ],
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA],
     )
 
 
@@ -643,7 +628,7 @@ def update_or_create_kohde_from_buildings(
     asukkaat: "Set[Osapuoli]",
     omistajat: "Set[Osapuoli]",
     alkupvm: "Optional[datetime.date]",
-    loppupvm: "Optional[datetime.date]"
+    loppupvm: "Optional[datetime.date]",
 ):
     """
     Check the database for existing kohde with the same inhabitants, owners and
@@ -714,10 +699,10 @@ def update_or_create_kohde_from_buildings(
         if not kohteen_rakennus_ids:
             # If kohde has no significant buildings, it should not be there in the first place
             continue
-        kohteen_lisarakennukset = set(rakennus for rakennus in kohdetiedot[2])
         kohteen_lisarakennus_ids = set(
             rakennus.rakennus_id for rakennus in kohdetiedot[2]
         )
+        kohteen_lisarakennukset = set(rakennus for rakennus in kohdetiedot[2])
         kohteen_asukas_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[3])
         kohteen_omistaja_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[4])
         print("checking significant buildings of potential kohde")
@@ -833,11 +818,15 @@ def get_or_create_kohteet_from_rakennustiedot(
     session: "Session",
     dvv_rakennustiedot: "Dict[int, Rakennustiedot]",
     building_sets: "List[Set[Rakennustiedot]]",
-    owners_by_rakennus_id: "Dict[int, Set[Osapuoli]]",
-    inhabitants_by_rakennus_id: "Dict[int, Set[Osapuoli]]",
+    owners_by_rakennus_id: "DefaultDict[int, Set[Osapuoli]]",
+    inhabitants_by_rakennus_id: "DefaultDict[int, Set[Osapuoli]]",
     alkupvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
+    """
+    Create separate kohde for each building set provided in building sets, adding
+    auxiliary buildings to each kohde.
+    """
     # merge empty buildings with same address and owner on kiinteistö(t) to the main
     # building(s), if they are close enough.
     building_sets = _add_auxiliary_buildings(dvv_rakennustiedot, building_sets)
@@ -921,14 +910,16 @@ def get_or_create_kohteet_from_kiinteistot(
     Create at least one kohde from each kiinteistotunnus provided by the select query,
     if the kiinteistotunnus has any buildings without existing kohde for the provided
     time period. Only create separate kohde from *significant* buildings.
-    *Non-significant* buildings may be added to kohde or left out.
+    *Non-significant* buildings may be added to kohde or left out, depending on owner
+    and address.
 
-    If the same kiinteistotunnus has buildings with multiple owners,
+    If the same kiinteistotunnus has significant buildings with multiple owners,
     first kohde will contain all buildings owned by the owner with the most buildings.
 
     Then, create second kohde from remaining significant buildings owned by the owner
     with the second largest number of buildings, etc., until all significant buildings
-    have kohde named after their owner.
+    have kohde named after their owner. If there are significant buildings without
+    any owners, they will get their own kohde.
 
     Finally, if the buildings have different addresses, separate buildings to
     those having the same address.
@@ -991,9 +982,9 @@ def get_or_create_kohteet_from_kiinteistot(
     print("Processing kiinteistötunnukset...")
     for kiinteistotunnus in kiinteistotunnukset:
         print(f"----- Processing kiinteistötunnus {kiinteistotunnus} -----")
-        if not kiinteistotunnus:
-            # some buildings have missing kiinteistötunnus. cannot import them here.
-            continue
+        # NOTE: kiinteistotunnus may also be None. In this case, all buildings without
+        # kiinteistotunnus will be imported separated by owner (if present) and address
+        # only.
         rakennustiedot_to_add = rakennustiedot_by_kiinteistotunnus[kiinteistotunnus]
         # Only use significant buildings to create new kohde.
         ids_to_add = {
@@ -1018,7 +1009,17 @@ def get_or_create_kohteet_from_kiinteistot(
                 key=lambda item: len(item[1]),
                 reverse=True,
             )
-            first_owner, building_ids_owned = owners_by_buildings[0]
+            if owners_by_buildings:
+                first_owner, building_ids_owned = owners_by_buildings[0]
+            else:
+                # We have no owners left! Remaining are significant buildings with
+                # missing owners. Let's just add them all together.
+                # TODO: However, saunas must not be added if they share the
+                # kiinteistö. On the *same* kiinteistö, they are not significant.
+                # On the *same* kiinteistö, they should be considered auxiliary.
+                # They often have missing owner data.
+                ids_without_owner = ids_to_add - set(owners_by_rakennus_id.keys())
+                building_ids_owned = ids_without_owner
             # split buildings further by address
             while building_ids_owned:
                 # All significant buildings at same address should be together.
@@ -1114,8 +1115,7 @@ def get_or_create_single_asunto_kohteet(
 
     print("Creating single house kohteet...")
     # merge empty buildings on kiinteistö to the main building only if they have the
-    # same owner. Separate owners will get separate kohde, OR
-    # TODO: optionally, do not create separate kohteet after all??
+    # same owners.
     return get_or_create_kohteet_from_kiinteistot(
         session, single_asunto_kiinteistotunnus, alkupvm, loppupvm
     )
@@ -1167,8 +1167,9 @@ def get_or_create_paritalo_kohteet(
         RakennuksenVanhimmat.rakennus_id.in_(paritalo_rakennus_id_without_kohde)
     )
     print("Creating paritalokohteet...")
-    # TODO: instead, merge all empty buildings on kiinteistö to the main building
-    # Where to merge? We have two identical owners. Better not merge at all?
+    # empty buildings on kiinteistö will be added to the first kohde created
+    # on each kiinteistö, but only if they are owned by all owners of the main
+    # building.
     return get_or_create_kohteet_from_vanhimmat(
         session, vanhimmat_ids, alkupvm, loppupvm
     )
@@ -1214,9 +1215,8 @@ def get_or_create_multiple_and_uninhabited_kohteet(
         ).group_by(Rakennus.kiinteistotunnus)
     )
     print("Creating remaining kohteet...")
-    # Merge all empty buildings with same owner to the main building.
-    # Separate owners will get separate kohde, OR
-    # TODO: optionally, do not create separate kohteet after all??
+    # merge empty buildings on kiinteistö to the main building only if they have the
+    # same owners.
     return get_or_create_kohteet_from_kiinteistot(
         session, kiinteistotunnus_without_kohde, alkupvm, loppupvm
     )
@@ -1324,6 +1324,7 @@ def create_perusmaksurekisteri_kohteet(
     for (rakennus_id, owner) in rakennus_owners:
         owners_by_rakennus_id[rakennus_id].add(owner)
 
+    print("Creating perusmaksukohteet...")
     kohteet = get_or_create_kohteet_from_rakennustiedot(
         session,
         dvv_rakennustiedot,
