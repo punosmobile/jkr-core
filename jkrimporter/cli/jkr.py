@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
@@ -118,12 +119,19 @@ def create_dvv_kohteet(
     ),
 ):
     db = DbProvider()
+    # Currently, typer does not support Union[datetime, None] argument type, so we will
+    # have to parse the datetime string ourselves.
     # support all combinations of known and unknown alku- and loppupvm
     if alkupvm == "None":
-        alkupvm = None
+        start = None
+    else:
+        start = datetime.strptime(alkupvm, "%d.%m.%Y").date()
     if loppupvm == "None":
-        loppupvm = None
-    db.write_dvv_kohteet(alkupvm, loppupvm, perusmaksutiedosto)
+        end = None
+    else:
+        end = datetime.strptime(loppupvm, "%d.%m.%Y").date()
+
+    db.write_dvv_kohteet(start, end, perusmaksutiedosto)
 
     print("VALMIS!")
 

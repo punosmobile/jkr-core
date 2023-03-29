@@ -1,9 +1,9 @@
 import warnings
 
 from geoalchemy2 import Geometry  # noqa: F401, must be imported for Geometry reflect
+from sqlalchemy import Column, ForeignKey, Integer, Table
 from sqlalchemy.ext.automap import automap_base, generate_relationship
 from sqlalchemy.orm import backref, relationship
-from sqlalchemy import Column, ForeignKey, Integer, Table
 
 from jkrimporter.providers.db.database import engine
 
@@ -84,19 +84,19 @@ def name_for_collection(base, local_cls, referred_cls, constraint):
 # Define any association tables that need to be directly insertable.
 # Sqlalchemy only generates them automatically if they have extra columns.
 class KohteenRakennukset(Base):
-    __tablename__ = 'kohteen_rakennukset'
+    __tablename__ = "kohteen_rakennukset"
     __table_args__ = {"schema": "jkr"}
-    rakennus_id = Column(ForeignKey('jkr.rakennus.id'), primary_key=True)
-    kohde_id = Column(ForeignKey('jkr.kohde.id'), primary_key=True)
+    rakennus_id = Column(ForeignKey("jkr.rakennus.id"), primary_key=True)
+    kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
 
 
 # Multiple many-to-many relations mean ORM gets all confused and we will have to query
 # this association table manually too.
 class RakennuksenOmistajat(Base):
-    __tablename__ = 'rakennuksen_omistajat'
+    __tablename__ = "rakennuksen_omistajat"
     __table_args__ = {"schema": "jkr"}
-    rakennus_id = Column(ForeignKey('jkr.rakennus.id'), primary_key=True)
-    osapuoli_id = Column(ForeignKey('jkr.osapuoli.id'), primary_key=True)
+    rakennus_id = Column(ForeignKey("jkr.rakennus.id"), primary_key=True)
+    osapuoli_id = Column(ForeignKey("jkr.osapuoli.id"), primary_key=True)
 
 
 # Rest of the tables can be defined automatically
@@ -150,6 +150,39 @@ UlkoinenAsiakastieto = Base.classes.ulkoinen_asiakastieto
 Velvoite = Base.classes.velvoite
 Velvoitemalli = Base.classes.velvoitemalli
 
+
+# Add associations to association tables with extra fields.
+# Vanhimmat:
+Rakennus.vanhimmat = relationship(
+    RakennuksenVanhimmat,
+    back_populates="rakennus",
+    #primaryjoin="rakennus.id == rakennuksen_vanhimmat.rakennus_id",
+)
+RakennuksenVanhimmat.rakennus = relationship(
+    Rakennus,
+    back_populates="vanhimmat",
+    #primaryjoin="rakennus.id == rakennuksen_vanhimmat.rakennus_id",
+)
+Osapuoli.kotirakennukset = relationship(
+    RakennuksenVanhimmat,
+    back_populates="osapuoli",
+    #primaryjoin="osapuoli.id == rakennuksen_vanhimmat.osapuoli_id",
+)
+RakennuksenVanhimmat.osapuoli = relationship(
+    Osapuoli,
+    back_populates="kotirakennukset",
+    #primaryjoin="osapuoli.id == rakennuksen_vanhimmat.osapuoli_id",
+)
+
+# Omistajat:
+Rakennus.omistajat = relationship(RakennuksenOmistajat, back_populates="rakennus")
+RakennuksenOmistajat.rakennus = relationship(Rakennus, back_populates="omistajat")
+Osapuoli.omistetut_rakennukset = relationship(
+    RakennuksenOmistajat, back_populates="osapuoli"
+)
+RakennuksenOmistajat.osapuoli = relationship(
+    Osapuoli, back_populates="omistetut_rakennukset"
+)
 
 if __name__ == "__main__":
     ...

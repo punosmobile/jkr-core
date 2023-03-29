@@ -22,14 +22,14 @@ from .services.buildings import (
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
-    create_multiple_and_uninhabited_kohteet,
     create_new_kohde,
-    create_paritalo_kohteet,
     create_perusmaksurekisteri_kohteet,
-    create_single_asunto_kohteet,
     find_kohde_by_address,
     find_kohde_by_kiinteisto,
     find_kohde_by_prt,
+    get_or_create_multiple_and_uninhabited_kohteet,
+    get_or_create_paritalo_kohteet,
+    get_or_create_single_asunto_kohteet,
     get_ulkoinen_asiakastieto,
     update_kohde,
     update_ulkoinen_asiakastieto,
@@ -224,8 +224,8 @@ def import_asiakastiedot(
 
 def import_dvv_kohteet(
     session: Session,
-    alkupvm: Optional[str],
-    loppupvm: Optional[str],
+    alkupvm: Optional[datetime.date],
+    loppupvm: Optional[datetime.date],
     perusmaksutiedosto: Optional[Path],
 ):
     # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
@@ -239,7 +239,9 @@ def import_dvv_kohteet(
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
     # - Kohdetta ei tuoda, jos samalla kiinteistöllä muita asuttuja rakennuksia.
-    single_asunto_kohteet = create_single_asunto_kohteet(session, alkupvm, loppupvm)
+    single_asunto_kohteet = get_or_create_single_asunto_kohteet(
+        session, alkupvm, loppupvm
+    )
     session.commit()
     print(f"Imported {len(single_asunto_kohteet)} single kohteet")
 
@@ -254,6 +256,14 @@ def import_dvv_kohteet(
     # kuin jollakin rakennuksista.
     # - Kiinteistö(je)n muita rakennuksia ei liitetä, sillä niissä voi olla asukkaita,
     # joilla erilliset sopimukset.
+    # TODO: pitäisikö kuitenkin tuoda kaikki samalla perusmaksulla olevat rakennukset
+    # rakennustyypistä riippumatta? Esim. paritalo. Kysytään Lahdelta.
+    # TODO: pitäisikö erotella eri kohteiksi rakennukset, joilla on monta perusmaksua?
+    # Esim. rivitalot, pienkerrostalot. Jokaiselle kohteelle tulee samat omistajat =>
+    # tällä hetkellä ei luoda useampia kohteita samalla rakennuksella ja samoilla
+    # omistajilla. Perusmaksutiedostosta ei lueta perusmaksun tilaajien nimiä => ei
+    # tiedetä mille asukkaalle mikäkin perusmaksu kuuluu.
+    # TODO: katsottava mitä tapahtuu kun tiedostoa ei ole.
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
             session, perusmaksutiedosto, alkupvm, loppupvm
@@ -267,7 +277,7 @@ def import_dvv_kohteet(
     # - Asiakas on kumpikin vanhin asukas erikseen. Tuodaan myös kaikki omistajat yhteystiedoiksi.
     # - Kiinteistöllä kaksi kohdetta joilla sama rakennus, muita rakennuksia ei liitetä.
     # TODO: add all buildings on kiinteistö?
-    paritalo_kohteet = create_paritalo_kohteet(session, alkupvm, loppupvm)
+    paritalo_kohteet = get_or_create_paritalo_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
@@ -304,7 +314,7 @@ def import_dvv_kohteet(
     # TODO: limit added buildings on kiinteistö?
     # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
     # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
-    multiple_and_uninhabited_kohteet = create_multiple_and_uninhabited_kohteet(
+    multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, alkupvm, loppupvm
     )
     session.commit()
@@ -391,8 +401,8 @@ class DbProvider:
 
     def write_dvv_kohteet(
         self,
-        alkupvm: Optional[str],
-        loppupvm: Optional[str],
+        alkupvm: Optional[datetime.date],
+        loppupvm: Optional[datetime.date],
         perusmaksutiedosto: Optional[Path],
     ):
         """
