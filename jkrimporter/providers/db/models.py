@@ -90,15 +90,6 @@ class KohteenRakennukset(Base):
     kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
 
 
-# Multiple many-to-many relations mean ORM gets all confused and we will have to query
-# this association table manually too.
-class RakennuksenOmistajat(Base):
-    __tablename__ = "rakennuksen_omistajat"
-    __table_args__ = {"schema": "jkr"}
-    rakennus_id = Column(ForeignKey("jkr.rakennus.id"), primary_key=True)
-    osapuoli_id = Column(ForeignKey("jkr.osapuoli.id"), primary_key=True)
-
-
 # Rest of the tables can be defined automatically
 with warnings.catch_warnings():
     warnings.filterwarnings(
@@ -139,7 +130,8 @@ Pohjavesialue = Base.classes.pohjavesialue
 Posti = Base.classes.posti
 Rakennuksenkayttotarkoitus = Base.classes.rakennuksenkayttotarkoitus
 Rakennuksenolotila = Base.classes.rakennuksenolotila
-RakennuksenVanhimmat = Base.classes.rakennuksen_vanhimmat
+RakennuksenOmistajat = Base.classes.rakennuksen_omistajat  # has extra fields
+RakennuksenVanhimmat = Base.classes.rakennuksen_vanhimmat  # has extra fields
 Rakennus = Base.classes.rakennus
 Sopimus = Base.classes.sopimus
 SopimusTyyppi = Base.classes.sopimustyyppi
@@ -153,26 +145,10 @@ Velvoitemalli = Base.classes.velvoitemalli
 
 # Add associations to association tables with extra fields.
 # Vanhimmat:
-Rakennus.vanhimmat = relationship(
-    RakennuksenVanhimmat,
-    back_populates="rakennus",
-    #primaryjoin="rakennus.id == rakennuksen_vanhimmat.rakennus_id",
-)
-RakennuksenVanhimmat.rakennus = relationship(
-    Rakennus,
-    back_populates="vanhimmat",
-    #primaryjoin="rakennus.id == rakennuksen_vanhimmat.rakennus_id",
-)
-Osapuoli.kotirakennukset = relationship(
-    RakennuksenVanhimmat,
-    back_populates="osapuoli",
-    #primaryjoin="osapuoli.id == rakennuksen_vanhimmat.osapuoli_id",
-)
-RakennuksenVanhimmat.osapuoli = relationship(
-    Osapuoli,
-    back_populates="kotirakennukset",
-    #primaryjoin="osapuoli.id == rakennuksen_vanhimmat.osapuoli_id",
-)
+Rakennus.vanhimmat = relationship(RakennuksenVanhimmat, back_populates="rakennus")
+RakennuksenVanhimmat.rakennus = relationship(Rakennus, back_populates="vanhimmat")
+Osapuoli.kotirakennukset = relationship(RakennuksenVanhimmat, back_populates="osapuoli")
+RakennuksenVanhimmat.osapuoli = relationship(Osapuoli, back_populates="kotirakennukset")
 
 # Omistajat:
 Rakennus.omistajat = relationship(RakennuksenOmistajat, back_populates="rakennus")

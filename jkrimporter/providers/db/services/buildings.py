@@ -17,6 +17,7 @@ from ..models import (
     Katu,
     Osapuoli,
     Osoite,
+    RakennuksenOmistajat,
     RakennuksenVanhimmat,
     Rakennus,
 )
@@ -42,9 +43,9 @@ def convex_hull_area_of_buildings(buildings):
 
 
 def match_omistaja(rakennus, haltija, preprocessor=lambda x: x):
-    omistajat = rakennus.osapuoli_collection
+    omistajat = rakennus.omistajat
     return any(
-        preprocessor(haltija.nimi).lower() == preprocessor(omistaja.nimi).lower()
+        preprocessor(haltija.nimi).lower() == preprocessor(omistaja.osapuoli.nimi).lower()
         for omistaja in omistajat
     )
 
@@ -119,7 +120,7 @@ def find_buildings_for_kohde(
             if rakennukset:
                 omistajat = set()
                 omistajat = {
-                    frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
+                    frozenset(omistaja.osapuoli_id for omistaja in rakennus.omistajat)
                     for rakennus in rakennukset
                 }
                 if len(omistajat) == 1:
@@ -173,7 +174,7 @@ def find_buildings_for_kohde(
         omistajat = set()
         for rakennus in rakennukset:
             omistajat.add(
-                frozenset(osapuoli.id for osapuoli in rakennus.osapuoli_collection)
+                frozenset(omistaja.osapuoli_id for omistaja in rakennus.omistajat)
             )
         print("has omistajat")
         print(omistajat)
@@ -213,7 +214,8 @@ def _find_by_ytunnus(session: "Session", haltija: "Yhteystieto"):
     if haltija.ytunnus:
         statement = (
             select(Rakennus)
-            .join(Rakennus.osapuoli_collection)
+            .join(RakennuksenOmistajat)
+            .join(Osapuoli)
             .where(Osapuoli.ytunnus == haltija.ytunnus)
         )
         rakennukset = session.execute(statement).scalars().all()

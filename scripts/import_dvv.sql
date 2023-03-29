@@ -124,10 +124,12 @@ where
 
 -- Insert owners to jkr.rakennuksen_omistajat
 -- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
-insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
-    (select id from jkr.osapuoli where omistaja."henkilötunnus" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id
+    (select id from jkr.osapuoli where omistaja."henkilötunnus" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
+    to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm
+    -- TODO! Add omistuksen_loppupvm when updating with new dvv-material.
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null and
@@ -135,10 +137,12 @@ where
 on conflict do nothing; -- DVV has registered some owners twice on different dates
 
 -- Step 2: Find all buildings owned by each owner, matching by y-tunnus
-insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
-    (select id from jkr.osapuoli where omistaja."y_tunnus" = osapuoli.ytunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id
+    (select id from jkr.osapuoli where omistaja."y_tunnus" = osapuoli.ytunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
+    to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm
+    -- TODO! Add omistuksen_loppupvm when updating with new dvv-material.
 from jkr_dvv.omistaja
 where
     omistaja."y_tunnus" is not null and
@@ -146,7 +150,7 @@ where
 on conflict do nothing; -- DVV has registered some owners twice on different dates
 
 -- Step 3: Find all buildings owned by missing henkilötunnus/y-tunnus by name and address
-insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id)
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where
@@ -158,7 +162,9 @@ select
         omistaja."postios posti_numero" is not distinct from osapuoli.postinumero and
         omistaja."rakennustunnus" = osapuoli.rakennustunnus and
         osapuoli.tiedontuottaja_tunnus = 'dvv'
-    ) as osapuoli_id
+    ) as osapuoli_id,
+    to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm
+    -- TODO! Add omistuksen_loppupvm when updating with new dvv-material.
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
@@ -194,13 +200,15 @@ where
 on conflict do nothing; -- some elders (e.g. owners) already exist
 
 -- Insert elders to jkr.rakennuksen_vanhimmat
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
     nullif(vanhin."huo_neisto_kirjain", ' ') as huoneistokirjain,
     nullif(vanhin."huo_neisto_numero", '000')::integer as huoneistonumero,
-    nullif(vanhin."jako_kirjain", ' ') as jakokirjain
+    nullif(vanhin."jako_kirjain", ' ') as jakokirjain,
+    to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as alkupvm
+    -- TODO! Insert loppupvm when updating with new dvv-material.
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
