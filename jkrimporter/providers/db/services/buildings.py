@@ -17,6 +17,7 @@ from ..models import (
     Katu,
     Osapuoli,
     Osoite,
+    RakennuksenOmistajat,
     RakennuksenVanhimmat,
     Rakennus,
 )
@@ -213,7 +214,7 @@ def _find_by_ytunnus(session: "Session", haltija: "Yhteystieto"):
     if haltija.ytunnus:
         statement = (
             select(Rakennus)
-            .join(Rakennus.RakennuksenOmistajat)
+            .join(RakennuksenOmistajat)
             .join(Osapuoli)
             .where(Osapuoli.ytunnus == haltija.ytunnus)
         )
