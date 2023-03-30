@@ -368,12 +368,32 @@ def get_dvv_rakennustiedot_without_kohde(
     return rakennustiedot_by_id
 
 
+def _is_sauna(rakennus: "Rakennus"):
+    """
+    Saunas are a bit of a special case. They are significant buildings *only* if they
+    are not added as auxiliary buildings. Therefore, we have to check if a building
+    is a sauna *in addition* to checking significance.
+
+    This is because saunas are often missing owner data (and they should belong to the
+    main building), but we also want saunas to be created as separate kohde if no
+    main building was found.
+    """
+    return (
+        rakennus.rakennuksenkayttotarkoitus
+        == codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA]
+    )
+
+
 def _is_significant_building(rakennustiedot: "Rakennustiedot"):
     """
     Determines which buildings should always be contained in a kohde, either separate
     or combined with other buildings. This function requires rakennustiedot, because
     any building with a permanent inhabitant (no matter what the building type) is
     always significant. Also buildings without owners may be significant.
+
+    Saunas should always be contained in a kohde, but they should never have a separate
+    kohde if they can be joined to other buildings on the same kiinteistö. Their
+    significance must therefore be checked separately depending on the context.
     """
     rakennus = rakennustiedot[0]
     asukkaat = rakennustiedot[1]
@@ -431,7 +451,6 @@ def _is_significant_building(rakennustiedot: "Rakennustiedot"):
         codes.rakennuksenkayttotarkoitukset[
             RakennuksenKayttotarkoitusTyyppi.MUU_OPETUSRAKENNUS
         ],
-        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA],
     )
 
 
@@ -472,6 +491,10 @@ def _add_auxiliary_buildings(
                     for rakennustiedot in dvv_rakennustiedot_by_kiinteistotunnus[  # noqa
                         kiinteistotunnus
                     ]
+                    # Saunas will also be added here if they share the kiinteistö. On
+                    # the *same* kiinteistö, they are not significant. On the *same*
+                    # kiinteistö, they should be considered auxiliary, no matter the
+                    # owner. They often have missing owner data.
                     if not _is_significant_building(rakennustiedot)
                 }
                 if kiinteiston_lisarakennukset:
@@ -487,13 +510,18 @@ def _add_auxiliary_buildings(
                         or (  # owner ids must match if present!
                             {omistaja.osapuoli_id for omistaja in omistajat} & owner_ids
                         )
+                        # saunas are the only buildings whose owners do not matter
+                        or _is_sauna(rakennus)
                     )
-                    and _match_addresses(osoitteet, addresses)
+                    # to get all saunas included in kohteet, we must allow saunas to be added
+                    # without checking their address. Otherwise, saunas on large kiinteistöt
+                    # might be left out of kohde.
+                    and (_is_sauna(rakennus) or _match_addresses(osoitteet, addresses))
                 }
                 # If the addresses or owners differ, remaining objects on the same
                 # kiinteistö will create separate kohteet in the last import stage,
                 # if they are significant
-                print(f"owners own only {rakennustiedot_to_add} at same address")
+                print(f"found auxiliary {rakennustiedot_to_add} at same address")
 
                 # Only add auxiliary buildings to one kohde, remove them from
                 # future processing. They are mapped to the first owner and address
@@ -660,7 +688,7 @@ def update_or_create_kohde_from_buildings(
         f"looking for existing kohde with buildings {rakennus_ids}, inhabitants {asukas_ids} and owners {omistaja_ids}"
     )
     # List all kohde buildings here, check significance later. We may need to add and remove
-    # significant buildings if kohde is found.
+    # auxiliary buildings if kohde is found.
     kohde_query = (
         select(Kohde, KohteenRakennukset, KohteenOsapuolet)
         .join(KohteenRakennukset)
@@ -696,9 +724,9 @@ def update_or_create_kohde_from_buildings(
     for kohdetiedot in kohdetiedot_by_kohde.values():
         kohde = kohdetiedot[0]
         kohteen_rakennus_ids = set(rakennus.rakennus_id for rakennus in kohdetiedot[1])
-        if not kohteen_rakennus_ids:
-            # If kohde has no significant buildings, it should not be there in the first place
-            continue
+        # If kohde has no significant buildings, it is a lonely sauna or a group of
+        # forlorn, lonely saunas. In this case, we just compare the owners of the
+        # kohde which had the same rakennus_id(s).
         kohteen_lisarakennus_ids = set(
             rakennus.rakennus_id for rakennus in kohdetiedot[2]
         )
@@ -737,11 +765,13 @@ def update_or_create_kohde_from_buildings(
     # Return existing kohde when found
     print("found matching kohde!")
     print(kohdetiedot)
+    # TODO: should we somehow process saunas separately? They might be added and/or
+    # removed to any kohteet here while the kohde itself stays the same.
     # Remove extra auxiliary buildings
     for kohteen_rakennus in kohteen_lisarakennukset:
         print("checking auxiliary building")
         print(kohteen_rakennus.rakennus_id)
-        if kohteen_rakennus.id not in rakennus_ids:
+        if kohteen_rakennus.rakennus_id not in rakennus_ids:
             print("deleting from kohde")
             session.delete(kohteen_rakennus)
     # Add new auxiliary buildings
@@ -991,7 +1021,19 @@ def get_or_create_kohteet_from_kiinteistot(
             rakennustiedot[0].id
             for rakennustiedot in rakennustiedot_to_add
             if _is_significant_building(rakennustiedot)
+            # and not _is_sauna(rakennustiedot[0])
         }
+        sauna_ids_to_add = {
+            rakennustiedot[0].id
+            for rakennustiedot in rakennustiedot_to_add
+            if _is_sauna(rakennustiedot[0])
+        }
+        # Saunas are a special case. On each kiinteistö, their owners/addresses should
+        # not matter if there are more significant buildings. If kiinteistotunnus is
+        # not known, we will have to create separate kohteet for saunas. Let's add
+        # saunas to other kohteet in any other case.
+        if not ids_to_add or not kiinteistotunnus:
+            ids_to_add |= sauna_ids_to_add
         while ids_to_add:
             print("---")
             print("found significant buildings:")
@@ -1014,12 +1056,12 @@ def get_or_create_kohteet_from_kiinteistot(
             else:
                 # We have no owners left! Remaining are significant buildings with
                 # missing owners. Let's just add them all together.
-                # TODO: However, saunas must not be added if they share the
-                # kiinteistö. On the *same* kiinteistö, they are not significant.
-                # On the *same* kiinteistö, they should be considered auxiliary.
-                # They often have missing owner data.
                 ids_without_owner = ids_to_add - set(owners_by_rakennus_id.keys())
                 building_ids_owned = ids_without_owner
+            # TODO: perhaps add saunas to each address by owner first, i.e. if there
+            # are *other* buildings with the same owner/address, add each sauna to the
+            # building of the same owner/address?
+
             # split buildings further by address
             while building_ids_owned:
                 # All significant buildings at same address should be together.
