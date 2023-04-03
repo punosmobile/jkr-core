@@ -1088,11 +1088,6 @@ def get_or_create_kohteet_from_kiinteistot(
                 for rakennustiedot in rakennustiedot_by_cluster
                 if _is_sauna(rakennustiedot[0])
             }
-            auxiliary_ids_by_cluster = {
-                rakennustiedot[0].id
-                for rakennustiedot in rakennustiedot_by_cluster
-                if _is_sauna(rakennustiedot[0])
-            }
             # Saunas are a special case. On each kiinteistö, their owners/addresses should
             # not matter if there are more significant buildings. If kiinteistotunnus is
             # not known, we will have to create separate kohteet for saunas. Let's add
