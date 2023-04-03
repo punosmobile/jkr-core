@@ -24,12 +24,33 @@ from ..models import (
 
 logger = logging.getLogger(__name__)
 
+DISTANCE_LIMIT = 300
 AREA_LIMIT = 30000
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from jkrimporter.model import Asiakas, Yhteystieto
+
+
+def minimum_distance_of_buildings(buildings):
+    """
+    Returns closest distance of the furthest building to any other building.
+    """
+    points = [to_shape(building.geom) for building in buildings if building.geom]
+    largest_minimum = 0
+    for first_point in points:
+        minimum = None
+        # iterate all other points to find closest point to each point
+        for second_point in points:
+            if second_point is not first_point:
+                distance = first_point.distance(second_point)
+                if not minimum or distance < minimum:
+                    minimum = distance
+        # distance to the closest point is the new minimum distance
+        if minimum and minimum > largest_minimum:
+            largest_minimum = minimum
+    return largest_minimum
 
 
 def convex_hull_area_of_buildings(buildings):
