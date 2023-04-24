@@ -30,53 +30,68 @@ begin
 end;
 $$ language plpgsql;
 
--- Matches and updates henkilotunnus for osapuoli with missing henkilotunnus. 
-create or replace function update_osapuoli_without_henkilotunnus() returns void as $$
+-- Matches and updates information (nimi, postioimipaikka, postinumero) for osapuoli with known ytunnus and missing information
+create or replace function update_osapuoli_with_ytunnus() returns void as $$
 declare
     rec jkr.osapuoli%rowtype;
-    record_count integer := 0;
+    --record_count integer := 0;
 begin
-    for rec in select * from jkr.osapuoli where henkilotunnus is null and ytunnus is null
+    for rec in select * from jkr.osapuoli where ytunnus is not null and henkilotunnus is null and tiedontuottaja_tunnus = 'dvv'
+        and (nimi is null
+        or katuosoite is null
+        or postitoimipaikka is null
+        or postinumero is null)
     loop
         update jkr.osapuoli
-        set henkilotunnus = (
-            select henkilotunnus from jkr.osapuoli
-            where nimi = rec.nimi
-            and postitoimipaikka = rec.postitoimipaikka
-            and postinumero = rec.postinumero
-            and rakennustunnus = rec.rakennustunnus
-            and tiedontuottaja_tunnus = rec.tiedontuottaja_tunnus
-            and henkilotunnus is not null
-            limit 1            
-        )
+        set nimi = (
+                select nimi from jkr.osapuoli
+                where ytunnus = rec.ytunnus
+                and nimi is not null
+                and tiedontuottaja_tunnus = 'dvv'
+                limit 1
+            ),
+            katuosoite = (
+                select katuosoite from jkr.osapuoli
+                where ytunnus = rec.ytunnus
+                and katuosoite is not null
+                and tiedontuottaja_tunnus = 'dvv'
+                limit 1
+            ),
+            postitoimipaikka = (
+                select postitoimipaikka from jkr.osapuoli
+                where ytunnus = rec.ytunnus
+                and postitoimipaikka is not null
+                and tiedontuottaja_tunnus = 'dvv'
+                limit 1
+            ),
+            postinumero = (
+                select postinumero from jkr.osapuoli
+                where ytunnus = rec.ytunnus
+                and postinumero is not null
+                and tiedontuottaja_tunnus = 'dvv'
+                limit 1
+            )
         where
-            nimi = rec.nimi
-            and postitoimipaikka = rec.postitoimipaikka
-            and postinumero = rec.postinumero
-            and rakennustunnus = rec.rakennustunnus
-            and tiedontuottaja_tunnus = rec.tiedontuottaja_tunnus
-            and henkilotunnus is null;
-        record_count := record_count + 1;
+            ytunnus = rec.ytunnus;
+        --record_count := record_count + 1;
     end loop;
-    raise notice 'Record contains % rows', record_count;
-    raise notice 'Number of rows the record should contain %', (select count(*) from jkr.osapuoli where henkilotunnus is null and ytunnus is null);
+    --raise notice 'Record contains % rows', record_count;
+    --raise notice 'Number of rows the record should contain %', (select count(*) from jkr.osapuoli where ytunnus is not null and henkilotunnus is null and tiedontuottaja_tunnus = 'dvv' and (nimi is null or katuosoite is null or postitoimipaikka is null or postinumero is null));
 end;
 $$ language plpgsql;
 
--- Matches and updates information (nimi, postitomipaikka, postinumero) for osapuoli with missing information. 
+
+-- Matches and updates information (nimi, postitomipaikka, postinumero) for osapuoli with known henkilotunnus and missing information. 
 create or replace function update_osapuoli_with_henkilotunnus() returns void as $$
 declare
     -- rec record;
     rec jkr.osapuoli%rowtype;
-    record_count integer := 0;
+    --record_count integer := 0;
 begin
-    for rec in select * from jkr.osapuoli where henkilotunnus is not null and ytunnus is null -- probably dont need rakennustunnus here.
+    for rec in select * from jkr.osapuoli where henkilotunnus is not null and ytunnus is null
         and (nimi is null
         or postitoimipaikka is null
         or postinumero is null)
-        -- and nimi is null
-        -- and postitoimipaikka is null
-        -- and postinumero is null
     loop
         update jkr.osapuoli
         set nimi = (
@@ -99,10 +114,10 @@ begin
             )
         where
             henkilotunnus = rec.henkilotunnus;
-        record_count := record_count + 1;
+        --record_count := record_count + 1;
     end loop;
-    raise notice 'Record contains % rows', record_count;
-    raise notice 'Number of rows the record should contain %', (select count(*) from jkr.osapuoli where henkilotunnus is not null and ytunnus is null and (nimi is null or postitoimipaikka is null or postinumero is null));
+    --raise notice 'Record contains % rows', record_count;
+    --raise notice 'Number of rows the record should contain %', (select count(*) from jkr.osapuoli where henkilotunnus is not null and ytunnus is null and (nimi is null or postitoimipaikka is null or postinumero is null));
 end;
 $$ language plpgsql;
 
@@ -169,9 +184,6 @@ from jkr_dvv.osoite
 where
     "kadunnimi suomeksi" is not null and "kadunnimi ruotsiksi" is not null
 on conflict do nothing;
--- poistetaan vanhat osoitteet. How to determine which addresses are old? 
--- Also, there is no unique or exclusion constraints to use in on conflict.
--- Can one be added or should this be done with a function?
 
 -- Step 2: Import streets with max one language name. This way they will not override
 -- any names with two languages.
@@ -184,7 +196,6 @@ from jkr_dvv.osoite
 where
     "kadunnimi suomeksi" is null or "kadunnimi ruotsiksi" is null
 on conflict do nothing; -- create one empty street for each kunta
--- no constraints, add one or make a function?
 
 -- Insert addresses to jkr.osoite
 insert into jkr.osoite (osoitenumero, katu_id, rakennus_id, posti_numero)
@@ -224,6 +235,7 @@ select distinct on ("henkilötunnus")
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null
+    -- how do I add tiedontuottajan_tunnus = 'dvv' in this part of the query?
 -- Updates the person's information, if new insert conflicts with existing one.
 on conflict (henkilotunnus) do update
 set
@@ -248,15 +260,13 @@ select distinct on ("y_tunnus")
     'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
 where omistaja."y_tunnus" is not null
-on conflict do nothing;
--- Add ytunnus as unique constraint? Otherwise there is no unique or exclusion constraint. Function?
--- on conflict (ytunnus) do update
--- set
-    -- nimi = excluded.nimi,
-    -- katuosoite = excluded.katuosoite,
-    -- postitoimipaikka = excluded.postitoimipaikka,
-    -- postinumero = excluded.postinumero,
-    -- tiedontuottaja_tunnus = excluded.tiedontuottaja_tunnus;
+on conflict (ytunnus) where tiedontuottaja_tunnus = 'dvv' do update
+set
+    nimi = excluded.nimi,
+    katuosoite = excluded.katuosoite,
+    postitoimipaikka = excluded.postitoimipaikka,
+    postinumero = excluded.postinumero,
+    tiedontuottaja_tunnus = excluded.tiedontuottaja_tunnus;
 
 -- Step 3: Create all owners with missing henkilötunnus/y-tunnus as separate rows.
 -- Any owners without henkilötunnus/y-tunnus do not have vakinainen asuinosoite or kotikunta or
@@ -351,9 +361,7 @@ where
           -- addresses, though.
 on conflict do nothing; -- There are some duplicate rows with identical address data
 
-
--- Figure how to check if these ones have updated henkilotunnus or ytunnus. Probably easier through a function?
-select update_osapuoli_without_henkilotunnus();
+select update_osapuoli_with_ytunnus();
 select update_osapuoli_with_henkilotunnus();
 -- select count(*) from jkr.osapuoli where henkilotunnus is null;
 
@@ -405,8 +413,7 @@ set
     huoneistokirjain = nullif(excluded.huoneistokirjain, ' '),
     huoneistonumero = nullif(excluded.huoneistonumero, '000')::integer,
     jakokirjain = nullif(excluded.jakokirjain, ' '),
-    alkupvm = excluded.alkupvm
-    -- Below I tried to make it so that the script wouldn't reinsert everything, but it does regardless... 
+    alkupvm = excluded.alkupvm 
 where
     jkr.rakennuksen_vanhimmat.huoneistokirjain is distinct from excluded.huoneistokirjain or
     jkr.rakennuksen_vanhimmat.huoneistonumero is distinct from excluded.huoneistonumero::integer or
