@@ -17,7 +17,7 @@ end;
 $$ language plpgsql;
 
 -- Update omistuksen_loppupvm for previous owner, when new owner is inserted.
--- This will set loppupvm to all previous owners of the building, even if only one changed...
+-- TODO! Fix this.
 create or replace function update_omistuksen_loppupvm() returns trigger as $$
 begin
     update jkr.rakennuksen_omistajat
@@ -34,7 +34,6 @@ $$ language plpgsql;
 create or replace function update_osapuoli_with_ytunnus() returns void as $$
 declare
     rec jkr.osapuoli%rowtype;
-    --record_count integer := 0;
 begin
     for rec in select * from jkr.osapuoli where ytunnus is not null and henkilotunnus is null and tiedontuottaja_tunnus = 'dvv'
         and (nimi is null
@@ -73,20 +72,16 @@ begin
             )
         where
             ytunnus = rec.ytunnus;
-        --record_count := record_count + 1;
+        
     end loop;
-    --raise notice 'Record contains % rows', record_count;
-    --raise notice 'Number of rows the record should contain %', (select count(*) from jkr.osapuoli where ytunnus is not null and henkilotunnus is null and tiedontuottaja_tunnus = 'dvv' and (nimi is null or katuosoite is null or postitoimipaikka is null or postinumero is null));
-end;
+   end;
 $$ language plpgsql;
 
 
 -- Matches and updates information (nimi, postitomipaikka, postinumero) for osapuoli with known henkilotunnus and missing information. 
 create or replace function update_osapuoli_with_henkilotunnus() returns void as $$
 declare
-    -- rec record;
     rec jkr.osapuoli%rowtype;
-    --record_count integer := 0;
 begin
     for rec in select * from jkr.osapuoli where henkilotunnus is not null and ytunnus is null
         and (nimi is null
@@ -114,11 +109,8 @@ begin
             )
         where
             henkilotunnus = rec.henkilotunnus;
-        --record_count := record_count + 1;
     end loop;
-    --raise notice 'Record contains % rows', record_count;
-    --raise notice 'Number of rows the record should contain %', (select count(*) from jkr.osapuoli where henkilotunnus is not null and ytunnus is null and (nimi is null or postitoimipaikka is null or postinumero is null));
-end;
+   end;
 $$ language plpgsql;
 
 -- Update triggers --
@@ -235,9 +227,8 @@ select distinct on ("henkilötunnus")
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null
-    -- how do I add tiedontuottajan_tunnus = 'dvv' in this part of the query?
 -- Updates the person's information, if new insert conflicts with existing one.
-on conflict (henkilotunnus) do update
+on conflict (henkilotunnus) where tiedontuottaja_tunnus = 'dvv' do update
 set
     nimi = excluded.nimi,
     katuosoite = excluded.katuosoite,
@@ -297,6 +288,7 @@ where
 ;
 
 -- Insert owners to jkr.rakennuksen_omistajat
+-- TODO! Fix rakennuksen_omistajat insert, currently duplicates every entry.
 -- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm)
 select
@@ -307,11 +299,8 @@ from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null and
     exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
-on conflict do nothing; -- DVV has registered some owners twice on different dates
--- What do we want to do with updating the alkupvm? Keep only the oldest alkupvm?
--- on conflict (rakennus_id, osapuoli_id) do update
--- set 
-   -- omistuksen_alkupvm = excluded.omistuksen_alkupvm;
+--on conflict on constraint unique_rakennuksen_omistajat do nothing; -- DVV has registered some owners twice on different dates
+on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing;
 
 -- Step 2: Find all buildings owned by each owner, matching by y-tunnus
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm)
@@ -323,11 +312,7 @@ from jkr_dvv.omistaja
 where
     omistaja."y_tunnus" is not null and
     exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
-on conflict do nothing; -- DVV has registered some owners twice on different dates
--- Same as above. What do we want to do?
--- on conflict (rakennus_id, osapuoli_id) do update
--- set
-    -- omistuksen_alkupvm = excluded.omistuksen_alkupvm;
+on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing; -- DVV has registered some owners twice on different dates
 
 -- Step 3: Find all buildings owned by missing henkilötunnus/y-tunnus by name and address
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm)
@@ -359,7 +344,7 @@ where
           -- Note that this may introduce multiple owners with the same name for each building
           -- if there are multiple such rows in the same file. They will still have different
           -- addresses, though.
-on conflict do nothing; -- There are some duplicate rows with identical address data
+on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing; -- There are some duplicate rows with identical address data
 
 select update_osapuoli_with_ytunnus();
 select update_osapuoli_with_henkilotunnus();
@@ -406,20 +391,20 @@ from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
--- maybe improve so this only updates elders when atleast one value has changed.
--- on conflict (building_id, osapuoli_id) do update -- No constraint for building_id and osapuoli_id.
-on conflict (osapuoli_id) do update 
-set 
-    huoneistokirjain = nullif(excluded.huoneistokirjain, ' '),
-    huoneistonumero = nullif(excluded.huoneistonumero, '000')::integer,
-    jakokirjain = nullif(excluded.jakokirjain, ' '),
-    alkupvm = excluded.alkupvm 
-where
-    jkr.rakennuksen_vanhimmat.huoneistokirjain is distinct from excluded.huoneistokirjain or
-    jkr.rakennuksen_vanhimmat.huoneistonumero is distinct from excluded.huoneistonumero::integer or
-    jkr.rakennuksen_vanhimmat.jakokirjain is distinct from excluded.jakokirjain or
-    jkr.rakennuksen_vanhimmat.alkupvm is distinct from excluded.alkupvm or
-    jkr.rakennuksen_vanhimmat.loppupvm is null;
+on conflict do nothing;
+-- on conflict (id) do update
+-- set 
+    -- id = excluded.id,
+    -- huoneistokirjain = nullif(excluded.huoneistokirjain, ' '),
+    -- huoneistonumero = nullif(excluded.huoneistonumero, '000')::integer,
+    -- jakokirjain = nullif(excluded.jakokirjain, ' '),
+    -- alkupvm = excluded.alkupvm 
+-- where
+    -- jkr.rakennuksen_vanhimmat.huoneistokirjain is distinct from excluded.huoneistokirjain or
+    -- jkr.rakennuksen_vanhimmat.huoneistonumero is distinct from excluded.huoneistonumero::integer or
+    -- jkr.rakennuksen_vanhimmat.jakokirjain is distinct from excluded.jakokirjain or
+    -- jkr.rakennuksen_vanhimmat.alkupvm is distinct from excluded.alkupvm or
+    -- jkr.rakennuksen_vanhimmat.loppupvm is null;
 
 
 

@@ -17,3 +17,7 @@ ALTER TABLE jkr.rakennuksen_omistajat
 
 ALTER TABLE jkr.rakennuksen_omistajat
     ADD PRIMARY KEY (id);
+
+-- Create Unique index for rakennuksen_omistajat, to prevent duplicate entries when updating with DVV-data.
+CREATE UNIQUE INDEX unique_rakennuksen_omistajat
+    ON jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm);
