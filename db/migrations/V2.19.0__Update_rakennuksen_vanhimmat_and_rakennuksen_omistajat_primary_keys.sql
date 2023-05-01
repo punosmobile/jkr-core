@@ -1,7 +1,8 @@
 -- Remove old primary_key constraint.
 ALTER TABLE jkr.rakennuksen_vanhimmat
     DROP CONSTRAINT rakennuksen_vanhimmat_pk;
--- Remove old unique indexes, these prevent assigning new eldest, if we want to store the data from previous eldest also.
+
+-- Remove old index and unique indexes.
 DROP INDEX idx_rakennuksen_vanhimmat_rakennus_id;
 DROP INDEX uidx_rakennuksen_vanhimmat_rakennus_id;
 DROP INDEX uidx_rakennuksen_vanhimmat_huoneistokirjain;
@@ -9,6 +10,7 @@ DROP INDEX uidx_rakennuksen_vanhimmat_huoneistonumero;
 DROP INDEX uidx_rakennuksen_vanhimmat_huoneistokirjain_huoneistonumero;
 DROP INDEX uidx_rakennuksen_vanhimmat_huoneistonumero_jakokirjain;
 DROP INDEX uidx_rakennuksen_vanhimmat_huoneistokirjain_huoneistonumero_jak;
+
 -- Add new id column, set as the new primary key.
 ALTER TABLE jkr.rakennuksen_vanhimmat
     ADD COLUMN id SERIAL UNIQUE NOT NULL;
@@ -16,9 +18,7 @@ ALTER TABLE jkr.rakennuksen_vanhimmat
 ALTER TABLE jkr.rakennuksen_vanhimmat
     ADD PRIMARY KEY (id);
 
---ALTER TABLE jkr.rakennuksen_vanhimmat
-    --ADD CONSTRAINT uq_rakennuksen_vanhimmat UNIQUE (rakennus_id, osapuoli_id, COALESCE(huoneistokirjain, huoneistonumero, jakokirjain, alkupvm);
-
+-- Replace old index and unique indexes with updated ones.
 CREATE INDEX idx_rakennuksen_vanhimmat ON jkr.rakennuksen_vanhimmat
 USING btree
 (
@@ -61,17 +61,11 @@ CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat_huoneistokirjain_huoneistonumero_
     (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm)
     WHERE huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is not null;
 
--- Create Unique index for rakennuksen_vanhimmat, to prevent duplicate entries when updating with DVV-data.
---CREATE UNIQUE INDEX uidx_rakennuksen_vanhimmat
-    --ON jkr.rakennuksen_vanhimmat(rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm)
-    --WHERE (huoneistokirjain IS DISTINCT FROM NULL)
-        --OR (huoneistonumero IS DISTINCT FROM NULL)
-        --OR (jakokirjain IS DISTINCT FROM NULL);
-
--- Same but for rakennuksen_omistajat.
+-- Remove old primary key.
 ALTER TABLE jkr.rakennuksen_omistajat
     DROP CONSTRAINT rakennuksen_omistajat_pk;
 
+-- Create column id and set it as primary key.
 ALTER TABLE jkr.rakennuksen_omistajat
     ADD COLUMN id SERIAL UNIQUE NOT NULL;
 
