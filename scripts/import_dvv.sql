@@ -391,20 +391,9 @@ from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
+    -- this isnt preventing duplicate inserts... why?
+-- on conflict (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm) do nothing;
 on conflict do nothing;
--- on conflict (id) do update
--- set 
-    -- id = excluded.id,
-    -- huoneistokirjain = nullif(excluded.huoneistokirjain, ' '),
-    -- huoneistonumero = nullif(excluded.huoneistonumero, '000')::integer,
-    -- jakokirjain = nullif(excluded.jakokirjain, ' '),
-    -- alkupvm = excluded.alkupvm 
--- where
-    -- jkr.rakennuksen_vanhimmat.huoneistokirjain is distinct from excluded.huoneistokirjain or
-    -- jkr.rakennuksen_vanhimmat.huoneistonumero is distinct from excluded.huoneistonumero::integer or
-    -- jkr.rakennuksen_vanhimmat.jakokirjain is distinct from excluded.jakokirjain or
-    -- jkr.rakennuksen_vanhimmat.alkupvm is distinct from excluded.alkupvm or
-    -- jkr.rakennuksen_vanhimmat.loppupvm is null;
 
 
 
