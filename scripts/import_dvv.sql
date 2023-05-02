@@ -18,15 +18,110 @@ $$ language plpgsql;
 
 -- Update omistuksen_loppupvm for previous owner, when new owner is inserted.
 -- TODO! Fix this.
-create or replace function update_omistuksen_loppupvm() returns trigger as $$
+--create or replace function update_omistuksen_loppupvm() returns trigger as $$
+--begin
+    --update jkr.rakennuksen_omistajat
+    --set omistuksen_loppupvm = new.omistuksen_alkupvm - interval '1 day'
+    --where rakennus_id = new.rakennus_id
+    --and osapuoli_id != new.osapuoli_id
+    --and osapuoli_id != null
+    --and omistuksen_loppupvm is null;
+    --return new;
+--end;
+--$$ language plpgsql;
+
+-- update omistuksen_loppupvm via a function
+-- what do we want to do with omistuksen_loppupvm when the building doesn't exist anymore or the building is not owned by anyone?
+-- currently what happens is that the omistuksen_loppupvm becomes the alkupvm - 1 day.
+-- should the setting of omistuksen_loppupvm be skipped in that case?
+-- or maybe there is something wrong with the inserting of owners when updating with new dvv-data?
+-- TODO! This function is quite slow, any faster way to iterate through these records? Testing is painfully slow...
+create or replace function update_omistuksen_loppupvm() returns void as $$
+declare
+    owners_with_henkilotunnus record;
+    owners_with_ytunnus record;
+    owners_without_henkilotunnus_or_ytunnus record;
 begin
-    update jkr.rakennuksen_omistajat
-    set omistuksen_loppupvm = new.omistuksen_alkupvm - interval '1 day'
-    where rakennus_id = new.rakennus_id
-    and osapuoli_id != new.osapuoli_id
-    and osapuoli_id != null
-    and omistuksen_loppupvm is null;
-    return new;
+    for owners_with_henkilotunnus in select r.rakennus_id, r.osapuoli_id, o.henkilotunnus, rk.prt, r.omistuksen_alkupvm, r.omistuksen_loppupvm
+        from jkr.rakennuksen_omistajat r
+        join jkr.osapuoli o on r.osapuoli_id = o.id
+        join jkr.rakennus rk on r.rakennus_id = rk.id
+        where not exists (
+            select 1 from jkr_dvv.omistaja od
+            where od."rakennustunnus" = rk.prt
+            and o.henkilotunnus is not null
+            and od."henkilötunnus" = o.henkilotunnus
+            and to_date(od."omistuksen alkupäivä"::text, 'YYYYMMDD') = r.omistuksen_alkupvm
+        )
+    loop
+        select to_date(od."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 day'
+        into owners_with_henkilotunnus.omistuksen_loppupvm
+        from jkr_dvv.omistaja od
+        where od."rakennustunnus" = owners_with_henkilotunnus.prt;
+
+        update jkr.rakennuksen_omistajat
+        set omistuksen_loppupvm = owners_with_henkilotunnus.omistuksen_loppupvm
+        where rakennus_id = owners_with_henkilotunnus.rakennus_id
+        and osapuoli_id = owners_with_henkilotunnus.osapuoli_id
+        and omistuksen_alkupvm = owners_with_henkilotunnus.omistuksen_alkupvm
+        and omistuksen_loppupvm is null;
+    end loop;
+
+    for owners_with_ytunnus in select r.rakennus_id, r.osapuoli_id, o.ytunnus, rk.prt, r.omistuksen_alkupvm, r.omistuksen_loppupvm
+        from jkr.rakennuksen_omistajat r
+        join jkr.osapuoli o on r.osapuoli_id = o.id
+        join jkr.rakennus rk on r.rakennus_id = rk.id
+        where not exists (
+            select 1 from jkr_dvv.omistaja od
+            where od."rakennustunnus" = rk.prt
+            and o.ytunnus is not null
+            and o.tiedontuottaja_tunnus = 'dvv'
+            and od."y_tunnus" = o.ytunnus
+            and to_date(od."omistuksen alkupäivä"::text, 'YYYYMMDD') = r.omistuksen_alkupvm
+        )
+    loop
+        select to_date(od."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 day'
+        into owners_with_ytunnus.omistuksen_loppupvm
+        from jkr_dvv.omistaja od
+        where od."rakennustunnus" = owners_with_ytunnus.prt;
+
+        update jkr.rakennuksen_omistajat
+        set omistuksen_loppupvm = owners_with_ytunnus.omistuksen_loppupvm
+        where rakennus_id = owners_with_ytunnus.rakennus_id
+        and osapuoli_id = owners_with_ytunnus.osapuoli_id
+        and omistuksen_alkupvm = owners_with_ytunnus.omistuksen_alkupvm
+        and omistuksen_loppupvm is null;
+    end loop;
+
+    for owners_without_henkilotunnus_or_ytunnus in select r.rakennus_id, r.osapuoli_id, o.nimi, o.katuosoite, o.postitoimipaikka, o.postitoimipaikka, o.postinumero, rk.prt, r.omistuksen_alkupvm, r.omistuksen_loppupvm
+        from jkr.rakennuksen_omistajat r
+        join jkr.osapuoli o on r.osapuoli_id = o.id
+        join jkr.rakennus rk on r.rakennus_id = rk.id
+        where not exists (
+            select 1 from jkr_dvv.omistaja od
+            where od."rakennustunnus" = rk.prt
+            and o.ytunnus is null
+            and o.henkilotunnus is null
+            and od."omistajan nimi" = o.nimi
+            and od."omistajan postiosoite" = o.katuosoite
+            and od."postiosoitteen postitoimipaikka" = o.postitoimipaikka
+            and od."postios posti_numero" = o.postinumero
+            and o.tiedontuottaja_tunnus = 'dvv'
+            and to_date(od."omistuksen alkupäivä"::text, 'YYYYMMDD') = r.omistuksen_alkupvm
+        )
+    loop
+        select to_date(od."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 day'
+        into owners_without_henkilotunnus_or_ytunnus.omistuksen_loppupvm
+        from jkr_dvv.omistaja od
+        where od."rakennustunnus" = owners_without_henkilotunnus_or_ytunnus.prt;
+
+        update jkr.rakennuksen_omistajat
+        set omistuksen_loppupvm = owners_without_henkilotunnus_or_ytunnus.omistuksen_loppupvm
+        where rakennus_id = owners_without_henkilotunnus_or_ytunnus.rakennus_id
+        and osapuoli_id = owners_without_henkilotunnus_or_ytunnus.osapuoli_id
+        and omistuksen_alkupvm = owners_without_henkilotunnus_or_ytunnus.omistuksen_alkupvm
+        and omistuksen_loppupvm is null;
+    end loop;
 end;
 $$ language plpgsql;
 
@@ -71,8 +166,7 @@ begin
                 limit 1
             )
         where
-            ytunnus = rec.ytunnus;
-        
+            ytunnus = rec.ytunnus;   
     end loop;
    end;
 $$ language plpgsql;
@@ -116,7 +210,6 @@ $$ language plpgsql;
 -- Update triggers --
 -- Trigger for updating eldest, called when inserting new eldest with no conflicts.
 drop trigger if exists update_loppupvm_trigger on jkr.rakennuksen_vanhimmat;
--- create or replace trigger update_loppupvm_trigger -- for some reason causes syntax error?
 create trigger update_loppupvm_trigger
 after insert on jkr.rakennuksen_vanhimmat
 for each row
@@ -124,13 +217,12 @@ when (new.loppupvm is null)
 execute function update_loppupvm();
 
 -- Trigger for updating owner, called when inserting new owner with no conflicts.
-drop trigger if exists update_omistuksen_loppupvm_trigger on jkr.rakennuksen_omistajat;
--- create or replace trigger update_omistuksen_loppupvm_trigger -- syntax error?
-create trigger update_omistuksen_loppupvm_trigger
-after insert on jkr.rakennuksen_omistajat
-for each row
-when (new.omistuksen_loppupvm is null)
-execute function update_omistuksen_loppupvm();
+--drop trigger if exists update_omistuksen_loppupvm_trigger on jkr.rakennuksen_omistajat;
+--create trigger update_omistuksen_loppupvm_trigger
+--after insert on jkr.rakennuksen_omistajat
+--for each row
+--when (new.omistuksen_loppupvm is null)
+--execute function update_omistuksen_loppupvm();
 
 -- Inserts
 -- Add dvv tiedontuottaja
@@ -287,6 +379,9 @@ where
           -- addresses, though.
 ;
 
+-- 
+select update_omistuksen_loppupvm();
+
 -- Insert owners to jkr.rakennuksen_omistajat
 -- TODO! Fix rakennuksen_omistajat insert, currently duplicates every entry.
 -- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
@@ -394,6 +489,3 @@ where
     -- this isnt preventing duplicate inserts... why?
 -- on conflict (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm) do nothing;
 on conflict do nothing;
-
-
-
