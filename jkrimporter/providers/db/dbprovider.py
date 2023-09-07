@@ -268,8 +268,8 @@ def import_dvv_kohteet(
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
             session, perusmaksutiedosto, alkupvm, loppupvm
         )
-    session.commit()
-    print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
+        session.commit()
+        print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
 
     # 4) Paritalot: molemmille huoneistoille omat kohteet
     # Does it matter this is imported after 7? -No, because paritalot will not
