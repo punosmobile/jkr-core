@@ -64,3 +64,4 @@ pjh-virheelliset-osoitteet.csv
 *.qgs~
 jkrconfig
 pg_service.conf
+data/
