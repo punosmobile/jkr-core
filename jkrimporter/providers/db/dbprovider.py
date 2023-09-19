@@ -228,7 +228,7 @@ def import_dvv_kohteet(
     else:
         print("No perusmaksu data")
 
-    # 3) Perusmaksukohteet
+    # 3) Paritalokohteet
     paritalo_kohteet = get_or_create_paritalo_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
