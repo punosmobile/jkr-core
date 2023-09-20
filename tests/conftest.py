@@ -13,11 +13,9 @@ def datadir(tmpdir, request):
     tests can use them freely.
     """
     testfilepath = Path(request.module.__file__)
-    testdir = testfilepath.parent
     testfilename = testfilepath.stem
 
-    # use local data dir until we get anonymized test fixtures to use
-    datadir = testdir.parent / "data" / testfilename
+    datadir = "data/" + testfilename
     if os.path.isdir(datadir):
         copytree(datadir, tmpdir, dirs_exist_ok=True)
     print(datadir)
