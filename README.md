@@ -118,3 +118,7 @@ dbname=ymparisto_db
 
 > **Development**  
 > For development use the [QGIS-project](qgis/jkr.qgs) can be used.
+
+## Naming development branches
+
+Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}-{description}`. For example, `"Lahti-99-kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators. 

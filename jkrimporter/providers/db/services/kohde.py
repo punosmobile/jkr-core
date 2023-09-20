@@ -180,9 +180,6 @@ def find_kohde_by_address(
     else:
         osoitenumero_filter = Osoite.osoitenumero.in_(osoitenumerot)
     print(osoitenumero_filter)
-    # TODO: Do we need to check the kohde has vanhemmat with the correct
-    # huoneistotunnus?
-    # We do it when adding buildings to a new kohde in buildings.py.
 
     filter = and_(
         sqlalchemyFunc.lower(Osoite.posti_numero) == asiakas.haltija.osoite.postinumero,
@@ -314,8 +311,6 @@ def get_or_create_pseudokohde(session: "Session", nimi: str, kohdetyyppi) -> Koh
 def get_kohde_by_address(
     session: "Session", asiakas: "Asiakas"
 ) -> "Union[Kohde, None]":
-    # TODO: etsi kohde etsimällä rakennukset käyttäen find_buildings_for_kohde
-    # funktiota. Valitse näistä oikea kohde.
     ...
 
 
@@ -794,7 +789,7 @@ def update_or_create_kohde_from_buildings(
         kohteen_asukas_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[3])
         kohteen_omistaja_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[4])
         print("Tutkitaan kohteen merkitseviä rakennuksia:")
-        # 1) use kohde if rakennukset and osapuolet are same
+        # use kohde if rakennukset and osapuolet are same
         if (
             kohteen_rakennus_ids == significant_building_ids
             and kohteen_asukas_ids == asukas_ids
@@ -802,11 +797,11 @@ def update_or_create_kohde_from_buildings(
         ):
             print("Rakennukset, asukkaat ja omistajat samat!")
             break
-        # 3) discard kohde if rakennukset are missing
+        # discard kohde if rakennukset are missing
         if significant_building_ids < kohteen_rakennus_ids:
             print("Merkitseviä rakennuksia puuttuu")
             continue
-        # 4) use kohde if rakennukset are added
+        # use kohde if rakennukset are added
         if (
             kohteen_rakennus_ids < significant_building_ids
             and kohteen_asukas_ids == asukas_ids
@@ -814,7 +809,7 @@ def update_or_create_kohde_from_buildings(
         ):
             print("Merkitsevät rakennukset, asukkaat ja omistajat samat!")
             break
-        # 4, 5, 6) discard kohde if owners or inhabitants are different
+        # discard kohde if owners or inhabitants are different
         if kohteen_asukas_ids != asukas_ids or kohteen_omistaja_ids != omistaja_ids:
             print("Asukkaat tai omistajat eri")
             continue
@@ -827,9 +822,6 @@ def update_or_create_kohde_from_buildings(
 
     # Return existing kohde when found
     print("Olemassaoleva kohde löytynyt.")
-    # TODO: should we somehow process saunas separately? They might be added and/or
-    # removed to any kohteet here while the kohde itself stays the same.
-    # Remove extra auxiliary buildings
     for kohteen_rakennus in kohteen_lisarakennukset:
         print("Tarkistetaan kohteen lisärakennus")
         print(kohteen_rakennus.rakennus_id)
@@ -888,7 +880,6 @@ def get_or_create_kohteet_from_vanhimmat(
             .where(RakennuksenOmistajat.rakennus_id == vanhin.rakennus_id)
         )
         omistajat = {row[1] for row in session.execute(omistajat_query).all()}
-        # print(f"Building {vanhin.rakennus_id} has owners {omistajat}")
         # The correct kohde is found by checking the inhabitant in each half. In case
         # of paritalo, we don't know which owner owned which part of the building.
         # Therefore, we will have to create new kohteet for both halves when somebody
@@ -1123,9 +1114,7 @@ def get_or_create_kohteet_from_kiinteistot(
                         owners_by_rakennus_id.keys()
                     )
                     building_ids_owned = ids_without_owner
-                # TODO: perhaps add saunas to each address by owner first, i.e. if there
-                # are *other* buildings with the same owner/address, add each sauna to the
-                # building of the same owner/address
+
                 print("Saman omistajan rakennukset:")
                 print(building_ids_owned)
 
@@ -1216,8 +1205,6 @@ def get_or_create_single_asunto_kohteet(
             )
         )
     )
-    # Oldest inhabitant should get the bill only if there are no multiple
-    # yksittäistalo on the same kiinteistö.
     single_asunto_kiinteistotunnus = (
         select(
             Rakennus.kiinteistotunnus,
@@ -1230,8 +1217,6 @@ def get_or_create_single_asunto_kohteet(
 
     print(" ")
     print("----- LUODAAN YKSITTÄISTALOKOHTEET -----")
-    # merge empty buildings on kiinteistö to the main building only if they have the
-    # same owners.
     return get_or_create_kohteet_from_kiinteistot(
         session, single_asunto_kiinteistotunnus, alkupvm, loppupvm
     )
@@ -1284,9 +1269,6 @@ def get_or_create_paritalo_kohteet(
     )
     print(" ")
     print("----- CREATING PARITALOKOHTEET ----")
-    # empty buildings on kiinteistö will be added to the first kohde created
-    # on each kiinteistö, but only if they are owned by all owners of the main
-    # building.
     return get_or_create_kohteet_from_vanhimmat(
         session, vanhimmat_ids, alkupvm, loppupvm
     )
@@ -1301,10 +1283,6 @@ def get_or_create_multiple_and_uninhabited_kohteet(
     Create kohteet from all kiinteistötunnus that have buildings without kohde for the
     specified date range.
     """
-    # One kiinteistö and omistaja -> one kohde.
-    # - Name after largest omistaja if there are multiple.
-    # - Separate buildings in kiinteistö if omistajas differ.
-    # - Separate buildings in kiinteistö if osoitteet differ (prevent huge kiinteistöt)
 
     rakennus_id_with_current_kohde = (
         select(Rakennus.id)
@@ -1314,14 +1292,6 @@ def get_or_create_multiple_and_uninhabited_kohteet(
     )
     kiinteistotunnus_without_kohde = (
         select(Rakennus.kiinteistotunnus)
-        # TODO: filter building types here. in that case, must also include all
-        # buildings with any inhabitants.
-        #
-        # 1) yhden asunnon talot (tyhjillään)
-        # 2) kunnan palvelutoiminta (pitkä lista)
-        # 3) vapaa-ajanasunnot (ei perusmaksua/ei perusmaksutiedostoa)
-        # 4) kerrostalot, rivitalot jne (ei perusmaksutiedostoa)
-        # do not import any rakennus with existing kohteet
         .filter(~Rakennus.id.in_(rakennus_id_with_current_kohde))
         # Do not import rakennus that have been removed from DVV data
         .filter(
@@ -1333,8 +1303,6 @@ def get_or_create_multiple_and_uninhabited_kohteet(
     )
     print(" ")
     print("----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
-    # merge empty buildings on kiinteistö to the main building only if they have the
-    # same owners.
     return get_or_create_kohteet_from_kiinteistot(
         session, kiinteistotunnus_without_kohde, alkupvm, loppupvm
     )
@@ -1380,10 +1348,6 @@ def create_perusmaksurekisteri_kohteet(
             continue
         asiakasnumero = str(row[2])
         prt = str(row[3])
-        # asiakkaan_nimi = row[6].value
-        # yhteyshenkilon_nimi = row[7].value
-        # katuosoite = row[8].value
-        # postitoimipaikka = row[9].value
         buildings_to_combine[asiakasnumero]["prt"].add(prt)
     print(f"Löydetty {len(buildings_to_combine)} perusmaksuasiakasta")
 
@@ -1424,7 +1388,7 @@ def create_perusmaksurekisteri_kohteet(
                 continue
             # NOTE: optionally, add other buildings to building set if already
             # at least one perusmaksu specific building is found, i.e. set is not empty
-            if _should_have_perusmaksu_kohde(rakennus):  # or building_set:
+            if _should_have_perusmaksu_kohde(rakennus):
                 print(f"{rakennus.prt} kuuluu perusmaksukohteelle")
                 # add all owners and addresses for each rakennus
                 building_set.add((rakennus, omistajat, asukkaat, osoitteet))
@@ -1455,7 +1419,4 @@ def create_perusmaksurekisteri_kohteet(
         alkupvm,
         None,  # Let's make perusmaksu kohde last forever.
     )
-    # TODO: Should rivitalokohteet be created by asukkaat instead? This way, they
-    # would be separated by asukkaat (and each kohde created separately), even if
-    # they have the same building and same owners.
     return kohteet

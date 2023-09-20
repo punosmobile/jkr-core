@@ -48,8 +48,6 @@ def count(jkr_data: JkrData):
     kitu_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
     address_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
 
-    # TODO: So we have duplicate asiakkaat in the same address for the same interval.
-    # So what? Jukka will have biojäte, sekajäte, energia. So will Aija.
     for asiakas in jkr_data.asiakkaat.values():
         for prt in asiakas.rakennukset:
             prt_counts[prt].append(asiakas.voimassa)
@@ -90,12 +88,6 @@ def insert_kuljetukset(
             )
             continue
 
-        # TODO: here we have the assumption that there is only one kuljetus
-        # for a given period and jatetyyppi. It may be false, there may even
-        # be more than one kuljetus for a period and jatetyyppi with the *same*
-        # urakoitsija, with the same *or* different customer ids.
-        # TODO: If the customer id is the same, just let it be. If the customer id
-        # is different, we should create a new kohde.
         exists = any(
             k.jatetyyppi == jatetyyppi
             and k.alkupvm == alkupvm
@@ -137,13 +129,6 @@ def find_and_update_kohde(
         if do_update:
             update_kohde(kohde, asiakas)
     else:
-        # TODO: Add check_name parameter here. If
-        # 1) Jätelaji is sekajäte,
-        # 2) Customer id is not found (we have a new customer) AND
-        # 3) The location already has a kohde for sekajäte with another customer id
-        #    AND the same time period,
-        # 4) The other customer id has a *different name*?,
-        # we should create a new kohde.
         print("Customer id not found. Searching for kohde by customer data...")
         if asiakas.rakennukset:
             kohde = find_kohde_by_prt(session, asiakas)
@@ -204,9 +189,7 @@ def import_asiakastiedot(
 
     # Update osapuolet from the same tiedontuottaja. These functions will not
     # touch data from other tiedontuottajat.
-    # TODO: set osapuoli type based on type of kuljetus
     create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
-    # TODO: do not create yhteystieto on Lahti request
     create_or_update_yhteystieto_osapuoli(session, kohde, asiakas, do_update)
 
     update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
@@ -228,92 +211,29 @@ def import_dvv_kohteet(
     loppupvm: Optional[datetime.date],
     perusmaksutiedosto: Optional[Path],
 ):
-    # 1) Yhden asunnon talot (asutut): DVV:n tiedoissa kiinteistöllä yksi rakennus ja
-    # asukas.
-    # 2) Yhden asunnon talot (tyhjillään tai asuttu): DVV:n tiedoissa kiinteistön
-    # rakennuksilla sama omistaja. Voi olla yksi tai monta rakennusta.Yhdessä
-    # rakennuksessa voi olla asukkaita.
-    # - Asiakas on vanhin asukas. Tuodaan myös kaikki omistajat yhteystiedoiksi.
-    # - Kiinteistön muut rakennukset asumattomia (esim. lomarakennukset, saunat),
-    #  joten ne liitetään, jos sama omistaja ja osoite.
-    # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
-    # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
-    # - Kohdetta ei tuoda, jos samalla kiinteistöllä muita asuttuja rakennuksia.
+    # 1) Yhden asunnon kohteet
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
         session, alkupvm, loppupvm
     )
     session.commit()
     print(f"Imported {len(single_asunto_kohteet)} single kohteet")
 
-    # Perusmaksurekisteri may combine buildings and kiinteistöt to a single kohde.
-    # 3) Kerros ja rivitalot: Perusmaksurekisterin aineistosta asiakasnumero. Voi olla
-    # yksi tai monta rakennusta.
-    # 7) Vapaa-ajanasunnot: kaikki samat omistajat. Perusmaksurekisterin aineistosta
-    # asiakasnumero. Voi olla yksi tai monta rakennusta.
-    # - Kohteeseen yhdistetään rakennukset kiinteistöistä riippumatta.
-    # - Asiakkaiksi tallennetaan kaikki kohteen rakennusten omistajat.
-    # - Saunat ja talousrakennukset liitetään, jos sama kiinteistö, omistaja ja osoite
-    # kuin jollakin rakennuksista.
-    # - Kiinteistö(je)n muita rakennuksia ei liitetä, sillä niissä voi olla asukkaita,
-    # joilla erilliset sopimukset.
-    # TODO: pitäisikö kuitenkin tuoda kaikki samalla perusmaksulla olevat rakennukset
-    # rakennustyypistä riippumatta? Esim. paritalo. Kysytään Lahdelta.
-    # TODO: pitäisikö erotella eri kohteiksi rakennukset, joilla on monta perusmaksua?
-    # Esim. rivitalot, pienkerrostalot. Jokaiselle kohteelle tulee samat omistajat =>
-    # tällä hetkellä ei luoda useampia kohteita samalla rakennuksella ja samoilla
-    # omistajilla. Perusmaksutiedostosta ei lueta perusmaksun tilaajien nimiä => ei
-    # tiedetä mille asukkaalle mikäkin perusmaksu kuuluu.
-    # TODO: katsottava mitä tapahtuu kun tiedostoa ei ole.
+    # 2) Perusmaksurekisterin kohteet
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
             session, perusmaksutiedosto, alkupvm, loppupvm
         )
-    session.commit()
-    print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
+        session.commit()
+        print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
+    else:
+        print("No perusmaksu data")
 
-    # 4) Paritalot: molemmille huoneistoille omat kohteet
-    # Does it matter this is imported after 7? -No, because paritalot will not
-    # interact with 7.
-    # - Asiakas on kumpikin vanhin asukas erikseen. Tuodaan myös kaikki omistajat yhteystiedoiksi.
-    # - Kiinteistöllä kaksi kohdetta joilla sama rakennus, muita rakennuksia ei liitetä.
-    # TODO: add all buildings on kiinteistö?
+    # 3) Paritalokohteet
     paritalo_kohteet = get_or_create_paritalo_kohteet(session, alkupvm, loppupvm)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
-    # Remaining buildings will be combined by owner and kiinteistö.
-    # TODO: limit imported types
-
-    # 5) Muut rakennukset, joissa huoneistotieto eli asukas: DVV:n tiedoissa
-    # kiinteistöllä yksi rakennus ja asukas. Voi olla 1 rakennus.
-    # TODO: näihin vielä asukas omistajan sijaan asiakkaaksi. TODO: makes no sense.
-    # Siinä tapauksessa vahtimestari saa koko koulun jätehuollon laskut, ja koulua
-    # ei tuodakaan omistajan nimellä.
-
-    # Does it matter this is imported after 7? - Ei. Näitä on *yksi* vapaa-ajanasuntojen
-    # kanssa samalla kiinteistöllä *koko alueella*, siinäkin useampi asukas.
-    # Tällä kiinteistöllä on yhden asunnon talo,
-    # muu pientalo, vapaa-ajanasunto ja autotalli. Autotalli eri osoitteessa, joten siitä
-    # joka tapauksessa oma kohde. Kaikilla samat omistajat. Vapaa-ajanasunto tuotu ensin.
-    # Yhden asunnon talo ja muu pientalo tuodaan lopuksi, koska kummassakin asukkaita.
-
-    # 6) Muut asumisen rakennukset (asuntola, palvelutalo): käyttötarkoitus + omistaja
-    # + kiinteistö
-    # Does it matter this is imported after 7? - Ei, koska käyttötarkoituksen mukaan
-    # rajataan kuitenkin erilliset kohteet.
-
-    # 8) Koulut: käyttötarkoitus + omistaja + sijaintikiinteistö
-    # 9) Muut rakennukset, joissa huoneisto: sama kiinteistö, sama omistaja.
-    # TODO: näihin omistaja asiakkaaksi. Voiko tehdä yhdessä 5:n kanssa?
-    # Does it matter if this is imported at the same time as 6 & 8? Voi tehdä, jos
-    # halutaan alkuperäinen järjestys, eli kouluille asiakkaaksi ainoa asukas eikä omistaja.
-    # Useamman asukkaan kohteille asiakkaaksi omistaja.
-
-    # - Asiakas on suurin omistaja.
-    # - Kiinteistön rakennukset yhdistetään omistajan ja osoitteen mukaan.
-    # TODO: limit added buildings on kiinteistö?
-    # - Kiinteistön asumattomista muun omistajan tai osoitteen rakennuksista
-    # tehdään erilliset kohteet omistajan ja osoitteen mukaan.
+    # 4) Muut kohteet
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, alkupvm, loppupvm
     )
@@ -334,9 +254,6 @@ class DbProvider:
             progress = Progress(len(jkr_data.asiakkaat))
 
             prt_counts, kitu_counts, address_counts = count(jkr_data)
-            # print(prt_counts)
-            # print(kitu_counts)
-            # print(address_counts)
             with Session(engine) as session:
                 init_code_objects(session)
 
