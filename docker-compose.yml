@@ -3,6 +3,8 @@ version: "3.9"
 volumes:
   postgis-data:
     driver: local
+  postgis-data-test:
+    driver: local
 
 services:
   db:
@@ -21,6 +23,25 @@ services:
       - JKR_PASSWORD=${JKR_PASSWORD}
     ports:
       - ${JKR_DB_PORT}:5432
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  db_test:
+    image: jkr/postgis
+    build:
+      context: ./docker/postgis/test
+    volumes:
+      - postgis-data-test:/var/lib/postgresql/data
+      - ./docker/postgis/test/init_test_db:/docker-entrypoint-initdb.d
+      - ./docker/postgis/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./docker/postgis/test/logs:/var/log/postgresql
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JKR_TEST_DB=${JKR_TEST_DB}
+      - JKR_USER=${JKR_USER}
+      - JKR_PASSWORD=${JKR_PASSWORD}
+      - PGPORT=5433
+    ports:
+      - ${JKR_TEST_DB_PORT}:5433
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
 
   flyway:
