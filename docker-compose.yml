@@ -58,6 +58,20 @@ services:
       - ./db/flyway.conf:/flyway/conf/flyway.conf
     command: migrate
 
+  flyway_test:
+    image: flyway/flyway
+    depends_on:
+      - db_test
+    profiles: [ "migration" ]
+    environment:
+      - FLYWAY_USER=${JKR_USER}
+      - FLYWAY_PASSWORD=${JKR_PASSWORD}
+      - FLYWAY_URL=jdbc:postgresql://db_test:5433/${JKR_TEST_DB}
+    volumes:
+      - ./db/migrations:/flyway/sql
+      - ./db/flyway.conf:/flyway/conf/flyway.conf
+    command: migrate
+
   tbls:
     image: k1low/tbls:latest
     depends_on:
