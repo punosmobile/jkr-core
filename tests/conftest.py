@@ -13,9 +13,10 @@ def datadir(tmpdir, request):
     tests can use them freely.
     """
     testfilepath = Path(request.module.__file__)
+    testdir = testfilepath.parent
     testfilename = testfilepath.stem
 
-    datadir = "data/" + testfilename
+    datadir = testdir / "data" / testfilename
     if os.path.isdir(datadir):
         copytree(datadir, tmpdir, dirs_exist_ok=True)
     print(datadir)
