@@ -316,7 +316,7 @@ def get_kohde_by_address(
 
 def get_dvv_rakennustiedot_without_kohde(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "Dict[int, Rakennustiedot]":
     # Fastest to load everything to memory first.
@@ -324,7 +324,9 @@ def get_dvv_rakennustiedot_without_kohde(
         select(Rakennus.id)
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        # .filter(Kohde.loppupvm.is_(None))
+        .filter(Kohde.loppupvm.isnot(None))
     )
     # Import *all* buildings, also those without inhabitants, owners and/or addresses
     rows = session.execute(
@@ -337,7 +339,7 @@ def get_dvv_rakennustiedot_without_kohde(
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         )
     ).all()
@@ -628,7 +630,7 @@ def create_new_kohde_from_buildings(
     rakennus_ids: "List[int]",
     asukkaat: "Set[Osapuoli]",
     omistajat: "Set[Osapuoli]",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -671,7 +673,7 @@ def create_new_kohde_from_buildings(
     kohde = Kohde(
         nimi=kohde_display_name,
         kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
-        alkupvm=alkupvm,
+        alkupvm=poimintapvm,
         loppupvm=loppupvm,
     )
     session.add(kohde)
@@ -710,7 +712,7 @@ def update_or_create_kohde_from_buildings(
     rakennukset: "Set[Rakennustiedot]",
     asukkaat: "Set[Osapuoli]",
     omistajat: "Set[Osapuoli]",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -817,7 +819,7 @@ def update_or_create_kohde_from_buildings(
     else:
         print("Sopivaa kohdetta ei löydy, luodaan uusi kohde.")
         return create_new_kohde_from_buildings(
-            session, rakennus_ids, asukkaat, omistajat, alkupvm, loppupvm
+            session, rakennus_ids, asukkaat, omistajat, poimintapvm, loppupvm
         )
 
     # Return existing kohde when found
@@ -840,17 +842,17 @@ def update_or_create_kohde_from_buildings(
             session.add(kohteen_rakennus)
 
     # Update kohde to be valid for the whole import period
-    if not alkupvm or (kohde.alkupvm and alkupvm < kohde.alkupvm):
-        kohde.alkupvm = alkupvm
-    if not loppupvm or (kohde.loppupvm and loppupvm > kohde.loppupvm):
-        kohde.loppupvm = loppupvm
+    if not poimintapvm or (kohde.alkupvm and poimintapvm < kohde.alkupvm):
+        kohde.alkupvm = poimintapvm
+    # if not loppupvm or (kohde.loppupvm and loppupvm > kohde.loppupvm):
+        # kohde.loppupvm = loppupvm
     return kohde
 
 
 def get_or_create_kohteet_from_vanhimmat(
     session: "Session",
     ids: "Select",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -858,7 +860,7 @@ def get_or_create_kohteet_from_vanhimmat(
     the select query.
     """
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     # iterate vanhimmat to create kohde with the right name, client and building
     vanhimmat_osapuolet_query = (
@@ -890,7 +892,7 @@ def get_or_create_kohteet_from_vanhimmat(
             {dvv_rakennustiedot[vanhin.rakennus_id]},
             {osapuoli},
             omistajat,
-            alkupvm,
+            poimintapvm,
             loppupvm,
         )
         kohteet.append(kohde)
@@ -903,7 +905,7 @@ def get_or_create_kohteet_from_rakennustiedot(
     building_sets: "List[Set[Rakennustiedot]]",
     owners_by_rakennus_id: "DefaultDict[int, Set[Osapuoli]]",
     inhabitants_by_rakennus_id: "DefaultDict[int, Set[Osapuoli]]",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -934,7 +936,7 @@ def get_or_create_kohteet_from_rakennustiedot(
             building_set,
             inhabitants,
             owners,
-            alkupvm,
+            poimintapvm,
             loppupvm,
         )
         kohteet.append(kohde)
@@ -965,7 +967,7 @@ def _match_addresses(first: "Set[Osoite]", second: "Set[Osoite]"):
 def get_or_create_kohteet_from_kiinteistot(
     session: "Session",
     kiinteistotunnukset: "Select",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -1003,7 +1005,7 @@ def get_or_create_kohteet_from_kiinteistot(
     # kiinteistö might have buildings both with and without kohde, in case some
     # buildings have been imported in previous steps.
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     print(
         f"Löydetty {len(dvv_rakennustiedot)} DVV-rakennusta ilman voimassaolevaa kohdetta"
@@ -1156,7 +1158,7 @@ def get_or_create_kohteet_from_kiinteistot(
         building_sets,
         owners_by_rakennus_id,
         inhabitants_by_rakennus_id,
-        alkupvm,
+        poimintapvm,
         loppupvm,
     )
     return kohteet
@@ -1164,7 +1166,7 @@ def get_or_create_kohteet_from_kiinteistot(
 
 def get_or_create_single_asunto_kohteet(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List(Kohde)":
     """
@@ -1186,7 +1188,8 @@ def get_or_create_single_asunto_kohteet(
         )
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        .filter(Kohde.loppupvm.isnot(None))
     )
     rakennus_id_without_kohde = (
         select(Rakennus.id)
@@ -1201,7 +1204,7 @@ def get_or_create_single_asunto_kohteet(
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         )
     )
@@ -1218,13 +1221,13 @@ def get_or_create_single_asunto_kohteet(
     print(" ")
     print("----- LUODAAN YKSITTÄISTALOKOHTEET -----")
     return get_or_create_kohteet_from_kiinteistot(
-        session, single_asunto_kiinteistotunnus, alkupvm, loppupvm
+        session, single_asunto_kiinteistotunnus, poimintapvm, loppupvm
     )
 
 
 def get_or_create_paritalo_kohteet(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List(Kohde)":
     """
@@ -1245,7 +1248,8 @@ def get_or_create_paritalo_kohteet(
         )
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        .filter(Kohde.loppupvm.isnot(None))
     )
     paritalo_rakennus_id_without_kohde = (
         select(Rakennus.id).filter(
@@ -1260,7 +1264,7 @@ def get_or_create_paritalo_kohteet(
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         )
     )
@@ -1270,13 +1274,13 @@ def get_or_create_paritalo_kohteet(
     print(" ")
     print("----- CREATING PARITALOKOHTEET ----")
     return get_or_create_kohteet_from_vanhimmat(
-        session, vanhimmat_ids, alkupvm, loppupvm
+        session, vanhimmat_ids, poimintapvm, loppupvm
     )
 
 
 def get_or_create_multiple_and_uninhabited_kohteet(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List(Kohde)":
     """
@@ -1288,7 +1292,8 @@ def get_or_create_multiple_and_uninhabited_kohteet(
         select(Rakennus.id)
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        .filter(Kohde.loppupvm.isnot(None))
     )
     kiinteistotunnus_without_kohde = (
         select(Rakennus.kiinteistotunnus)
@@ -1297,14 +1302,14 @@ def get_or_create_multiple_and_uninhabited_kohteet(
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         ).group_by(Rakennus.kiinteistotunnus)
     )
     print(" ")
     print("----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
     return get_or_create_kohteet_from_kiinteistot(
-        session, kiinteistotunnus_without_kohde, alkupvm, loppupvm
+        session, kiinteistotunnus_without_kohde, poimintapvm, loppupvm
     )
 
 
@@ -1325,7 +1330,7 @@ def _should_have_perusmaksu_kohde(rakennus: "Rakennus"):
 def create_perusmaksurekisteri_kohteet(
     session: "Session",
     perusmaksutiedosto: "Path",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -1356,7 +1361,7 @@ def create_perusmaksurekisteri_kohteet(
     # Do not import any rakennus with existing kohteet. Kerrostalokohteet
     # are eternal, so they cannot ever be imported again once imported here.
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     print(
         f"Löydetty {len(dvv_rakennustiedot)} DVV-rakennusta ilman voimassaolevaa kohdetta"
@@ -1416,7 +1421,7 @@ def create_perusmaksurekisteri_kohteet(
         # No need to add asukkaat. Asoy kohteet should not be separated or named after
         # inhabitants, and inhabitants should not be contacted.
         defaultdict(set),
-        alkupvm,
-        None,  # Let's make perusmaksu kohde last forever.
+        poimintapvm,
+        datetime.date(2100, 1, 1),  # Let's set perusmaksu kohde loppupvm to 01.01.2100.
     )
     return kohteet

@@ -207,13 +207,13 @@ def import_asiakastiedot(
 
 def import_dvv_kohteet(
     session: Session,
-    alkupvm: Optional[datetime.date],
+    poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date],
     perusmaksutiedosto: Optional[Path],
 ):
     # 1) Yhden asunnon kohteet
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     session.commit()
     print(f"Imported {len(single_asunto_kohteet)} single kohteet")
@@ -221,7 +221,7 @@ def import_dvv_kohteet(
     # 2) Perusmaksurekisterin kohteet
     if perusmaksutiedosto:
         perusmaksukohteet = create_perusmaksurekisteri_kohteet(
-            session, perusmaksutiedosto, alkupvm, loppupvm
+            session, perusmaksutiedosto, poimintapvm, loppupvm
         )
         session.commit()
         print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
@@ -229,13 +229,13 @@ def import_dvv_kohteet(
         print("No perusmaksu data")
 
     # 3) Paritalokohteet
-    paritalo_kohteet = get_or_create_paritalo_kohteet(session, alkupvm, loppupvm)
+    paritalo_kohteet = get_or_create_paritalo_kohteet(session, poimintapvm, loppupvm)
     session.commit()
     print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
     # 4) Muut kohteet
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     session.commit()
     print(f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet")
@@ -318,7 +318,7 @@ class DbProvider:
 
     def write_dvv_kohteet(
         self,
-        alkupvm: Optional[datetime.date],
+        poimintapvm: Optional[datetime.date],
         loppupvm: Optional[datetime.date],
         perusmaksutiedosto: Optional[Path],
     ):
@@ -332,7 +332,7 @@ class DbProvider:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Luodaan kohteet")
-                import_dvv_kohteet(session, alkupvm, loppupvm, perusmaksutiedosto)
+                import_dvv_kohteet(session, poimintapvm, loppupvm, perusmaksutiedosto)
 
         except Exception as e:
             logger.exception(e)

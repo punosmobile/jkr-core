@@ -94,7 +94,7 @@ def import_data(
     if alkupvm:
         alkupvm = parse_date_string(alkupvm)
     if loppupvm:
-        alkupvm = parse_date_string(loppupvm)
+        loppupvm = parse_date_string(loppupvm)
     if tiedontuottajatunnus == "HKO":
         ala_paivita = True
         if not alkupvm or not loppupvm:
@@ -102,7 +102,7 @@ def import_data(
             raise typer.Exit()
 
     translator = provider.Translator(data, tiedontuottajatunnus)
-    jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
+    jkr_data = translator.as_jkr_data(alkupvm)
     print('writing to db...')
     db = DbProvider()
     db.write(jkr_data, tiedontuottajatunnus, ala_luo, ala_paivita)
@@ -112,8 +112,8 @@ def import_data(
 
 @app.command("create_dvv_kohteet", help="Create kohteet from DVV data in database.")
 def create_dvv_kohteet(
-    alkupvm: Optional[str] = typer.Argument(None, help="Importoitavan datan alkupvm"),
-    loppupvm: Optional[str] = typer.Argument(None, help="Importoitavan datan loppupvm"),
+    poimintapvm: Optional[str] = typer.Argument(None, help="Importoitavan datan poimintapvm"),
+    # loppupvm: Optional[str] = typer.Argument(None, help="Importoitavan datan loppupvm"),
     perusmaksutiedosto: Optional[Path] = typer.Argument(
         None, help="Perusmaksurekisteritiedosto"
     ),
@@ -122,14 +122,15 @@ def create_dvv_kohteet(
     # Currently, typer does not support Union[datetime, None] argument type, so we will
     # have to parse the datetime string ourselves.
     # support all combinations of known and unknown alku- and loppupvm
-    if alkupvm == "None":
+    if poimintapvm == "None":
         start = None
     else:
-        start = datetime.strptime(alkupvm, "%d.%m.%Y").date()
-    if loppupvm == "None":
-        end = None
-    else:
-        end = datetime.strptime(loppupvm, "%d.%m.%Y").date()
+        start = datetime.strptime(poimintapvm, "%d.%m.%Y").date()
+    # if loppupvm == "None":
+        # end = None
+    # else:
+        # end = datetime.strptime(loppupvm, "%d.%m.%Y").date()
+    end = None
 
     db.write_dvv_kohteet(start, end, perusmaksutiedosto)
 
