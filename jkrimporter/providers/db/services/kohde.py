@@ -842,8 +842,6 @@ def update_or_create_kohde_from_buildings(
     # Update kohde to be valid for the whole import period
     if not poimintapvm or (kohde.alkupvm and poimintapvm < kohde.alkupvm):
         kohde.alkupvm = poimintapvm
-    # if not loppupvm or (kohde.loppupvm and loppupvm > kohde.loppupvm):
-        # kohde.loppupvm = loppupvm
     return kohde
 
 

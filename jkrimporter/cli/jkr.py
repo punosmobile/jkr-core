@@ -113,7 +113,6 @@ def import_data(
 @app.command("create_dvv_kohteet", help="Create kohteet from DVV data in database.")
 def create_dvv_kohteet(
     poimintapvm: Optional[str] = typer.Argument(None, help="Importoitavan datan poimintapvm"),
-    # loppupvm: Optional[str] = typer.Argument(None, help="Importoitavan datan loppupvm"),
     perusmaksutiedosto: Optional[Path] = typer.Argument(
         None, help="Perusmaksurekisteritiedosto"
     ),
@@ -126,10 +125,6 @@ def create_dvv_kohteet(
         start = None
     else:
         start = datetime.strptime(poimintapvm, "%d.%m.%Y").date()
-    # if loppupvm == "None":
-        # end = None
-    # else:
-        # end = datetime.strptime(loppupvm, "%d.%m.%Y").date()
     end = None
 
     db.write_dvv_kohteet(start, end, perusmaksutiedosto)
