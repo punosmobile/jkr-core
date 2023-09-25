@@ -324,9 +324,7 @@ def get_dvv_rakennustiedot_without_kohde(
         select(Rakennus.id)
         .join(KohteenRakennukset)
         .join(Kohde)
-        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
-        # .filter(Kohde.loppupvm.is_(None))
-        .filter(Kohde.loppupvm.isnot(None))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     # Import *all* buildings, also those without inhabitants, owners and/or addresses
     rows = session.execute(
@@ -1188,8 +1186,7 @@ def get_or_create_single_asunto_kohteet(
         )
         .join(KohteenRakennukset)
         .join(Kohde)
-        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
-        .filter(Kohde.loppupvm.isnot(None))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     rakennus_id_without_kohde = (
         select(Rakennus.id)
@@ -1248,8 +1245,7 @@ def get_or_create_paritalo_kohteet(
         )
         .join(KohteenRakennukset)
         .join(Kohde)
-        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
-        .filter(Kohde.loppupvm.isnot(None))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     paritalo_rakennus_id_without_kohde = (
         select(Rakennus.id).filter(
@@ -1292,8 +1288,7 @@ def get_or_create_multiple_and_uninhabited_kohteet(
         select(Rakennus.id)
         .join(KohteenRakennukset)
         .join(Kohde)
-        # .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
-        .filter(Kohde.loppupvm.isnot(None))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     kiinteistotunnus_without_kohde = (
         select(Rakennus.kiinteistotunnus)
