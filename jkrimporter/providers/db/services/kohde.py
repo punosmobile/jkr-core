@@ -632,9 +632,8 @@ def create_new_kohde_from_buildings(
     loppupvm: "Optional[datetime.date]",
 ):
     """
-    Create combined kohde for the given list of building ids. Asukkaat or, if empty,
-    omistajat will be used for kohde name. Asukkaat will be added as asiakkaat, and
-    omistajat will be added as yhteystiedot.
+    Create combined kohde for the given list of building ids. Omistaja or asukas
+    will be used for kohde name. Omistajat will be added as yhteystiedot.
     """
     if omistajat:
         # prefer companies over private owners when naming combined objects
@@ -653,7 +652,7 @@ def create_new_kohde_from_buildings(
             asiakas = min(yhteiso_asiakkaat, key=lambda x: x.nimi)
         elif asukkaat:
             asiakas = min(asukkaat, key=lambda x: x.nimi)
-        elif omistajat:
+        else:
             asiakas = min(omistajat, key=lambda x: x.nimi)
     else:
         if asukkaat:
