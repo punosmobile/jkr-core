@@ -646,18 +646,14 @@ def create_new_kohde_from_buildings(
             osapuoli for osapuoli in omistajat if is_yhteiso(osapuoli.nimi)
         }
         if asoy_asiakkaat:
-            # asiakas = next(iter(asoy_asiakkaat))
             asiakas = min(asoy_asiakkaat, key=lambda x: x.nimi)
         elif company_asiakkaat:
-            # asiakas = next(iter(company_asiakkaat))
             asiakas = min(company_asiakkaat, key=lambda x: x.nimi)
         elif yhteiso_asiakkaat:
-            # asiakas = next(iter(yhteiso_asiakkaat))
             asiakas = min(yhteiso_asiakkaat, key=lambda x: x.nimi)
         elif asukkaat:
             asiakas = min(asukkaat, key=lambda x: x.nimi)
         elif omistajat:
-            # asiakas = next(iter(omistajat))
             asiakas = min(omistajat, key=lambda x: x.nimi)
     else:
         if asukkaat:
