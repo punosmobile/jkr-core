@@ -64,7 +64,11 @@ def create_or_update_haltija_osapuoli(
 def create_or_update_yhteystieto_osapuoli(
     session, kohde, asiakas: "Asiakas", update_contacts: bool
 ):
-    yhteystietorooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO]
+    # yhteystietorooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO]
+    yhteystietorooli = codes.osapuolenroolit[
+        OsapuolenrooliTyyppi.OMISTAJA,
+        OsapuolenrooliTyyppi.VANHIN_ASUKAS
+        ]
 
     # Filter osapuoli by the same tiedontuottaja. This way, we don't
     # override data coming from other tiedontuottajat, including DVV.

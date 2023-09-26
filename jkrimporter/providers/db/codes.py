@@ -50,8 +50,19 @@ class OsapuolenlajiTyyppi(Enum):
 
 
 class OsapuolenrooliTyyppi(Enum):
+    # Definitions at https://github.com/GispoCoding/jkr-lahti/issues/73
     ASIAKAS = "Asiakas"
-    YHTEYSTIETO = "Yhteystieto"
+    VANHIN_ASUKAS = "Vanhin asukas"
+    ASUKAS = "Asukas"
+    OMISTAJA = "Omistaja"
+    SEKAJATE_TILAAJA = "Sekajätteen tilaaja"
+    ENERGIAJATE_TILAAJA = "Energiajätteen tilaaja"
+    PAKKAUS_JA_BIOJATE_TILAAJA = "Pakkaus- ja biojätteen tilaaja"
+    AKP_TILAAJA = "Apk-tilaaja"
+    LIETE_KULJETUS_TILAAJA = "Lietteen kuljetuksen tilaaja"
+    KIMPPAISANTA = "Kimppaisäntä"
+    KIMPPAOSAKAS = "Kimppaosakas"
+    # YHTEYSTIETO = "Yhteystieto"
 
 
 class RakennuksenKayttotarkoitusTyyppi(Enum):
