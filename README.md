@@ -119,14 +119,28 @@ dbname=ymparisto_db
 > **Development**  
 > For development use the [QGIS-project](qgis/jkr.qgs) can be used.
 
-## Naming development branches
+## Testing
 
-Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}-{description}`. For example, `"Lahti-99-kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators. 
+The testing procedures are under construction. Currently, the tests can be run only in a Windows system. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.
 
-## Test data
+1. The ogr2ogr converter is used in importing DVV data. Set the correct path to ogr2ogr.exe in `/tests/scripts/init_database.bat`.
+
+```bash
+SET OGR2OGR_PATH="C:\\Program Files\\QGIS 3.28.9\\bin"
+```
+
+2. The settings for the local test database are stored in `/tests/.env`. Copy the defaults from `/tests/.env.template`.
+
+3. When calling `pytest` the batch file `/tests/scripts/init_database.bat` is run before the tests related to the database.
+
+### Test data
 
 The data used in tests (`/tests/data`) is mostly dummy data created only for testing fixtures. Currently, there is only one exception.
 
-### Postal code data
+#### Postal code data
 
 The postal code data (`/tests/data/test_data_import`) is real data downloaded from Postal Code Services by Posti. Please see the current service description and terms of use if you share this data further. [Service description and terms of use](https://www.posti.fi/mzj3zpe8qb7p/1eKbwM2WAEY5AuGi5TrSZ7/c76a865cf5feb2c527a114b8615e9580/posti-postal-code-services-service-description-and-terms-of-use-20150101.pdf) 
+
+## Naming development branches
+
+Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}-{description}`. For example, `"Lahti-99-kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators. 
