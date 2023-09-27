@@ -122,3 +122,11 @@ dbname=ymparisto_db
 ## Naming development branches
 
 Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}-{description}`. For example, `"Lahti-99-kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators. 
+
+## Test data
+
+The data used in tests (`/tests/data`) is mostly dummy data created only for testing fixtures. Currently, there is only one exception.
+
+### Postal code data
+
+The postal code data (`/tests/data/test_data_import`) is real data downloaded from Postal Code Services by Posti. Please see the current service description and terms of use if you share this data further. [Service description and terms of use](https://www.posti.fi/mzj3zpe8qb7p/1eKbwM2WAEY5AuGi5TrSZ7/c76a865cf5feb2c527a114b8615e9580/posti-postal-code-services-service-description-and-terms-of-use-20150101.pdf) 
