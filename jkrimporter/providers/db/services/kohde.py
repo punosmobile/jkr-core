@@ -772,12 +772,12 @@ def update_or_create_kohde_from_buildings(
         # separate asukkaat from omistajat
         if (
             osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.VANHIN_ASUKAS]
+            == codes.osapuolenroolit[OsapuolenrooliTyyppi.VANHIN_ASUKAS].id
         ):
             kohdetiedot_by_kohde[kohde.id][3].add(osapuoli)
         if (
             osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.OMISTAJA]
+            == codes.osapuolenroolit[OsapuolenrooliTyyppi.OMISTAJA].id
         ):
             kohdetiedot_by_kohde[kohde.id][4].add(osapuoli)
     for kohdetiedot in kohdetiedot_by_kohde.values():
