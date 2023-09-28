@@ -62,7 +62,6 @@ class OsapuolenrooliTyyppi(Enum):
     LIETE_KULJETUS_TILAAJA = "Lietteen kuljetuksen tilaaja"
     KIMPPAISANTA = "Kimppaisäntä"
     KIMPPAOSAKAS = "Kimppaosakas"
-    # YHTEYSTIETO = "Yhteystieto"
 
 
 class RakennuksenKayttotarkoitusTyyppi(Enum):
