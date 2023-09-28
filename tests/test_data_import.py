@@ -31,12 +31,7 @@ def test_osapuolenrooli(engine):
 
 def test_import_dvv_kohteet(engine, datadir):
     try:
-        eng = create_engine(
-            "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(**conf.dbconf),
-            future=True,
-            json_serializer=json_dumps
-        )
-        with Session(eng) as session:
+        with Session(engine) as session:
             init_code_objects(session)
             import_dvv_kohteet(session,
                                datetime.strptime("1.1.2022", "%d.%m.%Y").date(),
