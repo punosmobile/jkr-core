@@ -211,42 +211,6 @@ class Asiakas:
 ToimituspaikkaID = int
 
 
-# @dataclass
-# class Omistaja:
-    # asiakasnumero: Tunnus
-    # ulkoinen_asiakastieto: dict
-    # voimassa: Interval
-    # haltija: Yhteystieto
-    # yhteyshenkilo: Optional[Yhteystieto] = None
-    # kiinteistot: List[Kiinteistonumero] = field(default_factory=list)
-    # rakennukset: List[Rakennustunnus] = field(default_factory=list)
-    # sopimukset: List[Union[TyhjennysSopimus, KimppaSopimus]] = field(
-        # default_factory=list
-    # )
-    # tyhjennystapahtumat: List[Tyhjennystapahtuma] = field(default_factory=list)
-
-
-# ToimituspaikkaID = int
-
-
-# @dataclass
-# class VanhinAsukas:
-    # asiakasnumero: Tunnus
-    # ulkoinen_asiakastieto: dict
-    # voimassa: Interval
-    # haltija: Yhteystieto
-    # yhteyshenkilo: Optional[Yhteystieto] = None
-    # kiinteistot: List[Kiinteistonumero] = field(default_factory=list)
-    # rakennukset: List[Rakennustunnus] = field(default_factory=list)
-    # sopimukset: List[Union[TyhjennysSopimus, KimppaSopimus]] = field(
-        # default_factory=list
-    # )
-    # tyhjennystapahtumat: List[Tyhjennystapahtuma] = field(default_factory=list)
-
-
-ToimituspaikkaID = int
-
-
 @dataclass
 class ToimitusPaikka(Yritys):
     id: ToimituspaikkaID

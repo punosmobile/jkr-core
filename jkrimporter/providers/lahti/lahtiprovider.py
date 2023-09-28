@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, Union
 from addrparser import AddressParser
 
 from jkrimporter.model import Asiakas as JkrAsiakas
-from jkrimporter.model import Omistaja as JkrOmistaja
-from jkrimporter.model import VanhinAsukas as JkrVanhinAsukas
 from jkrimporter.model import Jatelaji as JkrJatelaji
 from jkrimporter.model import JkrData, Keraysvaline, KeraysvalineTyyppi
 from jkrimporter.model import Keskeytys as JkrKeskeytys
@@ -209,42 +207,6 @@ class LahtiTranslator:
             yhteyshenkilo=yhteyshenkilo,
         )
         return asiakas
-
-
-    """def _create_omistaja(self, tunnus: Tunnus, row: Asiakas) -> JkrOmistaja:
-        # self._tunnus_by_urakoitsija_and_asiakasnro[row.UrakoitsijaId][
-        #     row.UrakoitsijankohdeId
-        # ] = tunnus
-        haltija = create_haltija(row)
-        yhteyshenkilo = create_yhteyshenkilo(row)
-        asiakas = JkrOmistaja(
-            asiakasnumero=tunnus,
-            voimassa=Interval(row.Pvmalk, row.Pvmasti),
-            ulkoinen_asiakastieto=row,
-            # obviously, prt is called Kiinteistotunnus in Lahti data
-            rakennukset=[row.Kiinteistotunnus] if row.Kiinteistotunnus else [],
-            haltija=haltija,
-            yhteyshenkilo=yhteyshenkilo,
-        )
-        return asiakas"""
-
-
-    """def _create_vanhin_asukas(self, tunnus: Tunnus, row: Asiakas) -> JkrVanhinAsukas:
-        # self._tunnus_by_urakoitsija_and_asiakasnro[row.UrakoitsijaId][
-        #     row.UrakoitsijankohdeId
-        # ] = tunnus
-        haltija = create_haltija(row)
-        yhteyshenkilo = create_yhteyshenkilo(row)
-        asiakas = JkrVanhinAsukas(
-            asiakasnumero=tunnus,
-            voimassa=Interval(row.Pvmalk, row.Pvmasti),
-            ulkoinen_asiakastieto=row,
-            # obviously, prt is called Kiinteistotunnus in Lahti data
-            rakennukset=[row.Kiinteistotunnus] if row.Kiinteistotunnus else [],
-            haltija=haltija,
-            yhteyshenkilo=yhteyshenkilo,
-        )
-        return asiakas"""
 
     def _append_asiakkaat(
         self, data: JkrData, alkupvm: Union[None, date], loppupvm: Union[None, date]
