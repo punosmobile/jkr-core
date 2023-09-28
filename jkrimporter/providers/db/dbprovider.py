@@ -36,7 +36,6 @@ from .services.kohde import (
 )
 from .services.osapuoli import (
     create_or_update_haltija_osapuoli,
-    create_or_update_yhteystieto_osapuoli,
 )
 from .services.sopimus import update_sopimukset_for_kohde
 
@@ -187,10 +186,9 @@ def import_asiakastiedot(
         print(f"Could not find kohde for asiakas {asiakas}, skipping...")
         return
 
-    # Update osapuolet from the same tiedontuottaja. These functions will not
+    # Update osapuolet from the same tiedontuottaja. This function will not
     # touch data from other tiedontuottajat.
     create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
-    create_or_update_yhteystieto_osapuoli(session, kohde, asiakas, do_update)
 
     update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
     insert_kuljetukset(
