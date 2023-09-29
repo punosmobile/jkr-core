@@ -691,7 +691,7 @@ def create_new_kohde_from_buildings(
         asiakas = KohteenOsapuolet(
             osapuoli_id=osapuoli.id,
             kohde_id=kohde.id,
-            osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
+            osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.VANHIN_ASUKAS]
         )
         session.add(asiakas)
     # save all omistajat as yhteystiedot, even if they also live in the building.
@@ -700,7 +700,9 @@ def create_new_kohde_from_buildings(
         yhteystieto = KohteenOsapuolet(
             osapuoli_id=osapuoli.id,
             kohde_id=kohde.id,
-            osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO],
+            osapuolenrooli=codes.osapuolenroolit[
+                OsapuolenrooliTyyppi.OMISTAJA
+            ],
         )
         session.add(yhteystieto)
     return kohde
@@ -770,12 +772,12 @@ def update_or_create_kohde_from_buildings(
         # separate asukkaat from omistajat
         if (
             osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS].id
+            == codes.osapuolenroolit[OsapuolenrooliTyyppi.VANHIN_ASUKAS].id
         ):
             kohdetiedot_by_kohde[kohde.id][3].add(osapuoli)
         if (
             osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO].id
+            == codes.osapuolenroolit[OsapuolenrooliTyyppi.OMISTAJA].id
         ):
             kohdetiedot_by_kohde[kohde.id][4].add(osapuoli)
     for kohdetiedot in kohdetiedot_by_kohde.values():
