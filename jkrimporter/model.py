@@ -68,6 +68,28 @@ class Yhteystieto:
 
 
 @dataclass
+class Omistaja:
+    nimi: str
+    osoite: Osoite
+    ytunnus: Optional[str] = None
+    henkilotunnus: Optional[str] = None
+
+
+@dataclass
+class VanhinAsukas:
+    nimi: str
+    osoite: Osoite
+    henkilotunnus: Optional[str] = None
+
+
+@dataclass
+class Asukas:
+    nimi: str
+    osoite: Osoite
+    henkilotunnus: Optional[str] = None
+
+
+@dataclass
 class Yritys:
     nimi: str
     osoite: Osoite
