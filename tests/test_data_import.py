@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import pytest
-from sqlalchemy import create_engine, distinct, func, select
+from sqlalchemy import create_engine, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -50,12 +50,13 @@ def test_import_dvv_kohteet(engine, datadir):
     assert [row[0] for row in session.execute(kohteet)] == \
         [row[0] for row in session.execute(kohteet_having_omistaja)]
 
-    # Kohteessa nimeltä Forsström vain yksi asuttu huoneisto, vanhin asukas osapuoleksi
+    # Kohteissa nimeltä Forsström ja Kemp vain yksi asuttu huoneisto, vanhin asukas osapuoleksi
     vanhin_asukas_filter = KohteenOsapuolet.osapuolenrooli_id == 2
-    forsstrom_id = session.execute(select(Kohde.id).where(Kohde.nimi == 'Forsström')).fetchone()[0]
+    kohde_ids = \
+        session.execute(select(Kohde.id).where(or_(Kohde.nimi == 'Forsström', Kohde.nimi == 'Kemp'))).fetchall()
     vanhin_asukas_id = \
-        session.execute(select(KohteenOsapuolet.kohde_id).where(vanhin_asukas_filter)).fetchone()[0]
-    assert forsstrom_id == vanhin_asukas_id
+        session.execute(select(KohteenOsapuolet.kohde_id).where(vanhin_asukas_filter)).fetchall()
+    assert kohde_ids == vanhin_asukas_id
 
     # Muissa kohteissa ei vanhinta asukasta osapuolena
     assert session.query(func.count(KohteenOsapuolet.kohde_id)).filter(vanhin_asukas_filter).scalar() == 1
