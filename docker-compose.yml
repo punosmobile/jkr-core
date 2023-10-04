@@ -27,6 +27,7 @@ services:
 
   db_test:
     image: jkr/postgis
+    container_name: test_database
     build:
       context: ./docker/postgis/test
     volumes:
