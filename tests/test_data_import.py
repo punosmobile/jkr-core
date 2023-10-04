@@ -1,4 +1,6 @@
 from datetime import datetime
+
+import pytest
 from sqlalchemy import create_engine, distinct, func, select
 from sqlalchemy.orm import Session
 
