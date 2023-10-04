@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from shutil import copytree
+import subprocess
 
 from pytest import fixture
 
@@ -24,3 +25,16 @@ def datadir(tmpdir, request):
     print(os.listdir(tmpdir))
 
     return tmpdir
+
+
+def pytest_sessionstart(session):
+    """
+    Called after the Session object has been created and
+    before performing collection and entering the run test loop.
+    Creating the test database each time from scratch.
+    """
+    init_test_db_command = ".\\scripts\\init_database.bat"
+    try:
+        subprocess.check_output(init_test_db_command, shell=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        print(f"Creating test database failed: {e.output}")
