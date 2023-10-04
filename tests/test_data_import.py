@@ -2,7 +2,7 @@ from datetime import datetime
 import subprocess
 
 import pytest
-from sqlalchemy import create_engine, distinct, func, or_, select
+from sqlalchemy import and_, create_engine, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -85,9 +85,11 @@ def test_update_dvv_kohteet(engine):
     assert session.query(func.count(Kohde.id)).scalar() == 5
 
     # Kohteessa Kemp osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
-    kohde_id = session.execute(select(Kohde.id).where(Kohde.nimi == 'Kemp')).fetchone()[0]
+    kohde_filter = and_(Kohde.nimi == 'Kemp', Kohde.alkupvm == '2023-01-01')
+    kohde_id = session.execute(select(Kohde.id).where(kohde_filter)).fetchone()[0]
+    osapuoli_filter = or_(Osapuoli.nimi.like('Granström%'), Osapuoli.nimi.like('Kyykoski%'))
     osapuoli_ids = \
-        session.execute(select(Osapuoli.id).where(or_(Osapuoli.nimi == 'Granström', Kohde.nimi == 'Kyykoski'))).fetchall()
+        session.query(Osapuoli.id).filter(osapuoli_filter).order_by(Osapuoli.id)
     kohteen_osapuolet_ids = \
-        session.execute(select(KohteenOsapuolet.id).where(KohteenOsapuolet.kohde_id == kohde_id))
-    assert osapuoli_ids == kohteen_osapuolet_ids
+        session.query(KohteenOsapuolet.osapuoli_id).filter(KohteenOsapuolet.kohde_id == kohde_id).order_by(KohteenOsapuolet.osapuoli_id)
+    assert [r1.id for r1 in osapuoli_ids] == [r2.osapuoli_id for r2 in kohteen_osapuolet_ids]
