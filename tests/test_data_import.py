@@ -1,5 +1,4 @@
 import subprocess
-import time
 
 from datetime import datetime
 from sqlalchemy import create_engine, distinct, func, select
@@ -44,7 +43,12 @@ def test_osapuolenrooli(engine):
 
 def test_import_dvv_kohteet(engine, datadir):
     try:
-        with Session(engine) as session:
+        eng = create_engine(
+            "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(**conf.dbconf),
+            future=True,
+            json_serializer=json_dumps
+        )
+        with Session(eng) as session:
             init_code_objects(session)
             import_dvv_kohteet(session,
                                datetime.strptime("1.1.2022", "%d.%m.%Y").date(),
