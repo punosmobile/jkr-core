@@ -9,7 +9,7 @@ from jkrimporter import conf
 from jkrimporter.providers.db.codes import init_code_objects
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
-from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Osapuolenrooli
+from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Osapuoli, Osapuolenrooli
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -76,9 +76,18 @@ def test_update_dvv_kohteet(engine):
             init_code_objects(session)
             import_dvv_kohteet(session,
                                datetime.strptime("1.1.2023", "%d.%m.%Y").date(),
-                               datetime.strptime("31.12.2023", "%d.%m.%Y").date())
+                               datetime.strptime("31.12.2023", "%d.%m.%Y").date(),
+                               None)
     except Exception as e:
         print(f"Updating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 4
+    assert session.query(func.count(Kohde.id)).scalar() == 5
+
+    # Kohteessa Kemp osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
+    kohde_id = session.execute(select(Kohde.id).where(Kohde.nimi == 'Kemp')).fetchone()[0]
+    osapuoli_ids = \
+        session.execute(select(Osapuoli.id).where(or_(Osapuoli.nimi == 'Granström', Kohde.nimi == 'Kyykoski'))).fetchall()
+    kohteen_osapuolet_ids = \
+        session.execute(select(KohteenOsapuolet.id).where(KohteenOsapuolet.kohde_id == kohde_id))
+    assert osapuoli_ids == kohteen_osapuolet_ids
