@@ -133,6 +133,10 @@ SET OGR2OGR_PATH="C:\\Program Files\\QGIS 3.28.9\\bin"
 
 3. When calling `pytest` the batch file `/tests/scripts/init_database.bat` is run before the tests related to the database.
 
+NOTE:
+
+If your environment contains saved environmental variables, they could cause issues with the tests.
+
 ### Test data
 
 The data used in tests (`/tests/data`) is mostly dummy data created only for testing fixtures. Currently, there is only one exception.
