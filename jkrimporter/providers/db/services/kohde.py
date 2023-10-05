@@ -1035,7 +1035,7 @@ def get_or_create_kohteet_from_kiinteistot(
     rakennus_inhabitants = session.execute(
         select(RakennuksenVanhimmat.rakennus_id, Osapuoli).join(
             Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id
-        )
+        ).where(RakennuksenVanhimmat.loppupvm.is_(None))
     ).all()
     inhabitants_by_rakennus_id = defaultdict(set)
     for (rakennus_id, inhabitant) in rakennus_inhabitants:

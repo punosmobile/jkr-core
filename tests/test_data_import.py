@@ -84,8 +84,8 @@ def test_update_dvv_kohteet(engine):
     # Kohteiden lkm
     assert session.query(func.count(Kohde.id)).scalar() == 5
 
-    # Kohteessa Kemp osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
-    kohde_filter = and_(Kohde.nimi == 'Kemp', Kohde.alkupvm == '2023-01-01')
+    # Uudessa kohteessa Kyykoski osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
+    kohde_filter = and_(Kohde.nimi == 'Kyykoski', Kohde.alkupvm == '2023-01-01')
     kohde_id = session.execute(select(Kohde.id).where(kohde_filter)).fetchone()[0]
     osapuoli_filter = or_(Osapuoli.nimi.like('Granström%'), Osapuoli.nimi.like('Kyykoski%'))
     osapuoli_ids = \
