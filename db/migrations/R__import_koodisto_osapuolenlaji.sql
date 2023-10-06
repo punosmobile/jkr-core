@@ -1,4 +1,4 @@
 insert into jkr_koodistot.osapuolenrooli(id, selite) values
-    (1,'Asiakas'),
-    (2,'Yhteystieto')
-on conflict do nothing;
+    (1,'Omistaja'),
+    (2,'Vanhin asukas')
+on conflict (id) do update set selite = excluded.selite;

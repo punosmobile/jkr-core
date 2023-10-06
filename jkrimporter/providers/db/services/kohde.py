@@ -180,9 +180,6 @@ def find_kohde_by_address(
     else:
         osoitenumero_filter = Osoite.osoitenumero.in_(osoitenumerot)
     print(osoitenumero_filter)
-    # TODO: Do we need to check the kohde has vanhemmat with the correct
-    # huoneistotunnus?
-    # We do it when adding buildings to a new kohde in buildings.py.
 
     filter = and_(
         sqlalchemyFunc.lower(Osoite.posti_numero) == asiakas.haltija.osoite.postinumero,
@@ -314,14 +311,12 @@ def get_or_create_pseudokohde(session: "Session", nimi: str, kohdetyyppi) -> Koh
 def get_kohde_by_address(
     session: "Session", asiakas: "Asiakas"
 ) -> "Union[Kohde, None]":
-    # TODO: etsi kohde etsimällä rakennukset käyttäen find_buildings_for_kohde
-    # funktiota. Valitse näistä oikea kohde.
     ...
 
 
 def get_dvv_rakennustiedot_without_kohde(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "Dict[int, Rakennustiedot]":
     # Fastest to load everything to memory first.
@@ -329,7 +324,7 @@ def get_dvv_rakennustiedot_without_kohde(
         select(Rakennus.id)
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     # Import *all* buildings, also those without inhabitants, owners and/or addresses
     rows = session.execute(
@@ -342,7 +337,7 @@ def get_dvv_rakennustiedot_without_kohde(
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         )
     ).all()
@@ -633,17 +628,14 @@ def create_new_kohde_from_buildings(
     rakennus_ids: "List[int]",
     asukkaat: "Set[Osapuoli]",
     omistajat: "Set[Osapuoli]",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
-    Create combined kohde for the given list of building ids. Asukkaat or, if empty,
-    omistajat will be used for kohde name. Asukkaat will be added as asiakkaat, and
-    omistajat will be added as yhteystiedot.
+    Create combined kohde for the given list of building ids. Omistaja or asukas
+    will be used for kohde name. Omistajat will be added as yhteystiedot.
     """
-    if asukkaat:
-        asiakas = next(iter(asukkaat))
-    else:
+    if omistajat:
         # prefer companies over private owners when naming combined objects
         asoy_asiakkaat = {osapuoli for osapuoli in omistajat if is_asoy(osapuoli.nimi)}
         company_asiakkaat = {
@@ -653,13 +645,18 @@ def create_new_kohde_from_buildings(
             osapuoli for osapuoli in omistajat if is_yhteiso(osapuoli.nimi)
         }
         if asoy_asiakkaat:
-            asiakas = next(iter(asoy_asiakkaat))
+            asiakas = min(asoy_asiakkaat, key=lambda x: x.nimi)
         elif company_asiakkaat:
-            asiakas = next(iter(company_asiakkaat))
+            asiakas = min(company_asiakkaat, key=lambda x: x.nimi)
         elif yhteiso_asiakkaat:
-            asiakas = next(iter(yhteiso_asiakkaat))
-        elif omistajat:
-            asiakas = next(iter(omistajat))
+            asiakas = min(yhteiso_asiakkaat, key=lambda x: x.nimi)
+        elif asukkaat:
+            asiakas = min(asukkaat, key=lambda x: x.nimi)
+        else:
+            asiakas = min(omistajat, key=lambda x: x.nimi)
+    else:
+        if asukkaat:
+            asiakas = min(asukkaat, key=lambda x: x.nimi)
         else:
             asiakas = None
     if asiakas:
@@ -676,7 +673,7 @@ def create_new_kohde_from_buildings(
     kohde = Kohde(
         nimi=kohde_display_name,
         kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
-        alkupvm=alkupvm,
+        alkupvm=poimintapvm,
         loppupvm=loppupvm,
     )
     session.add(kohde)
@@ -694,7 +691,7 @@ def create_new_kohde_from_buildings(
         asiakas = KohteenOsapuolet(
             osapuoli_id=osapuoli.id,
             kohde_id=kohde.id,
-            osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
+            osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.VANHIN_ASUKAS]
         )
         session.add(asiakas)
     # save all omistajat as yhteystiedot, even if they also live in the building.
@@ -703,7 +700,9 @@ def create_new_kohde_from_buildings(
         yhteystieto = KohteenOsapuolet(
             osapuoli_id=osapuoli.id,
             kohde_id=kohde.id,
-            osapuolenrooli=codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO],
+            osapuolenrooli=codes.osapuolenroolit[
+                OsapuolenrooliTyyppi.OMISTAJA
+            ],
         )
         session.add(yhteystieto)
     return kohde
@@ -715,7 +714,7 @@ def update_or_create_kohde_from_buildings(
     rakennukset: "Set[Rakennustiedot]",
     asukkaat: "Set[Osapuoli]",
     omistajat: "Set[Osapuoli]",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -773,12 +772,12 @@ def update_or_create_kohde_from_buildings(
         # separate asukkaat from omistajat
         if (
             osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS].id
+            == codes.osapuolenroolit[OsapuolenrooliTyyppi.VANHIN_ASUKAS].id
         ):
             kohdetiedot_by_kohde[kohde.id][3].add(osapuoli)
         if (
             osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.YHTEYSTIETO].id
+            == codes.osapuolenroolit[OsapuolenrooliTyyppi.OMISTAJA].id
         ):
             kohdetiedot_by_kohde[kohde.id][4].add(osapuoli)
     for kohdetiedot in kohdetiedot_by_kohde.values():
@@ -794,7 +793,7 @@ def update_or_create_kohde_from_buildings(
         kohteen_asukas_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[3])
         kohteen_omistaja_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[4])
         print("Tutkitaan kohteen merkitseviä rakennuksia:")
-        # 1) use kohde if rakennukset and osapuolet are same
+        # use kohde if rakennukset and osapuolet are same
         if (
             kohteen_rakennus_ids == significant_building_ids
             and kohteen_asukas_ids == asukas_ids
@@ -802,11 +801,11 @@ def update_or_create_kohde_from_buildings(
         ):
             print("Rakennukset, asukkaat ja omistajat samat!")
             break
-        # 3) discard kohde if rakennukset are missing
+        # discard kohde if rakennukset are missing
         if significant_building_ids < kohteen_rakennus_ids:
             print("Merkitseviä rakennuksia puuttuu")
             continue
-        # 4) use kohde if rakennukset are added
+        # use kohde if rakennukset are added
         if (
             kohteen_rakennus_ids < significant_building_ids
             and kohteen_asukas_ids == asukas_ids
@@ -814,7 +813,7 @@ def update_or_create_kohde_from_buildings(
         ):
             print("Merkitsevät rakennukset, asukkaat ja omistajat samat!")
             break
-        # 4, 5, 6) discard kohde if owners or inhabitants are different
+        # discard kohde if owners or inhabitants are different
         if kohteen_asukas_ids != asukas_ids or kohteen_omistaja_ids != omistaja_ids:
             print("Asukkaat tai omistajat eri")
             continue
@@ -822,14 +821,11 @@ def update_or_create_kohde_from_buildings(
     else:
         print("Sopivaa kohdetta ei löydy, luodaan uusi kohde.")
         return create_new_kohde_from_buildings(
-            session, rakennus_ids, asukkaat, omistajat, alkupvm, loppupvm
+            session, rakennus_ids, asukkaat, omistajat, poimintapvm, loppupvm
         )
 
     # Return existing kohde when found
     print("Olemassaoleva kohde löytynyt.")
-    # TODO: should we somehow process saunas separately? They might be added and/or
-    # removed to any kohteet here while the kohde itself stays the same.
-    # Remove extra auxiliary buildings
     for kohteen_rakennus in kohteen_lisarakennukset:
         print("Tarkistetaan kohteen lisärakennus")
         print(kohteen_rakennus.rakennus_id)
@@ -848,17 +844,15 @@ def update_or_create_kohde_from_buildings(
             session.add(kohteen_rakennus)
 
     # Update kohde to be valid for the whole import period
-    if not alkupvm or (kohde.alkupvm and alkupvm < kohde.alkupvm):
-        kohde.alkupvm = alkupvm
-    if not loppupvm or (kohde.loppupvm and loppupvm > kohde.loppupvm):
-        kohde.loppupvm = loppupvm
+    if not poimintapvm or (kohde.alkupvm and poimintapvm < kohde.alkupvm):
+        kohde.alkupvm = poimintapvm
     return kohde
 
 
 def get_or_create_kohteet_from_vanhimmat(
     session: "Session",
     ids: "Select",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -866,7 +860,7 @@ def get_or_create_kohteet_from_vanhimmat(
     the select query.
     """
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     # iterate vanhimmat to create kohde with the right name, client and building
     vanhimmat_osapuolet_query = (
@@ -888,7 +882,6 @@ def get_or_create_kohteet_from_vanhimmat(
             .where(RakennuksenOmistajat.rakennus_id == vanhin.rakennus_id)
         )
         omistajat = {row[1] for row in session.execute(omistajat_query).all()}
-        # print(f"Building {vanhin.rakennus_id} has owners {omistajat}")
         # The correct kohde is found by checking the inhabitant in each half. In case
         # of paritalo, we don't know which owner owned which part of the building.
         # Therefore, we will have to create new kohteet for both halves when somebody
@@ -899,7 +892,7 @@ def get_or_create_kohteet_from_vanhimmat(
             {dvv_rakennustiedot[vanhin.rakennus_id]},
             {osapuoli},
             omistajat,
-            alkupvm,
+            poimintapvm,
             loppupvm,
         )
         kohteet.append(kohde)
@@ -912,7 +905,7 @@ def get_or_create_kohteet_from_rakennustiedot(
     building_sets: "List[Set[Rakennustiedot]]",
     owners_by_rakennus_id: "DefaultDict[int, Set[Osapuoli]]",
     inhabitants_by_rakennus_id: "DefaultDict[int, Set[Osapuoli]]",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -943,7 +936,7 @@ def get_or_create_kohteet_from_rakennustiedot(
             building_set,
             inhabitants,
             owners,
-            alkupvm,
+            poimintapvm,
             loppupvm,
         )
         kohteet.append(kohde)
@@ -974,7 +967,7 @@ def _match_addresses(first: "Set[Osoite]", second: "Set[Osoite]"):
 def get_or_create_kohteet_from_kiinteistot(
     session: "Session",
     kiinteistotunnukset: "Select",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -1012,7 +1005,7 @@ def get_or_create_kohteet_from_kiinteistot(
     # kiinteistö might have buildings both with and without kohde, in case some
     # buildings have been imported in previous steps.
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     print(
         f"Löydetty {len(dvv_rakennustiedot)} DVV-rakennusta ilman voimassaolevaa kohdetta"
@@ -1123,9 +1116,7 @@ def get_or_create_kohteet_from_kiinteistot(
                         owners_by_rakennus_id.keys()
                     )
                     building_ids_owned = ids_without_owner
-                # TODO: perhaps add saunas to each address by owner first, i.e. if there
-                # are *other* buildings with the same owner/address, add each sauna to the
-                # building of the same owner/address
+
                 print("Saman omistajan rakennukset:")
                 print(building_ids_owned)
 
@@ -1167,7 +1158,7 @@ def get_or_create_kohteet_from_kiinteistot(
         building_sets,
         owners_by_rakennus_id,
         inhabitants_by_rakennus_id,
-        alkupvm,
+        poimintapvm,
         loppupvm,
     )
     return kohteet
@@ -1175,7 +1166,7 @@ def get_or_create_kohteet_from_kiinteistot(
 
 def get_or_create_single_asunto_kohteet(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List(Kohde)":
     """
@@ -1197,7 +1188,7 @@ def get_or_create_single_asunto_kohteet(
         )
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     rakennus_id_without_kohde = (
         select(Rakennus.id)
@@ -1212,12 +1203,10 @@ def get_or_create_single_asunto_kohteet(
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         )
     )
-    # Oldest inhabitant should get the bill only if there are no multiple
-    # yksittäistalo on the same kiinteistö.
     single_asunto_kiinteistotunnus = (
         select(
             Rakennus.kiinteistotunnus,
@@ -1230,16 +1219,14 @@ def get_or_create_single_asunto_kohteet(
 
     print(" ")
     print("----- LUODAAN YKSITTÄISTALOKOHTEET -----")
-    # merge empty buildings on kiinteistö to the main building only if they have the
-    # same owners.
     return get_or_create_kohteet_from_kiinteistot(
-        session, single_asunto_kiinteistotunnus, alkupvm, loppupvm
+        session, single_asunto_kiinteistotunnus, poimintapvm, loppupvm
     )
 
 
 def get_or_create_paritalo_kohteet(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List(Kohde)":
     """
@@ -1260,7 +1247,7 @@ def get_or_create_paritalo_kohteet(
         )
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     paritalo_rakennus_id_without_kohde = (
         select(Rakennus.id).filter(
@@ -1275,7 +1262,7 @@ def get_or_create_paritalo_kohteet(
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         )
     )
@@ -1284,59 +1271,42 @@ def get_or_create_paritalo_kohteet(
     )
     print(" ")
     print("----- CREATING PARITALOKOHTEET ----")
-    # empty buildings on kiinteistö will be added to the first kohde created
-    # on each kiinteistö, but only if they are owned by all owners of the main
-    # building.
     return get_or_create_kohteet_from_vanhimmat(
-        session, vanhimmat_ids, alkupvm, loppupvm
+        session, vanhimmat_ids, poimintapvm, loppupvm
     )
 
 
 def get_or_create_multiple_and_uninhabited_kohteet(
     session: "Session",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List(Kohde)":
     """
     Create kohteet from all kiinteistötunnus that have buildings without kohde for the
     specified date range.
     """
-    # One kiinteistö and omistaja -> one kohde.
-    # - Name after largest omistaja if there are multiple.
-    # - Separate buildings in kiinteistö if omistajas differ.
-    # - Separate buildings in kiinteistö if osoitteet differ (prevent huge kiinteistöt)
 
     rakennus_id_with_current_kohde = (
         select(Rakennus.id)
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(alkupvm, loppupvm)))
+        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
     )
     kiinteistotunnus_without_kohde = (
         select(Rakennus.kiinteistotunnus)
-        # TODO: filter building types here. in that case, must also include all
-        # buildings with any inhabitants.
-        #
-        # 1) yhden asunnon talot (tyhjillään)
-        # 2) kunnan palvelutoiminta (pitkä lista)
-        # 3) vapaa-ajanasunnot (ei perusmaksua/ei perusmaksutiedostoa)
-        # 4) kerrostalot, rivitalot jne (ei perusmaksutiedostoa)
-        # do not import any rakennus with existing kohteet
         .filter(~Rakennus.id.in_(rakennus_id_with_current_kohde))
         # Do not import rakennus that have been removed from DVV data
         .filter(
             or_(
                 Rakennus.kaytostapoisto_pvm.is_(None),
-                Rakennus.kaytostapoisto_pvm > alkupvm,
+                Rakennus.kaytostapoisto_pvm > poimintapvm,
             )
         ).group_by(Rakennus.kiinteistotunnus)
     )
     print(" ")
     print("----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
-    # merge empty buildings on kiinteistö to the main building only if they have the
-    # same owners.
     return get_or_create_kohteet_from_kiinteistot(
-        session, kiinteistotunnus_without_kohde, alkupvm, loppupvm
+        session, kiinteistotunnus_without_kohde, poimintapvm, loppupvm
     )
 
 
@@ -1357,7 +1327,7 @@ def _should_have_perusmaksu_kohde(rakennus: "Rakennus"):
 def create_perusmaksurekisteri_kohteet(
     session: "Session",
     perusmaksutiedosto: "Path",
-    alkupvm: "Optional[datetime.date]",
+    poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ):
     """
@@ -1380,10 +1350,6 @@ def create_perusmaksurekisteri_kohteet(
             continue
         asiakasnumero = str(row[2])
         prt = str(row[3])
-        # asiakkaan_nimi = row[6].value
-        # yhteyshenkilon_nimi = row[7].value
-        # katuosoite = row[8].value
-        # postitoimipaikka = row[9].value
         buildings_to_combine[asiakasnumero]["prt"].add(prt)
     print(f"Löydetty {len(buildings_to_combine)} perusmaksuasiakasta")
 
@@ -1392,7 +1358,7 @@ def create_perusmaksurekisteri_kohteet(
     # Do not import any rakennus with existing kohteet. Kerrostalokohteet
     # are eternal, so they cannot ever be imported again once imported here.
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-        session, alkupvm, loppupvm
+        session, poimintapvm, loppupvm
     )
     print(
         f"Löydetty {len(dvv_rakennustiedot)} DVV-rakennusta ilman voimassaolevaa kohdetta"
@@ -1424,7 +1390,7 @@ def create_perusmaksurekisteri_kohteet(
                 continue
             # NOTE: optionally, add other buildings to building set if already
             # at least one perusmaksu specific building is found, i.e. set is not empty
-            if _should_have_perusmaksu_kohde(rakennus):  # or building_set:
+            if _should_have_perusmaksu_kohde(rakennus):
                 print(f"{rakennus.prt} kuuluu perusmaksukohteelle")
                 # add all owners and addresses for each rakennus
                 building_set.add((rakennus, omistajat, asukkaat, osoitteet))
@@ -1452,10 +1418,7 @@ def create_perusmaksurekisteri_kohteet(
         # No need to add asukkaat. Asoy kohteet should not be separated or named after
         # inhabitants, and inhabitants should not be contacted.
         defaultdict(set),
-        alkupvm,
-        None,  # Let's make perusmaksu kohde last forever.
+        poimintapvm,
+        datetime.date(2100, 1, 1),  # Let's set perusmaksu kohde loppupvm to 01.01.2100.
     )
-    # TODO: Should rivitalokohteet be created by asukkaat instead? This way, they
-    # would be separated by asukkaat (and each kohde created separately), even if
-    # they have the same building and same owners.
     return kohteet
