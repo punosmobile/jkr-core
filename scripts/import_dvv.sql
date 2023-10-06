@@ -4,11 +4,6 @@ SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm \gset
 \echo POIMINTAPVM = :'poimintapvm'
 
 -- update omistuksen_loppupvm via a function
--- what do we want to do with omistuksen_loppupvm when the building doesn't exist anymore or the building is not owned by anyone?
--- currently what happens is that the omistuksen_loppupvm becomes the alkupvm - 1 day.
--- should the setting of omistuksen_loppupvm be skipped in that case?
--- or maybe there is something wrong with the inserting of owners when updating with new dvv-data?
--- TODO! This function could possibly be further optimized by creating temporary column to jkr.rakennuksen_omistajat for storing prt?
 create or replace function update_omistuksen_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_omistajat as ro
@@ -25,7 +20,7 @@ begin
          join jkr.rakennus as r on r.id = ro.rakennus_id
          where o.rakennustunnus = r.prt limit 1)
       else 
-        poimintapvm -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- use poimintapvm for entries where no matching rakennustunnus exists in the dvv data.
     end
   where exists_in_updated_dvv is not True;
 end;
@@ -47,7 +42,7 @@ begin
          join jkr.rakennus as r on r.id = rv.rakennus_id
          where v.rakennustunnus = r.prt limit 1)
       else 
-        poimintapvm -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- use poimintapvm for entries where no matching rakennustunnus exists in the dvv data.
     end
   where exists_in_updated_dvv is not True;
 end;
@@ -368,10 +363,11 @@ where
         join jkr.rakennuksen_omistajat ro on r.id = ro.rakennus_id
         join jkr.osapuoli op on ro.osapuoli_id = op.id
         where r.prt = omistaja.rakennustunnus and op.nimi = omistaja."omistajan nimi"
-        ) -- Only add those names each building does not have listed as owners yet.
-          -- Note that this may introduce multiple owners with the same name for each building
-          -- if there are multiple such rows in the same file. They will still have different
-          -- addresses, though.
+        ) 
+-- Only add those names each building does not have listed as owners yet.
+-- Note that this may introduce multiple owners with the same name for each building
+-- if there are multiple such rows in the same file. They will still have different
+-- addresses, though.
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing; -- There are some duplicate rows with identical address data
     --set exists_in_updated_dvv = excluded.exists_in_updated_dvv; --testing
 
