@@ -1,7 +1,3 @@
---\echo POIMINTAPVM = :'POIMINTAPVM'
-
---SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm;
-
 SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm \gset
 
 -- Now you can use the poimintapvm variable in subsequent SQL or psql commands
@@ -46,10 +42,10 @@ begin
         join jkr.rakennus as r on r.id = rv.rakennus_id
         where v.rakennustunnus = r.prt
       ) then 
-        (select to_date(o."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
-         from jkr_dvv.omistaja as o 
+        (select to_date(v."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
+         from jkr_dvv.vanhin as v 
          join jkr.rakennus as r on r.id = rv.rakennus_id
-         where o.rakennustunnus = r.prt limit 1)
+         where v.rakennustunnus = r.prt limit 1)
       else 
         poimintapvm -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
     end
