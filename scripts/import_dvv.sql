@@ -1,10 +1,19 @@
+--\echo POIMINTAPVM = :'POIMINTAPVM'
+
+--SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm;
+
+SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm \gset
+
+-- Now you can use the poimintapvm variable in subsequent SQL or psql commands
+\echo POIMINTAPVM = :'poimintapvm'
+
 -- update omistuksen_loppupvm via a function
 -- what do we want to do with omistuksen_loppupvm when the building doesn't exist anymore or the building is not owned by anyone?
 -- currently what happens is that the omistuksen_loppupvm becomes the alkupvm - 1 day.
 -- should the setting of omistuksen_loppupvm be skipped in that case?
 -- or maybe there is something wrong with the inserting of owners when updating with new dvv-data?
 -- TODO! This function could possibly be further optimized by creating temporary column to jkr.rakennuksen_omistajat for storing prt?
-create or replace function update_omistuksen_loppupvm() returns void as $$
+create or replace function update_omistuksen_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_omistajat as ro
   set omistuksen_loppupvm = 
@@ -20,13 +29,13 @@ begin
          join jkr.rakennus as r on r.id = ro.rakennus_id
          where o.rakennustunnus = r.prt limit 1)
       else 
-        to_date('30000101', 'YYYYMMDD') -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
     end
   where exists_in_updated_dvv is not True;
 end;
 $$ language plpgsql;
 
-create or replace function update_vanhin_loppupvm() returns void as $$
+create or replace function update_vanhin_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_vanhimmat as rv
   set loppupvm = 
@@ -42,7 +51,7 @@ begin
          join jkr.rakennus as r on r.id = rv.rakennus_id
          where o.rakennustunnus = r.prt limit 1)
       else 
-        to_date('30000101', 'YYYYMMDD') -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
     end
   where exists_in_updated_dvv is not True;
 end;
@@ -370,7 +379,7 @@ where
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing; -- There are some duplicate rows with identical address data
     --set exists_in_updated_dvv = excluded.exists_in_updated_dvv; --testing
 
-select update_omistuksen_loppupvm();
+select update_omistuksen_loppupvm(:'poimintapvm');
 select update_osapuoli_with_ytunnus();
 select update_osapuoli_with_henkilotunnus();
 
@@ -536,5 +545,5 @@ where huoneistokirjain is not null and huoneistonumero is not null and jakokirja
 do update set exists_in_updated_dvv = true;
 
 
-select update_vanhin_loppupvm();
+select update_vanhin_loppupvm(:'poimintapvm');
 alter table jkr.rakennuksen_vanhimmat drop column exists_in_updated_dvv;

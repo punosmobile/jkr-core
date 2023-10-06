@@ -4,7 +4,7 @@ create temporary table tmp_posti_pcf(
     data text
 ) on commit drop;
 
-\copy tmp_posti_pcf FROM '../data/posti/PCF_20210825.dat' DELIMITER AS '|'
+\copy tmp_posti_pcf FROM '../data/posti/PCF.dat' DELIMITER AS '|'
 
 create temporary table tmp_posti_pcf_formatted(
     postinumero char(5),

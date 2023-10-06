@@ -37,7 +37,7 @@ htmlcov/
 
 # Environments
 env
-/.jkr_venv/
+/*venv/
 .python-version
 
 # Rope project settings
