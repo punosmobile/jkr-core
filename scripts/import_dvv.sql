@@ -48,6 +48,15 @@ begin
 end;
 $$ language plpgsql;
 
+-- What if the building is part of a perusmaksurekisteri kohde?
+create or replace function update_kaytostapoisto_pvm(poimintapvm DATE) returns void as $$
+begin
+  update jkr.rakennus as r
+  set kaytostapoisto_pvm = poimintapvm
+  where exists_in_updated_dvv is not True;
+end;
+$$ language plpgsql;
+
 -- Matches and updates information (nimi, postioimipaikka, postinumero) for osapuoli with known ytunnus and missing information
 create or replace function update_osapuoli_with_ytunnus() returns void as $$
 declare
@@ -153,8 +162,11 @@ insert into jkr_koodistot.tiedontuottaja values
     ('dvv', 'Digi- ja väestötietovirasto')
 on conflict do nothing;
 
+-- Add temporary column to easily sort buildings that exists in the dvv.
+alter table jkr.rakennus add column exists_in_updated_dvv boolean;
+
 -- Insert buildings to jkr_rakennus
-insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi)
+insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi, exists_in_updated_dvv)
 select 
     rakennustunnus as prt,
     "sijaintikiinteistön tunnus" as kiinteistotunnus,
@@ -165,7 +177,8 @@ päivä"::text) = 8 then to_date("valmis_tumis_
 päivä"::text, 'YYYYMMDD') else null end as kayttoonotto_pvm,
     to_date("käytössä_olotilanteen muutospäivä"::text, 'YYYYMMDD') as kaytossaolotilanteenmuutos_pvm,
     "käyttö_tarkoitus" as rakennuksenkayttotarkoitus_koodi,
-    "käytös_säolo_tilanne" as rakennuksenolotila_koodi
+    "käytös_säolo_tilanne" as rakennuksenolotila_koodi,
+    true as exists_in_updated_dvv
 from jkr_dvv.rakennus
 -- update all existing buildings
 on conflict (prt) do update
@@ -176,7 +189,11 @@ set
     kayttoonotto_pvm = excluded.kayttoonotto_pvm,
     kaytossaolotilanteenmuutos_pvm = excluded.kaytossaolotilanteenmuutos_pvm,
     rakennuksenkayttotarkoitus_koodi = excluded.rakennuksenkayttotarkoitus_koodi,
-    rakennuksenolotila_koodi = excluded.rakennuksenolotila_koodi;
+    rakennuksenolotila_koodi = excluded.rakennuksenolotila_koodi,
+    exists_in_updated_dvv = true;
+
+SELECT update_kaytostapoisto_pvm(:'poimintapvm');
+alter table jkr.rakennus drop column exists_in_updated_dvv;
 
 -- Insert streets to jkr_osoite.katu
 -- jkr_osoite.kunta must be filled in the database by running import_posti.sql first!
@@ -313,14 +330,14 @@ select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where omistaja."henkilötunnus" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
     to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm,
-    true as exists_in_updated_dvv --testing
+    true as exists_in_updated_dvv
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null and
     exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
 --on conflict on constraint unique_rakennuksen_omistajat do nothing; -- DVV has registered some owners twice on different dates
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
-    set exists_in_updated_dvv = true;--testing
+    set exists_in_updated_dvv = true;
 
 -- Step 2: Find all buildings owned by each owner, matching by y-tunnus
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, exists_in_updated_dvv)
@@ -334,7 +351,7 @@ where
     omistaja."y_tunnus" is not null and
     exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update -- DVV has registered some owners twice on different dates
-    set exists_in_updated_dvv = true; --testing
+    set exists_in_updated_dvv = true;
 
 -- Step 3: Find all buildings owned by missing henkilötunnus/y-tunnus by name and address
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, exists_in_updated_dvv)
@@ -351,7 +368,7 @@ select
         osapuoli.tiedontuottaja_tunnus = 'dvv'
     ) as osapuoli_id,
     to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm,
-    true as exists_in_updated_dvv --testing
+    true as exists_in_updated_dvv
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
@@ -368,6 +385,7 @@ where
 -- Note that this may introduce multiple owners with the same name for each building
 -- if there are multiple such rows in the same file. They will still have different
 -- addresses, though.
+-- There is a problem here!
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing; -- There are some duplicate rows with identical address data
     --set exists_in_updated_dvv = excluded.exists_in_updated_dvv; --testing
 
