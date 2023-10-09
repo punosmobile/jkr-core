@@ -53,7 +53,8 @@ create or replace function update_kaytostapoisto_pvm(poimintapvm DATE) returns v
 begin
   update jkr.rakennus as r
   set kaytostapoisto_pvm = poimintapvm
-  where exists_in_updated_dvv is not True;
+  where exists_in_updated_dvv is not True
+    and kaytostapoisto_pvm is null;
 end;
 $$ language plpgsql;
 
