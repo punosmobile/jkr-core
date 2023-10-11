@@ -35,7 +35,7 @@ def test_import_dvv_kohteet(engine, datadir):
             init_code_objects(session)
             import_dvv_kohteet(session,
                                datetime.strptime("1.1.2022", "%d.%m.%Y").date(),
-                               datetime.strptime("31.12.2022", "%d.%m.%Y").date(),
+                               # datetime.strptime("31.12.2022", "%d.%m.%Y").date(),
                                datadir / "perusmaksurekisteri.xlsx")
     except Exception as e:
         print(f"Creating kohteet failed: {e}")
