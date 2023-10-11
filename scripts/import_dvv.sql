@@ -1,10 +1,10 @@
+SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm \gset
+
+-- Now you can use the poimintapvm variable in subsequent SQL or psql commands
+\echo POIMINTAPVM = :'poimintapvm'
+
 -- update omistuksen_loppupvm via a function
--- what do we want to do with omistuksen_loppupvm when the building doesn't exist anymore or the building is not owned by anyone?
--- currently what happens is that the omistuksen_loppupvm becomes the alkupvm - 1 day.
--- should the setting of omistuksen_loppupvm be skipped in that case?
--- or maybe there is something wrong with the inserting of owners when updating with new dvv-data?
--- TODO! This function could possibly be further optimized by creating temporary column to jkr.rakennuksen_omistajat for storing prt?
-create or replace function update_omistuksen_loppupvm() returns void as $$
+create or replace function update_omistuksen_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_omistajat as ro
   set omistuksen_loppupvm = 
@@ -20,13 +20,13 @@ begin
          join jkr.rakennus as r on r.id = ro.rakennus_id
          where o.rakennustunnus = r.prt limit 1)
       else 
-        to_date('30000101', 'YYYYMMDD') -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- use poimintapvm for entries where no matching rakennustunnus exists in the dvv data.
     end
-  where exists_in_updated_dvv is not True;
+  where found_in_dvv is not True;
 end;
 $$ language plpgsql;
 
-create or replace function update_vanhin_loppupvm() returns void as $$
+create or replace function update_vanhin_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_vanhimmat as rv
   set loppupvm = 
@@ -36,15 +36,33 @@ begin
         from jkr_dvv.vanhin as v
         join jkr.rakennus as r on r.id = rv.rakennus_id
         where v.rakennustunnus = r.prt
+          and v."huo_neisto_kirjain" = rv.huoneistokirjain
+          and v."huo_neisto_numero"::integer = rv.huoneistonumero
+          and v."jako_kirjain" = rv.jakokirjain
       ) then 
-        (select to_date(o."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
-         from jkr_dvv.omistaja as o 
+        (select to_date(v."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
+         from jkr_dvv.vanhin as v 
          join jkr.rakennus as r on r.id = rv.rakennus_id
-         where o.rakennustunnus = r.prt limit 1)
+         where v.rakennustunnus = r.prt
+           and v."huo_neisto_kirjain" = rv.huoneistokirjain
+           and v."huo_neisto_numero"::integer = rv.huoneistonumero
+           and v."jako_kirjain" = rv.jakokirjain
+         limit 1)
       else 
-        to_date('30000101', 'YYYYMMDD') -- sets preset date for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- use poimintapvm for entries where no matching rakennustunnus exists in the dvv data.
     end
-  where exists_in_updated_dvv is not True;
+  where found_in_dvv is not True
+  and loppupvm is null;
+end;
+$$ language plpgsql;
+
+-- What if the building is part of a perusmaksurekisteri kohde?
+create or replace function update_kaytostapoisto_pvm(poimintapvm DATE) returns void as $$
+begin
+  update jkr.rakennus as r
+  set kaytostapoisto_pvm = poimintapvm
+  where found_in_dvv is not True
+    and kaytostapoisto_pvm is null;
 end;
 $$ language plpgsql;
 
@@ -130,31 +148,17 @@ begin
    end;
 $$ language plpgsql;
 
--- Update triggers --
--- Trigger for updating eldest, called when inserting new eldest with no conflicts.
---drop trigger if exists update_loppupvm_trigger on jkr.rakennuksen_vanhimmat;
---create trigger update_loppupvm_trigger
---after insert on jkr.rakennuksen_vanhimmat
---for each row
---when (new.loppupvm is null)
---execute function update_loppupvm();
-
--- Trigger for updating owner, called when inserting new owner with no conflicts.
---drop trigger if exists update_omistuksen_loppupvm_trigger on jkr.rakennuksen_omistajat;
---create trigger update_omistuksen_loppupvm_trigger
---after insert on jkr.rakennuksen_omistajat
---for each row
---when (new.omistuksen_loppupvm is null)
---execute function update_omistuksen_loppupvm();
-
 -- Inserts
 -- Add dvv tiedontuottaja
 insert into jkr_koodistot.tiedontuottaja values
     ('dvv', 'Digi- ja väestötietovirasto')
 on conflict do nothing;
 
+-- Add temporary column to easily sort buildings that exists in the dvv.
+alter table jkr.rakennus add column found_in_dvv boolean;
+
 -- Insert buildings to jkr_rakennus
-insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi)
+insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi, found_in_dvv)
 select 
     rakennustunnus as prt,
     "sijaintikiinteistön tunnus" as kiinteistotunnus,
@@ -165,7 +169,8 @@ päivä"::text) = 8 then to_date("valmis_tumis_
 päivä"::text, 'YYYYMMDD') else null end as kayttoonotto_pvm,
     to_date("käytössä_olotilanteen muutospäivä"::text, 'YYYYMMDD') as kaytossaolotilanteenmuutos_pvm,
     "käyttö_tarkoitus" as rakennuksenkayttotarkoitus_koodi,
-    "käytös_säolo_tilanne" as rakennuksenolotila_koodi
+    "käytös_säolo_tilanne" as rakennuksenolotila_koodi,
+    true as found_in_dvv
 from jkr_dvv.rakennus
 -- update all existing buildings
 on conflict (prt) do update
@@ -176,7 +181,11 @@ set
     kayttoonotto_pvm = excluded.kayttoonotto_pvm,
     kaytossaolotilanteenmuutos_pvm = excluded.kaytossaolotilanteenmuutos_pvm,
     rakennuksenkayttotarkoitus_koodi = excluded.rakennuksenkayttotarkoitus_koodi,
-    rakennuksenolotila_koodi = excluded.rakennuksenolotila_koodi;
+    rakennuksenolotila_koodi = excluded.rakennuksenolotila_koodi,
+    found_in_dvv = true;
+
+SELECT update_kaytostapoisto_pvm(:'poimintapvm');
+alter table jkr.rakennus drop column found_in_dvv;
 
 -- Insert streets to jkr_osoite.katu
 -- jkr_osoite.kunta must be filled in the database by running import_posti.sql first!
@@ -219,11 +228,6 @@ from jkr_dvv.osoite
 where
     exists (select 1 from jkr.rakennus where osoite.rakennustunnus = rakennus.prt) -- not all addresses have buildings
 on conflict do nothing; -- osoitenumero and posti_numero may be null. katu_id always points to known street or empty street.
--- on conflict (katu_id) do update -- add constraint for do update? No uniques here. Or do this with a function also?
--- set
-    -- osoitenumero = excluded.osoitenumero,
-    -- katu_id = excluded.katu_id,
-    -- posti_numero = excluded.posti_numero;
 
 
 -- Insert owners to jkr.osapuoli
@@ -301,43 +305,43 @@ where
           -- if there are multiple such rows in the same file. They will still have different
           -- addresses, though.
 ;
---select update_omistuksen_loppupvm();
-alter table jkr.rakennuksen_omistajat add column exists_in_updated_dvv boolean;
-alter table jkr.rakennuksen_vanhimmat add column exists_in_updated_dvv boolean;
+
+alter table jkr.rakennuksen_omistajat add column found_in_dvv boolean;
+alter table jkr.rakennuksen_vanhimmat add column found_in_dvv boolean;
 
 -- Insert owners to jkr.rakennuksen_omistajat
 -- TODO! Fix rakennuksen_omistajat insert, currently duplicates every entry.
 -- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
-insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where omistaja."henkilötunnus" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
     to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm,
-    true as exists_in_updated_dvv --testing
+    true as found_in_dvv
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null and
     exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
 --on conflict on constraint unique_rakennuksen_omistajat do nothing; -- DVV has registered some owners twice on different dates
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
-    set exists_in_updated_dvv = true;--testing
+    set found_in_dvv = true;
 
 -- Step 2: Find all buildings owned by each owner, matching by y-tunnus
-insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where omistaja."y_tunnus" = osapuoli.ytunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
     to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm,
-    true as exists_in_updated_dvv
+    true as found_in_dvv
 from jkr_dvv.omistaja
 where
     omistaja."y_tunnus" is not null and
     exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update -- DVV has registered some owners twice on different dates
-    set exists_in_updated_dvv = true; --testing
+    set found_in_dvv = true;
 
 -- Step 3: Find all buildings owned by missing henkilötunnus/y-tunnus by name and address
-insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where
@@ -351,7 +355,7 @@ select
         osapuoli.tiedontuottaja_tunnus = 'dvv'
     ) as osapuoli_id,
     to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm,
-    true as exists_in_updated_dvv --testing
+    true as found_in_dvv
 from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is null and
@@ -363,19 +367,31 @@ where
         join jkr.rakennuksen_omistajat ro on r.id = ro.rakennus_id
         join jkr.osapuoli op on ro.osapuoli_id = op.id
         where r.prt = omistaja.rakennustunnus and op.nimi = omistaja."omistajan nimi"
-        ) -- Only add those names each building does not have listed as owners yet.
-          -- Note that this may introduce multiple owners with the same name for each building
-          -- if there are multiple such rows in the same file. They will still have different
-          -- addresses, though.
-on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing; -- There are some duplicate rows with identical address data
-    --set exists_in_updated_dvv = excluded.exists_in_updated_dvv; --testing
+        ) 
+-- Only add those names each building does not have listed as owners yet.
+-- Note that this may introduce multiple owners with the same name for each building
+-- if there are multiple such rows in the same file. They will still have different
+-- addresses, though.
+-- There is a problem here!
+on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing;
+-- on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
+    -- set found_in_dvv = true
+-- where
+    -- EXISTS (
+        -- SELECT 1
+        -- FROM jkr.rakennuksen_omistajat ro
+        -- WHERE ro.osapuoli_id = excluded.osapuoli_id
+        -- AND ro.rakennus_id = excluded.rakennus_id
+        -- AND ro.omistuksen_alkupvm = excluded.omistuksen_alkupvm
+    -- );
 
-select update_omistuksen_loppupvm();
+
+select update_omistuksen_loppupvm(:'poimintapvm');
 select update_osapuoli_with_ytunnus();
 select update_osapuoli_with_henkilotunnus();
 
 alter table jkr.osapuoli drop column rakennustunnus;
-alter table jkr.rakennuksen_omistajat drop column exists_in_updated_dvv;
+alter table jkr.rakennuksen_omistajat drop column found_in_dvv;
 
 -- Insert elders to jkr.osapuoli
 insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, kunta, henkilotunnus, tiedontuottaja_tunnus)
@@ -400,11 +416,17 @@ set
     kunta = excluded.kunta,
     tiedontuottaja_tunnus = excluded.tiedontuottaja_tunnus
 where
-    jkr.osapuoli.henkilotunnus = excluded.henkilotunnus;
+    jkr.osapuoli.henkilotunnus = excluded.henkilotunnus
+    AND (
+        jkr.osapuoli.katuosoite IS NULL OR jkr.osapuoli.katuosoite <> excluded.katuosoite
+        AND jkr.osapuoli.postitoimipaikka IS NULL OR jkr.osapuoli.postitoimipaikka <> excluded.postitoimipaikka
+        AND jkr.osapuoli.postinumero IS NULL OR jkr.osapuoli.postinumero <> excluded.postinumero
+        AND jkr.osapuoli.kunta IS NULL OR jkr.osapuoli.kunta <> excluded.kunta
+    );
     
 -- Insert elders to jkr.rakennuksen_vanhimmat
 -- Step 1. Some vanhimmat have no extra fields
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
@@ -413,7 +435,7 @@ select
     nullif(vanhin."jako_kirjain", ' ') as jakokirjain,
     to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as alkupvm,
     null as loppupvm,
-    true as exists_in_updated_dvv
+    true as found_in_dvv
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
@@ -423,10 +445,24 @@ where
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, alkupvm)
 where huoneistokirjain is null and huoneistonumero is null and jakokirjain is null
-do update set exists_in_updated_dvv = true;
+do update set found_in_dvv = true
+where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id 
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistokirjain IS NULL and excluded.huoneistokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistokirjain = excluded.huoneistokirjain)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistonumero IS NULL and excluded.huoneistonumero IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistonumero = excluded.huoneistonumero)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.jakokirjain IS NULL and excluded.jakokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
+  )
+  and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 -- Step 2. Some vanhimmat have one extra field
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
@@ -435,7 +471,7 @@ select
     nullif(vanhin."jako_kirjain", ' ') as jakokirjain,
     to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as alkupvm,
     null as loppupvm,
-    true as exists_in_updated_dvv
+    true as found_in_dvv
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
@@ -445,10 +481,24 @@ where
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, huoneistokirjain, alkupvm)
 where huoneistokirjain is not null and huoneistonumero is null and jakokirjain is null
-do update set exists_in_updated_dvv = true;
+do update set found_in_dvv = true
+where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id 
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistokirjain IS NULL and excluded.huoneistokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistokirjain = excluded.huoneistokirjain)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistonumero IS NULL and excluded.huoneistonumero IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistonumero = excluded.huoneistonumero)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.jakokirjain IS NULL and excluded.jakokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
+  )
+  and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 -- Some vanhimmat have one extra field
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
@@ -457,7 +507,7 @@ select
     nullif(vanhin."jako_kirjain", ' ') as jakokirjain,
     to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as alkupvm,
     null as loppupvm,
-    true as exists_in_updated_dvv
+    true as found_in_dvv
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
@@ -467,10 +517,24 @@ where
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, huoneistonumero, alkupvm)
 where huoneistokirjain is null and huoneistonumero is not null and jakokirjain is null
-do update set exists_in_updated_dvv = true;
+do update set found_in_dvv = true
+where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id 
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistokirjain IS NULL and excluded.huoneistokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistokirjain = excluded.huoneistokirjain)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistonumero IS NULL and excluded.huoneistonumero IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistonumero = excluded.huoneistonumero)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.jakokirjain IS NULL and excluded.jakokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
+  )
+  and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 -- Step 3. Some vanhimmat have two extra fields
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
@@ -479,7 +543,7 @@ select
     nullif(vanhin."jako_kirjain", ' ') as jakokirjain,
     to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as alkupvm,
     null as loppupvm,
-    true as exists_in_updated_dvv
+    true as found_in_dvv
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
@@ -489,10 +553,24 @@ where
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, alkupvm)
 where huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is null
-do update set exists_in_updated_dvv = true;
+do update set found_in_dvv = true
+where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id 
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistokirjain IS NULL and excluded.huoneistokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistokirjain = excluded.huoneistokirjain)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistonumero IS NULL and excluded.huoneistonumero IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistonumero = excluded.huoneistonumero)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.jakokirjain IS NULL and excluded.jakokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
+  )
+  and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 -- Some vanhimmat have two extra fields
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
@@ -501,7 +579,7 @@ select
     nullif(vanhin."jako_kirjain", ' ') as jakokirjain,
     to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as alkupvm,
     null as loppupvm,
-    true as exists_in_updated_dvv
+    true as found_in_dvv
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
@@ -511,10 +589,24 @@ where
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, huoneistonumero, jakokirjain, alkupvm)
 where huoneistokirjain is null and huoneistonumero is not null and jakokirjain is not null
-do update set exists_in_updated_dvv = true;
+do update set found_in_dvv = true
+where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id 
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistokirjain IS NULL and excluded.huoneistokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistokirjain = excluded.huoneistokirjain)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistonumero IS NULL and excluded.huoneistonumero IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistonumero = excluded.huoneistonumero)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.jakokirjain IS NULL and excluded.jakokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
+  )
+  and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 -- Step 4. Some vanhimmat have all fields
-insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, exists_in_updated_dvv)
+insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
     (select id from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where vanhin."huoneiston vanhin asukas (henkilötunnus)" = osapuoli.henkilotunnus and osapuoli.tiedontuottaja_tunnus = 'dvv') as osapuoli_id,
@@ -523,7 +615,7 @@ select
     nullif(vanhin."jako_kirjain", ' ') as jakokirjain,
     to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as alkupvm,
     null as loppupvm,
-    true as exists_in_updated_dvv
+    true as found_in_dvv
 from jkr_dvv.vanhin
 where
     vanhin."huoneiston vanhin asukas (henkilötunnus)" is not null and
@@ -533,8 +625,22 @@ where
     exists (select 1 from jkr.rakennus where vanhin.rakennustunnus = rakennus.prt) -- not all buildings are listed
 on conflict (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm)
 where huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is not null
-do update set exists_in_updated_dvv = true;
+do update set found_in_dvv = true
+where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id 
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistokirjain IS NULL and excluded.huoneistokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistokirjain = excluded.huoneistokirjain)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.huoneistonumero IS NULL and excluded.huoneistonumero IS NULL)
+    or (jkr.rakennuksen_vanhimmat.huoneistonumero = excluded.huoneistonumero)
+  )
+  and (
+    (jkr.rakennuksen_vanhimmat.jakokirjain IS NULL and excluded.jakokirjain IS NULL)
+    or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
+  )
+  and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 
-select update_vanhin_loppupvm();
-alter table jkr.rakennuksen_vanhimmat drop column exists_in_updated_dvv;
+select update_vanhin_loppupvm(:'poimintapvm');
+alter table jkr.rakennuksen_vanhimmat drop column found_in_dvv;

@@ -1,26 +1,14 @@
-import subprocess
-
 from datetime import datetime
-from sqlalchemy import create_engine, distinct, func, select
-from sqlalchemy.orm import Session
 
 import pytest
+from sqlalchemy import create_engine, distinct, func, select
+from sqlalchemy.orm import Session
 
 from jkrimporter import conf
 from jkrimporter.providers.db.codes import init_code_objects
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
 from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Osapuolenrooli
-
-
-@pytest.fixture(scope="module", autouse=True)
-def init_database():
-    # Create everything from scratch for each test run
-    init_test_db_command = ".\\scripts\\init_database.bat"
-    try:
-        subprocess.check_output(init_test_db_command, shell=True, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        print(f"Creating test database failed: {e.output}")
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -47,7 +35,7 @@ def test_import_dvv_kohteet(engine, datadir):
             init_code_objects(session)
             import_dvv_kohteet(session,
                                datetime.strptime("1.1.2022", "%d.%m.%Y").date(),
-                               datetime.strptime("31.12.2022", "%d.%m.%Y").date(),
+                               # datetime.strptime("31.12.2022", "%d.%m.%Y").date(),
                                datadir / "perusmaksurekisteri.xlsx")
     except Exception as e:
         print(f"Creating kohteet failed: {e}")

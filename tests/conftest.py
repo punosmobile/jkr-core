@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from shutil import copytree
+import subprocess
 
 from pytest import fixture
 
@@ -16,8 +17,7 @@ def datadir(tmpdir, request):
     testdir = testfilepath.parent
     testfilename = testfilepath.stem
 
-    # use local data dir until we get anonymized test fixtures to use
-    datadir = testdir.parent / "data" / testfilename
+    datadir = testdir / "data" / testfilename
     if os.path.isdir(datadir):
         copytree(datadir, tmpdir, dirs_exist_ok=True)
     print(datadir)
@@ -25,3 +25,16 @@ def datadir(tmpdir, request):
     print(os.listdir(tmpdir))
 
     return tmpdir
+
+
+def pytest_sessionstart(session):
+    """
+    Called after the Session object has been created and
+    before performing collection and entering the run test loop.
+    Creating the test database each time from scratch.
+    """
+    init_test_db_command = ".\\scripts\\init_database.bat"
+    try:
+        subprocess.check_output(init_test_db_command, shell=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        print(f"Creating test database failed: {e.output}")
