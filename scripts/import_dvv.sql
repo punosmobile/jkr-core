@@ -13,7 +13,8 @@ begin
         select 1 
         from jkr_dvv.omistaja as o 
         join jkr.rakennus as r on r.id = ro.rakennus_id
-        where o.rakennustunnus = r.prt
+        where o.rakennustunnus = r.prt and 
+        found_in_dvv = true
       ) then 
         (select to_date(o."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
          from jkr_dvv.omistaja as o 
@@ -342,7 +343,7 @@ on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update -- DVV has 
 
 -- Step 3: Find all buildings owned by missing henkilötunnus/y-tunnus by name and address
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, found_in_dvv)
-select
+select distinct
     (select id from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) as rakennus_id,
     (select id from jkr.osapuoli where
         -- all fields must be equal or null to match.
@@ -351,8 +352,9 @@ select
         omistaja."omistajan postiosoite" is not distinct from osapuoli.katuosoite and
         omistaja."postiosoitteen postitoimipaikka" is not distinct from osapuoli.postitoimipaikka and
         omistaja."postios posti_numero" is not distinct from osapuoli.postinumero and
-        omistaja."rakennustunnus" = osapuoli.rakennustunnus and
+        -- omistaja."rakennustunnus" = osapuoli.rakennustunnus and
         osapuoli.tiedontuottaja_tunnus = 'dvv'
+        LIMIT 1
     ) as osapuoli_id,
     to_date(omistaja."omistuksen alkupäivä"::text, 'YYYYMMDD') as omistuksen_alkupvm,
     true as found_in_dvv
@@ -361,29 +363,21 @@ where
     omistaja."henkilötunnus" is null and
     omistaja."y_tunnus" is null and
     exists (
-        select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) and -- not all buildings might be listed
-    not exists (
-        select 1 from jkr.rakennus r
-        join jkr.rakennuksen_omistajat ro on r.id = ro.rakennus_id
-        join jkr.osapuoli op on ro.osapuoli_id = op.id
-        where r.prt = omistaja.rakennustunnus and op.nimi = omistaja."omistajan nimi"
-        ) 
+        select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings might be listed
+    -- and not exists (
+        -- select 1 from jkr.rakennus r
+        -- join jkr.rakennuksen_omistajat ro on r.id = ro.rakennus_id
+        -- join jkr.osapuoli op on ro.osapuoli_id = op.id
+        -- where r.prt = omistaja.rakennustunnus and op.nimi = omistaja."omistajan nimi"
+        -- )
 -- Only add those names each building does not have listed as owners yet.
 -- Note that this may introduce multiple owners with the same name for each building
 -- if there are multiple such rows in the same file. They will still have different
 -- addresses, though.
 -- There is a problem here!
-on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing;
--- on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
-    -- set found_in_dvv = true
--- where
-    -- EXISTS (
-        -- SELECT 1
-        -- FROM jkr.rakennuksen_omistajat ro
-        -- WHERE ro.osapuoli_id = excluded.osapuoli_id
-        -- AND ro.rakennus_id = excluded.rakennus_id
-        -- AND ro.omistuksen_alkupvm = excluded.omistuksen_alkupvm
-    -- );
+-- on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing;
+on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
+    set found_in_dvv = true;
 
 
 select update_omistuksen_loppupvm(:'poimintapvm');
