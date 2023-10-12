@@ -22,7 +22,7 @@ ALTER TABLE jkr.rakennuksen_vanhimmat
 CREATE INDEX idx_rakennuksen_vanhimmat ON jkr.rakennuksen_vanhimmat
 USING btree
 (
-	rakennus_id,
+    rakennus_id,
     osapuoli_id,
     alkupvm
 );

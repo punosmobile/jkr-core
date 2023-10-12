@@ -1,63 +1,78 @@
 SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm \gset
 
--- Now you can use the poimintapvm variable in subsequent SQL or psql commands
-\echo POIMINTAPVM = :'poimintapvm'
 
--- update omistuksen_loppupvm via a function
 create or replace function update_omistuksen_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_omistajat as ro
   set omistuksen_loppupvm = 
-    case 
+    case
+      -- Looks for existing entry and
+      -- sets loppupvm to new entry's omistuksen_alkupvm - 1 day,
+      -- if it is greater than the omistuksen_alkupvm
+      -- of the entry being updated.
+      -- If multiple existing entries are found
+      -- picks the one with latest omistuksen_alkupvm
       when exists(
         select 1 
-        from jkr_dvv.omistaja as o 
-        join jkr.rakennus as r on r.id = ro.rakennus_id
-        where o.rakennustunnus = r.prt and 
-        found_in_dvv = true
+        from jkr.rakennuksen_omistajat as existing_entry
+        where existing_entry.rakennus_id = ro.rakennus_id
+        and existing_entry.omistuksen_alkupvm::date > ro.omistuksen_alkupvm::date
+        and existing_entry.found_in_dvv = true
+        order by omistuksen_alkupvm desc
+        limit 1
       ) then 
-        (select to_date(o."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
-         from jkr_dvv.omistaja as o 
-         join jkr.rakennus as r on r.id = ro.rakennus_id
-         where o.rakennustunnus = r.prt limit 1)
+        (select to_date((existing_entry.omistuksen_alkupvm::date - interval '1 DAY')::text, 'YYYY-MM-DD') 
+         from jkr.rakennuksen_omistajat as existing_entry
+         where existing_entry.rakennus_id = ro.rakennus_id
+         and existing_entry.omistuksen_alkupvm::date > ro.omistuksen_alkupvm::date
+         and existing_entry.found_in_dvv = TRUE
+         order by omistuksen_alkupvm desc
+         limit 1)
       else 
-        poimintapvm -- use poimintapvm for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- if no applicable existing entry is found, use poimintapvm.
     end
-  where found_in_dvv is not True;
+  where found_in_dvv is not True
+  and omistuksen_loppupvm is null;
 end;
 $$ language plpgsql;
+
 
 create or replace function update_vanhin_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_vanhimmat as rv
   set loppupvm = 
-    case 
+    case
+      -- Looks for a new entry in the same appartment
+      -- sets loppupvm to new entry's alkupvm - 1 day, if it is greater than the alkupvm
+      -- of the entry being updated. 
       when exists(
-        select 1 
-        from jkr_dvv.vanhin as v
-        join jkr.rakennus as r on r.id = rv.rakennus_id
-        where v.rakennustunnus = r.prt
-          and v."huo_neisto_kirjain" = rv.huoneistokirjain
-          and v."huo_neisto_numero"::integer = rv.huoneistonumero
-          and v."jako_kirjain" = rv.jakokirjain
-      ) then 
-        (select to_date(v."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
-         from jkr_dvv.vanhin as v 
-         join jkr.rakennus as r on r.id = rv.rakennus_id
-         where v.rakennustunnus = r.prt
-           and v."huo_neisto_kirjain" = rv.huoneistokirjain
-           and v."huo_neisto_numero"::integer = rv.huoneistonumero
-           and v."jako_kirjain" = rv.jakokirjain
-         limit 1)
-      else 
-        poimintapvm -- use poimintapvm for entries where no matching rakennustunnus exists in the dvv data.
+        select 1
+        from jkr.rakennuksen_vanhimmat as new_entry
+        where new_entry.rakennus_id = rv.rakennus_id
+          and new_entry.huoneistokirjain is not distinct from rv.huoneistokirjain
+          and new_entry.huoneistonumero is not distinct from rv.huoneistonumero
+          and new_entry.jakokirjain is not distinct from rv.jakokirjain
+          and new_entry.alkupvm::date > rv.alkupvm::date
+          and new_entry.found_in_dvv = True
+          limit 1
+      ) then (select (new_entry.alkupvm::date - interval '1 DAY')
+        from jkr.rakennuksen_vanhimmat as new_entry
+        where new_entry.rakennus_id = rv.rakennus_id
+          and new_entry.huoneistokirjain is not distinct from rv.huoneistokirjain
+          and new_entry.huoneistonumero is not distinct from rv.huoneistonumero
+          and new_entry.jakokirjain is not distinct from rv.jakokirjain
+          and new_entry.found_in_dvv = True
+        limit 1)
+      else
+        -- if no applicable existing entry is found, use poimintapvm.
+        poimintapvm 
     end
   where found_in_dvv is not True
   and loppupvm is null;
 end;
 $$ language plpgsql;
 
--- What if the building is part of a perusmaksurekisteri kohde?
+
 create or replace function update_kaytostapoisto_pvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennus as r
@@ -66,6 +81,7 @@ begin
     and kaytostapoisto_pvm is null;
 end;
 $$ language plpgsql;
+
 
 -- Matches and updates information (nimi, postioimipaikka, postinumero) for osapuoli with known ytunnus and missing information
 create or replace function update_osapuoli_with_ytunnus() returns void as $$
@@ -149,14 +165,16 @@ begin
    end;
 $$ language plpgsql;
 
--- Inserts
+
 -- Add dvv tiedontuottaja
 insert into jkr_koodistot.tiedontuottaja values
     ('dvv', 'Digi- ja väestötietovirasto')
 on conflict do nothing;
 
+
 -- Add temporary column to easily sort buildings that exists in the dvv.
 alter table jkr.rakennus add column found_in_dvv boolean;
+
 
 -- Insert buildings to jkr_rakennus
 insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi, found_in_dvv)
@@ -185,8 +203,10 @@ set
     rakennuksenolotila_koodi = excluded.rakennuksenolotila_koodi,
     found_in_dvv = true;
 
+
 SELECT update_kaytostapoisto_pvm(:'poimintapvm');
 alter table jkr.rakennus drop column found_in_dvv;
+
 
 -- Insert streets to jkr_osoite.katu
 -- jkr_osoite.kunta must be filled in the database by running import_posti.sql first!
@@ -202,6 +222,7 @@ where
     "kadunnimi suomeksi" is not null and "kadunnimi ruotsiksi" is not null
 on conflict do nothing;
 
+
 -- Step 2: Import streets with max one language name. This way they will not override
 -- any names with two languages.
 insert into jkr_osoite.katu (katunimi_fi, katunimi_sv, kunta_koodi)
@@ -213,6 +234,7 @@ from jkr_dvv.osoite
 where
     "kadunnimi suomeksi" is null or "kadunnimi ruotsiksi" is null
 on conflict do nothing; -- create one empty street for each kunta
+
 
 -- Insert addresses to jkr.osoite
 insert into jkr.osoite (osoitenumero, katu_id, rakennus_id, posti_numero)
@@ -259,6 +281,7 @@ set
     henkilotunnus = excluded.henkilotunnus,
     tiedontuottaja_tunnus = excluded.tiedontuottaja_tunnus;
 
+
 -- Step 2: Find distinct non-people. Luckily, DVV y-tunnus entries don't have foreign addresses.
 -- y-tunnus does not have kotikunta either. y-tunnus always has postiosoite instead of asuinosoite.
 insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, ytunnus, tiedontuottaja_tunnus)
@@ -279,10 +302,12 @@ set
     postinumero = excluded.postinumero,
     tiedontuottaja_tunnus = excluded.tiedontuottaja_tunnus;
 
+
 -- Step 3: Create all owners with missing henkilötunnus/y-tunnus as separate rows.
 -- Any owners without henkilötunnus/y-tunnus do not have vakinainen asuinosoite or kotikunta or
 -- foreign address.
 alter table jkr.osapuoli add column rakennustunnus text;
+
 
 insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, rakennustunnus, tiedontuottaja_tunnus)
 select distinct -- There are some duplicate rows with identical address data
@@ -307,11 +332,12 @@ where
           -- addresses, though.
 ;
 
+
 alter table jkr.rakennuksen_omistajat add column found_in_dvv boolean;
 alter table jkr.rakennuksen_vanhimmat add column found_in_dvv boolean;
 
+
 -- Insert owners to jkr.rakennuksen_omistajat
--- TODO! Fix rakennuksen_omistajat insert, currently duplicates every entry.
 -- Step 1: Find all buildings owned by each owner, matching by henkilötunnus
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, found_in_dvv)
 select
@@ -323,9 +349,10 @@ from jkr_dvv.omistaja
 where
     omistaja."henkilötunnus" is not null and
     exists (select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings are listed
---on conflict on constraint unique_rakennuksen_omistajat do nothing; -- DVV has registered some owners twice on different dates
+-- DVV has registered some owners twice on different dates
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
     set found_in_dvv = true;
+
 
 -- Step 2: Find all buildings owned by each owner, matching by y-tunnus
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, found_in_dvv)
@@ -341,6 +368,7 @@ where
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update -- DVV has registered some owners twice on different dates
     set found_in_dvv = true;
 
+
 -- Step 3: Find all buildings owned by missing henkilötunnus/y-tunnus by name and address
 insert into jkr.rakennuksen_omistajat (rakennus_id, osapuoli_id, omistuksen_alkupvm, found_in_dvv)
 select distinct
@@ -352,7 +380,6 @@ select distinct
         omistaja."omistajan postiosoite" is not distinct from osapuoli.katuosoite and
         omistaja."postiosoitteen postitoimipaikka" is not distinct from osapuoli.postitoimipaikka and
         omistaja."postios posti_numero" is not distinct from osapuoli.postinumero and
-        -- omistaja."rakennustunnus" = osapuoli.rakennustunnus and
         osapuoli.tiedontuottaja_tunnus = 'dvv'
         LIMIT 1
     ) as osapuoli_id,
@@ -364,18 +391,6 @@ where
     omistaja."y_tunnus" is null and
     exists (
         select 1 from jkr.rakennus where omistaja.rakennustunnus = rakennus.prt) -- not all buildings might be listed
-    -- and not exists (
-        -- select 1 from jkr.rakennus r
-        -- join jkr.rakennuksen_omistajat ro on r.id = ro.rakennus_id
-        -- join jkr.osapuoli op on ro.osapuoli_id = op.id
-        -- where r.prt = omistaja.rakennustunnus and op.nimi = omistaja."omistajan nimi"
-        -- )
--- Only add those names each building does not have listed as owners yet.
--- Note that this may introduce multiple owners with the same name for each building
--- if there are multiple such rows in the same file. They will still have different
--- addresses, though.
--- There is a problem here!
--- on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do nothing;
 on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
     set found_in_dvv = true;
 
@@ -384,8 +399,10 @@ select update_omistuksen_loppupvm(:'poimintapvm');
 select update_osapuoli_with_ytunnus();
 select update_osapuoli_with_henkilotunnus();
 
+
 alter table jkr.osapuoli drop column rakennustunnus;
 alter table jkr.rakennuksen_omistajat drop column found_in_dvv;
+
 
 -- Insert elders to jkr.osapuoli
 insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, kunta, henkilotunnus, tiedontuottaja_tunnus)
@@ -417,7 +434,8 @@ where
         AND jkr.osapuoli.postinumero IS NULL OR jkr.osapuoli.postinumero <> excluded.postinumero
         AND jkr.osapuoli.kunta IS NULL OR jkr.osapuoli.kunta <> excluded.kunta
     );
-    
+
+
 -- Insert elders to jkr.rakennuksen_vanhimmat
 -- Step 1. Some vanhimmat have no extra fields
 insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
@@ -455,6 +473,7 @@ where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id
   )
   and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
+
 -- Step 2. Some vanhimmat have one extra field
 insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
@@ -490,6 +509,7 @@ where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id
     or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
   )
   and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
+
 
 -- Some vanhimmat have one extra field
 insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
@@ -527,6 +547,7 @@ where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id
   )
   and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
+
 -- Step 3. Some vanhimmat have two extra fields
 insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
@@ -563,6 +584,7 @@ where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id
   )
   and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
+
 -- Some vanhimmat have two extra fields
 insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
 select
@@ -598,6 +620,7 @@ where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id
     or (jkr.rakennuksen_vanhimmat.jakokirjain = excluded.jakokirjain)
   )
   and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
+
 
 -- Step 4. Some vanhimmat have all fields
 insert into jkr.rakennuksen_vanhimmat (rakennus_id, osapuoli_id, huoneistokirjain, huoneistonumero, jakokirjain, alkupvm, loppupvm, found_in_dvv)
