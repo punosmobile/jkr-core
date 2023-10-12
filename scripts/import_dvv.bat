@@ -1,12 +1,12 @@
 @echo off
 
-REM Tarkistetaan että poimintapäivämäärä annettu
+REM Tarkistetaan, että poimintapäivämäärä annettu
 IF "%~1"=="" (
     echo Anna dvv-aineiston poimintapäivämäärä parametrina muodossa vvvvkkpp
     exit /b 1
 )
 
-REM Asetetaam parametri muuttujaksi
+REM Asetetaan parametri muuttujaksi
 SET POIMINTAPVM=%~1
 echo %POIMINTAPVM%
 
@@ -20,8 +20,6 @@ SET PORT=5435
 SET DB_NAME=jkr
 SET USER=jkr_admin
 REM Määritä salasana %APPDATA%\postgresql\pgpass.conf tiedostossa
-
-@echo off
 
 ECHO Rakennukset
 ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln rakennus "../data/dvv/DVV_rakennukset.xlsx" "R1 rakennus"
