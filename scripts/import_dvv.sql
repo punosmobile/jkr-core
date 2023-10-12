@@ -3,27 +3,38 @@ SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm \gset
 -- Now you can use the poimintapvm variable in subsequent SQL or psql commands
 \echo POIMINTAPVM = :'poimintapvm'
 
--- update omistuksen_loppupvm via a function
 create or replace function update_omistuksen_loppupvm(poimintapvm DATE) returns void as $$
 begin
   update jkr.rakennuksen_omistajat as ro
   set omistuksen_loppupvm = 
-    case 
+    case
+      -- Looks for existing entry and
+      -- sets loppupvm to new entry's omistuksen_alkupvm - 1 day,
+      -- if it is greater than the omistuksen_alkupvm
+      -- of the entry being updated.
+      -- If multiple existing entries are found
+      -- picks the one with latest omistuksen_alkupvm
       when exists(
         select 1 
-        from jkr_dvv.omistaja as o 
-        join jkr.rakennus as r on r.id = ro.rakennus_id
-        where o.rakennustunnus = r.prt and 
-        found_in_dvv = true
+        from jkr.rakennuksen_omistajat as existing_entry
+        where existing_entry.rakennus_id = ro.rakennus_id
+        and existing_entry.omistuksen_alkupvm::date > ro.omistuksen_alkupvm::date
+        and existing_entry.found_in_dvv = true
+        order by omistuksen_alkupvm desc
+        limit 1
       ) then 
-        (select to_date(o."omistuksen alkupäivä"::text, 'YYYYMMDD') - interval '1 DAY' 
-         from jkr_dvv.omistaja as o 
-         join jkr.rakennus as r on r.id = ro.rakennus_id
-         where o.rakennustunnus = r.prt limit 1)
+        (select to_date((existing_entry.omistuksen_alkupvm::date - interval '1 DAY')::text, 'YYYY-MM-DD') 
+         from jkr.rakennuksen_omistajat as existing_entry
+         where existing_entry.rakennus_id = ro.rakennus_id
+         and existing_entry.omistuksen_alkupvm::date > ro.omistuksen_alkupvm::date
+         and existing_entry.found_in_dvv = TRUE
+         order by omistuksen_alkupvm desc
+         limit 1)
       else 
-        poimintapvm -- use poimintapvm for entries where no matching rakennustunnus exists in the dvv data.
+        poimintapvm -- if no applicable existing entry is found, use poimintapvm.
     end
-  where found_in_dvv is not True;
+  where found_in_dvv is not True
+  and omistuksen_loppupvm is null;
 end;
 $$ language plpgsql;
 
@@ -33,8 +44,8 @@ begin
   update jkr.rakennuksen_vanhimmat as rv
   set loppupvm = 
     case
-      -- Looks for a new existing entry in the same appartment
-      -- sets loppupvm to new entrys alkupvm - 1 day, if it is greater than the alkupvm
+      -- Looks for a new entry in the same appartment
+      -- sets loppupvm to new entry's alkupvm - 1 day, if it is greater than the alkupvm
       -- of the entry being updated. 
       when exists(
         select 1
@@ -55,7 +66,7 @@ begin
           and new_entry.found_in_dvv = True
         limit 1)
       else
-        -- use poimintapvm if no existing entry was found, or existing entry's alkupvm is not geater
+        -- if no applicable existing entry is found, use poimintapvm.
         poimintapvm 
     end
   where found_in_dvv is not True
