@@ -59,7 +59,7 @@ env
 wb-xlate*
 
 # jkr
-data/
+/data
 muistiot/
 pjh-virheelliset-osoitteet.csv
 *.qgs~

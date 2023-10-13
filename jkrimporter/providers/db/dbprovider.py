@@ -34,9 +34,7 @@ from .services.kohde import (
     update_kohde,
     update_ulkoinen_asiakastieto,
 )
-from .services.osapuoli import (
-    create_or_update_haltija_osapuoli,
-)
+from .services.osapuoli import create_or_update_haltija_osapuoli
 from .services.sopimus import update_sopimukset_for_kohde
 
 logger = logging.getLogger(__name__)
