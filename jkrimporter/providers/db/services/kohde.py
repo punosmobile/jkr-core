@@ -12,8 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
-from jkrimporter.model import Yhteystieto, Omistaja, VanhinAsukas
-#from jkrimporter.model import Yhteystieto
+from jkrimporter.model import Yhteystieto
 
 from .. import codes
 from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi
