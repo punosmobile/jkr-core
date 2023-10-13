@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Set, Union
 from sqlalchemy.orm import Session
 
 from jkrimporter.model import Asiakas, JkrData
-# from jkrimporter.model import Omistaja, VanhinAsukas, Asiakas, JkrData
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.progress import Progress
@@ -110,8 +109,6 @@ def insert_kuljetukset(
 def find_and_update_kohde(
     session: "Session",
     asiakas: "Asiakas",
-    # omistaja: "Omistaja",
-    # vanhin_asukas: "VanhinAsukas",
     do_create: bool,
     do_update: bool,
     prt_counts: Dict[str, int],
@@ -121,11 +118,6 @@ def find_and_update_kohde(
 
     kohde = None
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
-    # ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(
-        # session,
-        # omistaja.asiakasnumero,
-        # vanhin_asukas.asiakasnumero
-        # )
     if ulkoinen_asiakastieto:
         print("Kohde found by customer id.")
         update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
