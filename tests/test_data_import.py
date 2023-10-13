@@ -42,7 +42,7 @@ def test_import_dvv_kohteet(engine, datadir):
         print(f"Creating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 4
+    assert session.query(func.count(Kohde.id)).scalar() == 5
 
     # Kaikilla kohteilla vähintään yksi omistaja
     kohteet = select(Kohde.id)
@@ -51,16 +51,17 @@ def test_import_dvv_kohteet(engine, datadir):
     assert [row[0] for row in session.execute(kohteet)] == \
         [row[0] for row in session.execute(kohteet_having_omistaja)]
 
-    # Kohteissa nimeltä Forsström ja Kemp vain yksi asuttu huoneisto, vanhin asukas osapuoleksi
+    # Kohteissa nimeltä Forsström, Kemp ja Lindroth vain yksi asuttu huoneisto, vanhin asukas osapuoleksi
+    kohde_nimi_filter = or_(Kohde.nimi == 'Forsström', Kohde.nimi == 'Kemp', Kohde.nimi == 'Lindroth')
     vanhin_asukas_filter = KohteenOsapuolet.osapuolenrooli_id == 2
     kohde_ids = \
-        session.execute(select(Kohde.id).where(or_(Kohde.nimi == 'Forsström', Kohde.nimi == 'Kemp'))).fetchall()
+        session.execute(select(Kohde.id).where(kohde_nimi_filter)).fetchall()
     vanhin_asukas_id = \
         session.execute(select(KohteenOsapuolet.kohde_id).where(vanhin_asukas_filter)).fetchall()
     assert kohde_ids == vanhin_asukas_id
 
     # Muissa kohteissa ei vanhinta asukasta osapuolena
-    assert session.query(func.count(KohteenOsapuolet.kohde_id)).filter(vanhin_asukas_filter).scalar() == 2
+    assert session.query(func.count(KohteenOsapuolet.kohde_id)).filter(vanhin_asukas_filter).scalar() == 3
 
 
 def test_update_dvv_kohteet(engine):
@@ -82,7 +83,7 @@ def test_update_dvv_kohteet(engine):
         print(f"Updating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 5
+    assert session.query(func.count(Kohde.id)).scalar() == 6
 
     # Uudessa kohteessa Kyykoski osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
     kohde_filter = and_(Kohde.nimi == 'Kyykoski', Kohde.alkupvm == '2023-01-01')
