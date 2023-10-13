@@ -42,7 +42,7 @@ def test_import_dvv_kohteet(engine, datadir):
         print(f"Creating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 3
+    assert session.query(func.count(Kohde.id)).scalar() == 4
 
     # Kaikilla kohteilla vähintään yksi omistaja
     kohteet = select(Kohde.id)
