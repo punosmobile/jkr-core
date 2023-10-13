@@ -204,7 +204,7 @@ def import_asiakastiedot(
 def import_dvv_kohteet(
     session: Session,
     poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date],
+    loppupvm: Optional[datetime.date] = None,
     perusmaksutiedosto: Optional[Path] = None,
 ):
     # 1) Yhden asunnon kohteet
