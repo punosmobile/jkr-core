@@ -1,5 +1,9 @@
 from datetime import datetime
 
+from datetime import datetime
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 import pytest
 from sqlalchemy import create_engine, distinct, func, select
 from sqlalchemy.orm import Session
@@ -10,7 +14,10 @@ from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
 from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Osapuolenrooli
 
-import jkrimporter.cli.jkr
+from jkrimporter.providers.db.codes import init_code_objects
+from jkrimporter.providers.db.database import engine
+from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
+from jkrimporter.providers.db.models import Kohde
 
 
 @pytest.fixture(scope="module", autouse=True)
