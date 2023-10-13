@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from datetime import datetime
-from sqlalchemy import func
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
 import pytest
@@ -14,8 +14,9 @@ from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
 from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Osapuolenrooli
 
+from jkrimporter import conf
 from jkrimporter.providers.db.codes import init_code_objects
-from jkrimporter.providers.db.database import engine
+from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
 from jkrimporter.providers.db.models import Kohde
 
@@ -40,7 +41,12 @@ def test_osapuolenrooli(engine):
 
 def test_import_dvv_kohteet(engine, datadir):
     try:
-        with Session(engine) as session:
+        eng = create_engine(
+            "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(**conf.dbconf),
+            future=True,
+            json_serializer=json_dumps
+        )
+        with Session(eng) as session:
             init_code_objects(session)
             import_dvv_kohteet(session,
                                datetime.strptime("1.1.2022", "%d.%m.%Y").date(),
