@@ -10,6 +10,8 @@ from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
 from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Osapuolenrooli
 
+import jkrimporter.cli.jkr
+
 
 @pytest.fixture(scope="module", autouse=True)
 def engine():
