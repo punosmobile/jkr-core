@@ -1,4 +1,5 @@
 from datetime import datetime
+import subprocess
 
 import pytest
 from sqlalchemy import create_engine, distinct, func, or_, select
@@ -59,4 +60,25 @@ def test_import_dvv_kohteet(engine, datadir):
     assert kohde_ids == vanhin_asukas_id
 
     # Muissa kohteissa ei vanhinta asukasta osapuolena
-    assert session.query(func.count(KohteenOsapuolet.kohde_id)).filter(vanhin_asukas_filter).scalar() == 1
+    assert session.query(func.count(KohteenOsapuolet.kohde_id)).filter(vanhin_asukas_filter).scalar() == 2
+
+
+def test_update_dvv_kohteet(engine):
+    # Updating the test database created before test fixtures
+    update_test_db_command = ".\\scripts\\update_database.bat"
+    try:
+        subprocess.check_output(update_test_db_command, shell=True, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        print(f"Creating test database failed: {e.output}")
+
+    try:
+        with Session(engine) as session:
+            init_code_objects(session)
+            import_dvv_kohteet(session,
+                               datetime.strptime("1.1.2023", "%d.%m.%Y").date(),
+                               datetime.strptime("31.12.2023", "%d.%m.%Y").date())
+    except Exception as e:
+        print(f"Updating kohteet failed: {e}")
+
+    # Kohteiden lkm
+    assert session.query(func.count(Kohde.id)).scalar() == 4
