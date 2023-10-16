@@ -882,28 +882,30 @@ def get_or_create_kohteet_from_vanhimmat(
     )
     kohteet = []
     for (vanhin, osapuoli) in vanhimmat_osapuolet:
-        # The oldest inhabitant is the customer. Also save owners as backup
-        # contacts.
-        omistajat_query = (
-            select(RakennuksenOmistajat, Osapuoli)
-            .join(RakennuksenOmistajat.osapuoli)
-            .where(RakennuksenOmistajat.rakennus_id == vanhin.rakennus_id)
-        )
-        omistajat = {row[1] for row in session.execute(omistajat_query).all()}
-        # The correct kohde is found by checking the inhabitant in each half. In case
-        # of paritalo, we don't know which owner owned which part of the building.
-        # Therefore, we will have to create new kohteet for both halves when somebody
-        # sells their half.
-        kohde = update_or_create_kohde_from_buildings(
-            session,
-            dvv_rakennustiedot,
-            {dvv_rakennustiedot[vanhin.rakennus_id]},
-            {osapuoli},
-            omistajat,
-            poimintapvm,
-            loppupvm,
-        )
-        kohteet.append(kohde)
+        # We have to check if we are interested in just this rakennus of vanhin
+        if vanhin.rakennus_id in dvv_rakennustiedot:
+            # The oldest inhabitant is the customer. Also save owners as backup
+            # contacts.
+            omistajat_query = (
+                select(RakennuksenOmistajat, Osapuoli)
+                .join(RakennuksenOmistajat.osapuoli)
+                .where(RakennuksenOmistajat.rakennus_id == vanhin.rakennus_id)
+            )
+            omistajat = {row[1] for row in session.execute(omistajat_query).all()}
+            # The correct kohde is found by checking the inhabitant in each half. In case
+            # of paritalo, we don't know which owner owned which part of the building.
+            # Therefore, we will have to create new kohteet for both halves when somebody
+            # sells their half.
+            kohde = update_or_create_kohde_from_buildings(
+                session,
+                dvv_rakennustiedot,
+                {dvv_rakennustiedot[vanhin.rakennus_id]},
+                {osapuoli},
+                omistajat,
+                poimintapvm,
+                loppupvm,
+            )
+            kohteet.append(kohde)
     return kohteet
 
 
