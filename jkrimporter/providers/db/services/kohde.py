@@ -320,12 +320,20 @@ def get_dvv_rakennustiedot_without_kohde(
     loppupvm: "Optional[datetime.date]",
 ) -> "Dict[int, Rakennustiedot]":
     # Fastest to load everything to memory first.
-    rakennus_id_with_current_kohde = (
-        select(Rakennus.id)
-        .join(KohteenRakennukset)
-        .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
-    )
+    if loppupvm is None:
+        rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(poimintapvm == Kohde.alkupvm)
+        )
+    else:
+        rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        )
     # Import *all* buildings, also those without inhabitants, owners and/or addresses
     rows = session.execute(
         select(Rakennus, RakennuksenVanhimmat, RakennuksenOmistajat, Osoite)
@@ -1178,18 +1186,32 @@ def get_or_create_single_asunto_kohteet(
     here.
     """
     # Do not import any rakennus with existing kohteet
-    rakennus_id_with_current_kohde = (
-        select(Rakennus.id)
-        .filter(
-            Rakennus.rakennuksenkayttotarkoitus
-            == codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.YKSITTAISTALO
-            ]
+    if loppupvm is None:
+        rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .filter(
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.YKSITTAISTALO
+                ]
+            )
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(poimintapvm == Kohde.alkupvm)
         )
-        .join(KohteenRakennukset)
-        .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
-    )
+    else:
+        rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .filter(
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.YKSITTAISTALO
+                ]
+            )
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        )
     rakennus_id_without_kohde = (
         select(Rakennus.id)
         .filter(
