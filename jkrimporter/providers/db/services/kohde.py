@@ -1259,18 +1259,32 @@ def get_or_create_paritalo_kohteet(
     # step. If there is only one inhabitant (i.e. another flat is empty, flats
     # are combined, etc.), the building already has one kohde from previous
     # step and needs not be imported here.
-    paritalo_rakennus_id_with_current_kohde = (
-        select(Rakennus.id)
-        .filter(
-            Rakennus.rakennuksenkayttotarkoitus
-            == codes.rakennuksenkayttotarkoitukset[
-                RakennuksenKayttotarkoitusTyyppi.PARITALO
-            ]
+    if loppupvm is None:
+        paritalo_rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .filter(
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.PARITALO
+                ]
+            )
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(poimintapvm == Kohde.alkupvm)
         )
-        .join(KohteenRakennukset)
-        .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
-    )
+    else:
+        paritalo_rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .filter(
+                Rakennus.rakennuksenkayttotarkoitus
+                == codes.rakennuksenkayttotarkoitukset[
+                    RakennuksenKayttotarkoitusTyyppi.PARITALO
+                ]
+            )
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        )
     paritalo_rakennus_id_without_kohde = (
         select(Rakennus.id).filter(
             Rakennus.rakennuksenkayttotarkoitus
