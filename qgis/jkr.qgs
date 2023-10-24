@@ -36,7 +36,7 @@
         <Option/>
       </customproperties>
     </layer-tree-layer>
-    <layer-tree-layer providerKey="postgres" patch_size="-1,-1" source="service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;keskeytys&quot;" expanded="1" checked="Qt::Checked" name="Keskeytyskset" legend_exp="" legend_split_behavior="0" id="keskeytys_cef6ddee_6025_4eae_8708_bd24adad11b0">
+    <layer-tree-layer providerKey="postgres" patch_size="-1,-1" source="service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;keskeytys&quot;" expanded="1" checked="Qt::Checked" name="Keskeytykset" legend_exp="" legend_split_behavior="0" id="keskeytys_cef6ddee_6025_4eae_8708_bd24adad11b0">
       <customproperties>
         <Option/>
       </customproperties>
@@ -438,7 +438,7 @@
         <legendlayerfile isInOverview="0" layerid="kuljetus_ea8638a9_5c99_4fdc_bbd5_0f679d099832" visible="1"/>
       </filegroup>
     </legendlayer>
-    <legendlayer showFeatureCount="0" open="true" drawingOrder="-1" checked="Qt::Checked" name="Keskeytyskset">
+    <legendlayer showFeatureCount="0" open="true" drawingOrder="-1" checked="Qt::Checked" name="Keskeytykset">
       <filegroup hidden="false" open="true">
         <legendlayerfile isInOverview="0" layerid="keskeytys_cef6ddee_6025_4eae_8708_bd24adad11b0" visible="1"/>
       </filegroup>
@@ -2714,7 +2714,7 @@ def my_form_open(dialog, layer, feature):
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>Keskeytyskset</layername>
+      <layername>Keskeytykset</layername>
       <srs>
         <spatialrefsys nativeFormat="Wkt">
           <wkt></wkt>
