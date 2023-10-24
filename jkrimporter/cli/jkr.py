@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
+import subprocess
 
 import typer
 
@@ -129,6 +130,50 @@ def create_dvv_kohteet(
 
     db.write_dvv_kohteet(start, end, perusmaksutiedosto)
 
+    print("VALMIS!")
+
+
+@app.command("import_dvv", help="Import DVV data.")
+def import_dvv(
+    poimintapvm: str = typer.Argument(None, help="Importoitavan datan poimintapvm"),
+    # dvvtiedosto: Path = typer.Argument(None, help="DVV-tiedoston sijainti")
+):
+    # start = datetime.strptime(poimintapvm, "%d.%m.%Y").date()
+
+    bat_file = "C:/Projektit/jkr-core/scripts/test.bat"
+
+    # Use subprocess to run the .bat file with the parameters
+    # subprocess.call([bat_file, poimintapvm, str(dvvtiedosto)])
+    subprocess.call([bat_file, poimintapvm])
+
+    print("VALMIS!")
+
+
+@app.command("import_posti", help="Import posti data.")
+def import_posti(
+    #postitiedosto: Path = typer.Argument(None, help="Posti-tiedoston sijainti")
+):
+    bat_file = "C:/Projektit/jkr-core/scripts/import_posti.bat"
+    
+    #subprocess.call([bat_file, postitiedosto])
+    subprocess.call([bat_file])
+
+    print("VALMIS!")
+
+
+@app.command("import_and_create_kohteet",
+             help="Imports dvv data and creates dvv kohteet(optionally with perusmaksu). Optionally imports posti data.")
+def import_and_create_kohteet(
+    poimintapvm: str = typer.Argument(None, help="Dvv-aineiston poimintapäivämäärä, P.K.V muodossa."),
+    dvvtiedosto: Path = typer.Argument(None, help="Dvv-tiedoston sijainti"),
+    postitiedosto: Optional[Path] = typer.Argument(None, help="Posti-tiedoston sijainti"),
+    perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti"),
+):
+    bat_file = "import_and_create_kohteet.bat"
+
+    subprocess.call([bat_file, dvvtiedosto, poimintapvm, postitiedosto])
+    create_dvv_kohteet(poimintapvm, perusmaksutiedosto)
+            
     print("VALMIS!")
 
 
