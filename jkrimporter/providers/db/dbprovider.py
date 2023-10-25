@@ -1,9 +1,10 @@
-import datetime
+from datetime import datetime, timedelta
 import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from jkrimporter.model import Asiakas, JkrData
@@ -164,6 +165,17 @@ def find_and_update_kohde(
     return kohde
 
 
+def set_end_dates_to_kohteet(
+    session: Session,
+    poimintapvm: datetime.date,
+):
+    previous_pvm = poimintapvm - timedelta(days=1)
+    add_date_query = \
+        text("UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL")
+    session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
+    session.commit()
+
+
 def import_asiakastiedot(
     session: Session,
     asiakas: Asiakas,
@@ -207,6 +219,12 @@ def import_dvv_kohteet(
     loppupvm: Optional[datetime.date] = None,
     perusmaksutiedosto: Optional[Path] = None,
 ):
+    # Set end date for each kohde without end date. This will remain as an end
+    # date for non-active kohteet. The active kohteet will be updated below and
+    # the end date is cleared.
+    if poimintapvm is not None:
+        set_end_dates_to_kohteet(session, poimintapvm)
+
     # 1) Yhden asunnon kohteet
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
         session, poimintapvm, loppupvm
