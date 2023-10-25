@@ -133,20 +133,31 @@ def create_dvv_kohteet(
     print("VALMIS!")
 
 
-
 @app.command("import_and_create_kohteet",
              help="Imports dvv data and creates dvv kohteet(optionally with perusmaksu). Optionally imports posti data.")
 def import_and_create_kohteet(
     poimintapvm: str = typer.Argument(None, help="Dvv-aineiston poimintapäivämäärä, P.K.V muodossa."),
-    dvvtiedosto: Path = typer.Argument(None, help="Dvv-tiedoston sijainti"),
+    dvv: Path = typer.Argument(None, help="Dvv-tiedoston sijainti"),
     perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
-    posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan.")
+    posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
 ):
     bat_file = "import_and_create_kohteet.bat"
+    print(perusmaksutiedosto)
 
-    subprocess.call([bat_file, dvvtiedosto, poimintapvm, posti])
-    create_dvv_kohteet(poimintapvm, perusmaksutiedosto)
-            
+    # Construct the command arguments conditionally
+    cmd_args = [bat_file, dvv, poimintapvm]
+
+    if posti == "posti":
+        cmd_args.append("posti")
+
+    # Call subprocess with the constructed command arguments
+    subprocess.call(cmd_args)
+
+    if perusmaksutiedosto is not None:
+        create_dvv_kohteet(poimintapvm, perusmaksutiedosto)
+    else:
+        create_dvv_kohteet(poimintapvm, None)
+
     print("VALMIS!")
 
 

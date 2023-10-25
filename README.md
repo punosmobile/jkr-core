@@ -119,6 +119,31 @@ dbname=ymparisto_db
 > **Development**  
 > For development use the [QGIS-project](qgis/jkr.qgs) can be used.
 
+## Using jkr single command importer
+
+In jkr-core/import_posti.sql, replace '<POSTI>' with the path to your posti file.
+
+In jkr-core/import_and_create_kohteet.bat, replace the following lines to match your database connection:
+
+```
+SET HOST=<palvelimen nimi>
+SET PORT=<tietokantaportti>
+SET DB_NAME=<tietokannan_nimi>
+SET USER=<kayttajatunnus>
+```
+
+The single command importer can be called with the following from the root.
+
+```
+jkr import_and_create_kohteet <POIMINTAPVM> <DVV> <PERUSMAKSU> <POSTI>
+```
+Replace <POIMINTAPVM> with the poimintapäivämäärä of DVV file you're about to import. Required.
+Replace <DVV> with the filepath of DVV file you're about to import. Required.
+Replace <PERUSMAKSU> with the filepath of perusmaksurekiseteri file you want to use.
+If you do not want to use perusmaksurekisteri, leave <PERUSMAKSU> out of the command.
+Replace <POSTI> with "posti" (without quotation marks) if you want to import posti data.
+If you do not want to import posti data, leave <POSTI> out of the command.
+
 ## Testing
 
 The testing procedures are under construction. Currently, the tests can be run only in a Windows system. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.

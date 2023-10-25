@@ -1,5 +1,7 @@
 @echo off
 
+setlocal
+
 REM Tarkistetaan, että dvv-aineisto on syötetty
 IF "%~1"=="" (
     echo Anna dvv-aineiston tiedostopolku.
@@ -33,13 +35,14 @@ CHCP 65001
 REM Kerrotaan Postgresille myös että terminaalin encoding on UTF-8
 SET PGCLIENTENCODING=UTF8
 
-SET HOST=<palvelimen nimi>
-SET PORT=<tietokantaportti>
-SET DB_NAME=<tietokannan_nimi>
-SET USER=<kayttajatunnus>
+SET HOST=localhost
+SET PORT=5435
+SET DB_NAME=jkr
+SET USER=jkr_admin
 REM Määritä salasana %APPDATA%\postgresql\pgpass.conf tiedostossa
 
 REM Tarkistetaan halutaanko importoida posti data.
+
 IF "%~3"=="posti" (
     psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -f "import_posti.sql"
 )
@@ -60,3 +63,5 @@ ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%D
 ECHO Muunnetaan jkr-muotoon...
 
 psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date="%formatted_date%" -f "import_dvv.sql"
+
+endlocal
