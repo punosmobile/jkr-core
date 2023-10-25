@@ -142,15 +142,12 @@ def import_and_create_kohteet(
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
 ):
     bat_file = "import_and_create_kohteet.bat"
-    print(perusmaksutiedosto)
 
-    # Construct the command arguments conditionally
     cmd_args = [bat_file, dvv, poimintapvm]
 
     if posti == "posti":
         cmd_args.append("posti")
 
-    # Call subprocess with the constructed command arguments
     subprocess.call(cmd_args)
 
     if perusmaksutiedosto is not None:
