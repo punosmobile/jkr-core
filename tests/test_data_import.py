@@ -43,6 +43,16 @@ def test_import_dvv_kohteet(engine, datadir):
     # Kohteiden lkm
     assert session.query(func.count(Kohde.id)).scalar() == 5
 
+    # Perusmaksurekisteristä luodulla kohteella Asunto Oy Kahden Laulumuisto on loppupäivämäärä
+    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
+    loppu_pvm_filter = Kohde.loppupvm == func.to_date('2100-01-01', 'YYYY-MM-DD')
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(loppu_pvm_filter).scalar()
+    assert kohde_id is not None
+
+    # Muilla kohteilla ei loppupäivämäärää
+    loppu_pvm_filter = Kohde.loppupvm != None
+    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 1
+
     # Kaikilla kohteilla vähintään yksi omistaja
     kohteet = select(Kohde.id)
     kohteet_having_omistaja = \
@@ -81,6 +91,22 @@ def test_update_dvv_kohteet(engine):
 
     # Kohteiden lkm
     assert session.query(func.count(Kohde.id)).scalar() == 6
+
+    # Perusmaksurekisteristä luodun kohteen Asunto Oy Kahden Laulumuisto loppupäivämäärä ei ole muuttunut
+    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
+    loppu_pvm_filter = Kohde.loppupvm == func.to_date('2100-01-01', 'YYYY-MM-DD')
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(loppu_pvm_filter).scalar()
+    assert kohde_id is not None
+
+    # Päättyneelle kohteelle Kemp asetettu loppupäivämäärä
+    kohde_nimi_filter = Kohde.nimi == 'Kemp'
+    loppu_pvm_filter = Kohde.loppupvm == func.to_date('2023-01-30', 'YYYY-MM-DD')
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(loppu_pvm_filter).scalar()
+    assert kohde_id is not None
+
+    # Muilla kohteilla ei loppupäivämäärää
+    loppu_pvm_filter = Kohde.loppupvm != None
+    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 2
 
     # Uudessa kohteessa Kyykoski osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
     kohde_filter = and_(Kohde.nimi == 'Kyykoski', Kohde.alkupvm == '2023-01-31')

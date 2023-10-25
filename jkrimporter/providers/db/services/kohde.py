@@ -1,4 +1,5 @@
 import datetime
+from datetime import timedelta
 import re
 from collections import defaultdict
 from functools import lru_cache
@@ -854,6 +855,11 @@ def update_or_create_kohde_from_buildings(
     # Update kohde to be valid for the whole import period
     if not poimintapvm or (kohde.alkupvm and poimintapvm < kohde.alkupvm):
         kohde.alkupvm = poimintapvm
+
+    # Reset end date if using poimintapvm (kohde is still active)
+    if poimintapvm and kohde.loppupvm == poimintapvm - timedelta(days=1):
+        kohde.loppupvm = None
+
     return kohde
 
 
