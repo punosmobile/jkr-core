@@ -121,7 +121,7 @@ dbname=ymparisto_db
 
 ## Using jkr single command importer
 
-In jkr-core/import_posti.sql, replace '<POSTI>' with the path to your posti file.
+In jkr-core/import_posti.sql, replace ```<POSTI>``` with the path to your posti file.
 
 In jkr-core/import_and_create_kohteet.bat, replace the following lines to match your database connection:
 
@@ -137,11 +137,11 @@ The single command importer can be called with the following from the root.
 ```
 jkr import_and_create_kohteet <POIMINTAPVM> <DVV> <PERUSMAKSU> <POSTI>
 ```
-Replace <POIMINTAPVM> with the poimintapäivämäärä of DVV file you're about to import. Required.
-Replace <DVV> with the filepath of DVV file you're about to import. Required.
-Replace <PERUSMAKSU> with the filepath of perusmaksurekiseteri file you want to use.
+1. Replace <POIMINTAPVM> with the poimintapäivämäärä of DVV file you're about to import. Required.
+1. Replace <DVV> with the filepath of DVV file you're about to import. Required.
+1. Replace <PERUSMAKSU> with the filepath of perusmaksurekiseteri file you want to use.
 If you do not want to use perusmaksurekisteri, leave <PERUSMAKSU> out of the command.
-Replace <POSTI> with "posti" (without quotation marks) if you want to import posti data.
+1. Replace <POSTI> with "posti" (without quotation marks) if you want to import posti data.
 If you do not want to import posti data, leave <POSTI> out of the command.
 
 ## Testing
