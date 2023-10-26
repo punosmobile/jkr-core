@@ -5,10 +5,7 @@ docker stop jkr_test_database
 docker rm jkr_test_database
 docker volume rm jkr-core_postgis-data-test
 docker compose -f ..\\docker-compose.yml up -d db_test
-docker compose -f ..\\docker-compose.yml up -d flyway_test
-
-REM Varmistetaan, ett├ñ flyway on valmis
-ping -n 10 localhost
+docker compose -f ..\\docker-compose.yml run --rm flyway_test migrate
 
 REM Vaihdetaan terminaalin code page UTF-8:ksi
 CHCP 65001
