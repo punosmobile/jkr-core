@@ -35,11 +35,12 @@ CHCP 65001
 REM Kerrotaan Postgresille myös että terminaalin encoding on UTF-8
 SET PGCLIENTENCODING=UTF8
 
-SET HOST=localhost
-SET PORT=5435
-SET DB_NAME=jkr
-SET USER=jkr_admin
+SET HOST=<palvelimen nimi>
+SET PORT=<tietokantaportti>
+SET DB_NAME=<tietokannan_nimi>
+SET USER=<kayttajatunnus>
 REM Määritä salasana %APPDATA%\postgresql\pgpass.conf tiedostossa
+
 
 REM Tarkistetaan halutaanko importoida posti data.
 

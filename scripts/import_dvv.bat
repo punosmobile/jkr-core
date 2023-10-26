@@ -6,9 +6,8 @@ IF "%~1"=="" (
     exit /b 1
 )
 
-SET POIMINTAPVM=%~2
 REM Muutetaan poimintapäivä VVVVMMDD muotoon.
-for /f "tokens=1-3 delims=." %%a in ("%POIMINTAPVM%") do (
+for /f "tokens=1-3 delims=." %%a in ("%~1%") do (
     set "day=%%a"
     set "month=%%b"
     set "year=%%c"
@@ -44,6 +43,5 @@ ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%D
 ECHO Asukkaat
 ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln vanhin "../data/dvv/DVV_rakennukset.xlsx" "R9 huon asukk"
 
-set FORMATTED_DATE=%formatted_date%
 ECHO Muunnetaan jkr-muotoon...
-psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date="%FORMATTED_DATE%" -f "import_dvv.sql"
+psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date="%formatted_date%" -f "import_dvv.sql"
