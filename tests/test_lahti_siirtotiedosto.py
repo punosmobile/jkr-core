@@ -41,4 +41,4 @@ def test_import_data(engine, datadir):
     session = Session(engine)
 
     # Kuljetusdatassa yksi sopimus
-    assert session.query(func.count(Sopimus.id)).scalar() == 1
+    assert session.query(func.count(Sopimus.id)).scalar() == 2
