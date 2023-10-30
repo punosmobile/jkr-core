@@ -45,7 +45,7 @@ REM Määritä salasana %APPDATA%\postgresql\pgpass.conf tiedostossa
 REM Tarkistetaan halutaanko importoida posti data.
 
 IF "%~3"=="posti" (
-    psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -f "import_posti.sql"
+    psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -f "./scripts/jkr_posti.sql"
 )
 
 
@@ -63,6 +63,6 @@ ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%D
 
 ECHO Muunnetaan jkr-muotoon...
 
-psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date="%formatted_date%" -f "import_dvv.sql"
+psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date="%formatted_date%" -f "./scripts/import_dvv.sql"
 
 endlocal

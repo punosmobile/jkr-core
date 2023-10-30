@@ -121,9 +121,9 @@ dbname=ymparisto_db
 
 ## Using jkr single command importer
 
-In jkr-core/import_posti.sql, replace ```<POSTI>``` with the path to your posti file.
+In jkr-core/scripts/jkr_posti.sql, replace  ```<POSTI>``` with the path to your posti file.
 
-In jkr-core/import_and_create_kohteet.bat, replace the following lines to match your database connection:
+In jkr-core/scripts/import_and_create_kohteet.bat, replace the following lines to match your database connection:
 
 ```
 SET HOST=<palvelimen nimi>

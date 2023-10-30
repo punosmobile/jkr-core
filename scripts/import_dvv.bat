@@ -2,7 +2,7 @@
 
 REM Tarkistetaan, että poimintapäivämäärä annettu
 IF "%~1"=="" (
-    echo Anna dvv-aineiston poimintapäivämäärä parametrina muodossa vvvvkkpp
+    echo Anna dvv-aineiston poimintapäivämäärä parametrina muodossa P.K.VVVV
     exit /b 1
 )
 

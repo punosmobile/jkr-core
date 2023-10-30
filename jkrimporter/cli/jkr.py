@@ -141,7 +141,7 @@ def import_and_create_kohteet(
     perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
 ):
-    bat_file = "import_and_create_kohteet.bat"
+    bat_file = ".\\scripts\\import_and_create_kohteet.bat"
 
     cmd_args = [bat_file, dvv, poimintapvm]
 
