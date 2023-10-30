@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
+import subprocess
 
 import typer
 
@@ -128,6 +129,31 @@ def create_dvv_kohteet(
     end = None
 
     db.write_dvv_kohteet(start, end, perusmaksutiedosto)
+
+    print("VALMIS!")
+
+
+@app.command("import_and_create_kohteet",
+             help="Imports dvv data and creates dvv kohteet(optionally with perusmaksu). Optionally imports posti data.")
+def import_and_create_kohteet(
+    poimintapvm: str = typer.Argument(None, help="Dvv-aineiston poimintapäivämäärä, P.K.V muodossa."),
+    dvv: Path = typer.Argument(None, help="Dvv-tiedoston sijainti"),
+    perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
+    posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
+):
+    bat_file = ".\\scripts\\import_and_create_kohteet.bat"
+
+    cmd_args = [bat_file, dvv, poimintapvm]
+
+    if posti == "posti":
+        cmd_args.append("posti")
+
+    subprocess.call(cmd_args)
+
+    if perusmaksutiedosto is not None:
+        create_dvv_kohteet(poimintapvm, perusmaksutiedosto)
+    else:
+        create_dvv_kohteet(poimintapvm, None)
 
     print("VALMIS!")
 

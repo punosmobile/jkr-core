@@ -1,4 +1,4 @@
-SELECT to_date(:'POIMINTAPVM', 'YYYYMMDD') AS poimintapvm \gset
+SELECT to_date(:'formatted_date', 'YYYYMMDD') AS poimintapvm \gset
 
 
 create or replace function update_omistuksen_loppupvm(poimintapvm DATE) returns void as $$
