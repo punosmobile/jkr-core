@@ -103,7 +103,7 @@ def import_data(
             raise typer.Exit()
 
     translator = provider.Translator(data, tiedontuottajatunnus)
-    jkr_data = translator.as_jkr_data(alkupvm)
+    jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
     print('writing to db...')
     db = DbProvider()
     db.write(jkr_data, tiedontuottajatunnus, ala_luo, ala_paivita)
