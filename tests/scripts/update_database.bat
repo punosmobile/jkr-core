@@ -27,4 +27,4 @@ ECHO Asukkaat
 %OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln vanhin "./data/test_data_import/DVV_update.xlsx" "R9 huon asukk"
 
 ECHO Muunnetaan jkr-muotoon...
-psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v POIMINTAPVM=20230131 -f "../scripts/import_dvv.sql"
+psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date=20230131 -f "../scripts/import_dvv.sql"
