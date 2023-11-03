@@ -50,18 +50,29 @@ class OsapuolenlajiTyyppi(Enum):
 
 
 class OsapuolenrooliTyyppi(Enum):
-    # Definitions at https://github.com/GispoCoding/jkr-lahti/issues/73
-    ASIAKAS = "Asiakas"
-    VANHIN_ASUKAS = "Vanhin asukas"
-    ASUKAS = "Asukas"
+    # Definitions at https://github.com/GispoCoding/jkr-lahti/issues/96
     OMISTAJA = "Omistaja"
-    SEKAJATE_TILAAJA = "Sekajätteen tilaaja"
-    ENERGIAJATE_TILAAJA = "Energiajätteen tilaaja"
-    PAKKAUS_JA_BIOJATE_TILAAJA = "Pakkaus- ja biojätteen tilaaja"
-    AKP_TILAAJA = "Apk-tilaaja"
-    LIETE_KULJETUS_TILAAJA = "Lietteen kuljetuksen tilaaja"
-    KIMPPAISANTA = "Kimppaisäntä"
-    KIMPPAOSAKAS = "Kimppaosakas"
+    VANHIN_ASUKAS = "Vanhin asukas"
+    SEKAJATE_TILAAJA = "Tilaaja sekajäte"
+    BIOJATE_TILAAJA = "Tilaaja biojäte"
+    MUOVI_TILAAJA = "Tilaaja muovipakkaus"
+    KARTONKI_TILAAJA = "Tilaaja kartonkipakkaus"
+    LASI_TILAAJA = "Tilaaja lasipakkaus"
+    METALLI_TILAAJA = "Tilaaja metalli"
+    MONILOKERO_TILAAJA = "Tilaaja monilokero"
+    LIETE_TILAAJA = "Tilaaja liete"
+    SEKAJATE_KIMPPAISANTA = "Kimppaisäntä sekajäte"
+    BIOJATE_KIMPPAISANTA = "Kimppaisäntä biojäte"
+    MUOVI_KIMPPAISANTA = "Kimppaisäntä muovipakkaus"
+    KARTONKI_KIMPPAISANTA = "Kimppaisäntä kartonkipakkaus"
+    LASI_KIMPPAISANTA = "Kimppaisäntä lasipakkaus"
+    METALLI_KIMPPAISANTA = "Kimppaisäntä metalli"
+    SEKAJATE_KIMPPAOSAKAS = "Kimppaosakas sekajäte"
+    BIOJATE_KIMPPAOSAKAS = "Kimppaosakas biojäte"
+    MUOVI_KIMPPAOSAKAS = "Kimppaosakas muovipakkaus"
+    KARTONKI_KIMPPAOSAKAS = "Kimppaosakas kartonkipakkaus"
+    LASI_KIMPPAOSAKAS = "Kimppaosakas lasipakkaus"
+    METALLI_KIMPPAOSAKAS = "Kimppaosakas metalli"
 
 
 class RakennuksenKayttotarkoitusTyyppi(Enum):
