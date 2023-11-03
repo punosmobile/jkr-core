@@ -1,6 +1,4 @@
-from typing import TYPE_CHECKING
-
-from jkrimporter.model import Asiakas
+from jkrimporter.model import Asiakas, Jatelaji
 
 from .. import codes
 from ..codes import OsapuolenlajiTyyppi, OsapuolenrooliTyyppi
@@ -13,11 +11,28 @@ def create_or_update_haltija_osapuoli(
 ):
     """
     Luo kohteelle haltijaosapuolen
-
-    TODO: päivitä haltijan/asiakakkaan yhteystiedot (ml. poistaminen) #26
     """
 
-    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS]
+    if len(asiakas.sopimukset) == 0:
+        return
+
+    sopimus = asiakas.sopimukset[0]
+    if sopimus.jatelaji == Jatelaji.sekajate:
+        asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_TILAAJA]
+    elif sopimus.jatelaji == Jatelaji.bio:
+        asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_TILAAJA]
+    elif sopimus.jatelaji == Jatelaji.lasi:
+        asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_TILAAJA]
+    elif sopimus.jatelaji == Jatelaji.kartonki:
+        asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_TILAAJA]
+    elif sopimus.jatelaji == Jatelaji.liete:
+        asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LIETE_TILAAJA]    
+    elif sopimus.jatelaji == Jatelaji.metalli:
+        asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_TILAAJA]        
+    elif sopimus.jatelaji == Jatelaji.muovi:
+        asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
+    else:
+        return
 
     # Filter osapuoli by the same tiedontuottaja. This way, we don't
     # override data coming from other tiedontuottajat, including DVV.
