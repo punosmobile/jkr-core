@@ -87,5 +87,5 @@ def test_import_data(engine, datadir):
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja lasipakkaus').scalar()
     assert lasi_tilaaja_id in osapuolen_roolit
     metalli_tilaaja_id = \
-        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja metallipakkaus').scalar()
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja metalli').scalar()
     assert metalli_tilaaja_id in osapuolen_roolit
