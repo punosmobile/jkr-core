@@ -24,7 +24,8 @@ def engine():
 
 def test_osapuolenrooli(engine):
     osapuolenroolit = [(1, 'Omistaja'),
-                       (2, 'Vanhin asukas')]
+                       (2, 'Vanhin asukas'),
+                       (3, 'Asiakas')]
     session = Session(engine)
     result = session.execute(select([Osapuolenrooli.id, Osapuolenrooli.selite]))
     assert [tuple(row) for row in result] == osapuolenroolit
