@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from jkrimporter import conf
 from jkrimporter.cli.jkr import import_data, tiedontuottaja_add_new
 from jkrimporter.providers.db.database import json_dumps
-from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Jatetyyppi, Osapuolenrooli, Sopimus, Tiedontuottaja
+from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Jatetyyppi, Osapuolenrooli, Sopimus, SopimusTyyppi, Tiedontuottaja
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 
 
@@ -89,3 +89,19 @@ def test_import_data(engine, datadir):
     metalli_tilaaja_id = \
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja metalli').scalar()
     assert metalli_tilaaja_id in osapuolen_roolit
+
+    # Kohde Forsström on sekajätekimpan osakas
+    kohde_nimi_filter = Kohde.nimi == 'Forsström'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    kimppa_sopimus = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == sekajate_id)
+    assert kimppa_sopimus[0][0] is not None  # sopimuksella on kimppaisäntä
+    assert kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    sekajate_kimppaosakas_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaosakas sekajäte').scalar()
+    assert sekajate_kimppaosakas_id in osapuolen_roolit

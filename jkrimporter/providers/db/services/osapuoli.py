@@ -1,4 +1,4 @@
-from jkrimporter.model import Asiakas, Jatelaji
+from jkrimporter.model import Asiakas, Jatelaji, SopimusTyyppi
 
 from .. import codes
 from ..codes import OsapuolenlajiTyyppi, OsapuolenrooliTyyppi
@@ -14,22 +14,40 @@ def create_or_update_haltija_osapuoli(
     """
 
     for sopimus in asiakas.sopimukset:
-        if sopimus.jatelaji == Jatelaji.sekajate:
-            asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_TILAAJA]
-        elif sopimus.jatelaji == Jatelaji.bio:
-            asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_TILAAJA]
-        elif sopimus.jatelaji == Jatelaji.lasi:
-            asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_TILAAJA]
-        elif sopimus.jatelaji == Jatelaji.kartonki:
-            asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_TILAAJA]
-        elif sopimus.jatelaji == Jatelaji.liete:
-            asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LIETE_TILAAJA]
-        elif sopimus.jatelaji == Jatelaji.metalli:
-            asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_TILAAJA]
-        elif sopimus.jatelaji == Jatelaji.muovi:
-            asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
+        if sopimus.sopimustyyppi == SopimusTyyppi.kimppasopimus:
+            if sopimus.jatelaji == Jatelaji.sekajate:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_KIMPPAOSAKAS]
+            elif sopimus.jatelaji == Jatelaji.bio:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_KIMPPAOSAKAS]
+            elif sopimus.jatelaji == Jatelaji.lasi:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_KIMPPAOSAKAS]
+            elif sopimus.jatelaji == Jatelaji.kartonki:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAOSAKAS]
+            elif sopimus.jatelaji == Jatelaji.metalli:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAOSAKAS]
+            elif sopimus.jatelaji == Jatelaji.muovi:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAOSAKAS]
+            else:
+                print("Unknown jätelaji " + sopimus.jatelaji + " in kimppasopimus")
+                continue
         else:
-            continue
+            if sopimus.jatelaji == Jatelaji.sekajate:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.bio:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.lasi:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.kartonki:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.liete:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LIETE_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.metalli:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.muovi:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
+            else:
+                print("Unknown jätelaji " + sopimus.jatelaji + " in sopimus")
+                continue
 
         # Filter osapuoli by the same tiedontuottaja. This way, we don't
         # override data coming from other tiedontuottajat, including DVV.
