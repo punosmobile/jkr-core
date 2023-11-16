@@ -268,13 +268,14 @@ class LahtiTranslator:
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                     isannan_asiakasnumero=isannan_asiakasnumero,
+                    asiakas_on_isanta=(row.UrakoitsijankohdeId == row.KimpastaVastaava),
                 )
             else:
                 sopimus = TyhjennysSopimus(
                     sopimustyyppi=sopimustyyppi,
                     jatelaji=jatelaji,
                     alkupvm=row.Pvmalk,
-                    loppupvm=row.Pvmasti
+                    loppupvm=row.Pvmasti,
                 )
             if row.tyhjennysvali:
                 # tyhjennysväli is missing from some data
@@ -286,7 +287,6 @@ class LahtiTranslator:
                     )
                 )
             data.asiakkaat[tunnus].sopimukset.append(sopimus)
-            # print(data.asiakkaat[tunnus].sopimukset)
 
             keraysvaline = Keraysvaline(
                 maara=row.astiamaara,
@@ -294,7 +294,6 @@ class LahtiTranslator:
                 tyyppi=KeraysvalineTyyppi.SAILIO,
             )
             sopimus.keraysvalineet.append(keraysvaline)
-            # print(sopimus.keraysvalineet)
 
             massa = row.paino * 1000 if row.paino else None
             data.asiakkaat[tunnus].tyhjennystapahtumat.append(
@@ -307,7 +306,6 @@ class LahtiTranslator:
                     massa=massa,
                 )
             )
-            # print(data.asiakkaat[tunnus].tyhjennystapahtumat)
             print("------")
 
         return data

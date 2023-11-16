@@ -105,3 +105,19 @@ def test_import_data(engine, datadir):
     sekajate_kimppaosakas_id = \
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaosakas sekajäte').scalar()
     assert sekajate_kimppaosakas_id in osapuolen_roolit
+
+    # Kohde Lindroth on sekajätekimpan isäntä
+    kohde_nimi_filter = Kohde.nimi.like('Lindroth%')  # currently several Lindroths, to be fixed
+    kohde_ids = [k[0] for k in session.query(Kohde.id).filter(kohde_nimi_filter).all()]
+    kimppa_sopimus = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id.in_(kohde_ids)).filter(Sopimus.jatetyyppi_id == sekajate_id)
+    assert kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
+    assert kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id.in_(kohde_ids))
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    sekajate_kimppaisanta_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä sekajäte').scalar()
+    assert sekajate_kimppaisanta_id in osapuolen_roolit

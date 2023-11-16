@@ -15,21 +15,38 @@ def create_or_update_haltija_osapuoli(
 
     for sopimus in asiakas.sopimukset:
         if sopimus.sopimustyyppi == SopimusTyyppi.kimppasopimus:
-            if sopimus.jatelaji == Jatelaji.sekajate:
-                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_KIMPPAOSAKAS]
-            elif sopimus.jatelaji == Jatelaji.bio:
-                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_KIMPPAOSAKAS]
-            elif sopimus.jatelaji == Jatelaji.lasi:
-                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_KIMPPAOSAKAS]
-            elif sopimus.jatelaji == Jatelaji.kartonki:
-                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAOSAKAS]
-            elif sopimus.jatelaji == Jatelaji.metalli:
-                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAOSAKAS]
-            elif sopimus.jatelaji == Jatelaji.muovi:
-                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAOSAKAS]
+            if sopimus.asiakas_on_isanta:
+                if sopimus.jatelaji == Jatelaji.sekajate:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_KIMPPAISANTA]
+                elif sopimus.jatelaji == Jatelaji.bio:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_KIMPPAISANTA]
+                elif sopimus.jatelaji == Jatelaji.lasi:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_KIMPPAISANTA]
+                elif sopimus.jatelaji == Jatelaji.kartonki:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAISANTA]
+                elif sopimus.jatelaji == Jatelaji.metalli:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAISANTA]
+                elif sopimus.jatelaji == Jatelaji.muovi:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAISANTA]
+                else:
+                    print("Skipping sopimus with unknown jätelaji " + sopimus.jatelaji + " in kimppasopimus")
+                    continue
             else:
-                print("Unknown jätelaji " + sopimus.jatelaji + " in kimppasopimus")
-                continue
+                if sopimus.jatelaji == Jatelaji.sekajate:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_KIMPPAOSAKAS]
+                elif sopimus.jatelaji == Jatelaji.bio:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_KIMPPAOSAKAS]
+                elif sopimus.jatelaji == Jatelaji.lasi:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_KIMPPAOSAKAS]
+                elif sopimus.jatelaji == Jatelaji.kartonki:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAOSAKAS]
+                elif sopimus.jatelaji == Jatelaji.metalli:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAOSAKAS]
+                elif sopimus.jatelaji == Jatelaji.muovi:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAOSAKAS]
+                else:
+                    print("Skipping sopimus with unknown jätelaji " + sopimus.jatelaji + " in kimppasopimus")
+                    continue
         else:
             if sopimus.jatelaji == Jatelaji.sekajate:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_TILAAJA]
@@ -46,7 +63,7 @@ def create_or_update_haltija_osapuoli(
             elif sopimus.jatelaji == Jatelaji.muovi:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
             else:
-                print("Unknown jätelaji " + sopimus.jatelaji + " in sopimus")
+                print("Skipping sopimus with unknown jätelaji " + sopimus.jatelaji + " in sopimus")
                 continue
 
         # Filter osapuoli by the same tiedontuottaja. This way, we don't

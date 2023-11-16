@@ -191,6 +191,7 @@ class TyhjennysSopimus(BaseSopimus):
 @dataclass
 class KimppaSopimus(TyhjennysSopimus):
     isannan_asiakasnumero: Optional[Tunnus] = None
+    asiakas_on_isanta: bool = False
 
 
 @dataclass
