@@ -1,5 +1,24 @@
 insert into jkr_koodistot.osapuolenrooli(id, selite) values
     (1,'Omistaja'),
     (2,'Vanhin asukas'),
-    (3,'Asiakas')
+    (11,'Tilaaja sekajäte'),
+    (12,'Tilaaja biojäte'),
+    (13,'Tilaaja muovipakkaus'),
+    (14,'Tilaaja kartonkipakkaus'),
+    (15,'Tilaaja lasipakkaus'),
+    (16,'Tilaaja metalli'),
+    (17,'Tilaaja monilokero'),
+    (18,'Tilaaja liete'),
+    (111,'Kimppaisäntä sekajäte'),
+    (112,'Kimppaisäntä biojäte'),
+    (113,'Kimppaisäntä muovipakkaus'),
+    (114,'Kimppaisäntä kartonkipakkaus'),
+    (115,'Kimppaisäntä lasipakkaus'),
+    (116,'Kimppaisäntä metalli'),
+    (211,'Kimppaosakas sekajäte'),
+    (212,'Kimppaosakas biojäte'),
+    (213,'Kimppaosakas muovipakkaus'),
+    (214,'Kimppaosakas kartonkipakkaus'),
+    (215,'Kimppaosakas lasipakkaus'),
+    (216,'Kimppaosakas metalli')
 on conflict (id) do update set selite = excluded.selite;
