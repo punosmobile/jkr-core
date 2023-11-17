@@ -316,7 +316,7 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto"):
         select(Rakennus)
         .join(Osoite)
         .join(Katu)
-        .join(RakennuksenVanhimmat, outer=True)  # allow vapaa-ajanrakennukset
+        .outerjoin(RakennuksenVanhimmat)  # allow vapaa-ajanrakennukset
         .where(
             Osoite.posti_numero == haltija.osoite.postinumero,
             sqlalchemyFunc.lower(Katu.katunimi_fi) == katunimi_lower,

@@ -1,6 +1,7 @@
 import datetime
 import re
 from datetime import date
+from dateutil.parser import parse as date_parser
 from enum import Enum
 from typing import Dict, Optional, Union
 
@@ -118,6 +119,9 @@ class Asiakas(BaseModel):
     @validator("koko", "paino", pre=True)
     def parse_float(value: Union[float, str]):
         # If float wasn't parsed, let's parse them
+        # Return none if empty string was parsed
+        if value == '':
+            return None
         if type(value) is str:
             # we might have . or , as the separator
             return float(value.replace(",", "."))
@@ -127,6 +131,14 @@ class Asiakas(BaseModel):
     def parse_jatelaji(value: str):
         if value == "Sekaj":
             value = "Sekajäte"
+        if value == "Biojäte":
+            value = "Bio"
+        if value == "Kartonkipakkaus":
+            value = "Kartonki"
+        if value == "Muovipakkaus":
+            value = "Muovi"
+        if value == "Lasipakkaus":
+            value = "Lasi"
         return value.title()
 
     @validator("Pvmalk", "Pvmasti", pre=True)
@@ -142,8 +154,8 @@ class Asiakas(BaseModel):
         "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti", pre=True
     )
     def fix_na(value: str):
-        # Many fields may have strings such as #N/A. Parse them to None.
-        if value == "#N/A":
+        # Many fields may have strings such as #N/A or empty string. Parse them to None.
+        if value == "#N/A" or value == '':
             return None
         return value
 
@@ -154,3 +166,12 @@ class Asiakas(BaseModel):
         if value:
             return int(value)
         return None
+
+    @validator("astiamaara", pre=True, always=True)
+    def parse_decimal_separator(cls, value):
+        if isinstance(value, str):
+            # There is atleast one case where SUM(astiamaara) is "0,12"
+            # Not sure what to do here, doesn't make sense that 0.12 containers have been emptied.
+            # But then again, should this be converted to 0, 1 or 12?
+            value = float(value.replace(',', '.'))
+        return value

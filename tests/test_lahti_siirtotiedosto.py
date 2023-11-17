@@ -32,7 +32,9 @@ def test_readable(datadir):
 
 def test_kohteet(datadir):
     asiakastiedot = LahtiSiirtotiedosto(datadir).asiakastiedot
-    assert 'UrakoitsijaId' in asiakastiedot.headers
+    header_row = asiakastiedot[0]
+    headers = header_row.dict().keys()
+    assert 'UrakoitsijaId' in headers
 
 
 def test_import_data(engine, datadir):
