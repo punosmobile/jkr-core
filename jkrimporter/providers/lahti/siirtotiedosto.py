@@ -7,10 +7,12 @@ from jkrimporter.providers.lahti.models import Asiakas
 
 logger = logging.getLogger(__name__)
 
+
 class AsiakastiedotSheet(SiirtotiedostoSheet[Asiakas]):
     @staticmethod
     def _obj_from_dict(data):
         return Asiakas.parse_obj(data)
+
 
 class LahtiSiirtotiedosto:
     def __init__(self, path):
