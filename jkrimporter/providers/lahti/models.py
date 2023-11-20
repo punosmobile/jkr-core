@@ -35,11 +35,11 @@ class Jatelaji(str, Enum):
 class Asiakas(BaseModel):
     UrakoitsijaId: str
     UrakoitsijankohdeId: str
-    Kiinteistotunnus: Optional[str] = None
+    Kiinteistotunnus: Optional[str] = Field(
+        alias="Rakennustunnus/Kiinteistotunnus", default=None
+    )
     Kiinteistonkatuosoite: Optional[str] = None
     Kiinteistonposti: str
-    # kimppa: Optional[bool] = False
-    # kimppaid: Optional[str] = None
     Haltijannimi: str
     Haltijanyhteyshlo: Optional[str] = None
     Haltijankatuosoite: Optional[str] = None
