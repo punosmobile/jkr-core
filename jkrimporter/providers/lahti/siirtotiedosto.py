@@ -1,9 +1,11 @@
 import logging
 import csv
 from pathlib import Path
+from typing import List
 
 from jkrimporter.datasheets import SiirtotiedostoSheet
 from jkrimporter.providers.lahti.models import Asiakas
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,13 @@ class LahtiSiirtotiedosto:
                 all_data.extend(data_list)
 
         # Convert to a list of Asiakas objects
-        asiakas_list = [Asiakas.parse_obj(data) for data in all_data]
+        asiakas_list = []
+        for data in all_data:
+            # Validate Asiakas, if validation fails skip.
+            try:
+                asiakas_obj = Asiakas.parse_obj(data)
+                asiakas_list.append(asiakas_obj)
+            except ValidationError as e:
+                logger.error(f"Validation failed for data: {data}. Error: {e}")
 
         return asiakas_list
