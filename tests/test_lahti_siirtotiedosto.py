@@ -5,7 +5,15 @@ from sqlalchemy.orm import Session
 from jkrimporter import conf
 from jkrimporter.cli.jkr import import_data, tiedontuottaja_add_new
 from jkrimporter.providers.db.database import json_dumps
-from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Jatetyyppi, Osapuolenrooli, Sopimus, SopimusTyyppi, Tiedontuottaja
+from jkrimporter.providers.db.models import (
+    Jatetyyppi,
+    Kohde,
+    KohteenOsapuolet,
+    Osapuolenrooli,
+    Sopimus,
+    SopimusTyyppi,
+    Tiedontuottaja,
+)
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 
 
@@ -42,10 +50,13 @@ def test_import_data(engine, datadir):
 
     session = Session(engine)
 
-    # Kuljetusdatassa kahdeksan sopimusta, joista kaksi on kahden kimppa
-    assert session.query(func.count(Sopimus.id)).scalar() == 10
+    # Kohteita ei pidä muodostua lisää (edelleen kuusi)
+    assert session.query(func.count(Kohde.id)).scalar() == 6
 
-    # Sopimuksissa kaksi sekajäte- ja biojätesopimusta (joista toinen kimppa) ja muita yksi kutakin
+    # Kuljetusdatassa seitsemän kelvollista sopimusta, joista yksi on kahden kimppa
+    assert session.query(func.count(Sopimus.id)).scalar() == 8
+
+    # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa) ja muita yksi kutakin
     sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
     seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
     assert session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar() == 3
