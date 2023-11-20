@@ -42,16 +42,16 @@ def test_import_data(engine, datadir):
 
     session = Session(engine)
 
-    # Kuljetusdatassa seitsemän sopimusta, joista yksi on kahden kimppa
-    assert session.query(func.count(Sopimus.id)).scalar() == 8
+    # Kuljetusdatassa kahdeksan sopimusta, joista kaksi on kahden kimppa
+    assert session.query(func.count(Sopimus.id)).scalar() == 10
 
-    # Sopimuksissa kaksi sekajätesopimusta (joista toinen kimppa) ja muita yksi kutakin
+    # Sopimuksissa kaksi sekajäte- ja biojätesopimusta (joista toinen kimppa) ja muita yksi kutakin
     sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
     seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
     assert session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar() == 3
     biojate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Biojäte').scalar_subquery()
     bio_sopimus_filter = Sopimus.jatetyyppi_id == biojate_id
-    assert session.query(func.count(Sopimus.id)).filter(bio_sopimus_filter).scalar() == 1
+    assert session.query(func.count(Sopimus.id)).filter(bio_sopimus_filter).scalar() == 3
     lasi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Lasi').scalar_subquery()
     lasi_sopimus_filter = Sopimus.jatetyyppi_id == lasi_id
     assert session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar() == 1
@@ -106,6 +106,22 @@ def test_import_data(engine, datadir):
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaosakas sekajäte').scalar()
     assert sekajate_kimppaosakas_id in osapuolen_roolit
 
+    # Kohde Forsström on myös biojätekimpan osakas
+    kohde_nimi_filter = Kohde.nimi == 'Forsström'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    kimppa_sopimus = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == biojate_id)
+    assert kimppa_sopimus[0][0] is not None  # sopimuksella on kimppaisäntä
+    assert kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    biojate_kimppaosakas_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaosakas biojäte').scalar()
+    assert biojate_kimppaosakas_id in osapuolen_roolit
+
     # Kohde Lindroth on sekajätekimpan isäntä
     kohde_nimi_filter = Kohde.nimi.like('Lindroth%')  # currently several Lindroths, to be fixed
     kohde_ids = [k[0] for k in session.query(Kohde.id).filter(kohde_nimi_filter).all()]
@@ -121,3 +137,19 @@ def test_import_data(engine, datadir):
     sekajate_kimppaisanta_id = \
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä sekajäte').scalar()
     assert sekajate_kimppaisanta_id in osapuolen_roolit
+    
+    # Kohde Lindroth on myös biojätekimpan isäntä
+    kohde_nimi_filter = Kohde.nimi.like('Lindroth%')  # currently several Lindroths, to be fixed
+    kohde_ids = [k[0] for k in session.query(Kohde.id).filter(kohde_nimi_filter).all()]
+    kimppa_sopimus = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id.in_(kohde_ids)).filter(Sopimus.jatetyyppi_id == biojate_id)
+    assert kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
+    assert kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id.in_(kohde_ids))
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    biojate_kimppaisanta_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä biojäte').scalar()
+    assert biojate_kimppaisanta_id in osapuolen_roolit

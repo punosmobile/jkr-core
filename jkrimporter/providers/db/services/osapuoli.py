@@ -13,7 +13,20 @@ def create_or_update_haltija_osapuoli(
     Luo kohteelle haltijaosapuolet jätelajeittain
     """
 
+    # Dictionary containing unique entries based on nimi, osoite and jatelaji.
+    unique_entries = {}
+
+    # Iterate all asiakas.sopimukset.
     for sopimus in asiakas.sopimukset:
+        key = (asiakas.haltija.nimi, str(asiakas.haltija.osoite), sopimus.jatelaji)
+
+        if key not in unique_entries:
+            unique_entries[key] = sopimus
+        elif sopimus.sopimustyyppi == SopimusTyyppi.kimppasopimus:
+            # Prefer kimppasopimus.
+            unique_entries[key] = sopimus
+
+    for sopimus in unique_entries.values():
         if sopimus.sopimustyyppi == SopimusTyyppi.kimppasopimus:
             if sopimus.asiakas_on_isanta:
                 if sopimus.jatelaji == Jatelaji.sekajate:
@@ -69,41 +82,39 @@ def create_or_update_haltija_osapuoli(
         # Filter osapuoli by the same tiedontuottaja. This way, we don't
         # override data coming from other tiedontuottajat, including DVV.
         tiedontuottaja = asiakas.asiakasnumero.jarjestelma
-        # this is any asiakas from the same source
-        db_haltijat = [
-            kohteen_osapuoli.osapuoli
-            for kohteen_osapuoli in kohde.kohteen_osapuolet_collection
-            if kohteen_osapuoli.osapuolenrooli == asiakasrooli
-            and kohteen_osapuoli.osapuoli.tiedontuottaja_tunnus == tiedontuottaja
-        ]
 
-        # this is asiakas with the same name and address
-        exists = any(
-            db_haltija.nimi == asiakas.haltija.nimi
-            and db_haltija.katuosoite == str(asiakas.haltija.osoite)
-            for db_haltija in db_haltijat
-        )
-
-        if not db_haltijat or (update_contacts and not exists):
-            print("Haltija changed or not found in db, creating new haltija!")
-            # Haltija has changed. We must create a new osapuoli. The old
-            # haltija is still valid for the old data, so we don't want to
-            # delete them.
-            jatteenhaltija = Osapuoli(
+        # Query existing osapuoli entries for the given tiedontuottaja and asiakasrooli
+        existing_osapuoli_entries = session.query(KohteenOsapuolet).filter(
+            KohteenOsapuolet.osapuoli.has(
+                tiedontuottaja_tunnus=tiedontuottaja,
                 nimi=asiakas.haltija.nimi,
                 katuosoite=str(asiakas.haltija.osoite),
-                postinumero=asiakas.haltija.osoite.postinumero,
-                postitoimipaikka=asiakas.haltija.osoite.postitoimipaikka,
-                ytunnus=asiakas.haltija.ytunnus,
-                tiedontuottaja_tunnus=asiakas.asiakasnumero.jarjestelma,
-            )
-            if is_asoy(asiakas.haltija.nimi):
-                jatteenhaltija.osapuolenlaji = codes.osapuolenlajit[
-                    OsapuolenlajiTyyppi.ASOY
-                ]
+            ),
+            KohteenOsapuolet.osapuolenrooli == asiakasrooli,
+        ).all()
 
-            kohteen_osapuoli = KohteenOsapuolet(
-                kohde=kohde, osapuoli=jatteenhaltija, osapuolenrooli=asiakasrooli
-            )
+        # Delete existing osapuoli entries
+        for existing_entry in existing_osapuoli_entries:
+            session.delete(existing_entry)
 
-            session.add(kohteen_osapuoli)
+        # Create new osapuoli entry
+        jatteenhaltija = Osapuoli(
+            nimi=asiakas.haltija.nimi,
+            katuosoite=str(asiakas.haltija.osoite),
+            postinumero=asiakas.haltija.osoite.postinumero,
+            postitoimipaikka=asiakas.haltija.osoite.postitoimipaikka,
+            ytunnus=asiakas.haltija.ytunnus,
+            tiedontuottaja_tunnus=asiakas.asiakasnumero.jarjestelma,
+        )
+
+        if is_asoy(asiakas.haltija.nimi):
+            jatteenhaltija.osapuolenlaji = codes.osapuolenlajit[OsapuolenlajiTyyppi.ASOY]
+
+        kohteen_osapuoli = KohteenOsapuolet(
+            kohde=kohde, osapuoli=jatteenhaltija, osapuolenrooli=asiakasrooli
+        )
+
+        session.add(kohteen_osapuoli)
+
+    # Commit changes to the database
+    session.commit()
