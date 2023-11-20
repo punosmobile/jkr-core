@@ -42,10 +42,13 @@ def test_import_data(engine, datadir):
 
     session = Session(engine)
 
-    # Kuljetusdatassa seitsemän sopimusta, joista yksi on kahden kimppa
+    # Kohteita ei pidä muodostua lisää (edelleen kuusi)
+    assert session.query(func.count(Kohde.id)).scalar() == 6
+
+    # Kuljetusdatassa seitsemän kelvollista sopimusta, joista yksi on kahden kimppa
     assert session.query(func.count(Sopimus.id)).scalar() == 8
 
-    # Sopimuksissa kaksi sekajätesopimusta (joista toinen kimppa) ja muita yksi kutakin
+    # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa) ja muita yksi kutakin
     sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
     seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
     assert session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar() == 3
