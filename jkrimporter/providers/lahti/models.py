@@ -59,6 +59,7 @@ class Asiakas(BaseModel):
     Kuntatun: Optional[int] = None
     palveluKimppakohdeId: Optional[str] = None
     kimpanNimi: Optional[str] = None
+    KimpastaVastaava: Optional[str] = Field(alias="Kimpasta vastaava")
     Kimpankatuosoite: Optional[str] = None
     Kimpanposti: Optional[str] = None
     # Keskeytysalkaen: Optional[datetime.date] = None,
