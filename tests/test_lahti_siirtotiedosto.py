@@ -42,8 +42,11 @@ def test_import_data(engine, datadir):
 
     session = Session(engine)
 
-    # Kuljetusdatassa kahdeksan sopimusta, joista yksi on kahden kimppa
-    assert session.query(func.count(Sopimus.id)).scalar() == 9
+    # Kohteita ei pidä muodostua lisää (edelleen kuusi)
+    assert session.query(func.count(Kohde.id)).scalar() == 6
+
+    # Kuljetusdatassa seitsemän kelvollista sopimusta, joista yksi on kahden kimppa
+    assert session.query(func.count(Sopimus.id)).scalar() == 8
 
     # Sopimuksissa kaksi sekajäte- ja metallisopimusta ja muita yksi kutakin,
     # sekajätesopimuksista toinen kimppa
@@ -61,7 +64,7 @@ def test_import_data(engine, datadir):
     assert session.query(func.count(Sopimus.id)).filter(kartonki_sopimus_filter).scalar() == 1
     metalli_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Metalli').scalar_subquery()
     metalli_sopimus_filter = Sopimus.jatetyyppi_id == metalli_id
-    assert session.query(func.count(Sopimus.id)).filter(metalli_sopimus_filter).scalar() == 2
+    assert session.query(func.count(Sopimus.id)).filter(metalli_sopimus_filter).scalar() == 1
     muovi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Muovi').scalar_subquery()
     muovi_sopimus_filter = Sopimus.jatetyyppi_id == muovi_id
     assert session.query(func.count(Sopimus.id)).filter(muovi_sopimus_filter).scalar() == 1
