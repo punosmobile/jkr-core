@@ -176,3 +176,14 @@ class Asiakas(BaseModel):
             # But then again, should this be converted to 0, 1 or 12?
             value = float(value.replace(',', '.'))
         return value
+
+    @validator("kaynnit", pre=True, always=True)
+    def validate_kaynnit(cls, value):
+        if isinstance(value, str):
+            try:
+                # Try converting the 'kaynnit' value to an integer
+                value = int(value)
+            except (ValueError, TypeError):
+                # If conversion fails, return None
+                return None
+        return value

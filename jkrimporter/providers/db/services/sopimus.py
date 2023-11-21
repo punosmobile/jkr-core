@@ -231,24 +231,31 @@ def update_sopimukset_for_kohde(
     session,
     kohde,
     asiakas: "Asiakas",
-    # sopimukset: "List[Union[TyhjennysSopimus, KimppaSopimus]]",
     raportointi_loppupvm,
     urakoitsija: Tiedontuottaja,
 ):
+    unique_entries = {}
+
     for sopimus in asiakas.sopimukset:
+        key = sopimus.jatelaji
+
+        if key not in unique_entries:
+            unique_entries[key] = sopimus
+        elif sopimus.sopimustyyppi == SopimusTyyppi.kimppasopimus:
+            # Prefer kimppasopimus.
+            unique_entries[key] = sopimus
+
+    for sopimus in unique_entries.values():
         db_sopimus = create_or_update_sopimus(session, kohde, urakoitsija, sopimus)
         if db_sopimus:
             update_kesteytykset(db_sopimus, sopimus.keskeytykset)
 
-            # Why wouldn't we save the data on each sopimus? Yeah it is duplicated.
-            # But it is there in the data already, and the qgis users wants to
-            # see the data in the form.
-            # if not isinstance(sopimus, KimppaSopimus):
-            update_keraysvalineet(
-                db_sopimus,
-                sopimus.keraysvalineet,
-                raportointi_loppupvm
-                if raportointi_loppupvm
-                else asiakas.voimassa.upper,
-            )
-            update_tyhjennysvalit(session, asiakas, db_sopimus, sopimus)
+            if not isinstance(sopimus, KimppaSopimus):
+                update_keraysvalineet(
+                    db_sopimus,
+                    sopimus.keraysvalineet,
+                    raportointi_loppupvm
+                    if raportointi_loppupvm
+                    else asiakas.voimassa.upper,
+                )
+                update_tyhjennysvalit(session, asiakas, db_sopimus, sopimus)
