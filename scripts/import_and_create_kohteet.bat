@@ -41,28 +41,32 @@ SET DB_NAME=<tietokannan_nimi>
 SET USER=<kayttajatunnus>
 REM Määritä salasana %APPDATA%\postgresql\pgpass.conf tiedostossa
 
+REM Määritä polku QGISin psql asennukseen. Esim "C:\\Program Files\\QGIS 3.30.2\\bin".
+SET PSQL_PATH="<Tiedostopolku QGISin bin kansioon>"
+
+REM Määritä polku QGISin ogr2ogr asennukseen. Esim "C:\\Program Files\\QGIS 3.30.2\\bin".
+SET OGR2OGR_PATH="<Tiedostopolku QGISin bin kansioon>"
 
 REM Tarkistetaan halutaanko importoida posti data.
 
 IF "%~3"=="posti" (
-    psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -f "./scripts/jkr_posti.sql"
+    %PSQL_PATH%\\psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -f "./scripts/jkr_posti.sql"
 )
 
-
 ECHO Rakennukset
-ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln rakennus %DVV% "R1 rakennus"
+ %OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln rakennus %DVV% "R1 rakennus"
 
 ECHO Osoitteet
-ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln osoite %DVV% "R3 osoite"
+ %OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln osoite %DVV% "R3 osoite"
 
 ECHO Omistajat
-ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln omistaja %DVV% "R4 omistaja"
+ %OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln omistaja %DVV% "R4 omistaja"
 
 ECHO Asukkaat
-ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln vanhin %DVV% "R9 huon asukk"
+ %OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln vanhin %DVV% "R9 huon asukk"
 
 ECHO Muunnetaan jkr-muotoon...
 
-psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date="%formatted_date%" -f "./scripts/import_dvv.sql"
+%PSQL_PATH%\\psql -h %HOST% -p %PORT% -d %DB_NAME% -U %USER% -v formatted_date="%formatted_date%" -f "./scripts/import_dvv.sql"
 
 endlocal
