@@ -183,14 +183,15 @@ def import_asiakastiedot(
     loppupvm: Optional[datetime.date],
     urakoitsija: Tiedontuottaja,
     do_create: bool,
-    do_update: bool,
+    do_update_contact: bool,
+    do_update_kohde: bool,
     prt_counts: Dict[str, IntervalCounter],
     kitu_counts: Dict[str, IntervalCounter],
     address_counts: Dict[str, IntervalCounter],
 ):
 
     kohde = find_and_update_kohde(
-        session, asiakas, do_create, do_update, prt_counts, kitu_counts, address_counts
+        session, asiakas, do_create, do_update_kohde, prt_counts, kitu_counts, address_counts
     )
     if not kohde:
         print(f"Could not find kohde for asiakas {asiakas}, skipping...")
@@ -198,7 +199,7 @@ def import_asiakastiedot(
 
     # Update osapuolet from the same tiedontuottaja. This function will not
     # touch data from other tiedontuottajat.
-    create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update)
+    create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update_contact)
 
     update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
     insert_kuljetukset(
@@ -261,7 +262,8 @@ class DbProvider:
         jkr_data: JkrData,
         tiedontuottaja_lyhenne: str,
         ala_luo: bool,
-        ala_paivita: bool,
+        ala_paivita_yhteystietoja: bool,
+        ala_paivita_kohdetta: bool,
     ):
         try:
             print(len(jkr_data.asiakkaat))
@@ -317,7 +319,8 @@ class DbProvider:
                         jkr_data.loppupvm,
                         tiedontuottajat[urakoitsija_tunnus],
                         not ala_luo,
-                        not ala_paivita,
+                        not ala_paivita_yhteystietoja,
+                        not ala_paivita_kohdetta,
                         prt_counts,
                         kitu_counts,
                         address_counts,

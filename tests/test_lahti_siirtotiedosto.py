@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, or_, select
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -46,12 +46,18 @@ def test_kohteet(datadir):
 
 
 def test_import_data(engine, datadir):
-    import_data(datadir, 'LSJ', False, False, '1.1.2023', '31.3.2023')
+    import_data(datadir, 'LSJ', False, False, True, '1.1.2023', '31.3.2023')
 
     session = Session(engine)
 
     # Kohteita ei pidä muodostua lisää (edelleen kuusi)
-    assert session.query(func.count(Kohde.id)).scalar() == 6
+    lkm_kohteet = 6
+    assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
+
+    # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa
+    loppu_pvms = [func.to_date('2023-01-30', 'YYYY-MM-DD'), func.to_date('2100-01-01', 'YYYY-MM-DD')]
+    loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))
+    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
 
     # Kuljetusdatassa kahdeksan kelvollista sopimusta, joista kaksi on kahden kimppaa
     assert session.query(func.count(Sopimus.id)).scalar() == 10
