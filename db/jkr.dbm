@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="521,953" last-zoom="0.8" max-obj-count="50"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2105,682" last-zoom="0.8" max-obj-count="51"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -2151,7 +2151,7 @@ select tallenna_velvoite_status('2020-3-1');
 		</idxelement>
 </index>
 
-<table name="viranomaispaatokset" layers="0" sql-disabled="true" collapse-mode="2" max-obj-count="13" z-value="0">
+<table name="viranomaispaatokset" layers="0" sql-disabled="true" collapse-mode="2" max-obj-count="14" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Taulu viranomaispäätöksille. Tarkemmin ottaen tämä on yleensä materialisoitu näkymä, jonka jokainen jkr:n käyttäjäorganisaatio muodostaa itse, mutta tmä on pgmodelerissa kuvattu tauluna, jotta saadaan relaatiot näkyviin.]]></comment>
@@ -2201,7 +2201,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3860" y="1320"/>
+	<position x="3860" y="1240"/>
 	<column name="koodi" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -2217,7 +2217,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3860" y="1660"/>
+	<position x="3860" y="1400"/>
 	<column name="koodi" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -3791,6 +3791,36 @@ end;]]></definition>
 		</idxelement>
 	<predicate><![CDATA[WHERE huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is not null;]]></predicate>
 </index>
+
+<table name="akppoistosyy" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
+	<schema name="jkr_koodistot"/>
+	<role name="jkr_admin"/>
+	<tag name="koodisto"/>
+	<position x="3860" y="1580"/>
+	<column name="koodi" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="selite">
+		<type name="text" length="0"/>
+	</column>
+	<constraint name="akppoistosyy_pk" type="pk-constr" table="jkr_koodistot.akppoistosyy">
+		<columns names="koodi" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<relationship name="akppoistosyy_has_many_viranomaispaatokset" type="rel1n" layers="0"
+	 src-col-pattern="{sc}_{st}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#a5fd05"
+	 sql-disabled="true"
+	 src-table="jkr_koodistot.akppoistosyy"
+	 dst-table="jkr.viranomaispaatokset"
+	 src-required="false" dst-required="false">
+	<label ref-type="name-label">
+		<position x="0" y="0"/>
+	</label>
+</relationship>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
