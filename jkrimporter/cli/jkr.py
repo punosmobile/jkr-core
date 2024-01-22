@@ -73,12 +73,17 @@ def import_data(
     luo_uudet: bool = typer.Option(
         False,
         "--luo_uudet",
-        help="Luo puuttuvat uudet kohteet tästä datasta."
+        help="Luo puuttuvat uudet kohteet tästä datasta.",
     ),
-    ala_paivita: bool = typer.Option(
+    ala_paivita_yhteystietoja: bool = typer.Option(
         False,
-        "--ala_paivita",
-        help="Älä päivitä yhteystietoja tai kohteen voimassaoloaikaa tästä datasta.",
+        "--ala_paivita_yhteystietoja",
+        help="Älä päivitä yhteystietoja tästä datasta.",
+    ),
+    ala_paivita_kohdetta:  bool = typer.Option(
+        True,
+        "--ala_paivita_kohdetta",
+        help="Älä päivitä kohteen voimassaoloaikaa tästä datasta.",
     ),
     alkupvm: str = typer.Argument(None, help="Importoitavan datan alkupvm"),
     loppupvm: str = typer.Argument(None, help="Importoitavan datan loppupvm"),
@@ -96,17 +101,12 @@ def import_data(
         alkupvm = parse_date_string(alkupvm)
     if loppupvm:
         loppupvm = parse_date_string(loppupvm)
-    if tiedontuottajatunnus == "HKO":
-        ala_paivita = True
-        if not alkupvm or not loppupvm:
-            typer.echo("Nokian importin yhteydessä päivämäärät ovat pakolliset")
-            raise typer.Exit()
 
     translator = provider.Translator(data, tiedontuottajatunnus)
     jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
     print('writing to db...')
     db = DbProvider()
-    db.write(jkr_data, tiedontuottajatunnus, not luo_uudet, ala_paivita)
+    db.write(jkr_data, tiedontuottajatunnus, not luo_uudet, ala_paivita_yhteystietoja, ala_paivita_kohdetta)
 
     print("VALMIS!")
 
