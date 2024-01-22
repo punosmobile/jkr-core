@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2105,540" last-zoom="0.8" max-obj-count="51"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1255,700" last-zoom="0.8" max-obj-count="51"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -2179,19 +2179,19 @@ select tallenna_velvoite_status('2020-3-1');
 	</constraint>
 
 	<customidxs object-type="column">
-		<object name="akppoistosyy_koodi" index="10"/>
-		<object name="jatetyyppi_id" index="6"/>
-		<object name="kohde_id" index="5"/>
-		<object name="paatostulos_koodi" index="7"/>
-		<object name="tapahtumalaji_koodi" index="8"/>
+		<object name="akppoistosyy_koodi" index="8"/>
+		<object name="jatetyyppi_id" index="9"/>
+		<object name="paatostulos_koodi" index="6"/>
+		<object name="rakennus_id" index="10"/>
+		<object name="tapahtumalaji_koodi" index="7"/>
 	</customidxs>
 
 	<customidxs object-type="constraint">
-		<object name="akppoistosyy_fk" index="4"/>
-		<object name="jatetyyppi_fk" index="5"/>
-		<object name="kohde_fk" index="2"/>
+		<object name="akppoistosyy_fk" index="3"/>
+		<object name="jatetyyppi_fk" index="4"/>
 		<object name="paatostulos_fk" index="1"/>
-		<object name="tapahtumalaji_fk" index="3"/>
+		<object name="rakennus_fk" index="5"/>
+		<object name="tapahtumalaji_fk" index="2"/>
 	</customidxs>
 </table>
 
@@ -2234,17 +2234,6 @@ select tallenna_velvoite_status('2020-3-1');
 	 custom-color="#83a640"
 	 sql-disabled="true"
 	 src-table="jkr_koodistot.paatostulos"
-	 dst-table="jkr.viranomaispaatokset"
-	 src-required="true" dst-required="false"
-	upd-action="CASCADE"
-	del-action="CASCADE"/>
-
-<relationship name="kohde_has_many_viranomaispaatokset" type="rel1n" layers="0"
-	 src-col-pattern="{st}_{sc}"
-	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
-	 src-fk-pattern="{st}_fk"
-	 custom-color="#b92413"
-	 src-table="jkr.kohde"
 	 dst-table="jkr.viranomaispaatokset"
 	 src-required="true" dst-required="false"
 	upd-action="CASCADE"
@@ -3210,14 +3199,6 @@ where
 		</idxelement>
 </index>
 
-<index name="idx_viranomaispaatokset_kohde_id" table="jkr.viranomaispaatokset"
-	 concurrent="false" unique="false" fast-update="false" buffering="false"
-	 index-type="btree" factor="0" sql-disabled="true">
-		<idxelement use-sorting="false">
-			<column name="kohde_id"/>
-		</idxelement>
-</index>
-
 <relationship name="tiedontuottaja_has_many_sopimus" type="rel1n" layers="0"
 	 src-col-pattern="{st}_{sc}"
 	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
@@ -3830,6 +3811,23 @@ end;]]></definition>
 	 dst-table="jkr.viranomaispaatokset"
 	 src-required="true" dst-required="false"
 	del-action="CASCADE"/>
+
+<relationship name="rakennus_has_many_viranomaispaatokset" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#35a33b"
+	 src-table="jkr.rakennus"
+	 dst-table="jkr.viranomaispaatokset"
+	 src-required="true" dst-required="false"/>
+
+<index name="idx_viranomaispaatokset_rakennus_id" table="jkr.viranomaispaatokset"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="rakennus_id"/>
+		</idxelement>
+</index>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
