@@ -125,7 +125,7 @@ Osapuolenlaji = Base.classes.osapuolenlaji
 Osapuoli = Base.classes.osapuoli
 Osapuolenrooli = Base.classes.osapuolenrooli
 Osoite = Base.classes.osoite
-# Paatoslaji = Base.classes.paatoslaji
+Paatostulos = Base.classes.paatostulos
 Pohjavesialue = Base.classes.pohjavesialue
 Posti = Base.classes.posti
 Rakennuksenkayttotarkoitus = Base.classes.rakennuksenkayttotarkoitus
@@ -205,6 +205,7 @@ __all__ = [
     "Osapuoli",
     "Osapuolenrooli",
     "Osoite",
+    "Paatostulos",
     "Pohjavesialue",
     "Posti",
     "Rakennuksenkayttotarkoitus",
