@@ -131,7 +131,6 @@ Osapuolenlaji = Base.classes.osapuolenlaji
 Osapuoli = Base.classes.osapuoli
 Osapuolenrooli = Base.classes.osapuolenrooli
 Osoite = Base.classes.osoite
-# Paatos = Base.classes.paatos
 # Paatoslaji = Base.classes.paatoslaji
 Pohjavesialue = Base.classes.pohjavesialue
 Posti = Base.classes.posti
@@ -148,6 +147,7 @@ Tyhjennysvali = Base.classes.tyhjennysvali
 UlkoinenAsiakastieto = Base.classes.ulkoinen_asiakastieto
 Velvoite = Base.classes.velvoite
 Velvoitemalli = Base.classes.velvoitemalli
+Viranomaispaatokset = Base.classes.viranomaispaatokset
 
 
 # Add associations to association tables with extra fields.
