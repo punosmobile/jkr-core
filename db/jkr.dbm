@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1255,700" last-zoom="0.8" max-obj-count="51"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2512,618" last-zoom="0.85" max-obj-count="51"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -2179,7 +2179,7 @@ select tallenna_velvoite_status('2020-3-1');
 	</constraint>
 
 	<customidxs object-type="column">
-		<object name="akppoistosyy_koodi" index="8"/>
+		<object name="akppoistosyy_id" index="8"/>
 		<object name="jatetyyppi_id" index="9"/>
 		<object name="paatostulos_koodi" index="6"/>
 		<object name="rakennus_id" index="10"/>
@@ -3776,14 +3776,14 @@ end;]]></definition>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
 	<position x="3860" y="1580"/>
-	<column name="koodi" not-null="true">
-		<type name="text" length="0"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
 	</column>
 	<column name="selite">
 		<type name="text" length="0"/>
 	</column>
 	<constraint name="akppoistosyy_pk" type="pk-constr" table="jkr_koodistot.akppoistosyy">
-		<columns names="koodi" ref-type="src-columns"/>
+		<columns names="id" ref-type="src-columns"/>
 	</constraint>
 </table>
 
