@@ -224,4 +224,5 @@ __all__ = [
     "UlkoinenAsiakastieto",
     "Velvoite",
     "Velvoitemalli",
+    "Viranomaispaatokset",
 ]
