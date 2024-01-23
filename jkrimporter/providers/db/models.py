@@ -90,13 +90,6 @@ class KohteenRakennukset(Base):
     kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
 
 
-class AKPPoistoSyy(Base):
-    __tablename__ = "akppoistosyy"
-    __table_args__ = {"schema": "jkr_koodistot"}
-    id = Column('id', primary_key=True)
-    selite = Column('selite')
-
-
 # Rest of the tables can be defined automatically
 with warnings.catch_warnings():
     warnings.filterwarnings(
@@ -115,6 +108,7 @@ with warnings.catch_warnings():
     )
 
 
+AKPPoistoSyy = Base.classes.akppoistosyy
 Jatetyyppi = Base.classes.jatetyyppi
 Jatteenkuljetusalue = Base.classes.jatteenkuljetusalue
 Katu = Base.classes.katu
