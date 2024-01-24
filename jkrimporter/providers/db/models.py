@@ -118,6 +118,7 @@ Kiinteisto = Base.classes.kiinteisto
 Kohde = Base.classes.kohde
 Kohdetyyppi = Base.classes.kohdetyyppi
 KohteenOsapuolet = Base.classes.kohteen_osapuolet
+Kompostori = Base.classes.kompostori
 Kuljetus = Base.classes.kuljetus
 Kunta = Base.classes.kunta
 Osapuolenlaji = Base.classes.osapuolenlaji
