@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1402,626" last-zoom="0.65" max-obj-count="52"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="3180,1367" last-zoom="1.15" max-obj-count="52"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -3802,7 +3802,7 @@ end;]]></definition>
 	<column name="alkupvm" not-null="true">
 		<type name="date" length="0"/>
 	</column>
-	<column name="loppupvm" not-null="true">
+	<column name="loppupvm">
 		<type name="date" length="0"/>
 	</column>
 	<column name="onko_kimppa">
@@ -3811,6 +3811,16 @@ end;]]></definition>
 	<constraint name="kompostori_pk" type="pk-constr" table="jkr.kompostori">
 		<columns names="id" ref-type="src-columns"/>
 	</constraint>
+
+	<customidxs object-type="column">
+		<object name="osapuoli_id" index="5"/>
+		<object name="osoite_id" index="4"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="osapuoli_fk" index="2"/>
+		<object name="osoite_fk" index="1"/>
+	</customidxs>
 </table>
 
 <relationship name="osoite_has_many_kompostori" type="rel1n" layers="0"
