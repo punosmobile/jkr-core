@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="521,953" last-zoom="0.8" max-obj-count="50"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1104,627" last-zoom="0.65" max-obj-count="51"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -387,7 +387,7 @@ where
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Taulu, joka sisältää 4 kertaa vuodessa toimitettavat kuljetustiedot]]></comment>
-	<position x="4380" y="1060"/>
+	<position x="4260" y="920"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
@@ -2155,7 +2155,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Taulu viranomaispäätöksille. Tarkemmin ottaen tämä on yleensä materialisoitu näkymä, jonka jokainen jkr:n käyttäjäorganisaatio muodostaa itse, mutta tmä on pgmodelerissa kuvattu tauluna, jotta saadaan relaatiot näkyviin.]]></comment>
-	<position x="3380" y="1280"/>
+	<position x="3400" y="1560"/>
 	<column name="id" not-null="true">
 		<type name="bigint" length="0"/>
 	</column>
@@ -2201,7 +2201,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3860" y="1320"/>
+	<position x="3780" y="1640"/>
 	<column name="koodi" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -2217,7 +2217,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3860" y="1660"/>
+	<position x="3780" y="1800"/>
 	<column name="koodi" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -3791,6 +3791,45 @@ end;]]></definition>
 		</idxelement>
 	<predicate><![CDATA[WHERE huoneistokirjain is not null and huoneistonumero is not null and jakokirjain is not null;]]></predicate>
 </index>
+
+<table name="kompostori" layers="0" collapse-mode="2" max-obj-count="7" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<position x="3860" y="1300"/>
+	<column name="id" not-null="true">
+		<type name="serial" length="0"/>
+	</column>
+	<column name="alkupvm" not-null="true">
+		<type name="date" length="0"/>
+	</column>
+	<column name="loppupvm" not-null="true">
+		<type name="date" length="0"/>
+	</column>
+	<column name="onko_kimppa">
+		<type name="bool" length="0"/>
+	</column>
+	<constraint name="kompostori_pk" type="pk-constr" table="jkr.kompostori">
+		<columns names="id" ref-type="src-columns"/>
+	</constraint>
+</table>
+
+<relationship name="osoite_has_many_kompostori" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#045368"
+	 src-table="jkr.osoite"
+	 dst-table="jkr.kompostori"
+	 src-required="true" dst-required="false"/>
+
+<relationship name="osapuoli_has_many_kompostori" type="rel1n" layers="0"
+	 src-col-pattern="{st}_{sc}"
+	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
+	 src-fk-pattern="{st}_fk"
+	 custom-color="#e0ecb7"
+	 src-table="jkr.osapuoli"
+	 dst-table="jkr.kompostori"
+	 src-required="true" dst-required="false"/>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
