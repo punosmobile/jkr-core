@@ -41,9 +41,11 @@ class LahtiSiirtotiedosto:
                             'Haltijanmaakoodi', 'Haltijanulkomaanpaikkakunta', 'Pvmalk',
                             'Pvmasti', 'tyyppiIdEWC', 'COUNT(kaynnit)',
                             'SUM(astiamaara)', 'koko', 'SUM(paino)', 'tyhjennysvali',
-                            'kertaaviikossa', 'kertaaviikossa2', 'Voimassaoloviikotalkaen',
-                            'Voimassaoloviikotasti', 'palveluKimppakohdeId',
-                            'KimpanNimi', 'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun'
+                            'tyhjennysvali2', 'kertaaviikossa', 'kertaaviikossa2',
+                            'Voimassaoloviikotalkaen', 'Voimassaoloviikotasti',
+                            'palveluKimppakohdeId', 'Kimpanyhteyshlo', 'KimpanNimi',
+                            'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun',
+                            'Keskeytysalkaen', 'Keskeytysasti'
                         ]
 
         # Iterate through all CSV files in the directory to check headers
@@ -87,7 +89,7 @@ class LahtiSiirtotiedosto:
                 asiakas_obj = Asiakas.parse_obj(data)
                 asiakas_list.append(asiakas_obj)
             except ValidationError as e:
-                logger.error(f"Asiakas-objektin luonti epäonnistui datalla: {data}. Virhe: {e}")
+                logger.warning(f"Asiakas-objektin luonti epäonnistui datalla: {data}. Virhe: {e}")
                 failed_validations.append(data)
 
         # Save failed validations to a new CSV file in a subdirectory

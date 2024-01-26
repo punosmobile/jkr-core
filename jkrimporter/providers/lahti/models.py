@@ -53,6 +53,7 @@ class Asiakas(BaseModel):
     koko: Optional[float]
     paino: Optional[float] = Field(alias="SUM(paino)")
     tyhjennysvali: Optional[int] = None
+    tyhjennysvali2: Optional[int] = None
     kertaaviikossa: Optional[int] = None
     kertaaviikossa2: Optional[int] = None
     Voimassaoloviikotalkaen: Optional[int] = None
@@ -65,8 +66,8 @@ class Asiakas(BaseModel):
     Kimpanyhteyshlo: Optional[str] = None
     Kimpankatuosoite: Optional[str] = None
     Kimpanposti: Optional[str] = None
-    # Keskeytysalkaen: Optional[datetime.date] = None,
-    # Keskeytysasti: Optional[datetime.date] = None,
+    Keskeytysalkaen: Optional[datetime.date] = None,
+    Keskeytysasti: Optional[datetime.date] = None,
     # Kompostoi: Optional[str] = None,
     # Kaatopaikka: Optional[str] = None
 
@@ -154,9 +155,18 @@ class Asiakas(BaseModel):
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
 
+    @validator('Keskeytysalkaen', 'Keskeytysasti', pre=True)
+    def parse_date_or_empty(value: Union[date,str]):
+        if type(value) is str and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        if value == "#N/A" or value == '':
+            return None
+        return value
+
     @validator(
         "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti",
-        "Voimassaoloviikotalkaen2", "Voimassaoloviikotasti2", pre=True
+        "Voimassaoloviikotalkaen2", "Voimassaoloviikotasti2", "tyhjennysvali2",
+        pre=True
     )
     def fix_na(value: str):
         # Many fields may have strings such as #N/A or empty string. Parse them to None.

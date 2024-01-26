@@ -275,9 +275,11 @@ class DbProvider:
                             'Haltijanmaakoodi', 'Haltijanulkomaanpaikkakunta', 'Pvmalk',
                             'Pvmasti', 'tyyppiIdEWC', 'COUNT(kaynnit)',
                             'SUM(astiamaara)', 'koko', 'SUM(paino)', 'tyhjennysvali',
-                            'kertaaviikossa', 'kertaaviikossa2', 'Voimassaoloviikotalkaen',
-                            'Voimassaoloviikotasti', 'palveluKimppakohdeId',
-                            'KimpanNimi', 'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun'
+                            'tyhjennysvali2', 'kertaaviikossa', 'kertaaviikossa2',
+                            'Voimassaoloviikotalkaen', 'Voimassaoloviikotasti',
+                            'palveluKimppakohdeId', 'Kimpanyhteyshlo', 'KimpanNimi',
+                            'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun',
+                            'Keskeytysalkaen', 'Keskeytysasti'
                         ]
             kohdentumattomat = []
             print(len(jkr_data.asiakkaat))
@@ -367,26 +369,25 @@ class DbProvider:
                             'koko': kohdentumaton['ulkoinen_asiakastieto'].koko,
                             'SUM(paino)': kohdentumaton['ulkoinen_asiakastieto'].paino,
                             'tyhjennysvali': kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali,
+                            'tyhjennysvali2': kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali2,
                             'kertaaviikossa': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa,
                             'kertaaviikossa2': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa2,
-                            'Voimassaoloviikotalkaen': kohdentumaton['voimassa'].lower,
-                            'Voimassaoloviikotasti': kohdentumaton['voimassa'].upper,
+                            'Voimassaoloviikotalkaen': kohdentumaton['voimassa'].Voimassaoloviikotalkaen,
+                            'Voimassaoloviikotasti': kohdentumaton['voimassa'].Voimassaoloviikotasti,
                             'palveluKimppakohdeId': kohdentumaton['ulkoinen_asiakastieto'].palveluKimppakohdeId,
+                            'Kimpanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Kimpanyhteyshlo,
                             'KimpanNimi': kohdentumaton['ulkoinen_asiakastieto'].kimpanNimi,
                             'Kimpankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kimpankatuosoite,
                             'Kimpanposti': kohdentumaton['ulkoinen_asiakastieto'].Kimpanposti,
                             'Kuntatun': kohdentumaton['ulkoinen_asiakastieto'].Kuntatun,
-                        }
+                            'Keskeytysalkaen': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysalkaen,
+                            'Keskeytysasti': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysasti,
+                                                    }
 
                         csv_path = siirtotiedosto / "kohdentumattomat.csv"
                         with open(csv_path, mode="a", encoding="cp1252", newline="") as csv_file:
                             fieldnames = expected_headers
                             csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames, delimiter=";", quotechar='"')
-
-                            # Check if the file is empty, write header only if it's a new file
-                            if csv_file.tell() == 0:
-                                csv_writer.writeheader()
-
                             csv_writer.writerow(row_data)
 
                     print(f"Kohdentumattomat tiedot lisätty CSV-tiedostoon: {csv_path}")
