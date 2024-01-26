@@ -20,5 +20,6 @@ insert into jkr_koodistot.osapuolenrooli(id, selite) values
     (213,'Kimppaosakas muovipakkaus'),
     (214,'Kimppaosakas kartonkipakkaus'),
     (215,'Kimppaosakas lasipakkaus'),
-    (216,'Kimppaosakas metalli')
+    (216,'Kimppaosakas metalli'),
+    (311,'Yhteyshenkilö kompostointi')
 on conflict (id) do update set selite = excluded.selite;
