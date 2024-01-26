@@ -4,6 +4,7 @@ from datetime import date
 from dateutil.parser import parse as date_parser
 from enum import Enum
 from typing import Dict, Optional, Union
+from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
@@ -35,9 +36,7 @@ class Jatelaji(str, Enum):
 class Asiakas(BaseModel):
     UrakoitsijaId: str
     UrakoitsijankohdeId: str
-    Kiinteistotunnus: Optional[str] = Field(
-        alias="Rakennustunnus/Kiinteistotunnus", default=None
-    )
+    Kiinteistotunnus: Optional[str] = None
     Kiinteistonkatuosoite: Optional[str] = None
     Kiinteistonposti: str
     Haltijannimi: str
@@ -54,12 +53,16 @@ class Asiakas(BaseModel):
     koko: Optional[float]
     paino: Optional[float] = Field(alias="SUM(paino)")
     tyhjennysvali: Optional[int] = None
+    kertaaviikossa: Optional[int] = None
+    kertaaviikossa2: Optional[int] = None
     Voimassaoloviikotalkaen: Optional[int] = None
     Voimassaoloviikotasti: Optional[int] = None
+    Voimassaoloviikotalkaen2: Optional[int] = None
+    Voimassaoloviikotasti2: Optional[int] = None
     Kuntatun: Optional[int] = None
     palveluKimppakohdeId: Optional[str] = None
     kimpanNimi: Optional[str] = None
-    KimpastaVastaava: Optional[str] = Field(alias="Kimpasta vastaava")
+    Kimpanyhteyshlo: Optional[str] = None
     Kimpankatuosoite: Optional[str] = None
     Kimpanposti: Optional[str] = None
     # Keskeytysalkaen: Optional[datetime.date] = None,
@@ -152,7 +155,8 @@ class Asiakas(BaseModel):
         return value
 
     @validator(
-        "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti", pre=True
+        "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti",
+        "Voimassaoloviikotalkaen2", "Voimassaoloviikotasti2", pre=True
     )
     def fix_na(value: str):
         # Many fields may have strings such as #N/A or empty string. Parse them to None.
@@ -177,7 +181,7 @@ class Asiakas(BaseModel):
             value = float(value.replace(',', '.'))
         return value
 
-    @validator("kaynnit", pre=True, always=True)
+    @validator("kaynnit", "kertaaviikossa", "kertaaviikossa2", pre=True, always=True)
     def validate_kaynnit(cls, value):
         if isinstance(value, str):
             try:

@@ -197,6 +197,7 @@ def update_tyhjennysvalit(
                 alkuvko=db_tyhjennysvali.alkuvko,
                 loppuvko=db_tyhjennysvali.loppuvko,
                 tyhjennysvali=db_tyhjennysvali.tyhjennysvali,
+                # kertaaviikossa=db_tyhjennysvali.kertaaviikossa,
             )
             not in sopimus.tyhjennysvalit
         ):

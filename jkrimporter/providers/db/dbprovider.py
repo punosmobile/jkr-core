@@ -3,6 +3,7 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
+import csv
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -195,7 +196,7 @@ def import_asiakastiedot(
     )
     if not kohde:
         print(f"Could not find kohde for asiakas {asiakas}, skipping...")
-        return
+        return asiakas
 
     # Update osapuolet from the same tiedontuottaja. This function will not
     # touch data from other tiedontuottajat.
@@ -264,8 +265,21 @@ class DbProvider:
         ala_luo: bool,
         ala_paivita_yhteystietoja: bool,
         ala_paivita_kohdetta: bool,
+        siirtotiedosto: Path
     ):
         try:
+            expected_headers = [
+                            'UrakoitsijaId', 'UrakoitsijankohdeId', 'Kiinteistotunnus',
+                            'Kiinteistonkatuosoite', 'Kiinteistonposti', 'Haltijannimi',
+                            'Haltijanyhteyshlo', 'Haltijankatuosoite', 'Haltijanposti',
+                            'Haltijanmaakoodi', 'Haltijanulkomaanpaikkakunta', 'Pvmalk',
+                            'Pvmasti', 'tyyppiIdEWC', 'COUNT(kaynnit)',
+                            'SUM(astiamaara)', 'koko', 'SUM(paino)', 'tyhjennysvali',
+                            'kertaaviikossa', 'kertaaviikossa2', 'Voimassaoloviikotalkaen',
+                            'Voimassaoloviikotasti', 'palveluKimppakohdeId',
+                            'KimpanNimi', 'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun'
+                        ]
+            kohdentumattomat = []
             print(len(jkr_data.asiakkaat))
             progress = Progress(len(jkr_data.asiakkaat))
 
@@ -312,7 +326,7 @@ class DbProvider:
                     # information takes precedence.
                     urakoitsija_tunnus = asiakas.asiakasnumero.jarjestelma
 
-                    import_asiakastiedot(
+                    kohdentumaton = import_asiakastiedot(
                         session,
                         asiakas,
                         jkr_data.alkupvm,
@@ -325,8 +339,59 @@ class DbProvider:
                         kitu_counts,
                         address_counts,
                     )
+                    if kohdentumaton:
+                        asiakas_dict = kohdentumaton.__dict__
+                        kohdentumattomat.append(asiakas_dict)
                 session.commit()
                 progress.complete()
+
+                if kohdentumattomat:
+                    for kohdentumaton in kohdentumattomat:
+                        # Rebuild row to insert into the error .csv
+                        row_data = {
+                            'UrakoitsijaId': kohdentumaton['ulkoinen_asiakastieto'].UrakoitsijaId,
+                            'UrakoitsijankohdeId': kohdentumaton['ulkoinen_asiakastieto'].UrakoitsijankohdeId,
+                            'Kiinteistotunnus': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistotunnus,
+                            'Kiinteistonkatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistonkatuosoite,
+                            'Kiinteistonposti': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistonposti,
+                            'Haltijannimi': kohdentumaton['ulkoinen_asiakastieto'].Haltijannimi,
+                            'Haltijanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Haltijanyhteyshlo,
+                            'Haltijankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Haltijankatuosoite,
+                            'Haltijanposti': kohdentumaton['ulkoinen_asiakastieto'].Haltijanposti,
+                            'Haltijanmaakoodi': kohdentumaton['ulkoinen_asiakastieto'].Haltijanmaakoodi,
+                            'Pvmalk': kohdentumaton['ulkoinen_asiakastieto'].Pvmalk,
+                            'Pvmasti': kohdentumaton['ulkoinen_asiakastieto'].Pvmasti,
+                            'tyyppiIdEWC': kohdentumaton['ulkoinen_asiakastieto'].tyyppiIdEWC,
+                            'COUNT(kaynnit)': kohdentumaton['ulkoinen_asiakastieto'].kaynnit,
+                            'SUM(astiamaara)': kohdentumaton['ulkoinen_asiakastieto'].astiamaara,
+                            'koko': kohdentumaton['ulkoinen_asiakastieto'].koko,
+                            'SUM(paino)': kohdentumaton['ulkoinen_asiakastieto'].paino,
+                            'tyhjennysvali': kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali,
+                            'kertaaviikossa': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa,
+                            'kertaaviikossa2': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa2,
+                            'Voimassaoloviikotalkaen': kohdentumaton['voimassa'].lower,
+                            'Voimassaoloviikotasti': kohdentumaton['voimassa'].upper,
+                            'palveluKimppakohdeId': kohdentumaton['ulkoinen_asiakastieto'].palveluKimppakohdeId,
+                            'KimpanNimi': kohdentumaton['ulkoinen_asiakastieto'].kimpanNimi,
+                            'Kimpankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kimpankatuosoite,
+                            'Kimpanposti': kohdentumaton['ulkoinen_asiakastieto'].Kimpanposti,
+                            'Kuntatun': kohdentumaton['ulkoinen_asiakastieto'].Kuntatun,
+                        }
+
+                        csv_path = siirtotiedosto / "kohdentumattomat.csv"
+                        with open(csv_path, mode="a", encoding="cp1252", newline="") as csv_file:
+                            fieldnames = expected_headers
+                            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames, delimiter=";", quotechar='"')
+
+                            # Check if the file is empty, write header only if it's a new file
+                            if csv_file.tell() == 0:
+                                csv_writer.writeheader()
+
+                            csv_writer.writerow(row_data)
+
+                    print(f"Kohdentumattomat tiedot lisätty CSV-tiedostoon: {csv_path}")
+                else:
+                    print("Ei kohdentumattomia tietoja.")
 
         except Exception as e:
             logger.exception(e)

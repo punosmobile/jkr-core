@@ -268,7 +268,7 @@ class LahtiTranslator:
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                     isannan_asiakasnumero=isannan_asiakasnumero,
-                    asiakas_on_isanta=(row.UrakoitsijankohdeId == row.KimpastaVastaava),
+                    asiakas_on_isanta=(row.UrakoitsijankohdeId == row.Kimpanyhteyshlo),
                 )
             else:
                 sopimus = TyhjennysSopimus(
@@ -284,6 +284,7 @@ class LahtiTranslator:
                         alkuvko=row.Voimassaoloviikotalkaen,
                         loppuvko=row.Voimassaoloviikotasti,
                         tyhjennysvali=row.tyhjennysvali,
+                        # kertaaviikossa=row.kertaaviikossa,
                     )
                 )
             data.asiakkaat[tunnus].sopimukset.append(sopimus)

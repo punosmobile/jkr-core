@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Union
+from pathlib import Path
 
 from jkrimporter.utils.intervals import Interval
 
@@ -154,6 +155,7 @@ class Tyhjennysvali(NamedTuple):
     alkuvko: int
     loppuvko: int
     tyhjennysvali: float
+    # kertaaviikossa: int
 
 
 @dataclass

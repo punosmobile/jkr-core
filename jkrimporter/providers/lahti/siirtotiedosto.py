@@ -31,22 +31,79 @@ class LahtiSiirtotiedosto:
     @property
     def asiakastiedot(self):
         all_data = []
+        asiakas_list = []
+        failed_validations = []
+        missing_headers = []
+        expected_headers = [
+                            'UrakoitsijaId', 'UrakoitsijankohdeId', 'Kiinteistotunnus',
+                            'Kiinteistonkatuosoite', 'Kiinteistonposti', 'Haltijannimi',
+                            'Haltijanyhteyshlo', 'Haltijankatuosoite', 'Haltijanposti',
+                            'Haltijanmaakoodi', 'Haltijanulkomaanpaikkakunta', 'Pvmalk',
+                            'Pvmasti', 'tyyppiIdEWC', 'COUNT(kaynnit)',
+                            'SUM(astiamaara)', 'koko', 'SUM(paino)', 'tyhjennysvali',
+                            'kertaaviikossa', 'kertaaviikossa2', 'Voimassaoloviikotalkaen',
+                            'Voimassaoloviikotasti', 'palveluKimppakohdeId',
+                            'KimpanNimi', 'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun'
+                        ]
+
+        # Iterate through all CSV files in the directory to check headers
+        for csv_file_path in Path(self._path).glob("*.csv"):
+            with open(csv_file_path, mode="rb") as csv_file:
+                # Read the content and handle BOM
+                content = csv_file.read()
+                if content.startswith(b'\xef\xbb\xbf'):
+                    content = content[3:]
+                content = content.decode("cp1252")
+                csv_reader = csv.DictReader(content.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
+                headers = csv_reader.fieldnames
+                missing_headers = [header for header in expected_headers if header not in headers]
+
+                if missing_headers:
+                    missing_headers.append({
+                        'file_path': csv_file_path,
+                        'missing_headers': missing_headers
+                    })
+
+        if missing_headers:
+            for file in missing_headers:
+                print(f"Tiedosto: {file['file_path']}, oletetut sarakeotsikot puuttuvat: {file['missing_headers']}")
+            raise RuntimeError("Osassa tiedostoissa oletetut sarakeotsikot puuttuvat.")
 
         # Iterate through all CSV files in the directory
         for csv_file_path in Path(self._path).glob("*.csv"):
-            with open(csv_file_path, mode="r", encoding="cp1252", newline="") as csv_file:
-                csv_reader = csv.DictReader(csv_file, delimiter=";", quotechar='"')
+            with open(csv_file_path, mode="rb") as csv_file:
+                # Read the content and handle BOM
+                content = csv_file.read()
+                if content.startswith(b'\xef\xbb\xbf'):
+                    content = content[3:]
+                content = content.decode("cp1252")
+                csv_reader = csv.DictReader(content.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
                 data_list = [row for row in csv_reader]
                 all_data.extend(data_list)
 
-        # Convert to a list of Asiakas objects
-        asiakas_list = []
         for data in all_data:
-            # Validate Asiakas, if validation fails skip.
+            # Validate Asiakas, if validation fails, append to failed_validations
             try:
                 asiakas_obj = Asiakas.parse_obj(data)
                 asiakas_list.append(asiakas_obj)
             except ValidationError as e:
-                logger.error(f"Validation failed for data: {data}. Error: {e}")
+                logger.error(f"Asiakas-objektin luonti epäonnistui datalla: {data}. Virhe: {e}")
+                failed_validations.append(data)
+
+        # Save failed validations to a new CSV file in a subdirectory
+        output_directory = csv_file_path.parent
+        output_file_path = output_directory / "kohdentumattomat.csv"
+
+        with open(output_file_path, mode="w", encoding="cp1252", newline="") as output_csv_file:
+            csv_writer = csv.DictWriter(output_csv_file, expected_headers, delimiter=";", quotechar='"')
+            csv_writer.writeheader()
+            if failed_validations:
+                # Filter out columns not in expected_headers
+                filtered_failed_validations = [
+                    {key: value for key, value in data.items() if key in expected_headers}
+                    for data in failed_validations
+                ]
+
+                csv_writer.writerows(filtered_failed_validations)
 
         return asiakas_list
