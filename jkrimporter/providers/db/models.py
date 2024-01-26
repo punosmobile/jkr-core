@@ -83,10 +83,18 @@ def name_for_collection(base, local_cls, referred_cls, constraint):
 
 # Define any association tables that need to be directly insertable.
 # Sqlalchemy only generates them automatically if they have extra columns.
+
 class KohteenRakennukset(Base):
     __tablename__ = "kohteen_rakennukset"
     __table_args__ = {"schema": "jkr"}
     rakennus_id = Column(ForeignKey("jkr.rakennus.id"), primary_key=True)
+    kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
+
+
+class KompostorinKohteet(Base):
+    __tablename__ = "kompostorin_kohteet"
+    __table_args__ = {"schema": "jkr"}
+    kompostori_id = Column(ForeignKey("jkr.kompostori.id"), primary_key=True)
     kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
 
 

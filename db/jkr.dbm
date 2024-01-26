@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="3180,1367" last-zoom="1.15" max-obj-count="52"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2810,1139" last-zoom="0.9" max-obj-count="52"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -3845,6 +3845,16 @@ end;]]></definition>
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<position x="4320" y="1660"/>
+
+	<customidxs object-type="column">
+		<object name="kohde_id" index="1"/>
+		<object name="kompostori_id" index="0"/>
+	</customidxs>
+
+	<customidxs object-type="constraint">
+		<object name="kohde_fk" index="1"/>
+		<object name="kompostori_fk" index="0"/>
+	</customidxs>
 </table>
 
 <relationship name="kompostori_has_many_kompostorin_kohteet" type="rel1n" layers="0"
@@ -3864,6 +3874,15 @@ end;]]></definition>
 	 src-table="jkr.kohde"
 	 dst-table="jkr.kompostorin_kohteet"
 	 src-required="true" dst-required="false"/>
+
+<index name="uidx_kompostorin_kohteet_kohde_id" table="jkr.kompostorin_kohteet"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
+		</idxelement>
+	<columns names="kohde_id"/>
+</index>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
