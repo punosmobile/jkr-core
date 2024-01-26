@@ -33,7 +33,7 @@ class LahtiSiirtotiedosto:
         all_data = []
         asiakas_list = []
         failed_validations = []
-        missing_headers = []
+        missing_headers_list = []
         expected_headers = [
                             'UrakoitsijaId', 'UrakoitsijankohdeId', 'Kiinteistotunnus',
                             'Kiinteistonkatuosoite', 'Kiinteistonposti', 'Haltijannimi',
@@ -59,14 +59,14 @@ class LahtiSiirtotiedosto:
                 missing_headers = [header for header in expected_headers if header not in headers]
 
                 if missing_headers:
-                    missing_headers.append({
+                    missing_headers_list.append({
                         'file_path': csv_file_path,
-                        'missing_headers': missing_headers
+                        'headers': headers
                     })
 
-        if missing_headers:
-            for file in missing_headers:
-                print(f"Tiedosto: {file['file_path']}, oletetut sarakeotsikot puuttuvat: {file['missing_headers']}")
+        if missing_headers_list:
+            for file in missing_headers_list:
+                print(f"Tiedosto: {file['file_path']}, oletetut sarakeotsikot puuttuvat: {file['headers']}")
             raise RuntimeError("Osassa tiedostoissa oletetut sarakeotsikot puuttuvat.")
 
         # Iterate through all CSV files in the directory
