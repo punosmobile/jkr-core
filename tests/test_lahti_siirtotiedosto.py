@@ -45,6 +45,11 @@ def test_kohteet(datadir):
     assert 'UrakoitsijaId' in headers
 
 
+def test_import_faulty_data(faulty_datadir):
+    with pytest.raises(RuntimeError):
+        import_data(faulty_datadir, 'LSJ', False, False, True, '1.1.2023', '31.3.2023')
+
+
 def test_import_data(engine, datadir):
     import_data(datadir, 'LSJ', False, False, True, '1.1.2023', '31.3.2023')
 
