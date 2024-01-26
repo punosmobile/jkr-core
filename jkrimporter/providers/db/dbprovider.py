@@ -349,6 +349,7 @@ class DbProvider:
 
                 if kohdentumattomat:
                     for kohdentumaton in kohdentumattomat:
+
                         # Rebuild row to insert into the error .csv
                         row_data = {
                             'UrakoitsijaId': kohdentumaton['ulkoinen_asiakastieto'].UrakoitsijaId,
@@ -361,8 +362,8 @@ class DbProvider:
                             'Haltijankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Haltijankatuosoite,
                             'Haltijanposti': kohdentumaton['ulkoinen_asiakastieto'].Haltijanposti,
                             'Haltijanmaakoodi': kohdentumaton['ulkoinen_asiakastieto'].Haltijanmaakoodi,
-                            'Pvmalk': kohdentumaton['ulkoinen_asiakastieto'].Pvmalk,
-                            'Pvmasti': kohdentumaton['ulkoinen_asiakastieto'].Pvmasti,
+                            'Pvmalk': kohdentumaton['voimassa'].lower.strftime("%d.%m.%Y"),
+                            'Pvmasti': kohdentumaton['voimassa'].upper.strftime("%d.%m.%Y"),
                             'tyyppiIdEWC': kohdentumaton['ulkoinen_asiakastieto'].tyyppiIdEWC,
                             'COUNT(kaynnit)': kohdentumaton['ulkoinen_asiakastieto'].kaynnit,
                             'SUM(astiamaara)': kohdentumaton['ulkoinen_asiakastieto'].astiamaara,
@@ -372,8 +373,8 @@ class DbProvider:
                             'tyhjennysvali2': kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali2,
                             'kertaaviikossa': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa,
                             'kertaaviikossa2': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa2,
-                            'Voimassaoloviikotalkaen': kohdentumaton['voimassa'].Voimassaoloviikotalkaen,
-                            'Voimassaoloviikotasti': kohdentumaton['voimassa'].Voimassaoloviikotasti,
+                            'Voimassaoloviikotalkaen': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen,
+                            'Voimassaoloviikotasti': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti,
                             'palveluKimppakohdeId': kohdentumaton['ulkoinen_asiakastieto'].palveluKimppakohdeId,
                             'Kimpanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Kimpanyhteyshlo,
                             'KimpanNimi': kohdentumaton['ulkoinen_asiakastieto'].kimpanNimi,
@@ -382,7 +383,7 @@ class DbProvider:
                             'Kuntatun': kohdentumaton['ulkoinen_asiakastieto'].Kuntatun,
                             'Keskeytysalkaen': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysalkaen,
                             'Keskeytysasti': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysasti,
-                                                    }
+                        }
 
                         csv_path = siirtotiedosto / "kohdentumattomat.csv"
                         with open(csv_path, mode="a", encoding="cp1252", newline="") as csv_file:

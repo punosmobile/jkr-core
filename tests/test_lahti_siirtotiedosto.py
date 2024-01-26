@@ -1,4 +1,6 @@
+import os
 import pytest
+import csv
 from sqlalchemy import create_engine, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -175,3 +177,13 @@ def test_import_data(engine, datadir):
     biojate_kimppaisanta_id = \
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä biojäte').scalar()
     assert biojate_kimppaisanta_id in osapuolen_roolit
+
+    # Kohdentumattomat.csv sisältää kolme kohdentumatonta Asiakasta.
+    csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
+    assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
+    with open(csv_file_path, 'r') as csvfile:
+        csv_reader = csv.reader(csvfile)
+        header = next(csv_reader, None)
+        assert header is not None
+        rows = list(csv_reader)
+        assert len(rows) == 3
