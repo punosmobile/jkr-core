@@ -4,7 +4,6 @@ from datetime import date
 from dateutil.parser import parse as date_parser
 from enum import Enum
 from typing import Dict, Optional, Union
-from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 

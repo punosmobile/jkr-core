@@ -92,7 +92,7 @@ class LahtiSiirtotiedosto:
                 logger.warning(f"Asiakas-objektin luonti epäonnistui datalla: {data}. Virhe: {e}")
                 failed_validations.append(data)
 
-        # Save failed validations to a new CSV file in a subdirectory
+        # Save failed validations to a new CSV file.
         output_directory = csv_file_path.parent
         output_file_path = output_directory / "kohdentumattomat.csv"
 
