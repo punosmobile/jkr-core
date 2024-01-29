@@ -52,12 +52,14 @@ class LahtiSiirtotiedosto:
                 if missing_headers:
                     missing_headers_list.append({
                         'file_path': csv_file_path,
-                        'headers': headers
+                        'headers': missing_headers
                     })
 
+        # Print information after the loop through all files
+        for file in missing_headers_list:
+            print(f"Tiedosto: {file['file_path']}, puuttuvat sarakeotsikot: {file['headers']}")
+
         if missing_headers_list:
-            for file in missing_headers_list:
-                print(f"Tiedosto: {file['file_path']}, oletetut sarakeotsikot puuttuvat: {file['headers']}")
             raise RuntimeError("Osassa tiedostoissa oletetut sarakeotsikot puuttuvat.")
 
         # Iterate through all CSV files in the directory
