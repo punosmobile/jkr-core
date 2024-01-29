@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List
 
 from jkrimporter.datasheets import SiirtotiedostoSheet
+from jkrimporter.datasheets import get_headers
 from jkrimporter.providers.lahti.models import Asiakas
 from pydantic import ValidationError
 
@@ -34,19 +35,7 @@ class LahtiSiirtotiedosto:
         asiakas_list = []
         failed_validations = []
         missing_headers_list = []
-        expected_headers = [
-                            'UrakoitsijaId', 'UrakoitsijankohdeId', 'Kiinteistotunnus',
-                            'Kiinteistonkatuosoite', 'Kiinteistonposti', 'Haltijannimi',
-                            'Haltijanyhteyshlo', 'Haltijankatuosoite', 'Haltijanposti',
-                            'Haltijanmaakoodi', 'Haltijanulkomaanpaikkakunta', 'Pvmalk',
-                            'Pvmasti', 'tyyppiIdEWC', 'COUNT(kaynnit)',
-                            'SUM(astiamaara)', 'koko', 'SUM(paino)', 'tyhjennysvali',
-                            'tyhjennysvali2', 'kertaaviikossa', 'kertaaviikossa2',
-                            'Voimassaoloviikotalkaen', 'Voimassaoloviikotasti',
-                            'palveluKimppakohdeId', 'Kimpanyhteyshlo', 'KimpanNimi',
-                            'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun',
-                            'Keskeytysalkaen', 'Keskeytysasti'
-                        ]
+        expected_headers = get_headers()
 
         # Iterate through all CSV files in the directory to check headers
         for csv_file_path in Path(self._path).glob("*.csv"):

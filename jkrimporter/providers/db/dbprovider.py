@@ -12,6 +12,7 @@ from jkrimporter.model import Asiakas, JkrData
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.progress import Progress
+from jkrimporter.datasheets import get_headers
 
 from . import codes
 from .codes import init_code_objects
@@ -268,19 +269,7 @@ class DbProvider:
         siirtotiedosto: Path
     ):
         try:
-            expected_headers = [
-                            'UrakoitsijaId', 'UrakoitsijankohdeId', 'Kiinteistotunnus',
-                            'Kiinteistonkatuosoite', 'Kiinteistonposti', 'Haltijannimi',
-                            'Haltijanyhteyshlo', 'Haltijankatuosoite', 'Haltijanposti',
-                            'Haltijanmaakoodi', 'Haltijanulkomaanpaikkakunta', 'Pvmalk',
-                            'Pvmasti', 'tyyppiIdEWC', 'COUNT(kaynnit)',
-                            'SUM(astiamaara)', 'koko', 'SUM(paino)', 'tyhjennysvali',
-                            'tyhjennysvali2', 'kertaaviikossa', 'kertaaviikossa2',
-                            'Voimassaoloviikotalkaen', 'Voimassaoloviikotasti',
-                            'palveluKimppakohdeId', 'Kimpanyhteyshlo', 'KimpanNimi',
-                            'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun',
-                            'Keskeytysalkaen', 'Keskeytysasti'
-                        ]
+            expected_headers = get_headers()
             kohdentumattomat = []
             print(len(jkr_data.asiakkaat))
             progress = Progress(len(jkr_data.asiakkaat))
