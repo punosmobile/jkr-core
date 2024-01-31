@@ -137,6 +137,12 @@ class KeraysvalineTyyppi(str, Enum):
     MUU = "Muu"
 
 
+class AKPPoistoSyy(str, Enum):
+    pihapiiri = "Pihapiiri"
+    matka = "Pitkä matka"
+    eikaytossa = "Ei käytössä"
+
+
 class Keskeytys(NamedTuple):
     alkupvm: date
     loppupvm: date

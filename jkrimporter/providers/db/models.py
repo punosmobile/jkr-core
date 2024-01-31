@@ -116,6 +116,7 @@ with warnings.catch_warnings():
     )
 
 
+AKPPoistoSyy = Base.classes.akppoistosyy
 Jatetyyppi = Base.classes.jatetyyppi
 Jatteenkuljetusalue = Base.classes.jatteenkuljetusalue
 Katu = Base.classes.katu
@@ -133,8 +134,7 @@ Osapuolenlaji = Base.classes.osapuolenlaji
 Osapuoli = Base.classes.osapuoli
 Osapuolenrooli = Base.classes.osapuolenrooli
 Osoite = Base.classes.osoite
-# Paatos = Base.classes.paatos
-# Paatoslaji = Base.classes.paatoslaji
+Paatostulos = Base.classes.paatostulos
 Pohjavesialue = Base.classes.pohjavesialue
 Posti = Base.classes.posti
 Rakennuksenkayttotarkoitus = Base.classes.rakennuksenkayttotarkoitus
@@ -145,11 +145,13 @@ Rakennus = Base.classes.rakennus
 Sopimus = Base.classes.sopimus
 SopimusTyyppi = Base.classes.sopimustyyppi
 Taajama = Base.classes.taajama
+Tapahtumalaji = Base.classes.tapahtumalaji
 Tiedontuottaja = Base.classes.tiedontuottaja
 Tyhjennysvali = Base.classes.tyhjennysvali
 UlkoinenAsiakastieto = Base.classes.ulkoinen_asiakastieto
 Velvoite = Base.classes.velvoite
 Velvoitemalli = Base.classes.velvoitemalli
+Viranomaispaatokset = Base.classes.viranomaispaatokset
 
 
 # Add associations to association tables with extra fields.
@@ -195,6 +197,7 @@ if __name__ == "__main__":
     """
 
 __all__ = [
+    "AKPPoistoSyy",
     "Jatetyyppi",
     "Jatteenkuljetusalue",
     "Katu",
@@ -211,6 +214,7 @@ __all__ = [
     "Osapuoli",
     "Osapuolenrooli",
     "Osoite",
+    "Paatostulos",
     "Pohjavesialue",
     "Posti",
     "Rakennuksenkayttotarkoitus",
@@ -220,9 +224,11 @@ __all__ = [
     "Rakennus",
     "Sopimus",
     "Taajama",
+    "Tapahtumalaji",
     "Tiedontuottaja",
     "Tyhjennysvali",
     "UlkoinenAsiakastieto",
     "Velvoite",
     "Velvoitemalli",
+    "Viranomaispaatokset",
 ]

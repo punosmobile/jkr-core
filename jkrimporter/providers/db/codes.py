@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
+from jkrimporter.model import AKPPoistoSyy as AKPPoistoSyyEnum
 from jkrimporter.model import Jatelaji
 from jkrimporter.model import KeraysvalineTyyppi as KeraysvalineTyyppiEnum
 from jkrimporter.model import SopimusTyyppi as SopimusTyyppiEnum
 
 from .models import (
+    AKPPoistoSyy,
     Jatetyyppi,
     Keraysvalinetyyppi,
     Kohdetyyppi,
@@ -122,6 +124,7 @@ rakennuksenkayttotarkoitukset = {}
 rakennuksenolotilat = {}
 sopimustyypit = {}
 keraysvalinetyypit = {}
+akppoistosyyt = {}
 
 
 def init_code_objects(session):
@@ -154,3 +157,6 @@ def init_code_objects(session):
     keraysvalinetyypit = _init_lookup_codes(
         session, Keraysvalinetyyppi, KeraysvalineTyyppiEnum
     )
+
+    global akppoistosyyt
+    akppoistosyyt = _init_lookup_codes(session, AKPPoistoSyy, AKPPoistoSyyEnum)
