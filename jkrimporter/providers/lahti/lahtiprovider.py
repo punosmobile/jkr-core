@@ -284,6 +284,7 @@ class LahtiTranslator:
                         alkuvko=row.Voimassaoloviikotalkaen,
                         loppuvko=row.Voimassaoloviikotasti,
                         tyhjennysvali=row.tyhjennysvali,
+                        kertaaviikossa=row.kertaaviikossa,
                     )
                 )
             data.asiakkaat[tunnus].sopimukset.append(sopimus)
