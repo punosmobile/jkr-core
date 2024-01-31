@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import create_engine, func, or_, select
+from sqlalchemy import create_engine, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -13,6 +13,7 @@ from jkrimporter.providers.db.models import (
     Sopimus,
     SopimusTyyppi,
     Tiedontuottaja,
+    Kuljetus,
 )
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 
@@ -170,3 +171,6 @@ def test_import_data(engine, datadir):
     biojate_kimppaisanta_id = \
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä biojäte').scalar()
     assert biojate_kimppaisanta_id in osapuolen_roolit
+
+    # Kiinteänjätteen massa kenttä on tyhjä.
+    assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 10

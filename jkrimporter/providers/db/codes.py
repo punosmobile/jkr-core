@@ -110,6 +110,19 @@ class RakennuksenOlotilaTyyppi(Enum):
     TYHJILLAAN = "tyhjillään (esim. myynnissä)"
 
 
+class KiinteatJatelajit(Enum):
+    SEKAJATE = "Sekajäte"
+    BIO = "Biojäte"
+    LASI = "Lasi"
+    PAPERI = "Paperi"
+    KARTONKI = "Kartonki"
+    MUOVI = "Muovi"
+    METALLI = "Metalli"
+    PAHVI = "Pahvi"
+    ENERGIA = "Energia"
+    # MUU = "Muu"
+
+
 def _init_lookup_codes(session, model, enumtype: Enum):
     codes = {enum: get_code_id(session, model, enum.value) for enum in enumtype}
 
