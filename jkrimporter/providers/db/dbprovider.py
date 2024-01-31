@@ -269,7 +269,6 @@ class DbProvider:
         siirtotiedosto: Path
     ):
         try:
-            expected_headers = get_headers()
             kohdentumattomat = []
             print(len(jkr_data.asiakkaat))
             progress = Progress(len(jkr_data.asiakkaat))
@@ -376,8 +375,7 @@ class DbProvider:
 
                         csv_path = siirtotiedosto / "kohdentumattomat.csv"
                         with open(csv_path, mode="a", encoding="cp1252", newline="") as csv_file:
-                            fieldnames = expected_headers
-                            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames, delimiter=";", quotechar='"')
+                            csv_writer = csv.DictWriter(csv_file, fieldnames=get_headers(), delimiter=";", quotechar='"')
                             csv_writer.writerow(row_data)
 
                     print(f"Kohdentumattomat tiedot lisätty CSV-tiedostoon: {csv_path}")

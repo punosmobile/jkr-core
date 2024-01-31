@@ -19,18 +19,39 @@ if TYPE_CHECKING:
 
 def get_headers():
     expected_headers = [
-                        'UrakoitsijaId', 'UrakoitsijankohdeId', 'Kiinteistotunnus',
-                        'Kiinteistonkatuosoite', 'Kiinteistonposti', 'Haltijannimi',
-                        'Haltijanyhteyshlo', 'Haltijankatuosoite', 'Haltijanposti',
-                        'Haltijanmaakoodi', 'Haltijanulkomaanpaikkakunta', 'Pvmalk',
-                        'Pvmasti', 'tyyppiIdEWC', 'COUNT(kaynnit)',
-                        'SUM(astiamaara)', 'koko', 'SUM(paino)', 'tyhjennysvali',
-                        'tyhjennysvali2', 'kertaaviikossa', 'kertaaviikossa2',
-                        'Voimassaoloviikotalkaen', 'Voimassaoloviikotasti',
-                        'palveluKimppakohdeId', 'Kimpanyhteyshlo', 'KimpanNimi',
-                        'Kimpankatuosoite', 'Kimpanposti', 'Kuntatun',
-                        'Keskeytysalkaen', 'Keskeytysasti'
-                    ]
+        "UrakoitsijaId",
+        "UrakoitsijankohdeId",
+        "Kiinteistotunnus",
+        "Kiinteistonkatuosoite",
+        "Kiinteistonposti",
+        "Haltijannimi",
+        "Haltijanyhteyshlo",
+        "Haltijankatuosoite",
+        "Haltijanposti",
+        "Haltijanmaakoodi",
+        "Haltijanulkomaanpaikkakunta",
+        "Pvmalk",
+        "Pvmasti",
+        "tyyppiIdEWC",
+        "COUNT(kaynnit)",
+        "SUM(astiamaara)",
+        "koko",
+        "SUM(paino)",
+        "tyhjennysvali",
+        "tyhjennysvali2",
+        "kertaaviikossa",
+        "kertaaviikossa2",
+        "Voimassaoloviikotalkaen",
+        "Voimassaoloviikotasti",
+        "palveluKimppakohdeId",
+        "Kimpanyhteyshlo",
+        "KimpanNimi",
+        "Kimpankatuosoite",
+        "Kimpanposti",
+        "Kuntatun",
+        "Keskeytysalkaen",
+        "Keskeytysasti",
+    ]
     return expected_headers
 
 
@@ -109,6 +130,7 @@ class ExcelFileSheetCollection(SheetCollection):
     """
     Allows reading different worksheets from different files.
     """
+
     def __init__(self, path):
         super().__init__(path)
         self._opened_workbooks: Set["Workbook"] = set()
