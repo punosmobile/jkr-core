@@ -3,12 +3,12 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="2810,1139" last-zoom="0.9" max-obj-count="52"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1494,970" last-zoom="0.7" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
-	 layer-name-colors="#000000,#000000,#000000,#000000,#000000,#000000,#000000"
-	 layer-rect-colors="#b4b4b4,#dcb9be,#66d85a,#154ae1,#8ceb4c,#905779,#5ebe6a"
+	 layer-name-colors="#000000"
+	 layer-rect-colors="#b4b4b4"
 	 show-layer-names="true" show-layer-rects="false">
 <role name="jkr_admin"
  createrole="true"
@@ -2199,7 +2199,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3780" y="1640"/>
+	<position x="3800" y="1760"/>
 	<column name="koodi" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -2215,7 +2215,7 @@ select tallenna_velvoite_status('2020-3-1');
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3780" y="1800"/>
+	<position x="3800" y="1920"/>
 	<column name="koodi" not-null="true">
 		<type name="text" length="0"/>
 	</column>
@@ -3774,7 +3774,7 @@ end;]]></definition>
 <table name="kompostori" layers="0" collapse-mode="2" max-obj-count="7" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
-	<position x="3860" y="1300"/>
+	<position x="3940" y="1160"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 	</column>
@@ -3823,7 +3823,7 @@ end;]]></definition>
 <table name="kompostorin_kohteet" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
-	<position x="4320" y="1660"/>
+	<position x="4160" y="1440"/>
 
 	<customidxs object-type="column">
 		<object name="kohde_id" index="1"/>
@@ -3854,19 +3854,11 @@ end;]]></definition>
 	 dst-table="jkr.kompostorin_kohteet"
 	 src-required="true" dst-required="false"/>
 
-<index name="uidx_kompostorin_kohteet_kohde_id" table="jkr.kompostorin_kohteet"
-	 concurrent="false" unique="false" fast-update="false" buffering="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="kohde_id"/>
-		</idxelement>
-	<columns names="kohde_id"/>
-
 <table name="akppoistosyy" layers="0" collapse-mode="2" max-obj-count="2" z-value="0">
 	<schema name="jkr_koodistot"/>
 	<role name="jkr_admin"/>
 	<tag name="koodisto"/>
-	<position x="3860" y="1580"/>
+	<position x="3800" y="1580"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 	</column>
@@ -3917,6 +3909,14 @@ end;]]></definition>
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
 			<column name="rakennus_id"/>
+		</idxelement>
+</index>
+
+<index name="uidx_kompostorin_kohteet_kohde_id" table="jkr.kompostorin_kohteet"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
 		</idxelement>
 </index>
 
@@ -3979,19 +3979,11 @@ end;]]></definition>
 <relationship name="rel_rakennuksen_vanhimmat_rakennus" type="relfk" layers="0"
 	 src-table="jkr.rakennuksen_vanhimmat"
 	 dst-table="jkr.rakennus" reference-fk="rakennus_fk"
-	 src-required="false" dst-required="true">
-	<label ref-type="name-label">
-		<position x="0" y="0"/>
-	</label>
-</relationship>
+	 src-required="false" dst-required="true"/>
 
 <relationship name="rel_rakennuksen_vanhimmat_osapuoli" type="relfk" layers="0"
 	 src-table="jkr.rakennuksen_vanhimmat"
 	 dst-table="jkr.osapuoli" reference-fk="osapuoli_fk"
-	 src-required="false" dst-required="true">
-	<label ref-type="name-label">
-		<position x="0" y="0"/>
-	</label>
-</relationship>
+	 src-required="false" dst-required="false"/>
 
 </dbmodel>
