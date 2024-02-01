@@ -44,7 +44,8 @@ def test_osapuolenrooli(engine):
                        (213, 'Kimppaosakas muovipakkaus'),
                        (214, 'Kimppaosakas kartonkipakkaus'),
                        (215, 'Kimppaosakas lasipakkaus'),
-                       (216, 'Kimppaosakas metalli')]
+                       (216, 'Kimppaosakas metalli'),
+                       (311, 'Yhteyshenkilö kompostointi')]
     session = Session(engine)
     result = session.execute(select([Osapuolenrooli.id, Osapuolenrooli.selite]))
     assert [tuple(row) for row in result] == osapuolenroolit
