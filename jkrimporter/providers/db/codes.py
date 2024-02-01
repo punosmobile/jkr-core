@@ -120,7 +120,6 @@ class KiinteatJatelajit(Enum):
     METALLI = "Metalli"
     PAHVI = "Pahvi"
     ENERGIA = "Energia"
-    # MUU = "Muu"
 
 
 def _init_lookup_codes(session, model, enumtype: Enum):
