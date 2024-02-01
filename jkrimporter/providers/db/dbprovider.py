@@ -87,6 +87,10 @@ def insert_kuljetukset(
                 f"'{tyhjennys.jatelaji}' unknown"
             )
             continue
+        if tyhjennys.jatelaji not in codes.KiinteatJatelajit:
+            massa = None
+        else:
+            massa = tyhjennys.massa
 
         exists = any(
             k.jatetyyppi == jatetyyppi
@@ -102,7 +106,7 @@ def insert_kuljetukset(
                 alkupvm=alkupvm,
                 loppupvm=loppupvm,
                 tyhjennyskerrat=tyhjennys.tyhjennyskerrat,
-                massa=tyhjennys.massa,
+                massa=massa,
                 tilavuus=tyhjennys.tilavuus,
                 tiedontuottaja=urakoitsija,
             )
