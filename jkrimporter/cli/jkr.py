@@ -106,7 +106,7 @@ def import_data(
     jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
     print('writing to db...')
     db = DbProvider()
-    db.write(jkr_data, tiedontuottajatunnus, not luo_uudet, ala_paivita_yhteystietoja, ala_paivita_kohdetta)
+    db.write(jkr_data, tiedontuottajatunnus, not luo_uudet, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
 
     print("VALMIS!")
 

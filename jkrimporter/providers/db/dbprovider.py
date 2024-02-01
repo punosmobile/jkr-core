@@ -3,6 +3,7 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
+import csv
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from jkrimporter.model import Asiakas, JkrData
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.progress import Progress
+from jkrimporter.datasheets import get_headers
 
 from . import codes
 from .codes import init_code_objects
@@ -199,7 +201,7 @@ def import_asiakastiedot(
     )
     if not kohde:
         print(f"Could not find kohde for asiakas {asiakas}, skipping...")
-        return
+        return asiakas
 
     # Update osapuolet from the same tiedontuottaja. This function will not
     # touch data from other tiedontuottajat.
@@ -268,8 +270,10 @@ class DbProvider:
         ala_luo: bool,
         ala_paivita_yhteystietoja: bool,
         ala_paivita_kohdetta: bool,
+        siirtotiedosto: Path
     ):
         try:
+            kohdentumattomat = []
             print(len(jkr_data.asiakkaat))
             progress = Progress(len(jkr_data.asiakkaat))
 
@@ -316,7 +320,7 @@ class DbProvider:
                     # information takes precedence.
                     urakoitsija_tunnus = asiakas.asiakasnumero.jarjestelma
 
-                    import_asiakastiedot(
+                    kohdentumaton = import_asiakastiedot(
                         session,
                         asiakas,
                         jkr_data.alkupvm,
@@ -329,8 +333,58 @@ class DbProvider:
                         kitu_counts,
                         address_counts,
                     )
+                    if kohdentumaton:
+                        asiakas_dict = kohdentumaton.__dict__
+                        kohdentumattomat.append(asiakas_dict)
                 session.commit()
                 progress.complete()
+
+                if kohdentumattomat:
+                    for kohdentumaton in kohdentumattomat:
+
+                        # Rebuild row to insert into the error .csv
+                        row_data = {
+                            'UrakoitsijaId': kohdentumaton['ulkoinen_asiakastieto'].UrakoitsijaId,
+                            'UrakoitsijankohdeId': kohdentumaton['ulkoinen_asiakastieto'].UrakoitsijankohdeId,
+                            'Kiinteistotunnus': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistotunnus,
+                            'Kiinteistonkatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistonkatuosoite,
+                            'Kiinteistonposti': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistonposti,
+                            'Haltijannimi': kohdentumaton['ulkoinen_asiakastieto'].Haltijannimi,
+                            'Haltijanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Haltijanyhteyshlo,
+                            'Haltijankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Haltijankatuosoite,
+                            'Haltijanposti': kohdentumaton['ulkoinen_asiakastieto'].Haltijanposti,
+                            'Haltijanmaakoodi': kohdentumaton['ulkoinen_asiakastieto'].Haltijanmaakoodi,
+                            'Pvmalk': kohdentumaton['voimassa'].lower.strftime("%d.%m.%Y"),
+                            'Pvmasti': kohdentumaton['voimassa'].upper.strftime("%d.%m.%Y"),
+                            'tyyppiIdEWC': kohdentumaton['ulkoinen_asiakastieto'].tyyppiIdEWC,
+                            'COUNT(kaynnit)': kohdentumaton['ulkoinen_asiakastieto'].kaynnit,
+                            'SUM(astiamaara)': kohdentumaton['ulkoinen_asiakastieto'].astiamaara,
+                            'koko': kohdentumaton['ulkoinen_asiakastieto'].koko,
+                            'SUM(paino)': kohdentumaton['ulkoinen_asiakastieto'].paino,
+                            'tyhjennysvali': kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali,
+                            'tyhjennysvali2': kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali2,
+                            'kertaaviikossa': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa,
+                            'kertaaviikossa2': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa2,
+                            'Voimassaoloviikotalkaen': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen,
+                            'Voimassaoloviikotasti': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti,
+                            'palveluKimppakohdeId': kohdentumaton['ulkoinen_asiakastieto'].palveluKimppakohdeId,
+                            'Kimpanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Kimpanyhteyshlo,
+                            'KimpanNimi': kohdentumaton['ulkoinen_asiakastieto'].kimpanNimi,
+                            'Kimpankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kimpankatuosoite,
+                            'Kimpanposti': kohdentumaton['ulkoinen_asiakastieto'].Kimpanposti,
+                            'Kuntatun': kohdentumaton['ulkoinen_asiakastieto'].Kuntatun,
+                            'Keskeytysalkaen': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysalkaen,
+                            'Keskeytysasti': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysasti,
+                        }
+
+                        csv_path = siirtotiedosto / "kohdentumattomat.csv"
+                        with open(csv_path, mode="a", encoding="cp1252", newline="") as csv_file:
+                            csv_writer = csv.DictWriter(csv_file, fieldnames=get_headers(), delimiter=";", quotechar='"')
+                            csv_writer.writerow(row_data)
+
+                    print(f"Kohdentumattomat tiedot lisätty CSV-tiedostoon: {csv_path}")
+                else:
+                    print("Ei kohdentumattomia tietoja.")
 
         except Exception as e:
             logger.exception(e)
