@@ -190,7 +190,7 @@ class Asiakas(BaseModel):
             value = float(value.replace(',', '.'))
         return value
 
-    @validator("kaynnit", pre=True, always=True)
+    @validator("kaynnit", "kertaaviikossa", "kertaaviikossa2", pre=True)
     def validate_kaynnit(cls, value):
         if isinstance(value, str):
             try:
@@ -199,11 +199,3 @@ class Asiakas(BaseModel):
                 return None
         return value
 
-    @validator("kertaaviikossa", "kertaaviikossa2", pre=True)
-    def validate_kertaaviikossa(cls, value):
-        if isinstance(value, str):
-            try:
-                value = int(value)
-            except (ValueError, TypeError):
-                return None
-        return value
