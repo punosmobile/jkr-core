@@ -35,9 +35,7 @@ class Jatelaji(str, Enum):
 class Asiakas(BaseModel):
     UrakoitsijaId: str
     UrakoitsijankohdeId: str
-    Kiinteistotunnus: Optional[str] = Field(
-        alias="Rakennustunnus/Kiinteistotunnus", default=None
-    )
+    Kiinteistotunnus: Optional[str] = None
     Kiinteistonkatuosoite: Optional[str] = None
     Kiinteistonposti: str
     Haltijannimi: str
@@ -54,16 +52,21 @@ class Asiakas(BaseModel):
     koko: Optional[float]
     paino: Optional[float] = Field(alias="SUM(paino)")
     tyhjennysvali: Optional[int] = None
+    tyhjennysvali2: Optional[int] = None
+    kertaaviikossa: Optional[int] = None
+    kertaaviikossa2: Optional[int] = None
     Voimassaoloviikotalkaen: Optional[int] = None
     Voimassaoloviikotasti: Optional[int] = None
+    Voimassaoloviikotalkaen2: Optional[int] = None
+    Voimassaoloviikotasti2: Optional[int] = None
     Kuntatun: Optional[int] = None
     palveluKimppakohdeId: Optional[str] = None
     kimpanNimi: Optional[str] = None
-    KimpastaVastaava: Optional[str] = Field(alias="Kimpasta vastaava")
+    Kimpanyhteyshlo: Optional[str] = None
     Kimpankatuosoite: Optional[str] = None
     Kimpanposti: Optional[str] = None
-    # Keskeytysalkaen: Optional[datetime.date] = None,
-    # Keskeytysasti: Optional[datetime.date] = None,
+    Keskeytysalkaen: Optional[datetime.date] = None,
+    Keskeytysasti: Optional[datetime.date] = None,
     # Kompostoi: Optional[str] = None,
     # Kaatopaikka: Optional[str] = None
 
@@ -151,8 +154,18 @@ class Asiakas(BaseModel):
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
 
+    @validator('Keskeytysalkaen', 'Keskeytysasti', pre=True)
+    def parse_date_or_empty(value: Union[date,str]):
+        if type(value) is str and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        if value == "#N/A" or value == '':
+            return None
+        return value
+
     @validator(
-        "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti", pre=True
+        "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti",
+        "Voimassaoloviikotalkaen2", "Voimassaoloviikotasti2", "tyhjennysvali2",
+        pre=True
     )
     def fix_na(value: str):
         # Many fields may have strings such as #N/A or empty string. Parse them to None.
@@ -177,13 +190,12 @@ class Asiakas(BaseModel):
             value = float(value.replace(',', '.'))
         return value
 
-    @validator("kaynnit", pre=True, always=True)
+    @validator("kaynnit", "kertaaviikossa", "kertaaviikossa2", pre=True)
     def validate_kaynnit(cls, value):
         if isinstance(value, str):
             try:
-                # Try converting the 'kaynnit' value to an integer
                 value = int(value)
             except (ValueError, TypeError):
-                # If conversion fails, return None
                 return None
         return value
+
