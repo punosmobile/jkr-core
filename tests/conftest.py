@@ -26,6 +26,26 @@ def datadir(tmpdir, request):
 
     return tmpdir
 
+@fixture
+def faulty_datadir(tmpdir, request):
+    """
+    Fixture responsible for searching a folder with the same name of test
+    module and move into a predefined subfolder. If available, moving all
+    contents to a temporary directory so tests can use them freely.
+    """
+    testfilepath = Path(request.module.__file__)
+    testdir = testfilepath.parent
+    testfilename = testfilepath.stem
+
+    faulty_datadir = testdir / "data" / testfilename / "test_lahti_virheelliset_sarakkeet"
+    if os.path.isdir(faulty_datadir):
+        copytree(faulty_datadir, tmpdir, dirs_exist_ok=True)
+    print(faulty_datadir)
+    print(tmpdir)
+    print(os.listdir(tmpdir))
+
+    return tmpdir
+
 
 def pytest_sessionstart(session):
     """

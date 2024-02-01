@@ -1,5 +1,8 @@
+import csv
+import os
 import pytest
-from sqlalchemy import create_engine, func, or_, select
+
+from sqlalchemy import create_engine, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -13,6 +16,7 @@ from jkrimporter.providers.db.models import (
     Sopimus,
     SopimusTyyppi,
     Tiedontuottaja,
+    Kuljetus,
 )
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 
@@ -43,6 +47,11 @@ def test_kohteet(datadir):
     header_row = asiakastiedot[0]
     headers = header_row.dict().keys()
     assert 'UrakoitsijaId' in headers
+
+
+def test_import_faulty_data(faulty_datadir):
+    with pytest.raises(RuntimeError):
+        import_data(faulty_datadir, 'LSJ', False, False, True, '1.1.2023', '31.3.2023')
 
 
 def test_import_data(engine, datadir):
@@ -170,3 +179,16 @@ def test_import_data(engine, datadir):
     biojate_kimppaisanta_id = \
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä biojäte').scalar()
     assert biojate_kimppaisanta_id in osapuolen_roolit
+
+    # Kiinteänjätteen massa kenttä on tyhjä.
+    assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 10
+
+    # Kohdentumattomat.csv sisältää kolme kohdentumatonta Asiakasta.
+    csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
+    assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
+    with open(csv_file_path, 'r') as csvfile:
+        csv_reader = csv.reader(csvfile)
+        header = next(csv_reader, None)
+        assert header is not None
+        rows = list(csv_reader)
+        assert len(rows) == 3

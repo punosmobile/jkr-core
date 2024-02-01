@@ -268,7 +268,7 @@ class LahtiTranslator:
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                     isannan_asiakasnumero=isannan_asiakasnumero,
-                    asiakas_on_isanta=(row.UrakoitsijankohdeId == row.KimpastaVastaava),
+                    asiakas_on_isanta=(row.UrakoitsijankohdeId == row.Kimpanyhteyshlo),
                 )
             else:
                 sopimus = TyhjennysSopimus(
