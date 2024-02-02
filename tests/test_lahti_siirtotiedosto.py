@@ -17,6 +17,7 @@ from jkrimporter.providers.db.models import (
     SopimusTyyppi,
     Tiedontuottaja,
     Kuljetus,
+    Tyhjennysvali,
 )
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 
@@ -182,6 +183,11 @@ def test_import_data(engine, datadir):
 
     # Kiinteänjätteen massa kenttä on tyhjä.
     assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 10
+
+    # Tyhjennysvalejä on seitsemän, yhdellä sopimuksista on kaksi tyhjennysväliä.
+    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 7
+    sopimus_id_5_count = session.query(func.count()).filter(Tyhjennysvali.sopimus_id == 5).scalar()
+    assert sopimus_id_5_count == 2
 
     # Kohdentumattomat.csv sisältää kolme kohdentumatonta Asiakasta.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")

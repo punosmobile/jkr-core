@@ -197,7 +197,7 @@ def update_tyhjennysvalit(
                 alkuvko=db_tyhjennysvali.alkuvko,
                 loppuvko=db_tyhjennysvali.loppuvko,
                 tyhjennysvali=db_tyhjennysvali.tyhjennysvali,
-                # kertaaviikossa=db_tyhjennysvali.kertaaviikossa,
+                kertaaviikossa=db_tyhjennysvali.kertaaviikossa,
             )
             not in sopimus.tyhjennysvalit
         ):
@@ -216,6 +216,7 @@ def update_tyhjennysvalit(
             db_tyhjennysvali.alkuvko == jkr_tyhjennysvali.alkuvko
             and db_tyhjennysvali.loppuvko == jkr_tyhjennysvali.loppuvko
             and db_tyhjennysvali.tyhjennysvali == jkr_tyhjennysvali.tyhjennysvali
+            and db_tyhjennysvali.kertaaviikossa == jkr_tyhjennysvali.kertaaviikossa
             for db_tyhjennysvali in db_sopimus.tyhjennysvali_collection
         )
         if not exists:
@@ -223,6 +224,7 @@ def update_tyhjennysvalit(
                 alkuvko=jkr_tyhjennysvali.alkuvko,
                 loppuvko=jkr_tyhjennysvali.loppuvko,
                 tyhjennysvali=jkr_tyhjennysvali.tyhjennysvali,
+                kertaaviikossa=jkr_tyhjennysvali.kertaaviikossa
             )
 
             db_sopimus.tyhjennysvali_collection.append(db_tyhjennysvali)

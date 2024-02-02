@@ -160,7 +160,7 @@ class Tyhjennysvali(NamedTuple):
     alkuvko: int
     loppuvko: int
     tyhjennysvali: float
-    # kertaaviikossa: int
+    kertaaviikossa: int
 
 
 @dataclass
