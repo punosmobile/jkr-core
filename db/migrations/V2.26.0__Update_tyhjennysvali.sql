@@ -1,2 +1,2 @@
 ALTER TABLE jkr.tyhjennysvali
-    ADD COLUMN kertaaviikossa INTEGER;
+    ADD COLUMN kertaaviikossa smallint;
