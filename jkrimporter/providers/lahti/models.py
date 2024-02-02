@@ -1,19 +1,10 @@
 import datetime
 import re
 from datetime import date
-from dateutil.parser import parse as date_parser
 from enum import Enum
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, ValidationError, root_validator, validator
-
-# from jkrimporter.utils.validators import (
-#     date_pre_validator,
-#     date_range_root_validator,
-#     int_validator,
-#     split_by_comma,
-#     trim_ytunnus,
-# )
+from pydantic import BaseModel, Field, ValidationError, validator
 
 
 class Jatelaji(str, Enum):
@@ -32,7 +23,7 @@ class Jatelaji(str, Enum):
     harmaa_liete = "Harmaa liete"
 
 
-class Asiakas(BaseModel):
+class AsiakasRow(BaseModel):
     UrakoitsijaId: str
     UrakoitsijankohdeId: str
     Kiinteistotunnus: Optional[str] = None
@@ -65,10 +56,8 @@ class Asiakas(BaseModel):
     Kimpanyhteyshlo: Optional[str] = None
     Kimpankatuosoite: Optional[str] = None
     Kimpanposti: Optional[str] = None
-    Keskeytysalkaen: Optional[datetime.date] = None,
-    Keskeytysasti: Optional[datetime.date] = None,
-    # Kompostoi: Optional[str] = None,
-    # Kaatopaikka: Optional[str] = None
+    Keskeytysalkaen: Optional[datetime.date] = (None,)
+    Keskeytysasti: Optional[datetime.date] = (None,)
 
     # @validator("UrakoitsijankohdeId", pre=True)
     # TODO: Cannot construct id from name. Name is validated later.
@@ -124,7 +113,7 @@ class Asiakas(BaseModel):
     def parse_float(value: Union[float, str]):
         # If float wasn't parsed, let's parse them
         # Return none if empty string was parsed
-        if value == '':
+        if value == "":
             return None
         if type(value) is str:
             # we might have . or , as the separator
@@ -154,22 +143,26 @@ class Asiakas(BaseModel):
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
 
-    @validator('Keskeytysalkaen', 'Keskeytysasti', pre=True)
-    def parse_date_or_empty(value: Union[date,str]):
+    @validator("Keskeytysalkaen", "Keskeytysasti", pre=True)
+    def parse_date_or_empty(value: Union[date, str]):
         if type(value) is str and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
-        if value == "#N/A" or value == '':
+        if value == "#N/A" or value == "":
             return None
         return value
 
     @validator(
-        "tyhjennysvali", "Voimassaoloviikotalkaen", "Voimassaoloviikotasti",
-        "Voimassaoloviikotalkaen2", "Voimassaoloviikotasti2", "tyhjennysvali2",
-        pre=True
+        "tyhjennysvali",
+        "Voimassaoloviikotalkaen",
+        "Voimassaoloviikotasti",
+        "Voimassaoloviikotalkaen2",
+        "Voimassaoloviikotasti2",
+        "tyhjennysvali2",
+        pre=True,
     )
     def fix_na(value: str):
         # Many fields may have strings such as #N/A or empty string. Parse them to None.
-        if value == "#N/A" or value == '':
+        if value == "#N/A" or value == "":
             return None
         return value
 
@@ -187,7 +180,7 @@ class Asiakas(BaseModel):
             # There is atleast one case where SUM(astiamaara) is "0,12"
             # Not sure what to do here, doesn't make sense that 0.12 containers have been emptied.
             # But then again, should this be converted to 0, 1 or 12?
-            value = float(value.replace(',', '.'))
+            value = float(value.replace(",", "."))
         return value
 
     @validator("kaynnit", "kertaaviikossa", "kertaaviikossa2", pre=True)
@@ -199,3 +192,86 @@ class Asiakas(BaseModel):
                 return None
         return value
 
+
+class Asiakas(BaseModel):
+    UrakoitsijaId: str
+    UrakoitsijankohdeId: str
+    Kiinteistotunnus: Optional[str] = None
+    Kiinteistonkatuosoite: Optional[str] = None
+    Kiinteistonposti: str
+    Haltijannimi: str
+    Haltijanyhteyshlo: Optional[str] = None
+    Haltijankatuosoite: Optional[str] = None
+    Haltijanposti: str
+    Haltijanmaakoodi: Optional[str] = None
+    Haltijanulkomaanpaikkakunta: Optional[str] = None
+    Pvmalk: datetime.date
+    Pvmasti: datetime.date
+    tyyppiIdEWC: Jatelaji
+    kaynnit: int
+    astiamaara: float
+    koko: Optional[float]
+    paino: Optional[float]
+    tyhjennysvali: List[int] = []
+    kertaaviikossa: List[int] = []
+    Voimassaoloviikotalkaen: List[int] = []
+    Voimassaoloviikotasti: List[int] = []
+    Kuntatun: Optional[int] = None
+    palveluKimppakohdeId: Optional[str] = None
+    kimpanNimi: Optional[str] = None
+    Kimpanyhteyshlo: Optional[str] = None
+    Kimpankatuosoite: Optional[str] = None
+    Kimpanposti: Optional[str] = None
+    Keskeytysalkaen: Optional[datetime.date] = (None,)
+    Keskeytysasti: Optional[datetime.date] = (None,)
+
+    def __init__(self, row: AsiakasRow):
+        super().__init__(
+            UrakoitsijaId=row.UrakoitsijaId,
+            UrakoitsijankohdeId=row.UrakoitsijankohdeId,
+            Kiinteistotunnus=row.Kiinteistotunnus,
+            Kiinteistonkatuosoite=row.Kiinteistonkatuosoite,
+            Kiinteistonposti=row.Kiinteistonposti,
+            Haltijannimi=row.Haltijannimi,
+            Haltijanyhteyshlo=row.Haltijanyhteyshlo,
+            Haltijankatuosoite=row.Haltijankatuosoite,
+            Haltijanposti=row.Haltijanposti,
+            Haltijanmaakoodi=row.Haltijanmaakoodi,
+            Haltijanulkomaanpaikkakunta=row.Haltijanulkomaanpaikkakunta,
+            Pvmalk=row.Pvmalk,
+            Pvmasti=row.Pvmasti,
+            tyyppiIdEWC=row.tyyppiIdEWC,
+            kaynnit=row.kaynnit,
+            astiamaara=row.astiamaara,
+            koko=row.koko,
+            paino=row.paino,
+            Kuntatun=row.Kuntatun,
+            palveluKimppakohdeId=row.palveluKimppakohdeId,
+            kimpanNimi=row.kimpanNimi,
+            Kimpanyhteyshlo=row.Kimpanyhteyshlo,
+            Kimpankatuosoite=row.Kimpankatuosoite,
+            Kimpanposti=row.Kimpanposti,
+            Keskeytysalkaen=row.Keskeytysalkaen,
+            Keskeytysasti=row.Keskeytysasti,
+        )
+        if (
+            row.tyhjennysvali
+            and row.Voimassaoloviikotalkaen
+            and row.Voimassaoloviikotasti
+        ):
+            self.Voimassaoloviikotalkaen.append(row.Voimassaoloviikotalkaen)
+            self.Voimassaoloviikotasti.append(row.Voimassaoloviikotasti)
+            self.tyhjennysvali.append(row.tyhjennysvali)
+            self.kertaaviikossa.append(row.kertaaviikossa)
+        if (
+            row.tyhjennysvali2
+            and row.Voimassaoloviikotalkaen2
+            and row.Voimassaoloviikotasti2
+        ):
+            self.Voimassaoloviikotalkaen.append(row.Voimassaoloviikotalkaen2)
+            self.Voimassaoloviikotasti.append(row.Voimassaoloviikotasti2)
+            self.tyhjennysvali.append(row.tyhjennysvali2)
+            self.kertaaviikossa.append(row.kertaaviikossa2)
+
+    def check_and_add_row(self, row: AsiakasRow):
+        return False

@@ -277,23 +277,13 @@ class LahtiTranslator:
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                 )
-            if row.tyhjennysvali:
-                # tyhjennysväli is missing from some data
+            for ii, _ in enumerate(row.tyhjennysvali):
                 sopimus.tyhjennysvalit.append(
                     JkrTyhjennysvali(
-                        alkuvko=row.Voimassaoloviikotalkaen,
-                        loppuvko=row.Voimassaoloviikotasti,
-                        tyhjennysvali=row.tyhjennysvali,
-                        kertaaviikossa=row.kertaaviikossa,
-                    )
-                )
-            if row.tyhjennysvali2:
-                sopimus.tyhjennysvalit.append(
-                    JkrTyhjennysvali(
-                        alkuvko=row.Voimassaoloviikotalkaen2,
-                        loppuvko=row.Voimassaoloviikotasti2,
-                        tyhjennysvali=row.tyhjennysvali2,
-                        kertaaviikossa=row.kertaaviikossa2,
+                        alkuvko=row.Voimassaoloviikotalkaen[ii],
+                        loppuvko=row.Voimassaoloviikotasti[ii],
+                        tyhjennysvali=row.tyhjennysvali[ii],
+                        kertaaviikossa=row.kertaaviikossa[ii],
                     )
                 )
             data.asiakkaat[tunnus].sopimukset.append(sopimus)

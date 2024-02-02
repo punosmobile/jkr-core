@@ -5,7 +5,7 @@ from typing import List
 
 from jkrimporter.datasheets import SiirtotiedostoSheet
 from jkrimporter.datasheets import get_headers
-from jkrimporter.providers.lahti.models import Asiakas
+from jkrimporter.providers.lahti.models import Asiakas, AsiakasRow
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ class LahtiSiirtotiedosto:
     def asiakastiedot(self):
         all_data = []
         asiakas_list = []
+        asiakas_rows = []
         failed_validations = []
         missing_headers_list = []
         expected_headers = get_headers()
@@ -75,10 +76,10 @@ class LahtiSiirtotiedosto:
                 all_data.extend(data_list)
 
         for data in all_data:
-            # Validate Asiakas, if validation fails, append to failed_validations
+            # Validate AsiakasRow, if validation fails, append to failed_validations
             try:
-                asiakas_obj = Asiakas.parse_obj(data)
-                asiakas_list.append(asiakas_obj)
+                asiakas_obj = AsiakasRow.parse_obj(data)
+                asiakas_rows.append(asiakas_obj)
             except ValidationError as e:
                 logger.warning(f"Asiakas-objektin luonti epäonnistui datalla: {data}. Virhe: {e}")
                 failed_validations.append(data)
@@ -98,5 +99,9 @@ class LahtiSiirtotiedosto:
                 ]
 
                 csv_writer.writerows(filtered_failed_validations)
+
+        # Create asiakas objects from rows
+        for asiakas_row in asiakas_rows:
+            asiakas_list.append(Asiakas(asiakas_row))
 
         return asiakas_list
