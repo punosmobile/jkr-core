@@ -184,14 +184,10 @@ def test_import_data(engine, datadir):
     # Kiinteänjätteen massa kenttä on tyhjä.
     assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 10
 
-    # Tyhjennysvalejä on seitsemän, yhdellä kuljetuksista on kaksi tyhjennysväliä.
+    # Tyhjennysvalejä on seitsemän, yhdellä sopimuksista on kaksi tyhjennysväliä.
     assert session.query(func.count(Tyhjennysvali.id)).scalar() == 7
-    loppuviikko_25_query = \
-        select([func.count()]).where(Tyhjennysvali.loppuvko == 25)
-    alkuviikko_26_query = \
-        select([func.count()]).where(Tyhjennysvali.alkuvko == 26)
-    assert session.execute(loppuviikko_25_query).scalar() == 1
-    assert session.execute(alkuviikko_26_query).scalar() == 1
+    sopimus_id_5_count = session.query(func.count()).filter(Tyhjennysvali.sopimus_id == 5).scalar()
+    assert sopimus_id_5_count == 2
 
     # Kohdentumattomat.csv sisältää kolme kohdentumatonta Asiakasta.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
