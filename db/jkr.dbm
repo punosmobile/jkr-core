@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1494,970" last-zoom="0.7" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1016,101" last-zoom="0.55" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -679,7 +679,7 @@ where
 	</customidxs>
 </table>
 
-<table name="tyhjennysvali" layers="0" collapse-mode="2" max-obj-count="6" z-value="0">
+<table name="tyhjennysvali" layers="0" collapse-mode="2" max-obj-count="7" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Sopimukseen liittyvät tyhjennysvälitiedot sisältävä taulu]]></comment>
@@ -700,12 +700,16 @@ where
 		<type name="smallint" length="3" precision="2"/>
 		<comment><![CDATA[Tyhjennysväli viikoissa]]></comment>
 	</column>
+	<column name="kertaaviikossa">
+		<type name="smallint" length="0"/>
+		<comment><![CDATA[Tyhjennystapahtumien määrä viikossa. Merkitsevä vain jos tyhjennysvali on 1.]]></comment>
+	</column>
 	<constraint name="tyhjennysvali_pk" type="pk-constr" table="jkr.tyhjennysvali">
 		<columns names="id" ref-type="src-columns"/>
 	</constraint>
 
 	<customidxs object-type="column">
-		<object name="sopimus_id" index="4"/>
+		<object name="sopimus_id" index="5"/>
 	</customidxs>
 
 	<customidxs object-type="constraint">
