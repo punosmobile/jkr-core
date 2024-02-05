@@ -295,15 +295,14 @@ class LahtiTranslator:
             )
             sopimus.keraysvalineet.append(keraysvaline)
 
-            massa = row.paino * 1000 if row.paino else None
             data.asiakkaat[tunnus].tyhjennystapahtumat.append(
                 Tyhjennystapahtuma(
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                     jatelaji=jatelaji,
-                    tyhjennyskerrat=row.kaynnit,
+                    tyhjennyskerrat=row.get_kaynnit(),
                     tilavuus=row.koko * 1000 if row.koko else None,
-                    massa=massa,
+                    massa=row.get_paino(),
                 )
             )
             print("------")

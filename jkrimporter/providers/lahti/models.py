@@ -208,14 +208,22 @@ class Asiakas(BaseModel):
     Pvmalk: datetime.date
     Pvmasti: datetime.date
     tyyppiIdEWC: Jatelaji
-    kaynnit: int
+    kaynnit: List[int] = []  # käynnit rowwise
     astiamaara: float
     koko: Optional[float]
-    paino: Optional[float]
-    tyhjennysvali: List[int] = []
-    kertaaviikossa: List[int] = []
-    Voimassaoloviikotalkaen: List[int] = []
-    Voimassaoloviikotasti: List[int] = []
+    paino: List[Union[float, None]] = []  # paino rowwise
+    tyhjennysvali: List[int] = (
+        []
+    )  # [row1_tyhjennysvali, row1_tyhjennysvali2, row2_tyhjennysvali, ...]
+    kertaaviikossa: List[int] = (
+        []
+    )  # [row1_kertaaviikossa, row1_kertaaviikossa2, row2_kertaaviikossa, ...]
+    Voimassaoloviikotalkaen: List[int] = (
+        []
+    )  # [row1_Voimassaoloviikotalkaen, row1_Voimassaoloviikotalkaen2, row2_Voimassaoloviikotalkaen, ...]
+    Voimassaoloviikotasti: List[int] = (
+        []
+    )  # [row1_Voimassaoloviikotasti, row1_Voimassaoloviikotasti2, row2_Voimassaoloviikotasti, ...]
     Kuntatun: Optional[int] = None
     palveluKimppakohdeId: Optional[str] = None
     kimpanNimi: Optional[str] = None
@@ -241,10 +249,10 @@ class Asiakas(BaseModel):
             Pvmalk=row.Pvmalk,
             Pvmasti=row.Pvmasti,
             tyyppiIdEWC=row.tyyppiIdEWC,
-            kaynnit=row.kaynnit,
+            kaynnit=[row.kaynnit],
             astiamaara=row.astiamaara,
             koko=row.koko,
-            paino=row.paino,
+            paino=[row.paino],
             Kuntatun=row.Kuntatun,
             palveluKimppakohdeId=row.palveluKimppakohdeId,
             kimpanNimi=row.kimpanNimi,
@@ -275,3 +283,13 @@ class Asiakas(BaseModel):
 
     def check_and_add_row(self, row: AsiakasRow):
         return False
+
+    def get_kaynnit(self):
+        return sum(self.kaynnit)
+
+    def get_paino(self):
+        sum = 0
+        for item in self.paino:
+            if isinstance(item, float):
+                sum += item
+        return sum * 1000 if sum else None
