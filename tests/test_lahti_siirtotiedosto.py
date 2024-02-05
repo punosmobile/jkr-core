@@ -189,7 +189,7 @@ def test_import_data(engine, datadir):
     sopimus_id_5_count = session.query(func.count()).filter(Tyhjennysvali.sopimus_id == 5).scalar()
     assert sopimus_id_5_count == 2
 
-    # Kohdentumattomat.csv sisältää kolme kohdentumatonta Asiakasta.
+    # Kohdentumattomat.csv sisältää viisi kohdentumatonta Asiakas-riviä.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
     assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
     with open(csv_file_path, 'r') as csvfile:
@@ -197,4 +197,4 @@ def test_import_data(engine, datadir):
         header = next(csv_reader, None)
         assert header is not None
         rows = list(csv_reader)
-        assert len(rows) == 3
+        assert len(rows) == 5
