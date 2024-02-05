@@ -23,6 +23,8 @@ class Jatelaji(str, Enum):
     harmaa_liete = "Harmaa liete"
 
 
+# AsiakasRow corresponds to one row in source data. In most cases,
+# all the asiakas data is presented in one row (= AsiakasRow).
 class AsiakasRow(BaseModel):
     UrakoitsijaId: str
     UrakoitsijankohdeId: str
@@ -212,16 +214,16 @@ class Asiakas(BaseModel):
     astiamaara: float
     koko: Optional[float]
     paino: List[Union[float, None]] = []  # paino rowwise
-    tyhjennysvali: List[int] = (
+    tyhjennysvali: List[Union[int, None]] = (
         []
     )  # [row1_tyhjennysvali, row1_tyhjennysvali2, row2_tyhjennysvali, ...]
-    kertaaviikossa: List[int] = (
+    kertaaviikossa: List[Union[int, None]] = (
         []
     )  # [row1_kertaaviikossa, row1_kertaaviikossa2, row2_kertaaviikossa, ...]
-    Voimassaoloviikotalkaen: List[int] = (
+    Voimassaoloviikotalkaen: List[Union[int, None]] = (
         []
     )  # [row1_Voimassaoloviikotalkaen, row1_Voimassaoloviikotalkaen2, row2_Voimassaoloviikotalkaen, ...]
-    Voimassaoloviikotasti: List[int] = (
+    Voimassaoloviikotasti: List[Union[int, None]] = (
         []
     )  # [row1_Voimassaoloviikotasti, row1_Voimassaoloviikotasti2, row2_Voimassaoloviikotasti, ...]
     Kuntatun: Optional[int] = None
@@ -262,6 +264,7 @@ class Asiakas(BaseModel):
             Keskeytysalkaen=row.Keskeytysalkaen,
             Keskeytysasti=row.Keskeytysasti,
         )
+
         if (
             row.tyhjennysvali
             and row.Voimassaoloviikotalkaen
@@ -271,6 +274,12 @@ class Asiakas(BaseModel):
             self.Voimassaoloviikotasti.append(row.Voimassaoloviikotasti)
             self.tyhjennysvali.append(row.tyhjennysvali)
             self.kertaaviikossa.append(row.kertaaviikossa)
+        else:
+            self.Voimassaoloviikotalkaen.append(None)
+            self.Voimassaoloviikotasti.append(None)
+            self.tyhjennysvali.append(None)
+            self.kertaaviikossa.append(None)
+
         if (
             row.tyhjennysvali2
             and row.Voimassaoloviikotalkaen2
@@ -280,8 +289,80 @@ class Asiakas(BaseModel):
             self.Voimassaoloviikotasti.append(row.Voimassaoloviikotasti2)
             self.tyhjennysvali.append(row.tyhjennysvali2)
             self.kertaaviikossa.append(row.kertaaviikossa2)
+        else:
+            self.Voimassaoloviikotalkaen.append(None)
+            self.Voimassaoloviikotasti.append(None)
+            self.tyhjennysvali.append(None)
+            self.kertaaviikossa.append(None)
 
     def check_and_add_row(self, row: AsiakasRow):
+        # If the data is on multiple rows either tyhjennysvali or kertaaviikossa
+        # values are different.
+        if (
+            self.UrakoitsijaId == row.UrakoitsijaId
+            and self.UrakoitsijankohdeId == row.UrakoitsijankohdeId
+            and self.Kiinteistotunnus == row.Kiinteistotunnus
+            and self.Kiinteistonkatuosoite == row.Kiinteistonkatuosoite
+            and self.Kiinteistonposti == row.Kiinteistonposti
+            and self.Haltijannimi == row.Haltijannimi
+            and self.Haltijanyhteyshlo == row.Haltijanyhteyshlo
+            and self.Haltijankatuosoite == row.Haltijankatuosoite
+            and self.Haltijanposti == row.Haltijanposti
+            and self.Haltijanmaakoodi == row.Haltijanmaakoodi
+            and self.Haltijanulkomaanpaikkakunta == row.Haltijanulkomaanpaikkakunta
+            and self.Pvmalk == row.Pvmalk
+            and self.Pvmasti == row.Pvmasti
+            and self.tyyppiIdEWC == row.tyyppiIdEWC
+            and self.astiamaara == row.astiamaara
+            and self.koko == row.koko
+            and self.Kuntatun == row.Kuntatun
+            and self.palveluKimppakohdeId == row.palveluKimppakohdeId
+            and self.kimpanNimi == row.kimpanNimi
+            and self.Kimpanyhteyshlo == row.Kimpanyhteyshlo
+            and self.Kimpankatuosoite == row.Kimpankatuosoite
+            and self.Kimpanposti == row.Kimpanposti
+            and self.Keskeytysalkaen == row.Keskeytysalkaen
+            and self.Keskeytysasti == row.Keskeytysasti
+        ) and (
+            row.tyhjennysvali not in self.tyhjennysvali
+            or row.tyhjennysvali2 not in self.tyhjennysvali
+            or row.kertaaviikossa not in self.kertaaviikossa
+            or row.kertaaviikossa2 not in self.kertaaviikossa
+        ):
+            self.kaynnit.append(row.kaynnit)
+            self.paino.append(row.paino)
+            if (
+                row.tyhjennysvali
+                and row.Voimassaoloviikotalkaen
+                and row.Voimassaoloviikotasti
+            ):
+                self.Voimassaoloviikotalkaen.append(row.Voimassaoloviikotalkaen)
+                self.Voimassaoloviikotasti.append(row.Voimassaoloviikotasti)
+                self.tyhjennysvali.append(row.tyhjennysvali)
+                self.kertaaviikossa.append(row.kertaaviikossa)
+            else:
+                self.Voimassaoloviikotalkaen.append(None)
+                self.Voimassaoloviikotasti.append(None)
+                self.tyhjennysvali.append(None)
+                self.kertaaviikossa.append(None)
+
+            if (
+                row.tyhjennysvali2
+                and row.Voimassaoloviikotalkaen2
+                and row.Voimassaoloviikotasti2
+            ):
+                self.Voimassaoloviikotalkaen.append(row.Voimassaoloviikotalkaen2)
+                self.Voimassaoloviikotasti.append(row.Voimassaoloviikotasti2)
+                self.tyhjennysvali.append(row.tyhjennysvali2)
+                self.kertaaviikossa.append(row.kertaaviikossa2)
+            else:
+                self.Voimassaoloviikotalkaen.append(None)
+                self.Voimassaoloviikotasti.append(None)
+                self.tyhjennysvali.append(None)
+                self.kertaaviikossa.append(None)
+
+            return True
+
         return False
 
     def get_kaynnit(self):

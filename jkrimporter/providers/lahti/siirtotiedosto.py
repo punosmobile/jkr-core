@@ -102,6 +102,12 @@ class LahtiSiirtotiedosto:
 
         # Create asiakas objects from rows
         for asiakas_row in asiakas_rows:
-            asiakas_list.append(Asiakas(asiakas_row))
+            asiakas_found = False
+            for asiakas in asiakas_list:
+                if asiakas.check_and_add_row(asiakas_row):
+                    asiakas_found = True
+                    break
+            if not asiakas_found:
+                asiakas_list.append(Asiakas(asiakas_row))
 
         return asiakas_list

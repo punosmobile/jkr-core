@@ -278,14 +278,15 @@ class LahtiTranslator:
                     loppupvm=row.Pvmasti,
                 )
             for ii, _ in enumerate(row.tyhjennysvali):
-                sopimus.tyhjennysvalit.append(
-                    JkrTyhjennysvali(
-                        alkuvko=row.Voimassaoloviikotalkaen[ii],
-                        loppuvko=row.Voimassaoloviikotasti[ii],
-                        tyhjennysvali=row.tyhjennysvali[ii],
-                        kertaaviikossa=row.kertaaviikossa[ii],
+                if row.tyhjennysvali[ii] is not None:
+                    sopimus.tyhjennysvalit.append(
+                        JkrTyhjennysvali(
+                            alkuvko=row.Voimassaoloviikotalkaen[ii],
+                            loppuvko=row.Voimassaoloviikotasti[ii],
+                            tyhjennysvali=row.tyhjennysvali[ii],
+                            kertaaviikossa=row.kertaaviikossa[ii],
+                        )
                     )
-                )
             data.asiakkaat[tunnus].sopimukset.append(sopimus)
 
             keraysvaline = Keraysvaline(
