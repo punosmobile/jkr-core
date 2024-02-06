@@ -240,7 +240,8 @@ def update_sopimukset_for_kohde(
     unique_entries = {}
 
     for sopimus in asiakas.sopimukset:
-        key = sopimus.jatelaji
+        # The combination of jätelaji and alkupvm must be unique.
+        key = sopimus.jatelaji + sopimus.alkupvm.strftime("%Y-%m-%d")
 
         if key not in unique_entries:
             unique_entries[key] = sopimus

@@ -69,10 +69,11 @@ def test_import_data(engine, datadir):
     loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
 
-    # Kuljetusdatassa kahdeksan kelvollista sopimusta, joista kaksi on kahden kimppaa
-    assert session.query(func.count(Sopimus.id)).scalar() == 10
+    # Kuljetusdatassa yhdeksän kelvollista sopimusta, joista kaksi on kahden kimppaa
+    assert session.query(func.count(Sopimus.id)).scalar() == 11
 
-    # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa) ja muita yksi kutakin
+    # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa),
+    # kaksi lasisopimusta (eri ajanjaksoilla) ja muita yksi kutakin
     sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
     seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
     assert session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar() == 3
@@ -81,7 +82,7 @@ def test_import_data(engine, datadir):
     assert session.query(func.count(Sopimus.id)).filter(bio_sopimus_filter).scalar() == 3
     lasi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Lasi').scalar_subquery()
     lasi_sopimus_filter = Sopimus.jatetyyppi_id == lasi_id
-    assert session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar() == 1
+    assert session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar() == 2
     kartonki_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Kartonki').scalar_subquery()
     kartonki_sopimus_filter = Sopimus.jatetyyppi_id == kartonki_id
     assert session.query(func.count(Sopimus.id)).filter(kartonki_sopimus_filter).scalar() == 1
@@ -182,10 +183,10 @@ def test_import_data(engine, datadir):
     assert biojate_kimppaisanta_id in osapuolen_roolit
 
     # Kiinteänjätteen massa kenttä on tyhjä.
-    assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 10
+    assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 11
 
-    # Tyhjennysvalejä on yhdeksän, kahdella sopimuksista on useita tyhjennysvälejä.
-    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 9
+    # Tyhjennysvalejä on kymmenen, kahdella sopimuksista on useita tyhjennysvälejä.
+    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 10
 
     # Kohteella Asunto Oy Kahden Laulumuisto on kaksi tyhjennysväliä muovijätteellä ja kolme kartongilla.
     kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
