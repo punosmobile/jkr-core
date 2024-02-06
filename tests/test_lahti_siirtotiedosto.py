@@ -184,10 +184,24 @@ def test_import_data(engine, datadir):
     # Kiinteänjätteen massa kenttä on tyhjä.
     assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 10
 
-    # Tyhjennysvalejä on seitsemän, yhdellä sopimuksista on kaksi tyhjennysväliä.
-    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 7
-    sopimus_id_5_count = session.query(func.count()).filter(Tyhjennysvali.sopimus_id == 5).scalar()
-    assert sopimus_id_5_count == 2
+    # Tyhjennysvalejä on yhdeksän, kahdella sopimuksista on useita tyhjennysvälejä.
+    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 9
+
+    # Kohteella Asunto Oy Kahden Laulumuisto on kaksi tyhjennysväliä muovijätteellä ja kolme kartongilla.
+    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    muovi_sopimus_id = \
+        session.query(Sopimus.id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == muovi_id).scalar()
+    muovi_sopimus_tyhjennysvali_count = \
+        session.query(func.count()).filter(Tyhjennysvali.sopimus_id == muovi_sopimus_id).scalar()
+    assert muovi_sopimus_tyhjennysvali_count == 2
+    kartonki_sopimus_id = \
+        session.query(Sopimus.id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == kartonki_id).scalar()
+    kartonki_sopimus_tyhjennysvali_count = \
+        session.query(func.count()).filter(Tyhjennysvali.sopimus_id == kartonki_sopimus_id).scalar()
+    assert kartonki_sopimus_tyhjennysvali_count == 3
 
     # Kohdentumattomat.csv sisältää viisi kohdentumatonta Asiakas-riviä.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
