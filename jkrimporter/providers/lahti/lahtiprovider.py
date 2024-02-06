@@ -277,6 +277,7 @@ class LahtiTranslator:
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                 )
+
             for ii, _ in enumerate(row.tyhjennysvali):
                 if row.tyhjennysvali[ii] is not None:
                     sopimus.tyhjennysvalit.append(
@@ -287,6 +288,17 @@ class LahtiTranslator:
                             kertaaviikossa=row.kertaaviikossa[ii],
                         )
                     )
+
+            if row.Keskeytysalkaen:
+                sopimus.keskeytykset.append(
+                    JkrKeskeytys(
+                        alkupvm=row.Keskeytysalkaen,
+                        loppupvm=row.Keskeytysasti,
+                        # There is no selite in the input data.
+                        selite=None,
+                    )
+                )
+
             data.asiakkaat[tunnus].sopimukset.append(sopimus)
 
             keraysvaline = Keraysvaline(

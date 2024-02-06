@@ -10,13 +10,14 @@ from jkrimporter.cli.jkr import import_data, tiedontuottaja_add_new
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import (
     Jatetyyppi,
+    Keskeytys,
     Kohde,
     KohteenOsapuolet,
+    Kuljetus,
     Osapuolenrooli,
     Sopimus,
     SopimusTyyppi,
     Tiedontuottaja,
-    Kuljetus,
     Tyhjennysvali,
 )
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
@@ -203,6 +204,9 @@ def test_import_data(engine, datadir):
     kartonki_sopimus_tyhjennysvali_count = \
         session.query(func.count()).filter(Tyhjennysvali.sopimus_id == kartonki_sopimus_id).scalar()
     assert kartonki_sopimus_tyhjennysvali_count == 3
+
+    # Kuljetusdatassa on yksi keskeytys.
+    assert session.query(func.count(Keskeytys.id)).scalar() == 1
 
     # Kohdentumattomat.csv sisältää viisi kohdentumatonta Asiakas-riviä.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
