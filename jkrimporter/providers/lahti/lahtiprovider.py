@@ -296,7 +296,27 @@ class LahtiTranslator:
                         kertaaviikossa=row.kertaaviikossa2,
                     )
                 )
+            if row.Keskeytysalkaen:
+                sopimus.keskeytykset.append(
+                    JkrKeskeytys(
+                        alkupvm=row.Keskeytysalkaen,
+                        loppupvm=row.Keskeytysasti,
+                        # There is no selite in the input data.
+                        selite=None,
+                    )
+                )
             data.asiakkaat[tunnus].sopimukset.append(sopimus)
+
+            # if row.Keskeytysalkaen:
+                # keskeytys = (
+                    # JkrKeskeytys(
+                        # alkupvm=row.Keskeytysalkaen,
+                        # loppupvm=row.Keskeytysasti,
+                        # There is no selite in the input data.
+                        # selite=None,
+                    # )
+                # )
+                #sopimus.keskeytykset.append(keskeytys)
 
             keraysvaline = Keraysvaline(
                 maara=row.astiamaara,

@@ -1,0 +1,3 @@
+-- ALTER TABLE jkr.sopimus
+    -- ADD COLUMN keskeytysalkaen date;
+    -- ADD COLUMN keskeytysasti date;
