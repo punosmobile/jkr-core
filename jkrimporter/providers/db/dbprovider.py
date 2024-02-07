@@ -368,8 +368,8 @@ class DbProvider:
                                 'Voimassaoloviikotalkaen': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen[ii*2],
                                 'Voimassaoloviikotasti': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti[ii*2],
                                 'palveluKimppakohdeId': kohdentumaton['ulkoinen_asiakastieto'].palveluKimppakohdeId,
-                                'Kimpanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Kimpanyhteyshlo,
                                 'KimpanNimi': kohdentumaton['ulkoinen_asiakastieto'].kimpanNimi,
+                                'Kimpanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Kimpanyhteyshlo,
                                 'Kimpankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kimpankatuosoite,
                                 'Kimpanposti': kohdentumaton['ulkoinen_asiakastieto'].Kimpanposti,
                                 'Kuntatun': kohdentumaton['ulkoinen_asiakastieto'].Kuntatun,
@@ -380,6 +380,10 @@ class DbProvider:
                                 row_data['tyhjennysvali2'] = kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali[ii*2+1]
                             if kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa[ii*2+1] is not None:
                                 row_data['kertaaviikossa2'] = kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa[ii*2+1]
+                            if kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen[ii*2+1] is not None:
+                                row_data['Voimassaoloviikotalkaen2'] = kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen[ii*2+1]
+                            if kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti[ii*2+1] is not None:
+                                row_data['Voimassaoloviikotasti2'] = kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti[ii*2+1]
                             rows.append(row_data)
 
                         csv_path = siirtotiedosto / "kohdentumattomat.csv"
