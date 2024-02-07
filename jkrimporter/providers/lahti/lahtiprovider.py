@@ -277,25 +277,28 @@ class LahtiTranslator:
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                 )
-            if row.tyhjennysvali:
-                # tyhjennysväli is missing from some data
-                sopimus.tyhjennysvalit.append(
-                    JkrTyhjennysvali(
-                        alkuvko=row.Voimassaoloviikotalkaen,
-                        loppuvko=row.Voimassaoloviikotasti,
-                        tyhjennysvali=row.tyhjennysvali,
-                        kertaaviikossa=row.kertaaviikossa,
+
+            for ii, _ in enumerate(row.tyhjennysvali):
+                if row.tyhjennysvali[ii] is not None:
+                    sopimus.tyhjennysvalit.append(
+                        JkrTyhjennysvali(
+                            alkuvko=row.Voimassaoloviikotalkaen[ii],
+                            loppuvko=row.Voimassaoloviikotasti[ii],
+                            tyhjennysvali=row.tyhjennysvali[ii],
+                            kertaaviikossa=row.kertaaviikossa[ii],
+                        )
+                    )
+
+            if row.Keskeytysalkaen:
+                sopimus.keskeytykset.append(
+                    JkrKeskeytys(
+                        alkupvm=row.Keskeytysalkaen,
+                        loppupvm=row.Keskeytysasti,
+                        # There is no selite in the input data.
+                        selite=None,
                     )
                 )
-            if row.tyhjennysvali2:
-                sopimus.tyhjennysvalit.append(
-                    JkrTyhjennysvali(
-                        alkuvko=row.Voimassaoloviikotalkaen2,
-                        loppuvko=row.Voimassaoloviikotasti2,
-                        tyhjennysvali=row.tyhjennysvali2,
-                        kertaaviikossa=row.kertaaviikossa2,
-                    )
-                )
+
             data.asiakkaat[tunnus].sopimukset.append(sopimus)
 
             keraysvaline = Keraysvaline(
@@ -305,15 +308,14 @@ class LahtiTranslator:
             )
             sopimus.keraysvalineet.append(keraysvaline)
 
-            massa = row.paino * 1000 if row.paino else None
             data.asiakkaat[tunnus].tyhjennystapahtumat.append(
                 Tyhjennystapahtuma(
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                     jatelaji=jatelaji,
-                    tyhjennyskerrat=row.kaynnit,
+                    tyhjennyskerrat=row.get_kaynnit(),
                     tilavuus=row.koko * 1000 if row.koko else None,
-                    massa=massa,
+                    massa=row.get_paino(),
                 )
             )
             print("------")

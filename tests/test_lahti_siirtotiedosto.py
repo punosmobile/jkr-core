@@ -10,13 +10,14 @@ from jkrimporter.cli.jkr import import_data, tiedontuottaja_add_new
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import (
     Jatetyyppi,
+    Keskeytys,
     Kohde,
     KohteenOsapuolet,
+    Kuljetus,
     Osapuolenrooli,
     Sopimus,
     SopimusTyyppi,
     Tiedontuottaja,
-    Kuljetus,
     Tyhjennysvali,
 )
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
@@ -69,10 +70,11 @@ def test_import_data(engine, datadir):
     loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
 
-    # Kuljetusdatassa kahdeksan kelvollista sopimusta, joista kaksi on kahden kimppaa
-    assert session.query(func.count(Sopimus.id)).scalar() == 10
+    # Kuljetusdatassa yhdeksän kelvollista sopimusta, joista kaksi on kahden kimppaa
+    assert session.query(func.count(Sopimus.id)).scalar() == 11
 
-    # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa) ja muita yksi kutakin
+    # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa),
+    # kaksi lasisopimusta (eri ajanjaksoilla) ja muita yksi kutakin
     sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
     seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
     assert session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar() == 3
@@ -81,7 +83,7 @@ def test_import_data(engine, datadir):
     assert session.query(func.count(Sopimus.id)).filter(bio_sopimus_filter).scalar() == 3
     lasi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Lasi').scalar_subquery()
     lasi_sopimus_filter = Sopimus.jatetyyppi_id == lasi_id
-    assert session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar() == 1
+    assert session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar() == 2
     kartonki_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Kartonki').scalar_subquery()
     kartonki_sopimus_filter = Sopimus.jatetyyppi_id == kartonki_id
     assert session.query(func.count(Sopimus.id)).filter(kartonki_sopimus_filter).scalar() == 1
@@ -182,14 +184,31 @@ def test_import_data(engine, datadir):
     assert biojate_kimppaisanta_id in osapuolen_roolit
 
     # Kiinteänjätteen massa kenttä on tyhjä.
-    assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 10
+    assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 11
 
-    # Tyhjennysvalejä on seitsemän, yhdellä sopimuksista on kaksi tyhjennysväliä.
-    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 7
-    sopimus_id_5_count = session.query(func.count()).filter(Tyhjennysvali.sopimus_id == 5).scalar()
-    assert sopimus_id_5_count == 2
+    # Tyhjennysvalejä on kymmenen, kahdella sopimuksista on useita tyhjennysvälejä.
+    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 10
 
-    # Kohdentumattomat.csv sisältää kolme kohdentumatonta Asiakasta.
+    # Kohteella Asunto Oy Kahden Laulumuisto on kaksi tyhjennysväliä muovijätteellä ja kolme kartongilla.
+    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    muovi_sopimus_id = \
+        session.query(Sopimus.id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == muovi_id).scalar()
+    muovi_sopimus_tyhjennysvali_count = \
+        session.query(func.count()).filter(Tyhjennysvali.sopimus_id == muovi_sopimus_id).scalar()
+    assert muovi_sopimus_tyhjennysvali_count == 2
+    kartonki_sopimus_id = \
+        session.query(Sopimus.id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == kartonki_id).scalar()
+    kartonki_sopimus_tyhjennysvali_count = \
+        session.query(func.count()).filter(Tyhjennysvali.sopimus_id == kartonki_sopimus_id).scalar()
+    assert kartonki_sopimus_tyhjennysvali_count == 3
+
+    # Kuljetusdatassa on yksi keskeytys.
+    assert session.query(func.count(Keskeytys.id)).scalar() == 1
+
+    # Kohdentumattomat.csv sisältää viisi kohdentumatonta Asiakas-riviä.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
     assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
     with open(csv_file_path, 'r') as csvfile:
@@ -197,4 +216,4 @@ def test_import_data(engine, datadir):
         header = next(csv_reader, None)
         assert header is not None
         rows = list(csv_reader)
-        assert len(rows) == 3
+        assert len(rows) == 5
