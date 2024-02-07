@@ -374,3 +374,16 @@ class Asiakas(BaseModel):
             if isinstance(item, float):
                 sum += item
         return sum * 1000 if sum else None
+
+
+class Paatos(BaseModel):
+    Numero: str
+    vastaanottaja: str = Field(alias="Lähettäjä/vastaanottaja")
+    prt: str = Field(alias="PRT 1")
+    paatos: str = Field(alias="Päätös 1")
+    voimassaalkaen: datetime.date = Field(alias="Voimassa alkaen 1")
+    voimassaasti: datetime.date = Field(alias="Voimassa asti 1")
+    lisatiedot: Optional[str] = Field(alias="Lisätiedot 1")
+    lahiosoite: str = Field(alias="Lähiosoite")
+    Postinumero: str
+    Postitoimipaikka: str
