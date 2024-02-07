@@ -367,7 +367,6 @@ class DbProvider:
                                 'kertaaviikossa': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa[ii*2],
                                 'Voimassaoloviikotalkaen': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen[ii*2],
                                 'Voimassaoloviikotasti': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti[ii*2],
-
                                 'palveluKimppakohdeId': kohdentumaton['ulkoinen_asiakastieto'].palveluKimppakohdeId,
                                 'KimpanNimi': kohdentumaton['ulkoinen_asiakastieto'].kimpanNimi,
                                 'Kimpanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Kimpanyhteyshlo,
