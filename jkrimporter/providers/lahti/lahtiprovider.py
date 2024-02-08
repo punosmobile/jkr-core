@@ -9,22 +9,26 @@ from addrparser import AddressParser
 
 from jkrimporter.model import Asiakas as JkrAsiakas
 from jkrimporter.model import Jatelaji as JkrJatelaji
-from jkrimporter.model import JkrData, Keraysvaline, KeraysvalineTyyppi
 from jkrimporter.model import Keskeytys as JkrKeskeytys
+from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import (
+    JkrData,
+    Keraysvaline,
+    KeraysvalineTyyppi,
     KimppaSopimus,
     Osoite,
     SopimusTyyppi,
     Tunnus,
     TyhjennysSopimus,
     Tyhjennystapahtuma,
+    Yhteystieto,
 )
-from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
-from jkrimporter.model import Yhteystieto
+from jkrimporter.providers.db.models import Viranomaispaatokset as JkrPaatos
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
+from .paatostiedosto import Paatostiedosto
 from .siirtotiedosto import LahtiSiirtotiedosto
 
 if TYPE_CHECKING:
@@ -319,5 +323,29 @@ class LahtiTranslator:
                 )
             )
             print("------")
+
+        return data
+
+
+class PaatosTranslator:
+
+    def __init__(self, paatostiedosto: Paatostiedosto):
+        self._source = paatostiedosto
+
+    def as_jkr_data(self):
+        data = []
+
+        for row in self._source.paatokset:
+            data.append(
+                JkrPaatos(
+                    paatosnumero=row.paatos,
+                    alkupvm=row.voimassaalkaen,
+                    loppupvm=row.voimassaasti,
+                    paatostulos_koodi=0,
+                    tapahtumalaji_koodi=1,
+                    jatetyyppi_id=1,
+                    rakennus_id=1,
+                )
+            )
 
         return data

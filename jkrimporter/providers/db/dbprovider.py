@@ -17,7 +17,7 @@ from jkrimporter.datasheets import get_headers
 from . import codes
 from .codes import init_code_objects
 from .database import engine
-from .models import Kohde, Kuljetus, Tiedontuottaja
+from .models import Kohde, Kuljetus, Tiedontuottaja, Viranomaispaatokset
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
@@ -423,3 +423,18 @@ class DbProvider:
             logger.exception(e)
         finally:
             logger.debug(building_counts)
+
+    def write_paatokset(
+        self,
+        paatos_list: List[Viranomaispaatokset],
+    ):
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print("Importoidaan päätökset")
+                for paatos in paatos_list:
+                    session.add(paatos)
+                    print(paatos)
+                session.commit()
+        except Exception as e:
+            logger.exception(e)
