@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="443,0" last-zoom="0.4" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="181,153" last-zoom="0.4" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -2385,12 +2385,12 @@ select tallenna_velvoite_status('2020-3-1');
 	 dst-table="jkr.kohde"
 	 src-required="false" dst-required="false"/>
 
-<relationship name="rel_v_yli_5_asunnon_kohteet_rakennus" type="reltv" layers="0"
+<relationship name="rel_v_yli_5_asunnon_kohteet_rakennus" type="reltv" layers="0" faded-out="true"
 	 src-table="jkr.v_yli_5_asunnon_kohteet"
 	 dst-table="jkr.rakennus"
 	 src-required="false" dst-required="false"/>
 
-<relationship name="rel_v_yli_5_asunnon_kohteet_kohteen_rakennukset" type="reltv" layers="0"
+<relationship name="rel_v_yli_5_asunnon_kohteet_kohteen_rakennukset" type="reltv" layers="0" faded-out="true"
 	 src-table="jkr.v_yli_5_asunnon_kohteet"
 	 dst-table="jkr.kohteen_rakennukset"
 	 src-required="false" dst-required="false">
