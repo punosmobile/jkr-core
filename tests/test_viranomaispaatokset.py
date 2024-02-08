@@ -1,5 +1,7 @@
+from datetime import date
+
 import pytest
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -35,3 +37,14 @@ def test_import_paatokset(engine, datadir):
     paatosnumerot = ["123/2022", "122/2022", "121/2022", "120/2022"]
     result = session.query(Viranomaispaatokset.paatosnumero)
     assert [row[0] for row in result] == paatosnumerot
+
+    # Päätös "123/2022"
+    # - voimassa 1.1.2020 alkaen 15.6.2022 asti
+    paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "123/2022"
+    paatos_123 = (
+        session.query(Viranomaispaatokset.alkupvm, Viranomaispaatokset.loppupvm)
+        .filter(paatos_nimi_filter)
+        .first()
+    )
+    assert paatos_123[0] == date(2020, 1, 1)
+    assert paatos_123[1] == date(2022, 6, 15)
