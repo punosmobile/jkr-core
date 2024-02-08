@@ -387,3 +387,9 @@ class Paatos(BaseModel):
     lahiosoite: str = Field(alias="Lähiosoite")
     Postinumero: str
     Postitoimipaikka: str
+
+    @validator("voimassaalkaen", "voimassaasti", pre=True)
+    def parse_date(value: Union[date, str]):
+        if type(value) is str and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        return value
