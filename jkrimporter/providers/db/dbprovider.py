@@ -434,7 +434,6 @@ class DbProvider:
                 print("Importoidaan päätökset")
                 for paatos in paatos_list:
                     session.add(paatos)
-                    print(paatos)
                 session.commit()
         except Exception as e:
             logger.exception(e)
