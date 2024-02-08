@@ -1,7 +1,5 @@
 import datetime
 import logging
-import warnings
-from collections import defaultdict
 from datetime import date
 from typing import TYPE_CHECKING, Union
 
@@ -341,6 +339,7 @@ class PaatosTranslator:
                     paatosnumero=row.Numero,
                     alkupvm=row.voimassaalkaen,
                     loppupvm=row.voimassaasti,
+                    vastaanottaja=row.vastaanottaja,
                     paatostulos_koodi=0,
                     tapahtumalaji_koodi=1,
                     jatetyyppi_id=1,

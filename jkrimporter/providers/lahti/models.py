@@ -393,3 +393,11 @@ class Paatos(BaseModel):
         if type(value) is str and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
+
+    # strip "vastaanottaja" from vastaanottaja
+    @validator("vastaanottaja", pre=True)
+    def parse_vastaanottaja(value: str):
+        words = value.split()
+        if words[0] == "vastaanottaja":
+            return value[14:]
+        return value

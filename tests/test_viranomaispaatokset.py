@@ -48,3 +48,13 @@ def test_import_paatokset(engine, datadir):
     )
     assert paatos_123[0] == date(2020, 1, 1)
     assert paatos_123[1] == date(2022, 6, 15)
+
+    # Päätös "120/2022"
+    # - vastaanottaja Mikkolainen Matti
+    paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "120/2022"
+    paatos_120 = (
+        session.query(Viranomaispaatokset.vastaanottaja)
+        .filter(paatos_nimi_filter)
+        .first()
+    )
+    assert paatos_120[0] == "Mikkolainen Matti"
