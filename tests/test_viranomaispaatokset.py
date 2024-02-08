@@ -1,5 +1,5 @@
 import pytest
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -31,3 +31,7 @@ def test_import_paatokset(engine, datadir):
     session = Session(engine)
 
     assert session.query(func.count(Viranomaispaatokset.id)).scalar() == 4
+
+    paatosnumerot = ["123/2022", "122/2022", "121/2022", "120/2022"]
+    result = session.query(Viranomaispaatokset.paatosnumero)
+    assert [row[0] for row in result] == paatosnumerot

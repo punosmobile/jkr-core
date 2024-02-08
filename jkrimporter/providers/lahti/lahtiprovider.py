@@ -338,7 +338,7 @@ class PaatosTranslator:
         for row in self._source.paatokset:
             data.append(
                 JkrPaatos(
-                    paatosnumero=row.paatos,
+                    paatosnumero=row.Numero,
                     alkupvm=row.voimassaalkaen,
                     loppupvm=row.voimassaasti,
                     paatostulos_koodi=0,
