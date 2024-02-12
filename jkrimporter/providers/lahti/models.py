@@ -435,8 +435,8 @@ class Paatos(BaseModel):
 
 class Ilmoitus(BaseModel):
     Vastausaika: datetime.date
-    vastuuhenkilo_etunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi") # Yhdistä sukunimen kanssa.
-    vastuuhenkilo_sukunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi") # Yhdistä etunimen kanssa.
+    vastuuhenkilo_etunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi")  # Yhdistä sukunimen kanssa.
+    vastuuhenkilo_sukunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi")  # Yhdistä etunimen kanssa.
     vastuuhenkilo_puhelinnumero: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Puhelinnumero")
     vastuuhenkilo_sahkoposti: str = Field("Kompostoinnin vastuuhenkilön yhteystiedot:Sähköposti")
     vastuuhenkilo_postinumero: str = Field("Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero")  # Note, etunollat pitäisi lisätä. Pitäisi olla 5 numeroinen numerosarja.
@@ -450,7 +450,7 @@ class Ilmoitus(BaseModel):
     kayttaja_postinumero: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero")
     kayttaja_postitoimipaikka: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka")
     prt: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste")
-    onko_hyvaksytty: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne") # lisätään vain hyväksytyt ilmoitukset.
+    onko_hyvaksytty: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne")  # lisätään vain hyväksytyt ilmoitukset.
     voimassaasti: datetime.date = Field(alias="Voimassaolopäivä")
 
 

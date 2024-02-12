@@ -1,8 +1,8 @@
-from collections import defaultdict
 import csv
-from datetime import datetime, timedelta
 import logging
 import os
+from collections import defaultdict
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
@@ -10,19 +10,19 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
+from jkrimporter.datasheets import get_siirtotiedosto_headers
 from jkrimporter.model import Asiakas, JkrData, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
-from jkrimporter.datasheets import get_siirtotiedosto_headers
 
 from . import codes
-from .codes import get_code_id
-from .codes import init_code_objects
+from .codes import get_code_id, init_code_objects
 from .database import engine
 from .models import (
     AKPPoistoSyy,
+    Ilmoitus,
     Jatetyyppi,
     Kohde,
     Kuljetus,
@@ -542,6 +542,20 @@ class DbProvider:
             logger.exception(e)
         finally:
             logger.debug(building_counts)
+
+    def write_ilmoitukset(
+            self, 
+            ilmoitus_list: List[Ilmoitus],
+    ):
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print("Importoidaan ilmoitukset")
+                for ilmoitus in ilmoitus_list:
+                    session.add(ilmoitus)
+                session.commit()
+        except Exception as e:
+            logger.exception(e)
 
     def write_paatokset(
         self,
