@@ -38,8 +38,8 @@ class Ilmoitustiedosto:
         for row in sheet.iter_rows(min_row=2, values_only=True):
             try:
                 data = dict(zip(headers, row))
-                paatos_obj = Ilmoitus.parse_obj(data)
-                ilmoitus_list.append(paatos_obj)
+                ilmoitus_obj = Ilmoitus.parse_obj(data)
+                ilmoitus_list.append(ilmoitus_obj)
             except ValidationError as e:
                 logger.warning(
                     f"Ilmoitus-olion luonti epäonnistui datalla: {row}. Virhe: {e}"
