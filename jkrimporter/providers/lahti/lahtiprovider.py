@@ -1,20 +1,17 @@
 import datetime
 import logging
 from datetime import date
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from addrparser import AddressParser
 
+from jkrimporter.model import AKPPoistoSyy
 from jkrimporter.model import Asiakas as JkrAsiakas
+from jkrimporter.model import IlmoituksenHenkilo
 from jkrimporter.model import Jatelaji as JkrJatelaji
+from jkrimporter.model import JkrData, JkrIlmoitukset, Keraysvaline, KeraysvalineTyyppi
 from jkrimporter.model import Keskeytys as JkrKeskeytys
-from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import (
-    AKPPoistoSyy,
-    JkrData,
-    JkrIlmoitukset,
-    Keraysvaline,
-    KeraysvalineTyyppi,
     KimppaSopimus,
     Osoite,
     Paatos,
@@ -24,16 +21,17 @@ from jkrimporter.model import (
     Tunnus,
     TyhjennysSopimus,
     Tyhjennystapahtuma,
-    IlmoituksenHenkilo,
-    Yhteystieto,
 )
+from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
+from jkrimporter.model import Yhteystieto
+
 # from jkrimporter.providers.db.models import Ilmoitus as JkrIlmoitus
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
-from .paatostiedosto import Paatostiedosto
 from .ilmoitustiedosto import Ilmoitustiedosto
+from .paatostiedosto import Paatostiedosto
 from .siirtotiedosto import LahtiSiirtotiedosto
 
 if TYPE_CHECKING:
