@@ -21,6 +21,7 @@ from jkrimporter.model import (
     Tyhjennystapahtuma,
     Yhteystieto,
 )
+from jkrimporter.providers.db import codes
 from jkrimporter.providers.db.models import Viranomaispaatokset as JkrPaatos
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
@@ -330,6 +331,12 @@ class PaatosTranslator:
     def __init__(self, paatostiedosto: Paatostiedosto):
         self._source = paatostiedosto
 
+    def _parse_tapahtumalaji(self, paatos: str) -> str:
+        for tapahtumalaji in codes.TapahtumalajiEnum:
+            if tapahtumalaji.value in paatos:
+                return tapahtumalaji.name
+        return None
+
     def as_jkr_data(self):
         data = []
 
@@ -341,7 +348,7 @@ class PaatosTranslator:
                     loppupvm=row.voimassaasti,
                     vastaanottaja=row.vastaanottaja,
                     paatostulos_koodi=0,
-                    tapahtumalaji_koodi=1,
+                    tapahtumalaji_koodi=self._parse_tapahtumalaji(row.paatos),
                     jatetyyppi_id=1,
                     rakennus_id=1,
                 )

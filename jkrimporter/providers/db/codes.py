@@ -122,6 +122,15 @@ class KiinteatJatelajit(Enum):
     ENERGIA = "Energia"
 
 
+class TapahtumalajiEnum(Enum):
+    PERUSMAKSU = "Perusmaksu"
+    AKP = "AKP"
+    TYHJENNYSVALI = "Tyhjennysväli"
+    KESKEYTTAMINEN = "Keskeyttäminen"
+    ERILLISKERAYKSESTA_POIKKEAMINEN = "Erilliskeräyksestä poikkeaminen"
+    MUU = "Muu poikkeaminen"
+
+
 def _init_lookup_codes(session, model, enumtype: Enum):
     codes = {enum: get_code_id(session, model, enum.value) for enum in enumtype}
 

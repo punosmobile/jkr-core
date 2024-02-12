@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from jkrimporter import conf
 from jkrimporter.cli.jkr import import_paatokset
 from jkrimporter.providers.db.database import json_dumps
-from jkrimporter.providers.db.models import Viranomaispaatokset
+from jkrimporter.providers.db.models import Tapahtumalaji, Viranomaispaatokset
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 
 
@@ -40,21 +40,75 @@ def test_import_paatokset(engine, datadir):
 
     # Päätös "123/2022"
     # - voimassa 1.1.2020 alkaen 15.6.2022 asti
+    # - tapahtumalaji AKP
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "123/2022"
     paatos_123 = (
-        session.query(Viranomaispaatokset.alkupvm, Viranomaispaatokset.loppupvm)
+        session.query(
+            Viranomaispaatokset.alkupvm,
+            Viranomaispaatokset.loppupvm,
+            Viranomaispaatokset.tapahtumalaji_koodi,
+        )
         .filter(paatos_nimi_filter)
         .first()
     )
     assert paatos_123[0] == date(2020, 1, 1)
     assert paatos_123[1] == date(2022, 6, 15)
+    assert (
+        paatos_123[2]
+        == session.query(Tapahtumalaji.koodi)
+        .filter((Tapahtumalaji.selite == "AKP"))
+        .first()[0]
+    )
+
+    # Päätos "122/2022"
+    # - tapahtumalaji tyhjennysväli
+    paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "122/2022"
+    paatos_122 = (
+        session.query(
+            Viranomaispaatokset.tapahtumalaji_koodi,
+        )
+        .filter(paatos_nimi_filter)
+        .first()
+    )
+    assert (
+        paatos_122[0]
+        == session.query(Tapahtumalaji.koodi)
+        .filter((Tapahtumalaji.selite == "Tyhjennysväli"))
+        .first()[0]
+    )
+
+    # Päätös "121/2022"
+    # - tapahtumalaji erilliskeräyksestä poikkeaminen
+    paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "121/2022"
+    paatos_121 = (
+        session.query(
+            Viranomaispaatokset.tapahtumalaji_koodi,
+        )
+        .filter(paatos_nimi_filter)
+        .first()
+    )
+    assert (
+        paatos_121[0]
+        == session.query(Tapahtumalaji.koodi)
+        .filter((Tapahtumalaji.selite == "Erilliskeräyksestä poikkeaminen"))
+        .first()[0]
+    )
 
     # Päätös "120/2022"
     # - vastaanottaja Mikkolainen Matti
+    # - tapahtumalaji keskeyttäminen
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "120/2022"
     paatos_120 = (
-        session.query(Viranomaispaatokset.vastaanottaja)
+        session.query(
+            Viranomaispaatokset.vastaanottaja, Viranomaispaatokset.tapahtumalaji_koodi
+        )
         .filter(paatos_nimi_filter)
         .first()
     )
     assert paatos_120[0] == "Mikkolainen Matti"
+    assert (
+        paatos_120[1]
+        == session.query(Tapahtumalaji.koodi)
+        .filter((Tapahtumalaji.selite == "Keskeyttäminen"))
+        .first()[0]
+    )
