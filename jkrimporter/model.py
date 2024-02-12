@@ -243,3 +243,27 @@ class JkrData:
     asiakkaat: Dict[Tunnus, Asiakas] = field(default_factory=dict)
     toimituspaikat: Dict[ToimituspaikkaID, ToimitusPaikka] = field(default_factory=dict)
     toimitukset: List[Toimitus] = field(default_factory=list)
+
+
+class Tapahtumalaji(Enum):
+    PERUSMAKSU = "Perusmaksu"
+    AKP = "AKP"
+    TYHJENNYSVALI = "Tyhjennysväli"
+    KESKEYTTAMINEN = "Keskeyttäminen"
+    ERILLISKERAYKSESTA_POIKKEAMINEN = "Erilliskeräyksestä poikkeaminen"
+    MUU = "Muu poikkeaminen"
+
+
+class Paatostulos(Enum):
+    KIELTEINEN = "kielteinen"
+    MYONTEINEN = "myönteinen"
+
+
+@dataclass
+class Paatos:
+    paatosnumero: str
+    vastaanottaja: str
+    paatostulos: Paatostulos
+    tapahtumalaji: Tapahtumalaji
+    alkupvm: Optional[date] = None
+    loppupvm: Optional[date] = None

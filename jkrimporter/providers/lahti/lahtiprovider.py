@@ -15,14 +15,15 @@ from jkrimporter.model import (
     KeraysvalineTyyppi,
     KimppaSopimus,
     Osoite,
+    Paatos,
+    Paatostulos,
     SopimusTyyppi,
+    Tapahtumalaji,
     Tunnus,
     TyhjennysSopimus,
     Tyhjennystapahtuma,
     Yhteystieto,
 )
-from jkrimporter.providers.db import codes
-from jkrimporter.providers.db.models import Viranomaispaatokset as JkrPaatos
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
@@ -331,10 +332,18 @@ class PaatosTranslator:
     def __init__(self, paatostiedosto: Paatostiedosto):
         self._source = paatostiedosto
 
-    def _parse_tapahtumalaji(self, paatos: str) -> str:
-        for tapahtumalaji in codes.TapahtumalajiEnum:
+    def _parse_paatostulos(self, paatos: str) -> Paatostulos:
+        words = paatos.split()
+        if words:
+            for paatostulos in Paatostulos:
+                if paatostulos.value == words[-1]:
+                    return paatostulos
+        return None
+
+    def _parse_tapahtumalaji(self, paatos: str) -> Tapahtumalaji:
+        for tapahtumalaji in Tapahtumalaji:
             if tapahtumalaji.value in paatos:
-                return tapahtumalaji.name
+                return tapahtumalaji
         return None
 
     def as_jkr_data(self):
@@ -342,15 +351,13 @@ class PaatosTranslator:
 
         for row in self._source.paatokset:
             data.append(
-                JkrPaatos(
+                Paatos(
                     paatosnumero=row.Numero,
                     alkupvm=row.voimassaalkaen,
                     loppupvm=row.voimassaasti,
                     vastaanottaja=row.vastaanottaja,
-                    paatostulos_koodi=0,
-                    tapahtumalaji_koodi=self._parse_tapahtumalaji(row.paatos),
-                    jatetyyppi_id=1,
-                    rakennus_id=1,
+                    paatostulos=self._parse_paatostulos(row.paatos),
+                    tapahtumalaji=self._parse_tapahtumalaji(row.paatos),
                 )
             )
 

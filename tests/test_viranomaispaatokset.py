@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from jkrimporter import conf
 from jkrimporter.cli.jkr import import_paatokset
 from jkrimporter.providers.db.database import json_dumps
-from jkrimporter.providers.db.models import Tapahtumalaji, Viranomaispaatokset
+from jkrimporter.providers.db.models import (
+    Tapahtumalaji,
+    Paatostulos,
+    Viranomaispaatokset,
+)
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 
 
@@ -38,6 +42,17 @@ def test_import_paatokset(engine, datadir):
     result = session.query(Viranomaispaatokset.paatosnumero)
     assert [row[0] for row in result] == paatosnumerot
 
+    paatos_myonteinen = (
+        session.query(Paatostulos.koodi)
+        .filter((Paatostulos.selite == "myönteinen"))
+        .first()[0]
+    )
+    paatos_kielteinen = (
+        session.query(Paatostulos.koodi)
+        .filter((Paatostulos.selite == "kielteinen"))
+        .first()[0]
+    )
+
     # Päätös "123/2022"
     # - voimassa 1.1.2020 alkaen 15.6.2022 asti
     # - tapahtumalaji AKP
@@ -46,6 +61,7 @@ def test_import_paatokset(engine, datadir):
         session.query(
             Viranomaispaatokset.alkupvm,
             Viranomaispaatokset.loppupvm,
+            Viranomaispaatokset.paatostulos_koodi,
             Viranomaispaatokset.tapahtumalaji_koodi,
         )
         .filter(paatos_nimi_filter)
@@ -53,8 +69,9 @@ def test_import_paatokset(engine, datadir):
     )
     assert paatos_123[0] == date(2020, 1, 1)
     assert paatos_123[1] == date(2022, 6, 15)
+    assert paatos_123[2] == paatos_myonteinen
     assert (
-        paatos_123[2]
+        paatos_123[3]
         == session.query(Tapahtumalaji.koodi)
         .filter((Tapahtumalaji.selite == "AKP"))
         .first()[0]
@@ -100,14 +117,17 @@ def test_import_paatokset(engine, datadir):
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "120/2022"
     paatos_120 = (
         session.query(
-            Viranomaispaatokset.vastaanottaja, Viranomaispaatokset.tapahtumalaji_koodi
+            Viranomaispaatokset.vastaanottaja,
+            Viranomaispaatokset.paatostulos_koodi,
+            Viranomaispaatokset.tapahtumalaji_koodi,
         )
         .filter(paatos_nimi_filter)
         .first()
     )
     assert paatos_120[0] == "Mikkolainen Matti"
+    assert paatos_120[1] == paatos_kielteinen
     assert (
-        paatos_120[1]
+        paatos_120[2]
         == session.query(Tapahtumalaji.koodi)
         .filter((Tapahtumalaji.selite == "Keskeyttäminen"))
         .first()[0]

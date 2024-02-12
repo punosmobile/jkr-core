@@ -8,16 +8,24 @@ import csv
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from jkrimporter.model import Asiakas, JkrData
+from jkrimporter.model import Asiakas, JkrData, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.progress import Progress
 from jkrimporter.datasheets import get_headers
 
 from . import codes
+from .codes import get_code_id
 from .codes import init_code_objects
 from .database import engine
-from .models import Kohde, Kuljetus, Tiedontuottaja, Viranomaispaatokset
+from .models import (
+    Kohde,
+    Kuljetus,
+    Paatostulos,
+    Tapahtumalaji,
+    Tiedontuottaja,
+    Viranomaispaatokset,
+)
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
@@ -176,8 +184,9 @@ def set_end_dates_to_kohteet(
     poimintapvm: datetime.date,
 ):
     previous_pvm = poimintapvm - timedelta(days=1)
-    add_date_query = \
-        text("UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL")
+    add_date_query = text(
+        "UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL"
+    )
     session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
     session.commit()
 
@@ -197,7 +206,13 @@ def import_asiakastiedot(
 ):
 
     kohde = find_and_update_kohde(
-        session, asiakas, do_create, do_update_kohde, prt_counts, kitu_counts, address_counts
+        session,
+        asiakas,
+        do_create,
+        do_update_kohde,
+        prt_counts,
+        kitu_counts,
+        address_counts,
     )
     if not kohde:
         print(f"Could not find kohde for asiakas {asiakas}, skipping...")
@@ -270,7 +285,7 @@ class DbProvider:
         ala_luo: bool,
         ala_paivita_yhteystietoja: bool,
         ala_paivita_kohdetta: bool,
-        siirtotiedosto: Path
+        siirtotiedosto: Path,
     ):
         try:
             kohdentumattomat = []
@@ -344,51 +359,146 @@ class DbProvider:
 
                         # Rebuild rows to insert into the error .csv
                         rows = []
-                        for ii, _ in enumerate(kohdentumaton['ulkoinen_asiakastieto'].kaynnit):
+                        for ii, _ in enumerate(
+                            kohdentumaton["ulkoinen_asiakastieto"].kaynnit
+                        ):
                             row_data = {
-                                'UrakoitsijaId': kohdentumaton['ulkoinen_asiakastieto'].UrakoitsijaId,
-                                'UrakoitsijankohdeId': kohdentumaton['ulkoinen_asiakastieto'].UrakoitsijankohdeId,
-                                'Kiinteistotunnus': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistotunnus,
-                                'Kiinteistonkatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistonkatuosoite,
-                                'Kiinteistonposti': kohdentumaton['ulkoinen_asiakastieto'].Kiinteistonposti,
-                                'Haltijannimi': kohdentumaton['ulkoinen_asiakastieto'].Haltijannimi,
-                                'Haltijanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Haltijanyhteyshlo,
-                                'Haltijankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Haltijankatuosoite,
-                                'Haltijanposti': kohdentumaton['ulkoinen_asiakastieto'].Haltijanposti,
-                                'Haltijanmaakoodi': kohdentumaton['ulkoinen_asiakastieto'].Haltijanmaakoodi,
-                                'Pvmalk': kohdentumaton['voimassa'].lower.strftime("%d.%m.%Y"),
-                                'Pvmasti': kohdentumaton['voimassa'].upper.strftime("%d.%m.%Y"),
-                                'tyyppiIdEWC': kohdentumaton['ulkoinen_asiakastieto'].tyyppiIdEWC,
-                                'COUNT(kaynnit)': kohdentumaton['ulkoinen_asiakastieto'].kaynnit[ii],
-                                'SUM(astiamaara)': kohdentumaton['ulkoinen_asiakastieto'].astiamaara,
-                                'koko': kohdentumaton['ulkoinen_asiakastieto'].koko,
-                                'SUM(paino)': kohdentumaton['ulkoinen_asiakastieto'].paino[ii],
-                                'tyhjennysvali': kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali[ii*2],  # two tyhjennysvalis per row
-                                'kertaaviikossa': kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa[ii*2],
-                                'Voimassaoloviikotalkaen': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen[ii*2],
-                                'Voimassaoloviikotasti': kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti[ii*2],
-                                'palveluKimppakohdeId': kohdentumaton['ulkoinen_asiakastieto'].palveluKimppakohdeId,
-                                'KimpanNimi': kohdentumaton['ulkoinen_asiakastieto'].kimpanNimi,
-                                'Kimpanyhteyshlo': kohdentumaton['ulkoinen_asiakastieto'].Kimpanyhteyshlo,
-                                'Kimpankatuosoite': kohdentumaton['ulkoinen_asiakastieto'].Kimpankatuosoite,
-                                'Kimpanposti': kohdentumaton['ulkoinen_asiakastieto'].Kimpanposti,
-                                'Kuntatun': kohdentumaton['ulkoinen_asiakastieto'].Kuntatun,
-                                'Keskeytysalkaen': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysalkaen,
-                                'Keskeytysasti': kohdentumaton['ulkoinen_asiakastieto'].Keskeytysasti,
+                                "UrakoitsijaId": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].UrakoitsijaId,
+                                "UrakoitsijankohdeId": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].UrakoitsijankohdeId,
+                                "Kiinteistotunnus": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Kiinteistotunnus,
+                                "Kiinteistonkatuosoite": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Kiinteistonkatuosoite,
+                                "Kiinteistonposti": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Kiinteistonposti,
+                                "Haltijannimi": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Haltijannimi,
+                                "Haltijanyhteyshlo": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Haltijanyhteyshlo,
+                                "Haltijankatuosoite": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Haltijankatuosoite,
+                                "Haltijanposti": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Haltijanposti,
+                                "Haltijanmaakoodi": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Haltijanmaakoodi,
+                                "Pvmalk": kohdentumaton["voimassa"].lower.strftime(
+                                    "%d.%m.%Y"
+                                ),
+                                "Pvmasti": kohdentumaton["voimassa"].upper.strftime(
+                                    "%d.%m.%Y"
+                                ),
+                                "tyyppiIdEWC": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].tyyppiIdEWC,
+                                "COUNT(kaynnit)": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].kaynnit[ii],
+                                "SUM(astiamaara)": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].astiamaara,
+                                "koko": kohdentumaton["ulkoinen_asiakastieto"].koko,
+                                "SUM(paino)": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].paino[ii],
+                                "tyhjennysvali": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].tyhjennysvali[
+                                    ii * 2
+                                ],  # two tyhjennysvalis per row
+                                "kertaaviikossa": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].kertaaviikossa[ii * 2],
+                                "Voimassaoloviikotalkaen": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Voimassaoloviikotalkaen[ii * 2],
+                                "Voimassaoloviikotasti": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Voimassaoloviikotasti[ii * 2],
+                                "palveluKimppakohdeId": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].palveluKimppakohdeId,
+                                "KimpanNimi": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].kimpanNimi,
+                                "Kimpanyhteyshlo": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Kimpanyhteyshlo,
+                                "Kimpankatuosoite": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Kimpankatuosoite,
+                                "Kimpanposti": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Kimpanposti,
+                                "Kuntatun": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Kuntatun,
+                                "Keskeytysalkaen": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Keskeytysalkaen,
+                                "Keskeytysasti": kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Keskeytysasti,
                             }
-                            if kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali[ii*2+1] is not None:
-                                row_data['tyhjennysvali2'] = kohdentumaton['ulkoinen_asiakastieto'].tyhjennysvali[ii*2+1]
-                            if kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa[ii*2+1] is not None:
-                                row_data['kertaaviikossa2'] = kohdentumaton['ulkoinen_asiakastieto'].kertaaviikossa[ii*2+1]
-                            if kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen[ii*2+1] is not None:
-                                row_data['Voimassaoloviikotalkaen2'] = kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotalkaen[ii*2+1]
-                            if kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti[ii*2+1] is not None:
-                                row_data['Voimassaoloviikotasti2'] = kohdentumaton['ulkoinen_asiakastieto'].Voimassaoloviikotasti[ii*2+1]
+                            if (
+                                kohdentumaton["ulkoinen_asiakastieto"].tyhjennysvali[
+                                    ii * 2 + 1
+                                ]
+                                is not None
+                            ):
+                                row_data["tyhjennysvali2"] = kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].tyhjennysvali[ii * 2 + 1]
+                            if (
+                                kohdentumaton["ulkoinen_asiakastieto"].kertaaviikossa[
+                                    ii * 2 + 1
+                                ]
+                                is not None
+                            ):
+                                row_data["kertaaviikossa2"] = kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].kertaaviikossa[ii * 2 + 1]
+                            if (
+                                kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Voimassaoloviikotalkaen[ii * 2 + 1]
+                                is not None
+                            ):
+                                row_data["Voimassaoloviikotalkaen2"] = kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Voimassaoloviikotalkaen[ii * 2 + 1]
+                            if (
+                                kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Voimassaoloviikotasti[ii * 2 + 1]
+                                is not None
+                            ):
+                                row_data["Voimassaoloviikotasti2"] = kohdentumaton[
+                                    "ulkoinen_asiakastieto"
+                                ].Voimassaoloviikotasti[ii * 2 + 1]
                             rows.append(row_data)
 
                         csv_path = siirtotiedosto / "kohdentumattomat.csv"
-                        with open(csv_path, mode="a", encoding="cp1252", newline="") as csv_file:
-                            csv_writer = csv.DictWriter(csv_file, fieldnames=get_headers(), delimiter=";", quotechar='"')
+                        with open(
+                            csv_path, mode="a", encoding="cp1252", newline=""
+                        ) as csv_file:
+                            csv_writer = csv.DictWriter(
+                                csv_file,
+                                fieldnames=get_headers(),
+                                delimiter=";",
+                                quotechar='"',
+                            )
                             for rd in rows:
                                 csv_writer.writerow(rd)
 
@@ -426,14 +536,29 @@ class DbProvider:
 
     def write_paatokset(
         self,
-        paatos_list: List[Viranomaispaatokset],
+        paatos_list: List[Paatos],
     ):
         try:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Importoidaan päätökset")
                 for paatos in paatos_list:
-                    session.add(paatos)
+                    session.add(
+                        Viranomaispaatokset(
+                            paatosnumero=paatos.paatosnumero,
+                            alkupvm=paatos.alkupvm,
+                            loppupvm=paatos.loppupvm,
+                            vastaanottaja=paatos.vastaanottaja,
+                            paatostulos_koodi=get_code_id(
+                                session, Paatostulos, paatos.paatostulos.value
+                            ).koodi,
+                            tapahtumalaji_koodi=get_code_id(
+                                session, Tapahtumalaji, paatos.tapahtumalaji.value
+                            ).koodi,
+                            jatetyyppi_id=1,
+                            rakennus_id=1,
+                        )
+                    )
                 session.commit()
         except Exception as e:
             logger.exception(e)
