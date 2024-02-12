@@ -13,15 +13,15 @@ from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.datasheets import get_siirtotiedosto_headers
 from jkrimporter.model import Asiakas, JkrData, JkrIlmoitukset, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
+from jkrimporter.utils.ilmoitus import export_kohdentumattomat_ilmoitukset
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
-from jkrimporter.utils.ilmoitus import export_kohdentumattomat_ilmoitukset
 from jkrimporter.utils.progress import Progress
 
 from . import codes
 from .codes import get_code_id, init_code_objects
 from .database import engine
-from .models import (
+from .models import (  # Osapuoli,; Osoite,; Katu,
     AKPPoistoSyy,
     Jatetyyppi,
     Kohde,
@@ -32,17 +32,13 @@ from .models import (
     Tapahtumalaji,
     Tiedontuottaja,
     Viranomaispaatokset,
-    # Osapuoli,
-    # Osoite,
-    # Katu,
 )
-
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
     find_buildings_for_kohde,
-    find_single_building_id_by_prt,
     find_osoite_by_prt,
+    find_single_building_id_by_prt,
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
