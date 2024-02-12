@@ -4,7 +4,7 @@ from datetime import date
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, root_validator, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
 from jkrimporter.model import Paatostulos, Tapahtumalaji
 

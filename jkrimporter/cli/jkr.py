@@ -15,26 +15,18 @@ from jkrimporter.providers.db.services.tiedontuottaja import (
     remove_tiedontuottaja,
     rename_tiedontuottaja,
 )
-from jkrimporter.providers.lahti.ilmoitustiedosto import (
-    Ilmoitustiedosto,
-)
 from jkrimporter.providers.lahti.lahtiprovider import (
     IlmoitusTranslator,
     LahtiTranslator,
     PaatosTranslator,
 )
+from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 from jkrimporter.providers.nokia.nokiaprovider import NokiaTranslator
 from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
-from jkrimporter.providers.lahti.lahtiprovider import (
-    LahtiTranslator,
-    IlmoitusTranslator
-)
-from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
-from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
 
 
