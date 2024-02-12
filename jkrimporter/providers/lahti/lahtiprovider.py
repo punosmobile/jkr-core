@@ -25,11 +25,13 @@ from jkrimporter.model import (
     Tyhjennystapahtuma,
     Yhteystieto,
 )
+from jkrimporter.providers.db.models import Ilmoitus as JkrIlmoitus
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
 from .paatostiedosto import Paatostiedosto
+from .ilmoitustiedosto import Ilmoitustiedosto
 from .siirtotiedosto import LahtiSiirtotiedosto
 
 if TYPE_CHECKING:
@@ -404,6 +406,41 @@ class PaatosTranslator:
                     ),
                     prt=row.prt,
                     rawdata=row.rawdata,
+                )
+            )
+
+        return data
+
+
+class IlmoitusTranslator:
+
+    def __init__(self, ilmoitustiedosto: Ilmoitustiedosto):
+        self._source = ilmoitustiedosto
+
+    def as_jkr_data(self):
+        data = []
+
+        for row in self._source.ilmoitustiedosto:
+            data.append(
+                JkrIlmoitus(
+                    Vastausaika=row.Vastausaika,
+                    vastuuhenkilo_etunimi=row.vastuuhenkilo_etunimi,
+                    vastuuhenkilo_sukunimi=row.vastuuhenkilo_sukunimi,
+                    vastuuhenkilo_puhelinnumero=row.vastuuhenkilo_puhelinnumero,
+                    vastuuhenkilo_sahkoposti=row.vastuuhenkilo_sposti,
+                    vastuuhenkilo_postinumero=row.vastuuhenkilo_postinumero,
+                    vastuuhenkilo_postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
+                    vastuuhenkilo_osoite=row.vastuuhenkilo_osoite,
+                    sijainti=row.sijainti,
+                    rakennuksien_lukumaara=row.rakennuksien_lukumaara,
+                    kayttaja_nimi=row.kayttaja_nimi,
+                    kayttaja_sukunimi=row.kayttaja_nimi,
+                    kayttaja_osoite=row.kayttaja_osoite,
+                    kayttaja_postinumero=row.kayttaja_postinumero,
+                    kayttaja_postitoimipaikka=row.kayttaja_postitoimipaikka,
+                    prt=row.prt,
+                    onko_hyvaksytty=row.onko_hyvaksytty,
+                    voimassaasti=row.voimassaasti,
                 )
             )
 
