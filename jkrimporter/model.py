@@ -272,3 +272,17 @@ class Paatos:
     akppoistosyy: Optional[AKPPoistoSyy] = None
     jatetyyppi: Optional[Jatelaji] = None
     rawdata: Optional[Dict[str, str]] = None
+
+
+@dataclass
+class Kompostoija:
+    nimi: str
+    Rakennustunnus: str
+
+
+@dataclass
+class KompostiIlmoitus:
+    vastuuhenkilo: str
+    kompostoijat: List[Kompostoija]
+    alkupvm: Optional[date]
+    loppupvm: Optional[date]

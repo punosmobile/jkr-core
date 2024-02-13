@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.datasheets import get_siirtotiedosto_headers
-from jkrimporter.model import Asiakas, JkrData, Paatos
+from jkrimporter.model import Asiakas, JkrData, Paatos, KompostiIlmoitus
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
@@ -31,6 +31,7 @@ from .models import (
     Tiedontuottaja,
     Viranomaispaatokset,
 )
+from .models import Kohde, Kuljetus, Tiedontuottaja
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
@@ -545,7 +546,7 @@ class DbProvider:
 
     def write_ilmoitukset(
             self, 
-            ilmoitus_list: List[Ilmoitus],
+            ilmoitus_list: List[KompostiIlmoitus],
     ):
         try:
             with Session(engine) as session:

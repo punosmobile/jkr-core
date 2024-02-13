@@ -15,6 +15,7 @@ from jkrimporter.model import (
     Keraysvaline,
     KeraysvalineTyyppi,
     KimppaSopimus,
+    KompostiIlmoitus,
     Osoite,
     Paatos,
     Paatostulos,
@@ -25,7 +26,7 @@ from jkrimporter.model import (
     Tyhjennystapahtuma,
     Yhteystieto,
 )
-from jkrimporter.providers.db.models import Ilmoitus as JkrIlmoitus
+# from jkrimporter.providers.db.models import Ilmoitus as JkrIlmoitus
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
@@ -422,7 +423,7 @@ class IlmoitusTranslator:
 
         for row in self._source.ilmoitustiedosto:
             data.append(
-                JkrIlmoitus(
+                KompostiIlmoitus(
                     Vastausaika=row.Vastausaika,
                     vastuuhenkilo_etunimi=row.vastuuhenkilo_etunimi,
                     vastuuhenkilo_sukunimi=row.vastuuhenkilo_sukunimi,
