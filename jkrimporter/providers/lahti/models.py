@@ -453,8 +453,16 @@ class Ilmoitus(BaseModel):
     onko_hyvaksytty: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne")  # lisätään vain hyväksytyt ilmoitukset.
     voimassaasti: datetime.date = Field(alias="Voimassaolopäivä")
 
-    @validator("Vastausaika", "voimassaasti", pre=True)
-    def parse_date(value: Union[date, str]):
+    @validator("voimassaasti", pre=True)
+    def parse_voimassaasti(value: Union[date, str]):
         if type(value) is str and "." in value:
-            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+            return datetime.strptime(value, "%d.%m.%Y").date()
+        return value
+
+    @validator("Vastausaika", pre=True)
+    def reformat_date(cls, value: Union[date, str]):
+        if isinstance(value, str):
+            parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            reformatted_date = parsed_date.strftime("%d.%m.%Y")
+            return reformatted_date
         return value
