@@ -10,6 +10,7 @@ from jkrimporter.model import Jatelaji as JkrJatelaji
 from jkrimporter.model import Keskeytys as JkrKeskeytys
 from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import (
+    AKPPoistoSyy,
     JkrData,
     Keraysvaline,
     KeraysvalineTyyppi,
@@ -348,12 +349,18 @@ class PaatosTranslator:
 
     def _parse_tyhjennysvali(
         self, tapahtumalaji: Tapahtumalaji, lisatiedot: Union[str | None]
-    ):
-        print(tapahtumalaji.name)
-        if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI and isinstance(
-            lisatiedot, str
-        ):
+    ) -> int:
+        if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI and isinstance(lisatiedot, str):
             return int(lisatiedot)
+        return None
+
+    def _parse_akppoistosyy(
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Union[str | None]
+    ) -> AKPPoistoSyy:
+        if tapahtumalaji is Tapahtumalaji.AKP and isinstance(lisatiedot, str):
+            for akppoistosyy in AKPPoistoSyy:
+                if akppoistosyy.value in lisatiedot:
+                    return akppoistosyy
         return None
 
     def as_jkr_data(self):
@@ -370,6 +377,9 @@ class PaatosTranslator:
                     paatostulos=self._parse_paatostulos(row.paatos),
                     tapahtumalaji=row_tapahtumalaji,
                     tyhjennysvali=self._parse_tyhjennysvali(
+                        row_tapahtumalaji, row.lisatiedot
+                    ),
+                    akppoistosyy=self._parse_akppoistosyy(
                         row_tapahtumalaji, row.lisatiedot
                     ),
                 )

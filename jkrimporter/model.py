@@ -137,12 +137,6 @@ class KeraysvalineTyyppi(str, Enum):
     MUU = "Muu"
 
 
-class AKPPoistoSyy(str, Enum):
-    pihapiiri = "Pihapiiri"
-    matka = "Pitkä matka"
-    eikaytossa = "Ei käytössä"
-
-
 class Keskeytys(NamedTuple):
     alkupvm: date
     loppupvm: date
@@ -259,6 +253,12 @@ class Paatostulos(Enum):
     MYONTEINEN = "myönteinen"
 
 
+class AKPPoistoSyy(str, Enum):
+    PIHAPIIRI = "Pihapiiri"
+    MATKA = "Pitkä matka"
+    EIKAYTOSSA = "Ei käytössä"
+
+
 @dataclass
 class Paatos:
     paatosnumero: str
@@ -268,3 +268,4 @@ class Paatos:
     alkupvm: date
     loppupvm: date
     tyhjennysvali: Optional[int] = None
+    akppoistosyy: Optional[AKPPoistoSyy] = None

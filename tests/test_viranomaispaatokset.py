@@ -8,8 +8,9 @@ from jkrimporter import conf
 from jkrimporter.cli.jkr import import_paatokset
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import (
-    Tapahtumalaji,
+    AKPPoistoSyy,
     Paatostulos,
+    Tapahtumalaji,
     Viranomaispaatokset,
 )
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
@@ -57,6 +58,7 @@ def test_import_paatokset(engine, datadir):
     # - voimassa 1.1.2020 alkaen 15.6.2022 asti
     # - myönteinen päätös
     # - tapahtumalaji AKP
+    # - AKP:n poiston syy pitkä matka
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "123/2022"
     paatos_123 = (
         session.query(
@@ -65,6 +67,7 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.tyhjennysvali,
             Viranomaispaatokset.paatostulos_koodi,
             Viranomaispaatokset.tapahtumalaji_koodi,
+            Viranomaispaatokset.akppoistosyy_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -79,6 +82,12 @@ def test_import_paatokset(engine, datadir):
         .filter((Tapahtumalaji.selite == "AKP"))
         .first()[0]
     )
+    assert (
+        paatos_123[5]
+        == session.query(AKPPoistoSyy.id)
+        .filter(AKPPoistoSyy.selite == "Pitkä matka")
+        .first()[0]
+    )
 
     # Päätos "122/2022"
     # - tyhjennysväli 26
@@ -88,6 +97,7 @@ def test_import_paatokset(engine, datadir):
         session.query(
             Viranomaispaatokset.tyhjennysvali,
             Viranomaispaatokset.tapahtumalaji_koodi,
+            Viranomaispaatokset.akppoistosyy_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -99,6 +109,7 @@ def test_import_paatokset(engine, datadir):
         .filter((Tapahtumalaji.selite == "Tyhjennysväli"))
         .first()[0]
     )
+    assert paatos_122[2] is None
 
     # Päätös "121/2022"
     # - tapahtumalaji erilliskeräyksestä poikkeaminen
