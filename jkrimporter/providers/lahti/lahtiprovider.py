@@ -421,7 +421,7 @@ class IlmoitusTranslator:
     def as_jkr_data(self):
         data = []
 
-        for row in self._source.ilmoitustiedosto:
+        for row in self._source.ilmoitukset:
             data.append(
                 KompostiIlmoitus(
                     Vastausaika=row.Vastausaika,
