@@ -55,12 +55,14 @@ def test_import_paatokset(engine, datadir):
 
     # Päätös "123/2022"
     # - voimassa 1.1.2020 alkaen 15.6.2022 asti
+    # - myönteinen päätös
     # - tapahtumalaji AKP
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "123/2022"
     paatos_123 = (
         session.query(
             Viranomaispaatokset.alkupvm,
             Viranomaispaatokset.loppupvm,
+            Viranomaispaatokset.tyhjennysvali,
             Viranomaispaatokset.paatostulos_koodi,
             Viranomaispaatokset.tapahtumalaji_koodi,
         )
@@ -69,26 +71,30 @@ def test_import_paatokset(engine, datadir):
     )
     assert paatos_123[0] == date(2020, 1, 1)
     assert paatos_123[1] == date(2022, 6, 15)
-    assert paatos_123[2] == paatos_myonteinen
+    assert paatos_123[2] is None
+    assert paatos_123[3] == paatos_myonteinen
     assert (
-        paatos_123[3]
+        paatos_123[4]
         == session.query(Tapahtumalaji.koodi)
         .filter((Tapahtumalaji.selite == "AKP"))
         .first()[0]
     )
 
     # Päätos "122/2022"
+    # - tyhjennysväli 26
     # - tapahtumalaji tyhjennysväli
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "122/2022"
     paatos_122 = (
         session.query(
+            Viranomaispaatokset.tyhjennysvali,
             Viranomaispaatokset.tapahtumalaji_koodi,
         )
         .filter(paatos_nimi_filter)
         .first()
     )
+    assert paatos_122[0] == 26
     assert (
-        paatos_122[0]
+        paatos_122[1]
         == session.query(Tapahtumalaji.koodi)
         .filter((Tapahtumalaji.selite == "Tyhjennysväli"))
         .first()[0]
@@ -113,6 +119,7 @@ def test_import_paatokset(engine, datadir):
 
     # Päätös "120/2022"
     # - vastaanottaja Mikkolainen Matti
+    # - päätöstulos kielteinen
     # - tapahtumalaji keskeyttäminen
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "120/2022"
     paatos_120 = (

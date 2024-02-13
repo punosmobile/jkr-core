@@ -267,3 +267,4 @@ class Paatos:
     tapahtumalaji: Tapahtumalaji
     alkupvm: date
     loppupvm: date
+    tyhjennysvali: Optional[int] = None

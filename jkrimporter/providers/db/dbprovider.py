@@ -549,6 +549,7 @@ class DbProvider:
                             alkupvm=paatos.alkupvm,
                             loppupvm=paatos.loppupvm,
                             vastaanottaja=paatos.vastaanottaja,
+                            tyhjennysvali=paatos.tyhjennysvali,
                             paatostulos_koodi=get_code_id(
                                 session, Paatostulos, paatos.paatostulos.value
                             ).koodi,

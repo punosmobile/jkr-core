@@ -346,10 +346,21 @@ class PaatosTranslator:
                 return tapahtumalaji
         return None
 
+    def _parse_tyhjennysvali(
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Union[str | None]
+    ):
+        print(tapahtumalaji.name)
+        if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI and isinstance(
+            lisatiedot, str
+        ):
+            return int(lisatiedot)
+        return None
+
     def as_jkr_data(self):
         data = []
 
         for row in self._source.paatokset:
+            row_tapahtumalaji = self._parse_tapahtumalaji(row.paatos)
             data.append(
                 Paatos(
                     paatosnumero=row.Numero,
@@ -357,7 +368,10 @@ class PaatosTranslator:
                     loppupvm=row.voimassaasti,
                     vastaanottaja=row.vastaanottaja,
                     paatostulos=self._parse_paatostulos(row.paatos),
-                    tapahtumalaji=self._parse_tapahtumalaji(row.paatos),
+                    tapahtumalaji=row_tapahtumalaji,
+                    tyhjennysvali=self._parse_tyhjennysvali(
+                        row_tapahtumalaji, row.lisatiedot
+                    ),
                 )
             )
 
