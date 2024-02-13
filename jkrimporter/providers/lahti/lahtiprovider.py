@@ -363,6 +363,20 @@ class PaatosTranslator:
                     return akppoistosyy
         return None
 
+    def _parse_jatetyyppi(
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Union[str | None]
+    ) -> Jatelaji:
+        if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI:
+            return Jatelaji.seka
+        if (
+            tapahtumalaji is Tapahtumalaji.ERILLISKERAYKSESTA_POIKKEAMINEN
+            and isinstance(lisatiedot, str)
+        ):
+            for jatelaji in Jatelaji:
+                if jatelaji.value.lower() in lisatiedot:
+                    return jatelaji
+        return None
+
     def as_jkr_data(self):
         data = []
 
@@ -380,6 +394,9 @@ class PaatosTranslator:
                         row_tapahtumalaji, row.lisatiedot
                     ),
                     akppoistosyy=self._parse_akppoistosyy(
+                        row_tapahtumalaji, row.lisatiedot
+                    ),
+                    jatetyyppi=self._parse_jatetyyppi(
                         row_tapahtumalaji, row.lisatiedot
                     ),
                 )

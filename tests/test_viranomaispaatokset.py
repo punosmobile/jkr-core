@@ -9,6 +9,7 @@ from jkrimporter.cli.jkr import import_paatokset
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import (
     AKPPoistoSyy,
+    Jatetyyppi,
     Paatostulos,
     Tapahtumalaji,
     Viranomaispaatokset,
@@ -68,6 +69,7 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.paatostulos_koodi,
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.akppoistosyy_id,
+            Viranomaispaatokset.jatetyyppi_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -88,6 +90,7 @@ def test_import_paatokset(engine, datadir):
         .filter(AKPPoistoSyy.selite == "Pitkä matka")
         .first()[0]
     )
+    assert paatos_123[6] is None
 
     # Päätos "122/2022"
     # - tyhjennysväli 26
@@ -98,6 +101,7 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.tyhjennysvali,
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.akppoistosyy_id,
+            Viranomaispaatokset.jatetyyppi_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -110,13 +114,21 @@ def test_import_paatokset(engine, datadir):
         .first()[0]
     )
     assert paatos_122[2] is None
+    assert (
+        paatos_122[3]
+        == session.query(Jatetyyppi.id)
+        .filter((Jatetyyppi.selite == "Sekajäte"))
+        .first()[0]
+    )
 
     # Päätös "121/2022"
     # - tapahtumalaji erilliskeräyksestä poikkeaminen
+    # - jätelaji lasi
     paatos_nimi_filter = Viranomaispaatokset.paatosnumero == "121/2022"
     paatos_121 = (
         session.query(
             Viranomaispaatokset.tapahtumalaji_koodi,
+            Viranomaispaatokset.jatetyyppi_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -126,6 +138,10 @@ def test_import_paatokset(engine, datadir):
         == session.query(Tapahtumalaji.koodi)
         .filter((Tapahtumalaji.selite == "Erilliskeräyksestä poikkeaminen"))
         .first()[0]
+    )
+    assert (
+        paatos_121[1]
+        == session.query(Jatetyyppi.id).filter((Jatetyyppi.selite == "Lasi")).first()[0]
     )
 
     # Päätös "120/2022"

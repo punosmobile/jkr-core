@@ -20,6 +20,7 @@ from .codes import init_code_objects
 from .database import engine
 from .models import (
     AKPPoistoSyy,
+    Jatetyyppi,
     Kohde,
     Kuljetus,
     Paatostulos,
@@ -549,6 +550,11 @@ class DbProvider:
                         if paatos.akppoistosyy is not None
                         else None
                     )
+                    jatetyyppi_id = (
+                        get_code_id(session, Jatetyyppi, paatos.jatetyyppi.value).id
+                        if paatos.jatetyyppi is not None
+                        else None
+                    )
                     session.add(
                         Viranomaispaatokset(
                             paatosnumero=paatos.paatosnumero,
@@ -563,7 +569,7 @@ class DbProvider:
                                 session, Tapahtumalaji, paatos.tapahtumalaji.value
                             ).koodi,
                             akppoistosyy_id=akppoistosyy_id,
-                            jatetyyppi_id=1,
+                            jatetyyppi_id=jatetyyppi_id,
                             rakennus_id=1,
                         )
                     )
