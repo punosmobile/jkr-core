@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="1016,101" last-zoom="0.55" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="3153,1240" last-zoom="1" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -3896,7 +3896,7 @@ end;]]></definition>
 	 custom-color="#927803"
 	 src-table="jkr_koodistot.jatetyyppi"
 	 dst-table="jkr.viranomaispaatokset"
-	 src-required="true" dst-required="false"
+	 src-required="false" dst-required="false"
 	del-action="CASCADE"/>
 
 <relationship name="rakennus_has_many_viranomaispaatokset" type="rel1n" layers="0"
