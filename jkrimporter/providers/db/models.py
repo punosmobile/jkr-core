@@ -231,4 +231,5 @@ __all__ = [
     "Velvoite",
     "Velvoitemalli",
     "Viranomaispaatokset",
+    # "Ilmoitukset",
 ]
