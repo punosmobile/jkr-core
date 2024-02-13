@@ -265,5 +265,5 @@ class Paatos:
     vastaanottaja: str
     paatostulos: Paatostulos
     tapahtumalaji: Tapahtumalaji
-    alkupvm: Optional[date] = None
-    loppupvm: Optional[date] = None
+    alkupvm: date
+    loppupvm: date
