@@ -275,14 +275,30 @@ class Paatos:
 
 
 @dataclass
+class Vastuuhenkilo:
+    nimi: str
+    puhelinnro: str
+    sahkoposti: str
+    postinumero: str
+    postitoimipaikka: str
+    osoite: str
+
+
+
+@dataclass
 class Kompostoija:
     nimi: str
-    Rakennustunnus: str
+    osoite: str
+    postinumero: str
+    postitoimipaikka: str
+    rakennustunnus: str
 
 
 @dataclass
 class KompostiIlmoitus:
-    vastuuhenkilo: str
+    Vastausaika: date
+    vastuuhenkilo: Vastuuhenkilo
     kompostoijat: List[Kompostoija]
+    onko_hyvaksytty: bool
     alkupvm: Optional[date]
     loppupvm: Optional[date]
