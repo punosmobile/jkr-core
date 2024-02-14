@@ -1,7 +1,7 @@
 import datetime
 import logging
 from datetime import date
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Optional
 
 from addrparser import AddressParser
 
@@ -348,14 +348,14 @@ class PaatosTranslator:
         return None
 
     def _parse_tyhjennysvali(
-        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Union[str | None]
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str]
     ) -> int:
         if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI and isinstance(lisatiedot, str):
             return int(lisatiedot)
         return None
 
     def _parse_akppoistosyy(
-        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Union[str | None]
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str]
     ) -> AKPPoistoSyy:
         if tapahtumalaji is Tapahtumalaji.AKP and isinstance(lisatiedot, str):
             for akppoistosyy in AKPPoistoSyy:
@@ -364,7 +364,7 @@ class PaatosTranslator:
         return None
 
     def _parse_jatetyyppi(
-        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Union[str | None]
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str]
     ) -> Jatelaji:
         if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI:
             return Jatelaji.seka
