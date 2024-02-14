@@ -348,14 +348,14 @@ class PaatosTranslator:
         return None
 
     def _parse_tyhjennysvali(
-        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str]
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str] = None
     ) -> int:
         if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI and isinstance(lisatiedot, str):
             return int(lisatiedot)
         return None
 
     def _parse_akppoistosyy(
-        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str]
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str] = None
     ) -> AKPPoistoSyy:
         if tapahtumalaji is Tapahtumalaji.AKP and isinstance(lisatiedot, str):
             for akppoistosyy in AKPPoistoSyy:
@@ -364,7 +364,7 @@ class PaatosTranslator:
         return None
 
     def _parse_jatetyyppi(
-        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str]
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str] = None
     ) -> Jatelaji:
         if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI:
             return Jatelaji.seka
