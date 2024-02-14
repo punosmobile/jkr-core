@@ -3896,7 +3896,7 @@ end;]]></definition>
 	 custom-color="#927803"
 	 src-table="jkr_koodistot.jatetyyppi"
 	 dst-table="jkr.viranomaispaatokset"
-	 src-required="true" dst-required="false"
+	 src-required="false" dst-required="false"
 	del-action="CASCADE"/>
 
 <relationship name="rakennus_has_many_viranomaispaatokset" type="rel1n" layers="0"

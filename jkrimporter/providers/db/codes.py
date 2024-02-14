@@ -9,7 +9,9 @@ from sqlalchemy.exc import NoResultFound
 from jkrimporter.model import AKPPoistoSyy as AKPPoistoSyyEnum
 from jkrimporter.model import Jatelaji
 from jkrimporter.model import KeraysvalineTyyppi as KeraysvalineTyyppiEnum
+from jkrimporter.model import Paatostulos as PaatostulosEnum
 from jkrimporter.model import SopimusTyyppi as SopimusTyyppiEnum
+from jkrimporter.model import Tapahtumalaji as TapahtumalajiEnum
 
 from .models import (
     AKPPoistoSyy,
@@ -18,9 +20,11 @@ from .models import (
     Kohdetyyppi,
     Osapuolenlaji,
     Osapuolenrooli,
+    Paatostulos,
     Rakennuksenkayttotarkoitus,
     Rakennuksenolotila,
     SopimusTyyppi,
+    Tapahtumalaji,
 )
 
 if TYPE_CHECKING:
@@ -136,6 +140,8 @@ rakennuksenkayttotarkoitukset = {}
 rakennuksenolotilat = {}
 sopimustyypit = {}
 keraysvalinetyypit = {}
+tapahtumalajit = {}
+paatostulokset = {}
 akppoistosyyt = {}
 
 
@@ -169,6 +175,12 @@ def init_code_objects(session):
     keraysvalinetyypit = _init_lookup_codes(
         session, Keraysvalinetyyppi, KeraysvalineTyyppiEnum
     )
+
+    global tapahtumalajit
+    tapahtumalajit = _init_lookup_codes(session, Tapahtumalaji, TapahtumalajiEnum)
+
+    global paatostulokset
+    paatostulokset = _init_lookup_codes(session, Paatostulos, PaatostulosEnum)
 
     global akppoistosyyt
     akppoistosyyt = _init_lookup_codes(session, AKPPoistoSyy, AKPPoistoSyyEnum)

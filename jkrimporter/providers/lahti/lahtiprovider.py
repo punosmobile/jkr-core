@@ -1,30 +1,35 @@
 import datetime
 import logging
-import warnings
-from collections import defaultdict
 from datetime import date
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Optional
 
 from addrparser import AddressParser
 
 from jkrimporter.model import Asiakas as JkrAsiakas
 from jkrimporter.model import Jatelaji as JkrJatelaji
-from jkrimporter.model import JkrData, Keraysvaline, KeraysvalineTyyppi
 from jkrimporter.model import Keskeytys as JkrKeskeytys
+from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import (
+    AKPPoistoSyy,
+    JkrData,
+    Keraysvaline,
+    KeraysvalineTyyppi,
     KimppaSopimus,
     Osoite,
+    Paatos,
+    Paatostulos,
     SopimusTyyppi,
+    Tapahtumalaji,
     Tunnus,
     TyhjennysSopimus,
     Tyhjennystapahtuma,
+    Yhteystieto,
 )
-from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
-from jkrimporter.model import Yhteystieto
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
+from .paatostiedosto import Paatostiedosto
 from .siirtotiedosto import LahtiSiirtotiedosto
 
 if TYPE_CHECKING:
@@ -319,5 +324,82 @@ class LahtiTranslator:
                 )
             )
             print("------")
+
+        return data
+
+
+class PaatosTranslator:
+
+    def __init__(self, paatostiedosto: Paatostiedosto):
+        self._source = paatostiedosto
+
+    def _parse_paatostulos(self, paatos: str) -> Paatostulos:
+        words = paatos.split()
+        if words:
+            for paatostulos in Paatostulos:
+                if paatostulos.value == words[-1]:
+                    return paatostulos
+        return None
+
+    def _parse_tapahtumalaji(self, paatos: str) -> Tapahtumalaji:
+        for tapahtumalaji in Tapahtumalaji:
+            if tapahtumalaji.value in paatos:
+                return tapahtumalaji
+        return None
+
+    def _parse_tyhjennysvali(
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str] = None
+    ) -> int:
+        if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI and isinstance(lisatiedot, str):
+            return int(lisatiedot)
+        return None
+
+    def _parse_akppoistosyy(
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str] = None
+    ) -> AKPPoistoSyy:
+        if tapahtumalaji is Tapahtumalaji.AKP and isinstance(lisatiedot, str):
+            for akppoistosyy in AKPPoistoSyy:
+                if akppoistosyy.value in lisatiedot:
+                    return akppoistosyy
+        return None
+
+    def _parse_jatetyyppi(
+        self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str] = None
+    ) -> Jatelaji:
+        if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI:
+            return Jatelaji.seka
+        if (
+            tapahtumalaji is Tapahtumalaji.ERILLISKERAYKSESTA_POIKKEAMINEN
+            and isinstance(lisatiedot, str)
+        ):
+            for jatelaji in Jatelaji:
+                if jatelaji.value.lower() in lisatiedot:
+                    return jatelaji
+        return None
+
+    def as_jkr_data(self):
+        data = []
+
+        for row in self._source.paatokset:
+            row_tapahtumalaji = self._parse_tapahtumalaji(row.paatos)
+            data.append(
+                Paatos(
+                    paatosnumero=row.Numero,
+                    alkupvm=row.voimassaalkaen,
+                    loppupvm=row.voimassaasti,
+                    vastaanottaja=row.vastaanottaja,
+                    paatostulos=self._parse_paatostulos(row.paatos),
+                    tapahtumalaji=row_tapahtumalaji,
+                    tyhjennysvali=self._parse_tyhjennysvali(
+                        row_tapahtumalaji, row.lisatiedot
+                    ),
+                    akppoistosyy=self._parse_akppoistosyy(
+                        row_tapahtumalaji, row.lisatiedot
+                    ),
+                    jatetyyppi=self._parse_jatetyyppi(
+                        row_tapahtumalaji, row.lisatiedot
+                    ),
+                )
+            )
 
         return data

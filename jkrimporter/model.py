@@ -137,12 +137,6 @@ class KeraysvalineTyyppi(str, Enum):
     MUU = "Muu"
 
 
-class AKPPoistoSyy(str, Enum):
-    pihapiiri = "Pihapiiri"
-    matka = "Pitkä matka"
-    eikaytossa = "Ei käytössä"
-
-
 class Keskeytys(NamedTuple):
     alkupvm: date
     loppupvm: date
@@ -243,3 +237,36 @@ class JkrData:
     asiakkaat: Dict[Tunnus, Asiakas] = field(default_factory=dict)
     toimituspaikat: Dict[ToimituspaikkaID, ToimitusPaikka] = field(default_factory=dict)
     toimitukset: List[Toimitus] = field(default_factory=list)
+
+
+class Tapahtumalaji(Enum):
+    PERUSMAKSU = "Perusmaksu"
+    AKP = "AKP"
+    TYHJENNYSVALI = "Tyhjennysväli"
+    KESKEYTTAMINEN = "Keskeyttäminen"
+    ERILLISKERAYKSESTA_POIKKEAMINEN = "Erilliskeräyksestä poikkeaminen"
+    MUU = "Muu poikkeaminen"
+
+
+class Paatostulos(Enum):
+    KIELTEINEN = "kielteinen"
+    MYONTEINEN = "myönteinen"
+
+
+class AKPPoistoSyy(str, Enum):
+    PIHAPIIRI = "Pihapiiri"
+    MATKA = "Pitkä matka"
+    EIKAYTOSSA = "Ei käytössä"
+
+
+@dataclass
+class Paatos:
+    paatosnumero: str
+    vastaanottaja: str
+    paatostulos: Paatostulos
+    tapahtumalaji: Tapahtumalaji
+    alkupvm: date
+    loppupvm: date
+    tyhjennysvali: Optional[int] = None
+    akppoistosyy: Optional[AKPPoistoSyy] = None
+    jatetyyppi: Optional[Jatelaji] = None

@@ -19,7 +19,8 @@ from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 from jkrimporter.providers.nokia.nokiaprovider import NokiaTranslator
 from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
-from jkrimporter.providers.lahti.lahtiprovider import LahtiTranslator
+from jkrimporter.providers.lahti.lahtiprovider import LahtiTranslator, PaatosTranslator
+from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
 
@@ -154,6 +155,18 @@ def import_and_create_kohteet(
         create_dvv_kohteet(poimintapvm, perusmaksutiedosto)
     else:
         create_dvv_kohteet(poimintapvm, None)
+
+    print("VALMIS!")
+
+
+@app.command("import_paatokset", help="Import decisions to JKR.")
+def import_paatokset(
+    siirtotiedosto: Path = typer.Argument(..., help="Polku siirtotiedostoon")
+):
+    translator = PaatosTranslator(Paatostiedosto(siirtotiedosto))
+    paatos_data = translator.as_jkr_data()
+    db = DbProvider()
+    db.write_paatokset(paatos_data)
 
     print("VALMIS!")
 

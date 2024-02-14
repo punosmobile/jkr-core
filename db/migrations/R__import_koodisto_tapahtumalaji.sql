@@ -1,8 +1,8 @@
 insert into jkr_koodistot.tapahtumalaji(koodi, selite) values
-    ('1', 'Perusmaksu'),
-    ('2', 'AKP'),
-    ('3', 'Tyhjennysväli'),
-    ('4', 'Keskeyttäminen'),
-    ('5', 'Erilliskeräyksestä poikkeaminen'),
-    ('100', 'Muu poikkeaminen')
+    ('PERUSMAKSU', 'Perusmaksu'),
+    ('AKP', 'AKP'),
+    ('TYHJENNYSVALI', 'Tyhjennysväli'),
+    ('KESKEYTTAMINEN', 'Keskeyttäminen'),
+    ('ERILLISKERAYKSESTA_POIKKEAMINEN', 'Erilliskeräyksestä poikkeaminen'),
+    ('MUU', 'Muu poikkeaminen')
 on conflict do nothing;
