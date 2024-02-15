@@ -16,6 +16,7 @@ from jkrimporter.model import (
     KeraysvalineTyyppi,
     KimppaSopimus,
     KompostiIlmoitus,
+    Kompostoija,
     Osoite,
     Paatos,
     Paatostulos,
@@ -24,6 +25,7 @@ from jkrimporter.model import (
     Tunnus,
     TyhjennysSopimus,
     Tyhjennystapahtuma,
+    Vastuuhenkilo,
     Yhteystieto,
 )
 # from jkrimporter.providers.db.models import Ilmoitus as JkrIlmoitus
@@ -423,26 +425,48 @@ class IlmoitusTranslator:
 
         for row in self._source.ilmoitukset:
             data.append(
+                # Vastuuhenkilo(
+                    # nimi=row.vastuuhenkilo_sukunimi + " " + row.vastuuhenkilo_etunimi,
+                    # puhelinnro=row.vastuuhenkilo_puhelinnumero,
+                    # sahkoposti=row.vastuuhenkilo_sahkoposti,
+                    # postinumero=row.vastuuhenkilo_postinumero,
+                    # postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
+                    # osoite=row.vastuuhenkilo_osoite,
+                # ),
+                # A single KompostiIlmoitus should accept multiple Kompostoja.
+                # Kompostoija(
+                    # nimi=row.kayttaja_etunimi + " " + row.kayttaja_sukunimi,
+                    # osoite=row.kayttaja_osoite,
+                    # postinumero=row.kayttaja_postinumero,
+                    # postitoimipaikka=row.kayttaja_postitoimipaikka,
+                    # rakennustunnus=row.prt,
+                # ),
                 KompostiIlmoitus(
-                    Vastausaika=row.Vastausaika,
-                    vastuuhenkilo_etunimi=row.vastuuhenkilo_etunimi,
-                    vastuuhenkilo_sukunimi=row.vastuuhenkilo_sukunimi,
-                    vastuuhenkilo_puhelinnumero=row.vastuuhenkilo_puhelinnumero,
-                    vastuuhenkilo_sahkoposti=row.vastuuhenkilo_sahkoposti,
-                    vastuuhenkilo_postinumero=row.vastuuhenkilo_postinumero,
-                    vastuuhenkilo_postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
-                    vastuuhenkilo_osoite=row.vastuuhenkilo_osoite,
+                    alkupvm=row.Vastausaika,
+                    loppupvm=row.voimassaasti,
+                    # voimassaolo=,
+                    vastuuhenkilo=Vastuuhenkilo(
+                        nimi=(
+                            row.vastuuhenkilo_sukunimi +
+                            " " + row.vastuuhenkilo_etunimi
+                        ),
+                        puhelinnro=row.vastuuhenkilo_puhelinnumero,
+                        sahkoposti=row.vastuuhenkilo_sahkoposti,
+                        postinumero=row.vastuuhenkilo_postinumero,
+                        postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
+                        osoite=row.vastuuhenkilo_osoite,
+                    ),
+                    kompostoijat=Kompostoija(
+                        nimi=row.kayttaja_etunimi + " " + row.kayttaja_sukunimi,
+                        osoite=row.kayttaja_osoite,
+                        postinumero=row.kayttaja_postinumero,
+                        postitoimipaikka=row.kayttaja_postitoimipaikka,
+                        rakennustunnus=row.prt,
+                    ),
                     sijainti=row.sijainti,
-                    rakennuksien_lukumaara=row.rakennuksien_lukumaara,
-                    kayttaja_etunimi=row.kayttaja_etunimi,
-                    kayttaja_sukunimi=row.kayttaja_nimi,
-                    kayttaja_osoite=row.kayttaja_osoite,
-                    kayttaja_postinumero=row.kayttaja_postinumero,
-                    kayttaja_postitoimipaikka=row.kayttaja_postitoimipaikka,
-                    prt=row.prt,
-                    onko_hyvaksytty=row.onko_hyvaksytty,
-                    voimassaasti=row.voimassaasti,
+                    onko_kimppa=True,
+                    # rakennuksien_lukumaara=row.rakennuksien_lukumaara,
+                    # onko_hyvaksytty=row.onko_hyvaksytty,
                 )
             )
-
         return data

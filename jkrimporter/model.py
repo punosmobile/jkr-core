@@ -284,7 +284,6 @@ class Vastuuhenkilo:
     osoite: str
 
 
-
 @dataclass
 class Kompostoija:
     nimi: str
@@ -296,9 +295,10 @@ class Kompostoija:
 
 @dataclass
 class KompostiIlmoitus:
-    Vastausaika: date
+    alkupvm: date
+    loppupvm: date
+    # voimassaolo: Interval
     vastuuhenkilo: Vastuuhenkilo
     kompostoijat: List[Kompostoija]
-    onko_hyvaksytty: bool
-    alkupvm: Optional[date]
-    loppupvm: Optional[date]
+    sijainti: str
+    onko_kimppa: bool
