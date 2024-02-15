@@ -71,8 +71,8 @@ def test_import_data(engine, datadir):
     loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
 
-    # Kuljetusdatassa yhdeksän kelvollista sopimusta, joista kaksi on kahden kimppaa
-    lkm_sopimukset = 11
+    # Kuljetusdatassa kymmenen kelvollista sopimusta, joista kaksi on kahden kimppaa
+    lkm_sopimukset = 12
     assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
 
     # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa),
@@ -185,8 +185,26 @@ def test_import_data(engine, datadir):
         session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä biojäte').scalar()
     assert biojate_kimppaisanta_id in osapuolen_roolit
 
+    # Kohteella Kyykoski on aluekeräyspistesopimus.
+    kohde_nimi_filter = Kohde.nimi == "Kyykoski"
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    akp_sopimus_id = (
+        session.query(Sopimus.sopimustyyppi_id)
+        .filter(Sopimus.kohde_id == kohde_id)
+        .scalar()
+    )
+    assert (
+        akp_sopimus_id
+        == session.query(SopimusTyyppi.id)
+        .filter(SopimusTyyppi.selite == "Aluekeräyssopimus")
+        .scalar()
+    )
+
     # Kiinteänjätteen massa kenttä on tyhjä.
-    assert session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar() == 11
+    assert (
+        session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar()
+        == lkm_sopimukset
+    )
 
     # Tyhjennysvalejä on kymmenen, kahdella sopimuksista on useita tyhjennysvälejä.
     assert session.query(func.count(Tyhjennysvali.id)).scalar() == 10
