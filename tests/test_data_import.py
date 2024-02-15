@@ -111,7 +111,7 @@ def test_update_dvv_kohteet(engine):
         print(f"Updating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 6
+    assert session.query(func.count(Kohde.id)).scalar() == 7
 
     # Perusmaksurekisteristä luodun kohteen Asunto Oy Kahden Laulumuisto loppupäivämäärä ei ole muuttunut
     kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
@@ -138,3 +138,13 @@ def test_update_dvv_kohteet(engine):
     kohteen_osapuolet_ids = \
         session.query(KohteenOsapuolet.osapuoli_id).filter(KohteenOsapuolet.kohde_id == kohde_id).order_by(KohteenOsapuolet.osapuoli_id)
     assert [r1.id for r1 in osapuoli_ids] == [r2.osapuoli_id for r2 in kohteen_osapuolet_ids]
+
+    # Uudella kohteella Tuntematon ei ole osapuolia
+    kohde_nimi_filter = Kohde.nimi == "Tuntematon"
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    assert (
+        session.query(func.count(KohteenOsapuolet.osapuoli_id))
+        .filter(KohteenOsapuolet.kohde_id == kohde_id)
+        .scalar()
+        == 0
+    )
