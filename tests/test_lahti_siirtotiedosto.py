@@ -208,7 +208,7 @@ def test_import_data(engine, datadir):
     # Kuljetusdatassa on yksi keskeytys.
     assert session.query(func.count(Keskeytys.id)).scalar() == 1
 
-    # Kohdentumattomat.csv sisältää viisi kohdentumatonta Asiakas-riviä.
+    # Kohdentumattomat.csv sisältää kuusi kohdentumatonta Asiakas-riviä.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
     assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
     with open(csv_file_path, 'r') as csvfile:
@@ -216,4 +216,4 @@ def test_import_data(engine, datadir):
         header = next(csv_reader, None)
         assert header is not None
         rows = list(csv_reader)
-        assert len(rows) == 5
+        assert len(rows) == 6
