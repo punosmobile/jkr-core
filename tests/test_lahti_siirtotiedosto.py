@@ -1,5 +1,6 @@
 import csv
 import os
+from pathlib import Path
 import pytest
 
 from sqlalchemy import create_engine, func, or_, select, text
@@ -71,7 +72,8 @@ def test_import_data(engine, datadir):
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
 
     # Kuljetusdatassa yhdeksän kelvollista sopimusta, joista kaksi on kahden kimppaa
-    assert session.query(func.count(Sopimus.id)).scalar() == 11
+    lkm_sopimukset = 11
+    assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
 
     # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa),
     # kaksi lasisopimusta (eri ajanjaksoilla) ja muita yksi kutakin
@@ -208,7 +210,7 @@ def test_import_data(engine, datadir):
     # Kuljetusdatassa on yksi keskeytys.
     assert session.query(func.count(Keskeytys.id)).scalar() == 1
 
-    # Kohdentumattomat.csv sisältää viisi kohdentumatonta Asiakas-riviä.
+    # Kohdentumattomat.csv sisältää kuusi kohdentumatonta Asiakas-riviä.
     csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
     assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
     with open(csv_file_path, 'r') as csvfile:
@@ -216,4 +218,20 @@ def test_import_data(engine, datadir):
         header = next(csv_reader, None)
         assert header is not None
         rows = list(csv_reader)
-        assert len(rows) == 5
+        assert len(rows) == 6
+
+    # Korjataan kuljetuksen PRT kohdentumattomissa.
+    with open(csv_file_path, "r") as csvfile:
+        csv_file_content = csvfile.read()
+    fixed_content = csv_file_content.replace("000000000W", "100456789B")
+    fixed_folder = os.path.join(datadir, "fixed")
+    os.makedirs(fixed_folder)
+    csv_file_write_path = os.path.join(fixed_folder, "kohdentumattomat.csv")
+    with open(csv_file_write_path, "w") as csvfile:
+        csvfile.write(fixed_content)
+
+    import_data(Path(fixed_folder), "LSJ", False, False, True, "1.1.2023", "31.3.2023")
+
+    # Korjattu kuljetus on aiheuttanut uuden sopimuksen sopimus-tauluun.
+    lkm_sopimukset += 1
+    assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
