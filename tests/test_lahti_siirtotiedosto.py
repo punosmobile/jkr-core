@@ -234,4 +234,4 @@ def test_import_data(engine, datadir):
 
     # Korjattu kuljetus on aiheuttanut uuden sopimuksen sopimus-tauluun.
     lkm_sopimukset += 1
-    assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset 
+    assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
