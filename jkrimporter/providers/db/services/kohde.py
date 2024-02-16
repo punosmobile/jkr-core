@@ -206,8 +206,8 @@ def _find_kohde_by_asiakastiedot(
     query = (
         select(Kohde.id, Osapuoli.nimi)
         .join(Kohde.rakennus_collection)
-        .join(KohteenOsapuolet)
-        .join(Osapuoli)
+        .join(KohteenOsapuolet, isouter=True)
+        .join(Osapuoli, isouter=True)
         .join(Osoite, isouter=True)
         .join(Katu, isouter=True)
         .where(
@@ -217,10 +217,6 @@ def _find_kohde_by_asiakastiedot(
                     asiakas.voimassa.upper or datetime.date.max,
                 )
             ),
-            # Any yhteystieto will do. The bill might not always go
-            # to the oldest person. It might be the owner.
-            # KohteenOsapuolet.osapuolenrooli
-            # == codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
             filter,
         )
         .distinct()
@@ -254,16 +250,17 @@ def _find_kohde_by_asiakastiedot(
         yhteystieto_nimi = clean_asoy_name(asiakas.yhteyshenkilo.nimi)
         for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
             for db_osapuoli_name in db_osapuoli_names:
-                db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                print(haltija_nimi)
-                print(db_osapuoli_name)
-                if match_name(haltija_nimi, db_osapuoli_name) or match_name(
-                    yhteystieto_nimi, db_osapuoli_name
-                ):
-                    print(f"{db_osapuoli_name} match")
-                    kohde = session.get(Kohde, kohde_id)
-                    print("returning kohde")
-                    return kohde
+                if db_osapuoli_name is not None:
+                    db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                    print(haltija_nimi)
+                    print(db_osapuoli_name)
+                    if match_name(haltija_nimi, db_osapuoli_name) or match_name(
+                        yhteystieto_nimi, db_osapuoli_name
+                    ):
+                        print(f"{db_osapuoli_name} match")
+                        kohde = session.get(Kohde, kohde_id)
+                        print("returning kohde")
+                        return kohde
     elif len(names_by_kohde_id) == 1:
         return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
 
