@@ -124,6 +124,8 @@ class AsiakasRow(BaseModel):
 
     @validator("tyyppiIdEWC", pre=True)
     def parse_jatelaji(value: str):
+        if value == "Aluekeräyspiste":
+            value = "Aluekeräys"
         if value == "Sekaj":
             value = "Sekajäte"
         if value == "Biojäte":
