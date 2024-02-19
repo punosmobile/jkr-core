@@ -11,6 +11,7 @@ from jkrimporter.providers.db.models import (
     AKPPoistoSyy,
     Jatetyyppi,
     Paatostulos,
+    Rakennus,
     Tapahtumalaji,
     Viranomaispaatokset,
 )
@@ -55,6 +56,13 @@ def test_import_paatokset(engine, datadir):
         .first()[0]
     )
 
+    rakennus_123456789A_id = (
+        session.query(Rakennus.id).filter(Rakennus.prt == "123456789A").first()[0]
+    )
+    rakennus_134567890B_id = (
+        session.query(Rakennus.id).filter(Rakennus.prt == "134567890B").first()[0]
+    )
+
     # Päätös "123/2022"
     # - voimassa 1.1.2020 alkaen 15.6.2022 asti
     # - myönteinen päätös
@@ -70,6 +78,7 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.akppoistosyy_id,
             Viranomaispaatokset.jatetyyppi_id,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -91,6 +100,7 @@ def test_import_paatokset(engine, datadir):
         .first()[0]
     )
     assert paatos_123[6] is None
+    assert paatos_123[7] == rakennus_123456789A_id
 
     # Päätos "122/2022"
     # - tyhjennysväli 26
@@ -102,6 +112,7 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.akppoistosyy_id,
             Viranomaispaatokset.jatetyyppi_id,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -120,6 +131,7 @@ def test_import_paatokset(engine, datadir):
         .filter((Jatetyyppi.selite == "Sekajäte"))
         .first()[0]
     )
+    assert paatos_122[4] == rakennus_123456789A_id
 
     # Päätös "121/2022"
     # - tapahtumalaji erilliskeräyksestä poikkeaminen
@@ -129,6 +141,7 @@ def test_import_paatokset(engine, datadir):
         session.query(
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.jatetyyppi_id,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -143,6 +156,7 @@ def test_import_paatokset(engine, datadir):
         paatos_121[1]
         == session.query(Jatetyyppi.id).filter((Jatetyyppi.selite == "Lasi")).first()[0]
     )
+    assert paatos_121[2] == rakennus_134567890B_id
 
     # Päätös "120/2022"
     # - vastaanottaja Mikkolainen Matti
@@ -154,6 +168,7 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.vastaanottaja,
             Viranomaispaatokset.paatostulos_koodi,
             Viranomaispaatokset.tapahtumalaji_koodi,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -166,3 +181,4 @@ def test_import_paatokset(engine, datadir):
         .filter((Tapahtumalaji.selite == "Keskeyttäminen"))
         .first()[0]
     )
+    assert paatos_120[3] == rakennus_134567890B_id
