@@ -267,6 +267,7 @@ class Paatos:
     tapahtumalaji: Tapahtumalaji
     alkupvm: date
     loppupvm: date
+    prt: Rakennustunnus
     tyhjennysvali: Optional[int] = None
     akppoistosyy: Optional[AKPPoistoSyy] = None
     jatetyyppi: Optional[Jatelaji] = None

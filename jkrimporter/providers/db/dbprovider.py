@@ -32,6 +32,7 @@ from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
     find_buildings_for_kohde,
+    find_single_building_id_by_prt,
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -545,34 +546,36 @@ class DbProvider:
                 init_code_objects(session)
                 print("Importoidaan päätökset")
                 for paatos in paatos_list:
-                    akppoistosyy_id = (
-                        get_code_id(session, AKPPoistoSyy, paatos.akppoistosyy.value).id
-                        if paatos.akppoistosyy is not None
-                        else None
-                    )
-                    jatetyyppi_id = (
-                        get_code_id(session, Jatetyyppi, paatos.jatetyyppi.value).id
-                        if paatos.jatetyyppi is not None
-                        else None
-                    )
-                    session.add(
-                        Viranomaispaatokset(
-                            paatosnumero=paatos.paatosnumero,
-                            alkupvm=paatos.alkupvm,
-                            loppupvm=paatos.loppupvm,
-                            vastaanottaja=paatos.vastaanottaja,
-                            tyhjennysvali=paatos.tyhjennysvali,
-                            paatostulos_koodi=get_code_id(
-                                session, Paatostulos, paatos.paatostulos.value
-                            ).koodi,
-                            tapahtumalaji_koodi=get_code_id(
-                                session, Tapahtumalaji, paatos.tapahtumalaji.value
-                            ).koodi,
-                            akppoistosyy_id=akppoistosyy_id,
-                            jatetyyppi_id=jatetyyppi_id,
-                            rakennus_id=1,
+                    rakennus_id = find_single_building_id_by_prt(session, paatos.prt)
+                    if rakennus_id:
+                        akppoistosyy_id = (
+                            get_code_id(session, AKPPoistoSyy, paatos.akppoistosyy.value).id
+                            if paatos.akppoistosyy is not None
+                            else None
                         )
-                    )
+                        jatetyyppi_id = (
+                            get_code_id(session, Jatetyyppi, paatos.jatetyyppi.value).id
+                            if paatos.jatetyyppi is not None
+                            else None
+                        )
+                        session.add(
+                            Viranomaispaatokset(
+                                paatosnumero=paatos.paatosnumero,
+                                alkupvm=paatos.alkupvm,
+                                loppupvm=paatos.loppupvm,
+                                vastaanottaja=paatos.vastaanottaja,
+                                tyhjennysvali=paatos.tyhjennysvali,
+                                paatostulos_koodi=get_code_id(
+                                    session, Paatostulos, paatos.paatostulos.value
+                                ).koodi,
+                                tapahtumalaji_koodi=get_code_id(
+                                    session, Tapahtumalaji, paatos.tapahtumalaji.value
+                                ).koodi,
+                                akppoistosyy_id=akppoistosyy_id,
+                                jatetyyppi_id=jatetyyppi_id,
+                                rakennus_id=rakennus_id,
+                            )
+                        )
                 session.commit()
         except Exception as e:
             logger.exception(e)

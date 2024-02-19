@@ -231,6 +231,13 @@ def find_building_candidates_for_kohde(session: "Session", asiakas: "Asiakas"):
     return _find_by_address(session, asiakas.haltija)
 
 
+def find_single_building_id_by_prt(session: "Session", prt: Rakennustunnus):
+    rakennus_ehdokkaat = _find_by_prt(session, [prt])
+    if len(rakennus_ehdokkaat) == 1:
+        return rakennus_ehdokkaat[0].id
+    return None
+
+
 def _find_by_ytunnus(session: "Session", haltija: "Yhteystieto"):
     if haltija.ytunnus:
         statement = (

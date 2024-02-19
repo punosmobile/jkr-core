@@ -399,6 +399,7 @@ class PaatosTranslator:
                     jatetyyppi=self._parse_jatetyyppi(
                         row_tapahtumalaji, row.lisatiedot
                     ),
+                    prt=row.prt,
                 )
             )
 
