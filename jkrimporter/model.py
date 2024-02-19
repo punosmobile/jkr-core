@@ -277,28 +277,18 @@ class Paatos:
 @dataclass
 class Vastuuhenkilo:
     nimi: str
-    puhelinnro: str
-    sahkoposti: str
-    postinumero: str
-    postitoimipaikka: str
-    osoite: str
-
-
-@dataclass
-class Kompostoija:
-    nimi: str
     osoite: str
     postinumero: str
     postitoimipaikka: str
-    rakennustunnus: str
 
 
 @dataclass
-class KompostiIlmoitus:
+class JkrIlmoitukset:
     alkupvm: date
     loppupvm: date
-    # voimassaolo: Interval
-    vastuuhenkilo: Vastuuhenkilo
-    kompostoijat: List[Kompostoija]
+    voimassaolo: Interval
     sijainti: str
-    onko_kimppa: bool
+    vastuuhenkilo: Vastuuhenkilo
+    kompostoijat: List[str]
+    onko_kimppa: str
+    tiedontuottaja: str

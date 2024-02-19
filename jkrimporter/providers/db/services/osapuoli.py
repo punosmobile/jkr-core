@@ -1,8 +1,8 @@
-from jkrimporter.model import Asiakas, Jatelaji, SopimusTyyppi
+from jkrimporter.model import Asiakas, Jatelaji, SopimusTyyppi, JkrIlmoitukset
 
 from .. import codes
 from ..codes import OsapuolenlajiTyyppi, OsapuolenrooliTyyppi
-from ..models import KohteenOsapuolet, Osapuoli
+from ..models import KohteenOsapuolet, Osapuoli, Kohde
 from ..utils import is_asoy
 
 
@@ -118,3 +118,51 @@ def create_or_update_haltija_osapuoli(
 
     # Commit changes to the database
     session.commit()
+
+
+def create_or_update_komposti_yhteyshenkilo(
+    session, kohde, ilmoitus: "JkrIlmoitukset",  # update_contacts: bool, Lisää kohdentamisen jälkeen kohde.
+):
+    """
+    Luo kohteelle kompostin yhteyshenkilo
+    """
+    # This can be removed after kohdennus code is added.
+    kohde = session.query(Kohde).filter_by(id=kohde).first()
+
+    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KOMPOSTI_YHTEYSHENKILO]
+    existing_osapuoli_entries = session.query(KohteenOsapuolet).filter(
+            KohteenOsapuolet.osapuoli.has(
+                tiedontuottaja_tunnus="Ilmoitus",
+                nimi=ilmoitus.vastuuhenkilo.nimi,
+                katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
+            ),
+            KohteenOsapuolet.osapuolenrooli == asiakasrooli,
+        ).all()
+
+    # Delete existing osapuoli entries
+    for existing_entry in existing_osapuoli_entries:
+        session.delete(existing_entry)
+
+    # Create new osapuoli entry
+    kompostinyhteyshenkilo = Osapuoli(
+        nimi=ilmoitus.vastuuhenkilo.nimi,
+        katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
+        postinumero=ilmoitus.vastuuhenkilo.postinumero,
+        postitoimipaikka=ilmoitus.vastuuhenkilo.postitoimipaikka,
+        tiedontuottaja_tunnus=ilmoitus.tiedontuottaja,
+    )
+
+    if is_asoy(ilmoitus.vastuuhenkilo.nimi):
+        kompostinyhteyshenkilo.osapuolenlaji = codes.osapuolenlajit[OsapuolenlajiTyyppi.ASOY]
+
+    #Select kohde that has the id of whats passed to the function as "kohde"
+    kohteen_osapuoli = KohteenOsapuolet(
+        kohde=kohde, osapuoli=kompostinyhteyshenkilo, osapuolenrooli=asiakasrooli
+    )
+
+    session.add(kohteen_osapuoli)
+    print(kohteen_osapuoli)
+    # Commit changes to the database
+    session.commit()
+
+    return kohteen_osapuoli

@@ -12,11 +12,10 @@ from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import (
     AKPPoistoSyy,
     JkrData,
+    JkrIlmoitukset,
     Keraysvaline,
     KeraysvalineTyyppi,
     KimppaSopimus,
-    KompostiIlmoitus,
-    Kompostoija,
     Osoite,
     Paatos,
     Paatostulos,
@@ -441,30 +440,28 @@ class IlmoitusTranslator:
                     # postitoimipaikka=row.kayttaja_postitoimipaikka,
                     # rakennustunnus=row.prt,
                 # ),
-                KompostiIlmoitus(
+                JkrIlmoitukset(
                     alkupvm=row.Vastausaika,
                     loppupvm=row.voimassaasti,
-                    # voimassaolo=,
+                    voimassaolo=Interval(row.Vastausaika, row.voimassaasti),
                     vastuuhenkilo=Vastuuhenkilo(
                         nimi=(
                             row.vastuuhenkilo_sukunimi +
                             " " + row.vastuuhenkilo_etunimi
-                        ),
-                        puhelinnro=row.vastuuhenkilo_puhelinnumero,
-                        sahkoposti=row.vastuuhenkilo_sahkoposti,
+                        ),  # tämä pitää muuttaa sillä on
+                        # puhelinnro=row.vastuuhenkilo_puhelinnumero,
+                        # sahkoposti=row.vastuuhenkilo_sahkoposti,
                         postinumero=row.vastuuhenkilo_postinumero,
                         postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
                         osoite=row.vastuuhenkilo_osoite,
                     ),
-                    kompostoijat=Kompostoija(
-                        nimi=row.kayttaja_etunimi + " " + row.kayttaja_sukunimi,
-                        osoite=row.kayttaja_osoite,
-                        postinumero=row.kayttaja_postinumero,
-                        postitoimipaikka=row.kayttaja_postitoimipaikka,
-                        rakennustunnus=row.prt,
-                    ),
+                    kompostoijat=row.prt,
                     sijainti=row.sijainti,
-                    onko_kimppa=True,
+                    onko_kimppa=(
+                        "Kompostoria käyttää yksi rakennus, joka on ilmoitettu yllä Kompostorin sijainti -kohdassa"
+                        in row.onko_kimppa
+                    ),
+                    tiedontuottaja="Ilmoitus"
                     # rakennuksien_lukumaara=row.rakennuksien_lukumaara,
                     # onko_hyvaksytty=row.onko_hyvaksytty,
                 )

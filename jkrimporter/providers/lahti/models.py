@@ -443,12 +443,14 @@ class Ilmoitus(BaseModel):
     vastuuhenkilo_postitoimipaikka: str = Field("Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka")
     vastuuhenkilo_osoite: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite")
     sijainti: str = Field(alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Rakennuksen katuosoite")
-    rakennuksien_lukumaara: str = Field(alias="Kompostoria käyttävien rakennusten lukumäärä")
-    kayttaja_etunimi: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi")
-    kayttaja_sukunimi: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi")
-    kayttaja_osoite: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen katuosoite")
-    kayttaja_postinumero: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero")
-    kayttaja_postitoimipaikka: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka")
+    onko_kimppa: str = Field(alias="Kompostoria käyttävien rakennusten lukumäärä")
+    # The kayttaja information is currently not used (other than prt),
+    # left the commented out code incase these will be used in the future.
+    # kayttaja_etunimi: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi")
+    # kayttaja_sukunimi: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi")
+    # kayttaja_osoite: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen katuosoite")
+    # kayttaja_postinumero: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero")
+    # kayttaja_postitoimipaikka: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka")
     prt: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste")
     onko_hyvaksytty: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne")  # lisätään vain hyväksytyt ilmoitukset.
     voimassaasti: Union[datetime.date, str] = Field(alias="Voimassaolopäivä")
@@ -457,7 +459,7 @@ class Ilmoitus(BaseModel):
     @property
     def vastuuhenkilo_nimi(self) -> str:
         return f"{self.vastuuhenkilo_sukunimi} {self.vastuuhenkilo_etunimi}"
-    
+
     # Combine first and last name.
     @property
     def kayttaja_nimi(self) -> str:
