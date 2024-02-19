@@ -132,7 +132,7 @@ def create_or_update_komposti_yhteyshenkilo(
     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KOMPOSTI_YHTEYSHENKILO]
     existing_osapuoli_entries = session.query(KohteenOsapuolet).filter(
             KohteenOsapuolet.osapuoli.has(
-                tiedontuottaja_tunnus="Ilmoitus",
+                tiedontuottaja_tunnus="ilmoitus",
                 nimi=ilmoitus.vastuuhenkilo.nimi,
                 katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
             ),

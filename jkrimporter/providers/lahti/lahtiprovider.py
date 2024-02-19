@@ -461,7 +461,7 @@ class IlmoitusTranslator:
                         "Kompostoria käyttää yksi rakennus, joka on ilmoitettu yllä Kompostorin sijainti -kohdassa"
                         in row.onko_kimppa
                     ),
-                    tiedontuottaja="Ilmoitus"
+                    tiedontuottaja="ilmoitus"
                     # rakennuksien_lukumaara=row.rakennuksien_lukumaara,
                     # onko_hyvaksytty=row.onko_hyvaksytty,
                 )
