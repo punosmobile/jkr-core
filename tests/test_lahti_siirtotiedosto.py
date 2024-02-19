@@ -62,8 +62,8 @@ def test_import_data(engine, datadir):
 
     session = Session(engine)
 
-    # Kohteita ei pidä muodostua lisää (edelleen kuusi)
-    lkm_kohteet = 6
+    # Kohteita ei pidä muodostua lisää
+    lkm_kohteet = 7
     assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
 
     # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa
@@ -71,12 +71,12 @@ def test_import_data(engine, datadir):
     loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
 
-    # Kuljetusdatassa kymmenen kelvollista sopimusta, joista kaksi on kahden kimppaa
-    lkm_sopimukset = 12
+    # Kuljetusdatassa on 11 kelvollista sopimusta, joista kaksi on kahden kimppaa.
+    lkm_sopimukset = 13
     assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
 
     # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa),
-    # kaksi lasisopimusta (eri ajanjaksoilla) ja muita yksi kutakin
+    # kaksi lasisopimusta (eri ajanjaksoilla), kaksi metallisopimusta ja muita yksi kutakin
     sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
     seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
     assert session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar() == 3
@@ -91,7 +91,7 @@ def test_import_data(engine, datadir):
     assert session.query(func.count(Sopimus.id)).filter(kartonki_sopimus_filter).scalar() == 1
     metalli_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Metalli').scalar_subquery()
     metalli_sopimus_filter = Sopimus.jatetyyppi_id == metalli_id
-    assert session.query(func.count(Sopimus.id)).filter(metalli_sopimus_filter).scalar() == 1
+    assert session.query(func.count(Sopimus.id)).filter(metalli_sopimus_filter).scalar() == 2
     muovi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Muovi').scalar_subquery()
     muovi_sopimus_filter = Sopimus.jatetyyppi_id == muovi_id
     assert session.query(func.count(Sopimus.id)).filter(muovi_sopimus_filter).scalar() == 1
@@ -200,14 +200,26 @@ def test_import_data(engine, datadir):
         .scalar()
     )
 
+    # Osapuolettomalla kohteella Tuntematon on sopimus ja kuljetus.
+    kohde_nimi_filter = Kohde.nimi == "Tuntematon"
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    assert (
+        session.query(Sopimus.id).filter(Sopimus.kohde_id == kohde_id).scalar()
+        is not None
+    )
+    assert (
+        session.query(Kuljetus.id).filter(Kuljetus.kohde_id == kohde_id).scalar()
+        is not None
+    )
+
     # Kiinteänjätteen massa kenttä on tyhjä.
     assert (
         session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar()
         == lkm_sopimukset
     )
 
-    # Tyhjennysvalejä on kymmenen, kahdella sopimuksista on useita tyhjennysvälejä.
-    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 10
+    # Tyhjennysvalejä on 11, kahdella sopimuksista on useita tyhjennysvälejä.
+    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 11
 
     # Kohteella Asunto Oy Kahden Laulumuisto on kaksi tyhjennysväliä muovijätteellä ja kolme kartongilla.
     kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
