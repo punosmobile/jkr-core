@@ -13,8 +13,6 @@ from jkrimporter.model import JkrData, JkrIlmoitukset, Keraysvaline, Keraysvalin
 from jkrimporter.model import Keskeytys as JkrKeskeytys
 from jkrimporter.model import (
     KimppaSopimus,
-    KompostiIlmoitus,
-    Kompostoija,
     Osoite,
     Paatos,
     Paatostulos,

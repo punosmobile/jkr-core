@@ -1,8 +1,8 @@
-from jkrimporter.model import Asiakas, Jatelaji, SopimusTyyppi, JkrIlmoitukset
+from jkrimporter.model import Asiakas, Jatelaji, JkrIlmoitukset, SopimusTyyppi
 
 from .. import codes
 from ..codes import OsapuolenlajiTyyppi, OsapuolenrooliTyyppi
-from ..models import KohteenOsapuolet, Osapuoli, Kohde
+from ..models import Kohde, KohteenOsapuolet, Osapuoli
 from ..utils import is_asoy
 
 

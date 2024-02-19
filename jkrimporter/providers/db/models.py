@@ -152,6 +152,7 @@ UlkoinenAsiakastieto = Base.classes.ulkoinen_asiakastieto
 Velvoite = Base.classes.velvoite
 Velvoitemalli = Base.classes.velvoitemalli
 Viranomaispaatokset = Base.classes.viranomaispaatokset
+# KompostiIlmoitukset = Base.classes.kompostori
 
 
 # Add associations to association tables with extra fields.
@@ -231,5 +232,4 @@ __all__ = [
     "Velvoite",
     "Velvoitemalli",
     "Viranomaispaatokset",
-    # "Ilmoitukset",
 ]
