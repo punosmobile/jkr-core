@@ -34,6 +34,11 @@ def test_readable(datadir):
     assert Paatostiedosto.readable_by_me(datadir + "/paatokset.xlsx")
 
 
+def test_import_faulty_data(faulty_datadir):
+    with pytest.raises(RuntimeError):
+        import_paatokset(faulty_datadir + "/paatokset.xlsx")
+
+
 def test_import_paatokset(engine, datadir):
     import_paatokset(datadir + "/paatokset.xlsx")
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
+from jkrimporter.datasheets import get_paatostiedosto_headers
 from jkrimporter.providers.lahti.models import Paatos
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,20 @@ class Paatostiedosto:
     @property
     def paatokset(self):
         paatos_list = []
+        missing_headers_list = []
 
         workbook = load_workbook(self._path)
         sheet = workbook[workbook.sheetnames[0]]
 
         # In Excel files, the row indices start from 1.
         headers = [cell.value for cell in sheet[1]]
+        for header in get_paatostiedosto_headers():
+            if header not in headers:
+                missing_headers_list.append(header)
+
+        if missing_headers_list:
+            print(f"Tiedosto: {self._path}, puuttuvat sarakeotsikot: {missing_headers_list}")
+            raise RuntimeError("Päätöstiedostosta puuttuu oletettuja sarakeotsikoita.")
 
         for row in sheet.iter_rows(min_row=2, values_only=True):
             try:

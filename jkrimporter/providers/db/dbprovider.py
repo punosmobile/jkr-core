@@ -12,7 +12,7 @@ from jkrimporter.model import Asiakas, JkrData, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.progress import Progress
-from jkrimporter.datasheets import get_headers
+from jkrimporter.datasheets import get_siirtotiedosto_headers
 
 from . import codes
 from .codes import get_code_id
@@ -498,7 +498,7 @@ class DbProvider:
                         ) as csv_file:
                             csv_writer = csv.DictWriter(
                                 csv_file,
-                                fieldnames=get_headers(),
+                                fieldnames=get_siirtotiedosto_headers(),
                                 delimiter=";",
                                 quotechar='"',
                             )

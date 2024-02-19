@@ -17,7 +17,7 @@ if TYPE_CHECKING:
         headers: List[str]
 
 
-def get_headers():
+def get_siirtotiedosto_headers():
     expected_headers = [
         "UrakoitsijaId",
         "UrakoitsijankohdeId",
@@ -55,6 +55,21 @@ def get_headers():
         "Keskeytysasti",
     ]
     return expected_headers
+
+
+def get_paatostiedosto_headers():
+    return [
+        "Numero",
+        "Lähettäjä/vastaanottaja",
+        "PRT 1",
+        "Päätös 1",
+        "Voimassa alkaen 1",
+        "Voimassa asti 1",
+        "Lisätiedot 1",
+        "Lähiosoite",
+        "Postinumero",
+        "Postitoimipaikka",
+    ]
 
 
 class CsvSheet:
