@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.datasheets import get_siirtotiedosto_headers
-from jkrimporter.model import Asiakas, JkrData, Paatos, KompostiIlmoitus, JkrIlmoitukset
+from jkrimporter.model import Asiakas, JkrData, JkrIlmoitukset, KompostiIlmoitus, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
@@ -25,14 +25,14 @@ from .models import (
     Ilmoitus,
     Jatetyyppi,
     Kohde,
+    Kompostori,
+    KompostorinKohteet,
     Kuljetus,
     Paatostulos,
     Tapahtumalaji,
     Tiedontuottaja,
     Viranomaispaatokset,
 )
-from .models import Kohde, Kuljetus, Tiedontuottaja
-from .models import Kohde, Kuljetus, Tiedontuottaja, Kompostori
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
@@ -55,7 +55,7 @@ from .services.kohde import (
 )
 from .services.osapuoli import (
     create_or_update_haltija_osapuoli,
-    create_or_update_komposti_yhteyshenkilo
+    create_or_update_komposti_yhteyshenkilo,
 )
 from .services.sopimus import update_sopimukset_for_kohde
 
@@ -556,23 +556,30 @@ class DbProvider:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Importoidaan ilmoitukset")
+                kohteet = []
                 for ilmoitus in ilmoitus_list:
-                    # Lisää osapuoli
                     osapuoli = create_or_update_komposti_yhteyshenkilo(session, 1, ilmoitus) # replace 1 with kohde
-                    session.add(
-                        Kompostori(
+                    # Find kohde for each kompostoija
+                    kohteet = find_kohde_by_prt(session, ilmoitus)
+                    komposti = Kompostori(
                             alkupvm=ilmoitus.alkupvm,
                             loppupvm=ilmoitus.loppupvm,
-                            voimassaolo=ilmoitus.voimassaolo,
-                            osapuoli=1,  # ota lisätty osapuoli.
-                            # kompostoijat=ilmoitus.kompostoijat,  # Tästä pitää tehdä lista kun yhdistellyt rivit valmiina.
-                            kompostoijat=osapuoli.kohteen_osapuoli.id,
-                            # sijainti=ilmoitus.sijainti,
-                            sijainti=1,
+                            osoite_id=1,  # kohde joka löytyy sijainnilla.
                             onko_kimppa=ilmoitus.onko_kimppa,
+                            osapuoli=osapuoli,  # ota lisätty osapuoli.
                         )
-                    )
+                    session.add(komposti)
                     print(Kompostori)
+                    # ota komposti id taleteen.
+                    # kompostori_id = 
+                    if kohteet is not None:
+                        for kohde in kohteet:
+                            session.add(
+                                KompostorinKohteet(
+                                    kompostori=komposti,
+                                    kohde=kohde
+                                )
+                            )
                 session.commit()
         except Exception as e:
             logger.exception(e)
