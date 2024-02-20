@@ -144,7 +144,7 @@ def create_or_update_komposti_yhteyshenkilo(
         session.delete(existing_entry)
 
     # Create new osapuoli entry
-    kompostinyhteyshenkilo = Osapuoli(
+    kompostin_yhteyshenkilo = Osapuoli(
         nimi=ilmoitus.vastuuhenkilo.nimi,
         katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
         postinumero=ilmoitus.vastuuhenkilo.postinumero,
@@ -153,16 +153,17 @@ def create_or_update_komposti_yhteyshenkilo(
     )
 
     if is_asoy(ilmoitus.vastuuhenkilo.nimi):
-        kompostinyhteyshenkilo.osapuolenlaji = codes.osapuolenlajit[OsapuolenlajiTyyppi.ASOY]
+        kompostin_yhteyshenkilo.osapuolenlaji = (
+            codes.osapuolenlajit[OsapuolenlajiTyyppi.ASOY]
+        )
 
-    #Select kohde that has the id of whats passed to the function as "kohde"
+    # Select kohde that has the id of whats passed to the function as "kohde"
     kohteen_osapuoli = KohteenOsapuolet(
-        kohde=kohde, osapuoli=kompostinyhteyshenkilo, osapuolenrooli=asiakasrooli
+        kohde=kohde, osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
     )
 
     session.add(kohteen_osapuoli)
-    print(kohteen_osapuoli)
     # Commit changes to the database
     session.commit()
 
-    return kohteen_osapuoli
+    return kompostin_yhteyshenkilo

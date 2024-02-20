@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
-from jkrimporter.model import Yhteystieto
+from jkrimporter.model import Yhteystieto, Asiakas, JkrIlmoitukset
 
 from .. import codes
 from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi
@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from sqlalchemy.sql.selectable import Select
 
-    from jkrimporter.model import Asiakas, Tunnus
+    from jkrimporter.model import Asiakas, Tunnus, JkrIlmoitukset
 
     class Kohdetiedot(NamedTuple):
         kohde: Kohde
@@ -113,11 +113,27 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
         ulkoinen_asiakastieto.ulkoinen_asiakastieto = asiakas.ulkoinen_asiakastieto
 
 
-def find_kohde_by_prt(session: "Session", asiakas: "Asiakas") -> "Union[Kohde, None]":
-    print(f"asiakas has prts {asiakas.rakennukset}")
-    return _find_kohde_by_asiakastiedot(
-        session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
-    )
+# def find_kohde_by_prt(session: "Session", asiakas: "Asiakas") -> "Union[Kohde, None]":
+    # print(f"asiakas has prts {asiakas.rakennukset}")
+    # return _find_kohde_by_asiakastiedot(
+        # session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
+    # )
+
+
+def find_kohde_by_prt(
+    session: "Session",
+    asiakas: "Union[Asiakas, JkrIlmoitukset]",
+) -> "Union[Kohde, None]":
+    if isinstance(asiakas, JkrIlmoitukset):
+        return _find_kohde_by_asiakastiedot(
+            session, Rakennus.prt.in_(asiakas.kompostoijat), asiakas
+        )
+    elif isinstance(asiakas, Asiakas):
+        return _find_kohde_by_asiakastiedot(
+            session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
+        )
+    else:
+        raise ValueError("Invalid asiakas type")
 
 
 def find_kohde_by_kiinteisto(
@@ -198,11 +214,16 @@ def find_kohde_by_address(
 
 
 def _find_kohde_by_asiakastiedot(
-    session: "Session", filter, asiakas: "Asiakas"
+    # session: "Session", filter, asiakas: "Asiakas"
+    session: "Session", filter, asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Union[Kohde, None]":
     # The same kohde may be client at multiple urakoitsijat and have multiple customer
     # ids. Do *not* filter by missing/existing customer id.
-    print(filter)
+    if isinstance(asiakas, JkrIlmoitukset):
+        print(f"JkrIlmoitus has kompostoijat {asiakas.kompostoijat}")
+    elif isinstance(asiakas, Asiakas):
+        print(f"Asiakas has prts {asiakas.rakennukset}")
+    # print(filter)
     query = (
         select(Kohde.id, Osapuoli.nimi)
         .join(Kohde.rakennus_collection)

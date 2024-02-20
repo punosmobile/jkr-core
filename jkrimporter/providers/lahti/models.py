@@ -438,9 +438,9 @@ class Ilmoitus(BaseModel):
     vastuuhenkilo_etunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi")  # Yhdistä sukunimen kanssa.
     vastuuhenkilo_sukunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi")  # Yhdistä etunimen kanssa.
     vastuuhenkilo_puhelinnumero: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Puhelinnumero")
-    vastuuhenkilo_sahkoposti: str = Field("Kompostoinnin vastuuhenkilön yhteystiedot:Sähköposti")
-    vastuuhenkilo_postinumero: str = Field("Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero")  # Note, etunollat pitäisi lisätä. Pitäisi olla 5 numeroinen numerosarja.
-    vastuuhenkilo_postitoimipaikka: str = Field("Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka")
+    vastuuhenkilo_sahkoposti: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sähköposti")
+    vastuuhenkilo_postinumero: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero")  # Note, etunollat pitäisi lisätä. Pitäisi olla 5 numeroinen numerosarja.
+    vastuuhenkilo_postitoimipaikka: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka")
     vastuuhenkilo_osoite: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite")
     sijainti: str = Field(alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Rakennuksen katuosoite")
     onko_kimppa: str = Field(alias="Kompostoria käyttävien rakennusten lukumäärä")

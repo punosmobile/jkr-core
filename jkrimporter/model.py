@@ -286,7 +286,6 @@ class Vastuuhenkilo:
 class JkrIlmoitukset:
     alkupvm: date
     loppupvm: date
-    voimassaolo: Interval
     sijainti: str
     vastuuhenkilo: Vastuuhenkilo
     kompostoijat: List[str]
