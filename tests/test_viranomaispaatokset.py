@@ -1,6 +1,8 @@
 from datetime import date
-
+import os
 import pytest
+
+from openpyxl.reader.excel import load_workbook
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
@@ -184,3 +186,9 @@ def test_import_paatokset(engine, datadir):
     assert paatos_120[1] == paatos_kielteinen
     _assert_tapahtumalaji(session, paatos_120[2], "Keskeyttäminen")
     assert paatos_120[3] == rakennus_134567890B_id
+
+    # Kohdentumattomat.xlsx sisältää kaksi kohdentumatonta päätöstä.
+    xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
+    workbook = load_workbook(xlsx_file_path)
+    sheet = workbook[workbook.sheetnames[0]]
+    assert sheet.max_row == 3
