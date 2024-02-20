@@ -8,6 +8,7 @@ import csv
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.model import Asiakas, JkrData, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
@@ -492,7 +493,10 @@ class DbProvider:
                                 ].Voimassaoloviikotasti[ii * 2 + 1]
                             rows.append(row_data)
 
-                        csv_path = siirtotiedosto / "kohdentumattomat.csv"
+                        csv_path = (
+                            siirtotiedosto
+                            / get_kohdentumattomat_siirtotiedosto_filename()
+                        )
                         with open(
                             csv_path, mode="a", encoding="cp1252", newline=""
                         ) as csv_file:

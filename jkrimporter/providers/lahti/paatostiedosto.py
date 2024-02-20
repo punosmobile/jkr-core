@@ -6,6 +6,7 @@ import openpyxl
 from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
+from jkrimporter.conf import get_kohdentumattomat_paatos_filename
 from jkrimporter.datasheets import get_paatostiedosto_headers
 from jkrimporter.providers.lahti.models import Paatos
 
@@ -67,7 +68,7 @@ class Paatostiedosto:
         sheet_failed.append(expected_headers)
         output_directory_failed = os.path.dirname(self._path)
         output_file_path_failed = os.path.join(
-            output_directory_failed, "kohdentumattomat.xlsx"
+            output_directory_failed, get_kohdentumattomat_paatos_filename()
         )
         if failed_validations:
             filtered_failed_validations = [
