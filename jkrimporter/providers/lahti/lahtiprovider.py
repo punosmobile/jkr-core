@@ -423,6 +423,9 @@ class IlmoitusTranslator:
         grouped_data = {}
 
         for row in self._source.ilmoitukset:
+            if row.onko_hyvaksytty != "Hyväksytty":
+                # Skip rows where onko_hyvaksytty is not "Hyväksytty"
+                continue
             key = (
                 row.Vastausaika,
                 row.vastuuhenkilo_sukunimi,
@@ -431,12 +434,13 @@ class IlmoitusTranslator:
                 row.vastuuhenkilo_postitoimipaikka,
                 row.vastuuhenkilo_osoite,
                 row.sijainti,
-                row.onko_kimppa
+                row.onko_kimppa,
             )
             if key not in grouped_data:
                 grouped_data[key] = {
                     'alkupvm': row.Vastausaika,
                     'loppupvm': row.voimassaasti,
+                    'voimassa': Interval(row.Vastausaika, row.voimassaasti),
                     'vastuuhenkilo': Vastuuhenkilo(
                         nimi=(
                             row.vastuuhenkilo_sukunimi +

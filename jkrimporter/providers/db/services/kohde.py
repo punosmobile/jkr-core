@@ -217,61 +217,83 @@ def _find_kohde_by_asiakastiedot(
     # session: "Session", filter, asiakas: "Asiakas"
     session: "Session", filter, asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Union[Kohde, None]":
-    # The same kohde may be client at multiple urakoitsijat and have multiple customer
-    # ids. Do *not* filter by missing/existing customer id.
+    print(filter)
     if isinstance(asiakas, JkrIlmoitukset):
         print(f"JkrIlmoitus has kompostoijat {asiakas.kompostoijat}")
-    elif isinstance(asiakas, Asiakas):
-        print(f"Asiakas has prts {asiakas.rakennukset}")
-    # print(filter)
-    query = (
-        select(Kohde.id, Osapuoli.nimi)
-        .join(Kohde.rakennus_collection)
-        .join(KohteenOsapuolet, isouter=True)
-        .join(Osapuoli, isouter=True)
-        .join(Osoite, isouter=True)
-        .join(Katu, isouter=True)
-        .where(
-            Kohde.voimassaolo.overlaps(
-                DateRange(
-                    asiakas.voimassa.lower or datetime.date.min,
-                    asiakas.voimassa.upper or datetime.date.max,
+        kohteet = []
+        for kompostoija in asiakas.kompostoijat:
+            query = (
+                select(Kohde)
+                .join(Kohde.rakennus_collection)
+                .where(
+                    Kohde.voimassaolo.overlaps(
+                        DateRange(
+                            asiakas.voimassa.lower or datetime.date.min,
+                            asiakas.voimassa.upper or datetime.date.max,
+                        )
+                    ),
+                    Kohde.rakennus_collection.any(Rakennus.prt == kompostoija)
                 )
-            ),
-            filter,
-        )
-        .distinct()
-    )
-    print(query)
+            )
+            found_kohde = session.execute(query).scalar()
+            if found_kohde:
+                kohteet.append(found_kohde)
+        return kohteet if kohteet else None
 
-    try:
-        kohteet = session.execute(query).all()
-    except NoResultFound:
-        return None
-    print(kohteet)
-
-    names_by_kohde_id = defaultdict(set)
-    for kohde_id, db_osapuoli_name in kohteet:
-        names_by_kohde_id[kohde_id].add(db_osapuoli_name)
-    if len(names_by_kohde_id) > 1:
-        # The address has multiple kohteet for the same date period.
-        # We may have
-        # 1) multiple perusmaksut for the same building (not paritalo),
-        # 2) paritalo,
-        # 3) multiple buildings in the same address (not paritalo),
-        # 4) multiple people moving in or out of the building in the same time period.
-        # Since we have no customer id here, we just have to check if the name is
-        # actually an osapuoli of an existing kohde or not. If not, we will return
-        # None and create a new kohde later. If an osapuoli exists, the new kohde may
-        # have been created from a kuljetus already.
-        print(
-            "Found multiple kohteet with the same address. Checking owners/inhabitants..."
+    # The same kohde may be client at multiple urakoitsijat and have multiple customer
+    # ids. Do *not* filter by missing/existing customer id.
+    elif isinstance(asiakas, Asiakas):
+        query = (
+            select(Kohde.id, Osapuoli.nimi)
+            .join(Kohde.rakennus_collection)
+            .join(KohteenOsapuolet)
+            .join(Osapuoli)
+            .join(Osoite, isouter=True)
+            .join(Katu, isouter=True)
+            .where(
+                Kohde.voimassaolo.overlaps(
+                    DateRange(
+                        asiakas.voimassa.lower or datetime.date.min,
+                        asiakas.voimassa.upper or datetime.date.max,
+                    )
+                ),
+                # Any yhteystieto will do. The bill might not always go
+                # to the oldest person. It might be the owner.
+                # KohteenOsapuolet.osapuolenrooli
+                # == codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
+                filter,
+            )
+            .distinct()
         )
-        haltija_nimi = clean_asoy_name(asiakas.haltija.nimi)
-        yhteystieto_nimi = clean_asoy_name(asiakas.yhteyshenkilo.nimi)
-        for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
-            for db_osapuoli_name in db_osapuoli_names:
-                if db_osapuoli_name is not None:
+        print(query)
+
+        try:
+            kohteet = session.execute(query).all()
+        except NoResultFound:
+            return None
+        print(kohteet)
+
+        names_by_kohde_id = defaultdict(set)
+        for kohde_id, db_osapuoli_name in kohteet:
+            names_by_kohde_id[kohde_id].add(db_osapuoli_name)
+        if len(names_by_kohde_id) > 1:
+            # The address has multiple kohteet for the same date period.
+            # We may have
+            # 1) multiple perusmaksut for the same building (not paritalo),
+            # 2) paritalo,
+            # 3) multiple buildings in the same address (not paritalo),
+            # 4) multiple people moving in or out of the building in the same time period.
+            # Since we have no customer id here, we just have to check if the name is
+            # actually an osapuoli of an existing kohde or not. If not, we will return
+            # None and create a new kohde later. If an osapuoli exists, the new kohde may
+            # have been created from a kuljetus already.
+            print(
+                "Found multiple kohteet with the same address. Checking owners/inhabitants..."
+            )
+            haltija_nimi = clean_asoy_name(asiakas.haltija.nimi)
+            yhteystieto_nimi = clean_asoy_name(asiakas.yhteyshenkilo.nimi)
+            for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
+                for db_osapuoli_name in db_osapuoli_names:
                     db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
                     print(haltija_nimi)
                     print(db_osapuoli_name)
@@ -282,8 +304,8 @@ def _find_kohde_by_asiakastiedot(
                         kohde = session.get(Kohde, kohde_id)
                         print("returning kohde")
                         return kohde
-    elif len(names_by_kohde_id) == 1:
-        return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
+        elif len(names_by_kohde_id) == 1:
+            return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
 
     return None
 
