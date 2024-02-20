@@ -1,7 +1,7 @@
 import datetime
-from datetime import timedelta
 import re
 from collections import defaultdict
+from datetime import timedelta
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
-from jkrimporter.model import Yhteystieto, Asiakas, JkrIlmoitukset
+from jkrimporter.model import Asiakas, JkrIlmoitukset, Yhteystieto
 
 from .. import codes
 from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi
@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from sqlalchemy.sql.selectable import Select
 
-    from jkrimporter.model import Asiakas, Tunnus, JkrIlmoitukset
+    from jkrimporter.model import Asiakas, JkrIlmoitukset, Tunnus
 
     class Kohdetiedot(NamedTuple):
         kohde: Kohde
