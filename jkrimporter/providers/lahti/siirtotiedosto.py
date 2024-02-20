@@ -3,8 +3,9 @@ import csv
 from pathlib import Path
 from typing import List
 
+from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.datasheets import SiirtotiedostoSheet
-from jkrimporter.datasheets import get_headers
+from jkrimporter.datasheets import get_siirtotiedosto_headers
 from jkrimporter.providers.lahti.models import Asiakas, AsiakasRow
 from pydantic import ValidationError
 
@@ -36,7 +37,7 @@ class LahtiSiirtotiedosto:
         asiakas_rows = []
         failed_validations = []
         missing_headers_list = []
-        expected_headers = get_headers()
+        expected_headers = get_siirtotiedosto_headers()
 
         # Iterate through all CSV files in the directory to check headers
         for csv_file_path in Path(self._path).glob("*.csv"):
@@ -86,7 +87,7 @@ class LahtiSiirtotiedosto:
 
         # Save failed validations to a new CSV file.
         output_directory = csv_file_path.parent
-        output_file_path = output_directory / "kohdentumattomat.csv"
+        output_file_path = output_directory / get_kohdentumattomat_siirtotiedosto_filename()
 
         with open(output_file_path, mode="w", encoding="cp1252", newline="") as output_csv_file:
             csv_writer = csv.DictWriter(output_csv_file, expected_headers, delimiter=";", quotechar='"')

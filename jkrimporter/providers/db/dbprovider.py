@@ -1,18 +1,21 @@
+from collections import defaultdict
+import csv
 from datetime import datetime, timedelta
 import logging
-from collections import defaultdict
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
-import csv
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.model import Asiakas, JkrData, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
+from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
-from jkrimporter.datasheets import get_headers
+from jkrimporter.datasheets import get_siirtotiedosto_headers
 
 from . import codes
 from .codes import get_code_id
@@ -32,6 +35,7 @@ from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
     find_buildings_for_kohde,
+    find_single_building_id_by_prt,
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -491,13 +495,16 @@ class DbProvider:
                                 ].Voimassaoloviikotasti[ii * 2 + 1]
                             rows.append(row_data)
 
-                        csv_path = siirtotiedosto / "kohdentumattomat.csv"
+                        csv_path = (
+                            siirtotiedosto
+                            / get_kohdentumattomat_siirtotiedosto_filename()
+                        )
                         with open(
                             csv_path, mode="a", encoding="cp1252", newline=""
                         ) as csv_file:
                             csv_writer = csv.DictWriter(
                                 csv_file,
-                                fieldnames=get_headers(),
+                                fieldnames=get_siirtotiedosto_headers(),
                                 delimiter=";",
                                 quotechar='"',
                             )
@@ -539,40 +546,50 @@ class DbProvider:
     def write_paatokset(
         self,
         paatos_list: List[Paatos],
+        paatostiedosto: Path,
     ):
+        kohdentumattomat = []
         try:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Importoidaan päätökset")
                 for paatos in paatos_list:
-                    akppoistosyy_id = (
-                        get_code_id(session, AKPPoistoSyy, paatos.akppoistosyy.value).id
-                        if paatos.akppoistosyy is not None
-                        else None
-                    )
-                    jatetyyppi_id = (
-                        get_code_id(session, Jatetyyppi, paatos.jatetyyppi.value).id
-                        if paatos.jatetyyppi is not None
-                        else None
-                    )
-                    session.add(
-                        Viranomaispaatokset(
-                            paatosnumero=paatos.paatosnumero,
-                            alkupvm=paatos.alkupvm,
-                            loppupvm=paatos.loppupvm,
-                            vastaanottaja=paatos.vastaanottaja,
-                            tyhjennysvali=paatos.tyhjennysvali,
-                            paatostulos_koodi=get_code_id(
-                                session, Paatostulos, paatos.paatostulos.value
-                            ).koodi,
-                            tapahtumalaji_koodi=get_code_id(
-                                session, Tapahtumalaji, paatos.tapahtumalaji.value
-                            ).koodi,
-                            akppoistosyy_id=akppoistosyy_id,
-                            jatetyyppi_id=jatetyyppi_id,
-                            rakennus_id=1,
+                    rakennus_id = find_single_building_id_by_prt(session, paatos.prt)
+                    if rakennus_id:
+                        akppoistosyy_id = (
+                            get_code_id(session, AKPPoistoSyy, paatos.akppoistosyy.value).id
+                            if paatos.akppoistosyy is not None
+                            else None
                         )
-                    )
+                        jatetyyppi_id = (
+                            get_code_id(session, Jatetyyppi, paatos.jatetyyppi.value).id
+                            if paatos.jatetyyppi is not None
+                            else None
+                        )
+                        session.add(
+                            Viranomaispaatokset(
+                                paatosnumero=paatos.paatosnumero,
+                                alkupvm=paatos.alkupvm,
+                                loppupvm=paatos.loppupvm,
+                                vastaanottaja=paatos.vastaanottaja,
+                                tyhjennysvali=paatos.tyhjennysvali,
+                                paatostulos_koodi=get_code_id(
+                                    session, Paatostulos, paatos.paatostulos.value
+                                ).koodi,
+                                tapahtumalaji_koodi=get_code_id(
+                                    session, Tapahtumalaji, paatos.tapahtumalaji.value
+                                ).koodi,
+                                akppoistosyy_id=akppoistosyy_id,
+                                jatetyyppi_id=jatetyyppi_id,
+                                rakennus_id=rakennus_id,
+                            )
+                        )
+                    else:
+                        kohdentumattomat.append(paatos.rawdata)
                 session.commit()
         except Exception as e:
             logger.exception(e)
+
+        if kohdentumattomat:
+            print("Tallennetaan kohdentumattomat päätökset tiedostoon")
+            export_kohdentumattomat_paatokset(os.path.dirname(paatostiedosto), kohdentumattomat)

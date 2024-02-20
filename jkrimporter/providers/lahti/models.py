@@ -389,6 +389,7 @@ class Paatos(BaseModel):
     lahiosoite: str = Field(alias="Lähiosoite")
     Postinumero: str
     Postitoimipaikka: str
+    rawdata: Optional[Dict[str, str]] = None
 
     @validator("voimassaalkaen", "voimassaasti", pre=True)
     def parse_date(value: Union[date, str]):

@@ -16,3 +16,15 @@ dbconf = {
 }
 
 __all__ = ["dbconf"]
+
+kohdentumattomat_filename = "kohdentumattomat"
+siirtotiedosto_fileext = ".csv"
+paatostiedosto_fileext = ".xlsx"
+
+
+def get_kohdentumattomat_siirtotiedosto_filename():
+    return kohdentumattomat_filename + siirtotiedosto_fileext
+
+
+def get_kohdentumattomat_paatos_filename():
+    return kohdentumattomat_filename + paatostiedosto_fileext

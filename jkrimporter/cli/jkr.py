@@ -166,7 +166,7 @@ def import_paatokset(
     translator = PaatosTranslator(Paatostiedosto(siirtotiedosto))
     paatos_data = translator.as_jkr_data()
     db = DbProvider()
-    db.write_paatokset(paatos_data)
+    db.write_paatokset(paatos_data, siirtotiedosto)
 
     print("VALMIS!")
 

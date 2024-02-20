@@ -1,6 +1,8 @@
 from datetime import date
-
+import os
 import pytest
+
+from openpyxl.reader.excel import load_workbook
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,7 @@ from jkrimporter.providers.db.models import (
     AKPPoistoSyy,
     Jatetyyppi,
     Paatostulos,
+    Rakennus,
     Tapahtumalaji,
     Viranomaispaatokset,
 )
@@ -31,6 +34,38 @@ def engine():
 
 def test_readable(datadir):
     assert Paatostiedosto.readable_by_me(datadir + "/paatokset.xlsx")
+
+
+def test_import_faulty_data(faulty_datadir):
+    with pytest.raises(RuntimeError):
+        import_paatokset(faulty_datadir + "/paatokset.xlsx")
+
+
+def _assert_tapahtumalaji(session, koodi, selite):
+    assert (
+        koodi
+        == session.query(Tapahtumalaji.koodi)
+        .filter(Tapahtumalaji.selite == selite)
+        .first()[0]
+    )
+
+
+def _assert_jatetyyppi(session, id, selite):
+    assert (
+        id
+        == session.query(Jatetyyppi.id)
+        .filter(Jatetyyppi.selite == selite)
+        .first()[0]
+    )
+
+
+def _assert_akppoistosyy(session, id, selite):
+    assert (
+        id
+        == session.query(AKPPoistoSyy.id)
+        .filter(AKPPoistoSyy.selite == selite)
+        .first()[0]
+    )
 
 
 def test_import_paatokset(engine, datadir):
@@ -55,6 +90,13 @@ def test_import_paatokset(engine, datadir):
         .first()[0]
     )
 
+    rakennus_123456789A_id = (
+        session.query(Rakennus.id).filter(Rakennus.prt == "123456789A").first()[0]
+    )
+    rakennus_134567890B_id = (
+        session.query(Rakennus.id).filter(Rakennus.prt == "134567890B").first()[0]
+    )
+
     # Päätös "123/2022"
     # - voimassa 1.1.2020 alkaen 15.6.2022 asti
     # - myönteinen päätös
@@ -70,6 +112,7 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.akppoistosyy_id,
             Viranomaispaatokset.jatetyyppi_id,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
@@ -78,19 +121,10 @@ def test_import_paatokset(engine, datadir):
     assert paatos_123[1] == date(2022, 6, 15)
     assert paatos_123[2] is None
     assert paatos_123[3] == paatos_myonteinen
-    assert (
-        paatos_123[4]
-        == session.query(Tapahtumalaji.koodi)
-        .filter((Tapahtumalaji.selite == "AKP"))
-        .first()[0]
-    )
-    assert (
-        paatos_123[5]
-        == session.query(AKPPoistoSyy.id)
-        .filter(AKPPoistoSyy.selite == "Pitkä matka")
-        .first()[0]
-    )
+    _assert_tapahtumalaji(session, paatos_123[4], "AKP")
+    _assert_akppoistosyy(session, paatos_123[5], "Pitkä matka")
     assert paatos_123[6] is None
+    assert paatos_123[7] == rakennus_123456789A_id
 
     # Päätos "122/2022"
     # - tyhjennysväli 26
@@ -102,24 +136,16 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.akppoistosyy_id,
             Viranomaispaatokset.jatetyyppi_id,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
     )
     assert paatos_122[0] == 26
-    assert (
-        paatos_122[1]
-        == session.query(Tapahtumalaji.koodi)
-        .filter((Tapahtumalaji.selite == "Tyhjennysväli"))
-        .first()[0]
-    )
+    _assert_tapahtumalaji(session, paatos_122[1], "Tyhjennysväli")
     assert paatos_122[2] is None
-    assert (
-        paatos_122[3]
-        == session.query(Jatetyyppi.id)
-        .filter((Jatetyyppi.selite == "Sekajäte"))
-        .first()[0]
-    )
+    _assert_jatetyyppi(session, paatos_122[3], "Sekajäte")
+    assert paatos_122[4] == rakennus_123456789A_id
 
     # Päätös "121/2022"
     # - tapahtumalaji erilliskeräyksestä poikkeaminen
@@ -129,20 +155,17 @@ def test_import_paatokset(engine, datadir):
         session.query(
             Viranomaispaatokset.tapahtumalaji_koodi,
             Viranomaispaatokset.jatetyyppi_id,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
     )
-    assert (
-        paatos_121[0]
-        == session.query(Tapahtumalaji.koodi)
-        .filter((Tapahtumalaji.selite == "Erilliskeräyksestä poikkeaminen"))
-        .first()[0]
-    )
+    _assert_tapahtumalaji(session, paatos_121[0], "Erilliskeräyksestä poikkeaminen")
     assert (
         paatos_121[1]
         == session.query(Jatetyyppi.id).filter((Jatetyyppi.selite == "Lasi")).first()[0]
     )
+    assert paatos_121[2] == rakennus_134567890B_id
 
     # Päätös "120/2022"
     # - vastaanottaja Mikkolainen Matti
@@ -154,15 +177,18 @@ def test_import_paatokset(engine, datadir):
             Viranomaispaatokset.vastaanottaja,
             Viranomaispaatokset.paatostulos_koodi,
             Viranomaispaatokset.tapahtumalaji_koodi,
+            Viranomaispaatokset.rakennus_id,
         )
         .filter(paatos_nimi_filter)
         .first()
     )
     assert paatos_120[0] == "Mikkolainen Matti"
     assert paatos_120[1] == paatos_kielteinen
-    assert (
-        paatos_120[2]
-        == session.query(Tapahtumalaji.koodi)
-        .filter((Tapahtumalaji.selite == "Keskeyttäminen"))
-        .first()[0]
-    )
+    _assert_tapahtumalaji(session, paatos_120[2], "Keskeyttäminen")
+    assert paatos_120[3] == rakennus_134567890B_id
+
+    # Kohdentumattomat.xlsx sisältää kaksi kohdentumatonta päätöstä.
+    xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
+    workbook = load_workbook(xlsx_file_path)
+    sheet = workbook[workbook.sheetnames[0]]
+    assert sheet.max_row == 3
