@@ -2,13 +2,12 @@ import logging
 import os
 from pathlib import Path
 
-import openpyxl
 from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
-from jkrimporter.conf import get_kohdentumattomat_paatos_filename
 from jkrimporter.datasheets import get_paatostiedosto_headers
 from jkrimporter.providers.lahti.models import Paatos
+from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 
 logger = logging.getLogger(__name__)
 
@@ -28,26 +27,6 @@ class Paatostiedosto:
             except Exception:
                 pass
         return False
-
-    def _export_failed_to_kohdentumattomat(self, failed_validations):
-        expected_headers = get_paatostiedosto_headers()
-        workbook_failed = openpyxl.Workbook()
-        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
-        sheet_failed.append(expected_headers)
-        output_directory_failed = os.path.dirname(self._path)
-        output_file_path_failed = os.path.join(
-            output_directory_failed, get_kohdentumattomat_paatos_filename()
-        )
-        if failed_validations:
-            filtered_failed_validations = [
-                {key: value for key, value in data.items() if key in expected_headers}
-                for data in failed_validations
-            ]
-            for row in filtered_failed_validations:
-                sheet_failed.append(
-                    [row.get(header, "") for header in expected_headers]
-                )
-        workbook_failed.save(output_file_path_failed)
 
     @property
     def paatokset(self):
@@ -74,6 +53,7 @@ class Paatostiedosto:
             try:
                 data = dict(zip(headers, row))
                 paatos_obj = Paatos.parse_obj(data)
+                paatos_obj.rawdata = data
                 paatos_list.append(paatos_obj)
             except ValidationError as e:
                 logger.warning(
@@ -81,6 +61,6 @@ class Paatostiedosto:
                 )
                 failed_validations.append(data)
 
-        self._export_failed_to_kohdentumattomat(failed_validations)
+        export_kohdentumattomat_paatokset(os.path.dirname(self._path), failed_validations)
 
         return paatos_list

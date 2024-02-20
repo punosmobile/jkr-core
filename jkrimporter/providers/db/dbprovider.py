@@ -1,9 +1,10 @@
+from collections import defaultdict
+import csv
 from datetime import datetime, timedelta
 import logging
-from collections import defaultdict
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
-import csv
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.model import Asiakas, JkrData, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.intervals import IntervalCounter
+from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
 from jkrimporter.datasheets import get_siirtotiedosto_headers
 
@@ -544,7 +546,9 @@ class DbProvider:
     def write_paatokset(
         self,
         paatos_list: List[Paatos],
+        paatostiedosto: Path,
     ):
+        kohdentumattomat = []
         try:
             with Session(engine) as session:
                 init_code_objects(session)
@@ -580,6 +584,12 @@ class DbProvider:
                                 rakennus_id=rakennus_id,
                             )
                         )
+                    else:
+                        kohdentumattomat.append(paatos.rawdata)
                 session.commit()
         except Exception as e:
             logger.exception(e)
+
+        if kohdentumattomat:
+            print("Tallennetaan kohdentumattomat päätökset tiedostoon")
+            export_kohdentumattomat_paatokset(os.path.dirname(paatostiedosto), kohdentumattomat)

@@ -271,3 +271,4 @@ class Paatos:
     tyhjennysvali: Optional[int] = None
     akppoistosyy: Optional[AKPPoistoSyy] = None
     jatetyyppi: Optional[Jatelaji] = None
+    rawdata: Optional[Dict[str, str]] = None

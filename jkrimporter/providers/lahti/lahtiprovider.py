@@ -400,6 +400,7 @@ class PaatosTranslator:
                         row_tapahtumalaji, row.lisatiedot
                     ),
                     prt=row.prt,
+                    rawdata=row.rawdata,
                 )
             )
 
