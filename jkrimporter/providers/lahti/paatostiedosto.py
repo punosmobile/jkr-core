@@ -29,12 +29,31 @@ class Paatostiedosto:
                 pass
         return False
 
+    def _export_failed_to_kohdentumattomat(self, failed_validations):
+        expected_headers = get_paatostiedosto_headers()
+        workbook_failed = openpyxl.Workbook()
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+        sheet_failed.append(expected_headers)
+        output_directory_failed = os.path.dirname(self._path)
+        output_file_path_failed = os.path.join(
+            output_directory_failed, get_kohdentumattomat_paatos_filename()
+        )
+        if failed_validations:
+            filtered_failed_validations = [
+                {key: value for key, value in data.items() if key in expected_headers}
+                for data in failed_validations
+            ]
+            for row in filtered_failed_validations:
+                sheet_failed.append(
+                    [row.get(header, "") for header in expected_headers]
+                )
+        workbook_failed.save(output_file_path_failed)
+
     @property
     def paatokset(self):
         paatos_list = []
         missing_headers_list = []
         failed_validations = []
-        expected_headers = get_paatostiedosto_headers()
 
         workbook = load_workbook(self._path)
         sheet = workbook[workbook.sheetnames[0]]
@@ -62,23 +81,6 @@ class Paatostiedosto:
                 )
                 failed_validations.append(data)
 
-        # Save failed validations to a new Excel file.
-        workbook_failed = openpyxl.Workbook()
-        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
-        sheet_failed.append(expected_headers)
-        output_directory_failed = os.path.dirname(self._path)
-        output_file_path_failed = os.path.join(
-            output_directory_failed, get_kohdentumattomat_paatos_filename()
-        )
-        if failed_validations:
-            filtered_failed_validations = [
-                {key: value for key, value in data.items() if key in expected_headers}
-                for data in failed_validations
-            ]
-            for row in filtered_failed_validations:
-                sheet_failed.append(
-                    [row.get(header, "") for header in expected_headers]
-                )
-        workbook_failed.save(output_file_path_failed)
+        self._export_failed_to_kohdentumattomat(failed_validations)
 
         return paatos_list
