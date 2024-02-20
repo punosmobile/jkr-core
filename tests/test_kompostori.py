@@ -3,7 +3,9 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
+from jkrimporter.cli.jkr import import_ilmoitukset
 from jkrimporter.providers.db.database import json_dumps
+from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
 from jkrimporter.providers.db.models import Kompostori, KompostorinKohteet
 
 
@@ -19,13 +21,20 @@ def engine():
     return engine
 
 
-def test_kompostori(engine):
+def test_readable(datadir):
+    assert Ilmoitustiedosto.readable_by_me(datadir + "/ilmoitukset.xlsx")
+
+
+def test_kompostori(engine, datadir):
+    import_ilmoitukset(datadir + "/ilmoitukset.xlsx")
     session = Session(engine)
-    # add test data later
-    assert session.query(func.count(Kompostori.id)).scalar() == 0
+    # Ilmoitus.xlsx sisältää 5 riviä, joista kompostoreita syntyy 2.
+    # Yksi rivi ei kohdennu, yksi on hylätty, ja yksi on kahden kimppa.
+    # Note! Kohdennus not implemented.
+    assert session.query(func.count(Kompostori.id)).scalar() == 3
 
 
 def test_kompostorin_kohteet(engine):
     session = Session(engine)
     # add test data later
-    assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 0
+    assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 3
