@@ -564,6 +564,7 @@ class DbProvider:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Importoidaan ilmoitukset")
+                kohteet = []
                 for ilmoitus in ilmoitus_list:
                     kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
                     if kompostorin_kohde:
