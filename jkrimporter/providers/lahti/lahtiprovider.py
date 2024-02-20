@@ -420,50 +420,44 @@ class IlmoitusTranslator:
         self._source = ilmoitustiedosto
 
     def as_jkr_data(self):
-        data = []
+        grouped_data = {}
 
         for row in self._source.ilmoitukset:
-            data.append(
-                # Vastuuhenkilo(
-                    # nimi=row.vastuuhenkilo_sukunimi + " " + row.vastuuhenkilo_etunimi,
-                    # puhelinnro=row.vastuuhenkilo_puhelinnumero,
-                    # sahkoposti=row.vastuuhenkilo_sahkoposti,
-                    # postinumero=row.vastuuhenkilo_postinumero,
-                    # postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
-                    # osoite=row.vastuuhenkilo_osoite,
-                # ),
-                # A single KompostiIlmoitus should accept multiple Kompostoja.
-                # Kompostoija(
-                    # nimi=row.kayttaja_etunimi + " " + row.kayttaja_sukunimi,
-                    # osoite=row.kayttaja_osoite,
-                    # postinumero=row.kayttaja_postinumero,
-                    # postitoimipaikka=row.kayttaja_postitoimipaikka,
-                    # rakennustunnus=row.prt,
-                # ),
-                JkrIlmoitukset(
-                    alkupvm=row.Vastausaika,
-                    loppupvm=row.voimassaasti,
-                    voimassaolo=Interval(row.Vastausaika, row.voimassaasti),
-                    vastuuhenkilo=Vastuuhenkilo(
+            key = (
+                row.Vastausaika,
+                row.vastuuhenkilo_sukunimi,
+                row.vastuuhenkilo_etunimi,
+                row.vastuuhenkilo_postinumero,
+                row.vastuuhenkilo_postitoimipaikka,
+                row.vastuuhenkilo_osoite,
+                row.sijainti,
+                row.onko_kimppa
+            )
+            if key not in grouped_data:
+                grouped_data[key] = {
+                    'alkupvm': row.Vastausaika,
+                    'loppupvm': row.voimassaasti,
+                    'vastuuhenkilo': Vastuuhenkilo(
                         nimi=(
                             row.vastuuhenkilo_sukunimi +
                             " " + row.vastuuhenkilo_etunimi
-                        ),  # tämä pitää muuttaa sillä on
-                        # puhelinnro=row.vastuuhenkilo_puhelinnumero,
-                        # sahkoposti=row.vastuuhenkilo_sahkoposti,
+                        ),
                         postinumero=row.vastuuhenkilo_postinumero,
                         postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
                         osoite=row.vastuuhenkilo_osoite,
                     ),
-                    kompostoijat=row.prt,
-                    sijainti=row.sijainti,
-                    onko_kimppa=(
+                    'kompostoijat': [row.prt],
+                    'sijainti': row.sijainti,
+                    'onko_kimppa': (
                         "Kompostoria käyttää yksi rakennus, joka on ilmoitettu yllä Kompostorin sijainti -kohdassa"
                         in row.onko_kimppa
                     ),
-                    tiedontuottaja="ilmoitus"
-                    # rakennuksien_lukumaara=row.rakennuksien_lukumaara,
-                    # onko_hyvaksytty=row.onko_hyvaksytty,
-                )
-            )
+                    'tiedontuottaja': "ilmoitus"
+                }
+            else:
+                grouped_data[key]['kompostoijat'].append(row.prt)
+
+        # Convert grouped data to list
+        data = [JkrIlmoitukset(**values) for values in grouped_data.values()]
+        print(data)
         return data
