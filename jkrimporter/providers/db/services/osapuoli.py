@@ -157,12 +157,11 @@ def create_or_update_komposti_yhteyshenkilo(
             codes.osapuolenlajit[OsapuolenlajiTyyppi.ASOY]
         )
 
-    # Select kohde that has the id of whats passed to the function as "kohde"
     kohteen_osapuoli = KohteenOsapuolet(
         kohde=kohde, osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
     )
-
     session.add(kohteen_osapuoli)
+
     # Commit changes to the database
     session.commit()
 

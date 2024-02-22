@@ -453,7 +453,7 @@ class IlmoitusTranslator:
                     'kompostoijat': [row.prt],
                     'sijainti': row.sijainti,
                     'onko_kimppa': (
-                        "Kompostoria käyttää yksi rakennus, joka on ilmoitettu yllä Kompostorin sijainti -kohdassa"
+                        "Kompostori on useamman kiinteistön yhteinen kompostori (voit ilmoittaa enintään 5 rakennusta)"
                         in row.onko_kimppa
                     ),
                     'tiedontuottaja': "ilmoitus"

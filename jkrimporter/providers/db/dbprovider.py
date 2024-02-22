@@ -564,14 +564,12 @@ class DbProvider:
                     komposti = Kompostori(
                             alkupvm=ilmoitus.alkupvm,
                             loppupvm=ilmoitus.loppupvm,
-                            osoite_id=1,  # kohde joka löytyy sijainnilla.
+                            osoite_id=1,
                             onko_kimppa=ilmoitus.onko_kimppa,
-                            osapuoli=osapuoli,  # ota lisätty osapuoli.
+                            osapuoli=osapuoli,
                         )
                     session.add(komposti)
                     print(Kompostori)
-                    # ota komposti id taleteen.
-                    # kompostori_id = 
                     if kohteet is not None:
                         for kohde in kohteet:
                             session.add(
