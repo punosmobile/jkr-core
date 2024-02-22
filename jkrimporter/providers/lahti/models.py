@@ -4,7 +4,7 @@ from datetime import date
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, root_validator, ValidationError, validator
 
 from jkrimporter.model import Paatostulos, Tapahtumalaji
 
@@ -419,3 +419,14 @@ class Paatos(BaseModel):
         ):
             return value
         return None
+
+    @root_validator
+    def validate_dates(cls, values):
+        voimassaalkaen = values.get("voimassaalkaen")
+        voimassaasti = values.get("voimassaasti")
+        if voimassaalkaen is not None and voimassaasti is not None:
+            if voimassaalkaen >= voimassaasti:
+                raise ValueError(
+                    "Voimassaalkaen-päivämäärän on oltava ennen voimassaasti-päivämäärää."
+                )
+        return values
