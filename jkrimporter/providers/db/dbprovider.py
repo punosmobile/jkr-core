@@ -557,7 +557,9 @@ class DbProvider:
                     rakennus_id = find_single_building_id_by_prt(session, paatos.prt)
                     if rakennus_id:
                         akppoistosyy_id = (
-                            get_code_id(session, AKPPoistoSyy, paatos.akppoistosyy.value).id
+                            get_code_id(
+                                session, AKPPoistoSyy, paatos.akppoistosyy.value
+                            ).id
                             if paatos.akppoistosyy is not None
                             else None
                         )
@@ -591,5 +593,9 @@ class DbProvider:
             logger.exception(e)
 
         if kohdentumattomat:
-            print("Tallennetaan kohdentumattomat päätökset tiedostoon")
-            export_kohdentumattomat_paatokset(os.path.dirname(paatostiedosto), kohdentumattomat)
+            print(
+                f"Tallennetaan kohdentumattomat päätökset ({len(kohdentumattomat)}) tiedostoon"
+            )
+            export_kohdentumattomat_paatokset(
+                os.path.dirname(paatostiedosto), kohdentumattomat
+            )
