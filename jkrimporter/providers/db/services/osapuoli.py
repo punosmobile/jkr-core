@@ -121,7 +121,7 @@ def create_or_update_haltija_osapuoli(
 
 
 def create_or_update_komposti_yhteyshenkilo(
-    session, kohde, ilmoitus: "JkrIlmoitukset",  # update_contacts: bool, Lisää kohdentamisen jälkeen kohde.
+    session, kohde, ilmoitus: "JkrIlmoitukset",
 ):
     """
     Luo kohteelle kompostin yhteyshenkilo
