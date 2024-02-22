@@ -351,7 +351,10 @@ class PaatosTranslator:
         self, tapahtumalaji: Tapahtumalaji, lisatiedot: Optional[str] = None
     ) -> int:
         if tapahtumalaji is Tapahtumalaji.TYHJENNYSVALI and isinstance(lisatiedot, str):
-            return int(lisatiedot)
+            try:
+                return int(lisatiedot)
+            except ValueError:
+                return None
         return None
 
     def _parse_akppoistosyy(
