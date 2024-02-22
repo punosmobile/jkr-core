@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, ValidationError, validator
 
-from jkrimporter.model import Paatostulos
+from jkrimporter.model import Paatostulos, Tapahtumalaji
 
 
 class Jatelaji(str, Enum):
@@ -414,6 +414,8 @@ class Paatos(BaseModel):
         if type(value) is not str:
             return None
         words = value.split()
-        if any(words[-1] == member.value for member in Paatostulos):
+        if any(" ".join(words[:-1]) == laji.value for laji in Tapahtumalaji) and any(
+            words[-1] == tulos.value for tulos in Paatostulos
+        ):
             return value
         return None
