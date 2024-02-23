@@ -36,5 +36,20 @@ def test_kompostori(engine, datadir):
 
 def test_kompostorin_kohteet(engine):
     session = Session(engine)
-    # add test data later
+    # KompostorinKohteet taulussa kolme kohdentunutta kohdetta.
+    # Kahden kimppa sekä yksittäinen.
     assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 3
+
+
+def test_kompostori_osakkaan_lisays(engine, datadir):
+    import_ilmoitukset(datadir + "/ilmoitukset_lisaa_komposti_osakas.xlsx")
+    session = Session(engine)
+    # Tuodaan yksi rivi lisää, joka liitetään jo löytyvään kompostoriin osakkaaksi.
+    assert session.query(func.count(Kompostori.id)).scalar() == 3
+
+
+def test_kompostorin_kohteet_lisays(engine):
+    session = Session(engine)
+    # KompostorinKohteet taulussa neljä kohdentunutta kohdetta.
+    # Kolmen kimppa sekä yksittäinen.
+    assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 4

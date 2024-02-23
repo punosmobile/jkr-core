@@ -130,20 +130,37 @@ def create_or_update_komposti_yhteyshenkilo(
     kohde = session.query(Kohde).filter_by(id=kohde).first()
 
     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KOMPOSTI_YHTEYSHENKILO]
-    existing_osapuoli_entries = session.query(KohteenOsapuolet).filter(
+    """existing_osapuoli_entries = session.query(KohteenOsapuolet).filter(
             KohteenOsapuolet.osapuoli.has(
                 tiedontuottaja_tunnus="ilmoitus",
                 nimi=ilmoitus.vastuuhenkilo.nimi,
                 katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
             ),
             KohteenOsapuolet.osapuolenrooli == asiakasrooli,
-        ).all()
+        ).all()"""
+    existing_osapuoli_entries = session.query(Osapuoli).join(KohteenOsapuolet).filter(
+        Osapuoli.tiedontuottaja_tunnus == "ilmoitus",
+        Osapuoli.nimi == ilmoitus.vastuuhenkilo.nimi,
+        Osapuoli.katuosoite == str(ilmoitus.vastuuhenkilo.osoite),
+        KohteenOsapuolet.osapuolenrooli == asiakasrooli
+    ).first()
 
     # Delete existing osapuoli entries
-    for existing_entry in existing_osapuoli_entries:
-        session.delete(existing_entry)
+    # for existing_entry in existing_osapuoli_entries:
+        # print(f"Found existing entry: {existing_entry}")
+        # session.delete(existing_entry)
+
+    # There should never be more than one matching entry
+    # if existing_osapuoli_entries:
+        # print("Found identical existing osapuoli...")
+        # return existing_osapuoli_entries
+
+    if existing_osapuoli_entries:
+        print("Found identical existing osapuoli...")
+        return existing_osapuoli_entries
 
     # Create new osapuoli entry
+    print("Creating new osapuoli...")
     kompostin_yhteyshenkilo = Osapuoli(
         nimi=ilmoitus.vastuuhenkilo.nimi,
         katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
@@ -160,7 +177,7 @@ def create_or_update_komposti_yhteyshenkilo(
     kohteen_osapuoli = KohteenOsapuolet(
         kohde=kohde, osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
     )
-    session.add(kohteen_osapuoli)
+    session.add(kompostin_yhteyshenkilo, kohteen_osapuoli)
 
     # Commit changes to the database
     session.commit()
