@@ -388,9 +388,9 @@ class Paatos(BaseModel):
     voimassaalkaen: datetime.date = Field(alias="Voimassa alkaen 1")
     voimassaasti: datetime.date = Field(alias="Voimassa asti 1")
     lisatiedot: Optional[str] = Field(alias="Lisätiedot 1")
-    lahiosoite: str = Field(alias="Lähiosoite")
-    Postinumero: str
-    Postitoimipaikka: str
+    lahiosoite: Optional[str] = Field(alias="Lähiosoite")
+    Postinumero: Optional[str]
+    Postitoimipaikka: Optional[str]
     rawdata: Optional[Dict[str, str]] = None
 
     @validator("voimassaalkaen", "voimassaasti", pre=True)
