@@ -447,6 +447,7 @@ class Ilmoitus(BaseModel):
     prt: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste")
     onko_hyvaksytty: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne")  # lisätään vain hyväksytyt ilmoitukset.
     voimassaasti: Union[datetime.date, str] = Field(alias="Voimassaolopäivä")
+    sijainti_prt: List[str] = Field(alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste")
 
     # Combine first and last name.
     @property
@@ -470,4 +471,10 @@ class Ilmoitus(BaseModel):
             parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
             reformatted_date = parsed_date.strftime("%d.%m.%Y")
             return reformatted_date
+        return value
+
+    @validator('sijainti_prt', pre=True)
+    def parse_prts(value: str):
+        if isinstance(value, str):
+            return value.split(',')
         return value

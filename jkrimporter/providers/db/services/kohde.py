@@ -123,10 +123,15 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
 def find_kohde_by_prt(
     session: "Session",
     asiakas: "Union[Asiakas, JkrIlmoitukset]",
+    use_kompostorin_sijainti: "Optional[bool]" = False,
 ) -> "Union[Kohde, None]":
-    if isinstance(asiakas, JkrIlmoitukset):
+    if isinstance(asiakas, JkrIlmoitukset) and not use_kompostorin_sijainti:
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.kompostoijat), asiakas
+        )
+    elif isinstance(asiakas, JkrIlmoitukset) and use_kompostorin_sijainti:
+        return _find_kohde_by_asiakastiedot(
+            session, Rakennus.prt.in_(asiakas.sijainti_prt), asiakas
         )
     elif isinstance(asiakas, Asiakas):
         return _find_kohde_by_asiakastiedot(

@@ -292,3 +292,4 @@ class JkrIlmoitukset:
     kompostoijat: List[str]
     onko_kimppa: str
     tiedontuottaja: str
+    sijainti_prt: List[str]

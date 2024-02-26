@@ -30,7 +30,7 @@ AREA_LIMIT = 30000
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from jkrimporter.model import Asiakas, Yhteystieto
+    from jkrimporter.model import Asiakas, Yhteystieto, JkrIlmoitukset
 
 
 def minimum_distance_of_buildings(buildings):
@@ -358,3 +358,19 @@ def _verify_rakennukset(
 ):
 
     return rakennukset
+
+
+def find_osoite_by_prt(
+    session: "Session", asiakas: "JkrIlmoitukset"
+):
+    for prt in asiakas.sijainti_prt:
+        rakennus = session.query(Rakennus).filter_by(prt=prt).first()
+        if rakennus:
+            osoite = (
+                session.query(Osoite)
+                .filter_by(rakennus_id=rakennus.id)
+                .first()
+            )
+            if osoite:
+                return osoite.id
+    return None

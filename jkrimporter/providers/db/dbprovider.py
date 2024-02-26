@@ -32,7 +32,9 @@ from .models import (
     Tapahtumalaji,
     Tiedontuottaja,
     Viranomaispaatokset,
-    Osapuoli
+    Osapuoli,
+    Osoite,
+    Katu,
 )
 
 from .services.buildings import counts as building_counts
@@ -40,6 +42,7 @@ from .services.buildings import (
     find_building_candidates_for_kohde,
     find_buildings_for_kohde,
     find_single_building_id_by_prt,
+    find_osoite_by_prt,
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -551,52 +554,73 @@ class DbProvider:
             logger.debug(building_counts)
 
     def write_ilmoitukset(self, ilmoitus_list: List[JkrIlmoitukset]):
+        """
+        This methods creates Kompostori and KompostorinKohteet from ilmoitus data.
+        The method also stores kohdentumattomat rows.
+        """
         try:
             with Session(engine) as session:
                 init_code_objects(session)
                 print("Importoidaan ilmoitukset")
                 for ilmoitus in ilmoitus_list:
-                    osapuoli = create_or_update_komposti_yhteyshenkilo(
-                        session, 1, ilmoitus
-                    )
-                    existing_kompostori = session.query(Kompostori).filter(
-                        Kompostori.alkupvm == ilmoitus.alkupvm,
-                        Kompostori.loppupvm == ilmoitus.loppupvm,
-                        Kompostori.osoite_id == 1,  # Update with correct value
-                        Kompostori.onko_kimppa == ilmoitus.onko_kimppa,
-                        Kompostori.osapuoli_id == osapuoli.id
-                    ).first()
-                    if existing_kompostori:
-                        print("Vastaava Kompostori löydetty ohitetaan luonti...")
-                        komposti = existing_kompostori
-                    else:
-                        print("Lisätään uusi Kompostori...")
-                        komposti = Kompostori(
-                            alkupvm=ilmoitus.alkupvm,
-                            loppupvm=ilmoitus.loppupvm,
-                            osoite_id=1,  # Update with correct value
-                            onko_kimppa=ilmoitus.onko_kimppa,
-                            osapuoli=osapuoli,
+                    kompostorin_kohde = find_kohde_by_prt(session, ilmoitus, True)
+                    if kompostorin_kohde:
+                        print(f"Got kohde: {kompostorin_kohde}")
+                        osapuoli = create_or_update_komposti_yhteyshenkilo(
+                            session, kompostorin_kohde, ilmoitus
                         )
-                        session.add(komposti)
-
-                    kohteet = find_kohde_by_prt(session, ilmoitus)
-                    if kohteet:
-                        for kohde in kohteet:
-                            existing_kohde = session.query(KompostorinKohteet).filter(
-                                KompostorinKohteet.kompostori_id == komposti.id,
-                                KompostorinKohteet.kohde_id == kohde.id
+                        # get osoite_id
+                        osoite_id = find_osoite_by_prt(session, ilmoitus)
+                        if not osoite_id:
+                            continue
+                            # lisää kohdentumattomiin.
+                        existing_kompostori = session.query(Kompostori).filter(
+                            Kompostori.alkupvm == ilmoitus.alkupvm,
+                            Kompostori.loppupvm == ilmoitus.loppupvm,
+                            Kompostori.osoite_id == osoite_id,
+                            Kompostori.onko_kimppa == ilmoitus.onko_kimppa,
+                            Kompostori.osapuoli_id == osapuoli.id
+                        ).first()
+                        if not existing_kompostori:
+                            print("Lisätään uusi Kompostori...")
+                            kompostori_to_end = session.query(Kompostori).filter(
+                                Kompostori.osoite_id == osoite_id,
+                                Kompostori.osapuoli_id == osapuoli.id
                             ).first()
-                            if existing_kohde:
-                                print("Kohde jo Kompostorin kohteissa...")
-                            else:
-                                print("Lisätään Kohde Kompostorin kohteisiin...")
-                                session.add(
-                                    KompostorinKohteet(
-                                        kompostori=komposti,
-                                        kohde=kohde
-                                    ),
-                                )
+                        if existing_kompostori:
+                            print("Vastaava Kompostori löydetty ohitetaan luonti...")
+                            komposti = existing_kompostori
+                        else:
+                            print("Lisätään uusi Kompostori...")
+                            komposti = Kompostori(
+                                alkupvm=ilmoitus.alkupvm,
+                                loppupvm=ilmoitus.loppupvm,
+                                osoite_id=osoite_id,
+                                onko_kimppa=ilmoitus.onko_kimppa,
+                                osapuoli=osapuoli,
+                            )
+                            session.add(komposti)
+
+                        kohteet = find_kohde_by_prt(session, ilmoitus)
+                        if kohteet:
+                            for kohde in kohteet:
+                                existing_kohde = session.query(KompostorinKohteet).filter(
+                                    KompostorinKohteet.kompostori_id == komposti.id,
+                                    KompostorinKohteet.kohde_id == kohde.id
+                                ).first()
+                                if existing_kohde:
+                                    print("Kohde jo Kompostorin kohteissa...")
+                                else:
+                                    print("Lisätään Kohde Kompostorin kohteisiin...")
+                                    session.add(
+                                        KompostorinKohteet(
+                                            kompostori=komposti,
+                                            kohde=kohde
+                                        ),
+                                    )
+                        else:
+                            continue
+                            # Lisää kohdentumattomat virhelistalle.
                     else:
                         continue
                         # Lisää kohdentumattomat virhelistalle.

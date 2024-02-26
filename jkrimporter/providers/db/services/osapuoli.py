@@ -121,23 +121,14 @@ def create_or_update_haltija_osapuoli(
 
 
 def create_or_update_komposti_yhteyshenkilo(
-    session, kohde, ilmoitus: "JkrIlmoitukset",
+    session, kohde: Kohde, ilmoitus: "JkrIlmoitukset",
 ):
     """
     Luo kohteelle kompostin yhteyshenkilo
     """
-    # This can be removed after kohdennus code is added.
-    kohde = session.query(Kohde).filter_by(id=kohde).first()
 
     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KOMPOSTI_YHTEYSHENKILO]
-    """existing_osapuoli_entries = session.query(KohteenOsapuolet).filter(
-            KohteenOsapuolet.osapuoli.has(
-                tiedontuottaja_tunnus="ilmoitus",
-                nimi=ilmoitus.vastuuhenkilo.nimi,
-                katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
-            ),
-            KohteenOsapuolet.osapuolenrooli == asiakasrooli,
-        ).all()"""
+    # Look for exsisting osapuoli.
     existing_osapuoli_entries = session.query(Osapuoli).join(KohteenOsapuolet).filter(
         Osapuoli.tiedontuottaja_tunnus == "ilmoitus",
         Osapuoli.nimi == ilmoitus.vastuuhenkilo.nimi,
@@ -145,18 +136,7 @@ def create_or_update_komposti_yhteyshenkilo(
         KohteenOsapuolet.osapuolenrooli == asiakasrooli
     ).first()
 
-    # Delete existing osapuoli entries
-    # for existing_entry in existing_osapuoli_entries:
-        # print(f"Found existing entry: {existing_entry}")
-        # session.delete(existing_entry)
-
-    # There should never be more than one matching entry
-    # if existing_osapuoli_entries:
-        # print("Found identical existing osapuoli...")
-        # return existing_osapuoli_entries
-
     if existing_osapuoli_entries:
-        print("Found identical existing osapuoli...")
         return existing_osapuoli_entries
 
     # Create new osapuoli entry
@@ -175,7 +155,7 @@ def create_or_update_komposti_yhteyshenkilo(
         )
 
     kohteen_osapuoli = KohteenOsapuolet(
-        kohde=kohde, osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
+        kohde=kohde[0], osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
     )
     session.add(kompostin_yhteyshenkilo, kohteen_osapuoli)
 
