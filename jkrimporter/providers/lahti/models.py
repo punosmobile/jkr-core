@@ -413,11 +413,12 @@ class Paatos(BaseModel):
     def parse_paatos(value: str):
         if type(value) is not str:
             return None
-        words = value.split()
-        if any(" ".join(words[:-1]) == laji.value for laji in Tapahtumalaji) and any(
-            words[-1] == tulos.value for tulos in Paatostulos
-        ):
-            return value
+        words = value.lower().split()
+        for laji in Tapahtumalaji:
+            if " ".join(words[:-1]) == laji.value.lower():
+                for tulos in Paatostulos:
+                    if words[-1] == tulos.value.lower():
+                        return laji.value + " " + tulos.value
         return None
 
     @root_validator
