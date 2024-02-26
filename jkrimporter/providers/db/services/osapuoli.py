@@ -155,7 +155,7 @@ def create_or_update_komposti_yhteyshenkilo(
         )
 
     kohteen_osapuoli = KohteenOsapuolet(
-        kohde=kohde, osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
+        kohde=kohde[0], osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
     )
     session.add(kompostin_yhteyshenkilo, kohteen_osapuoli)
 
