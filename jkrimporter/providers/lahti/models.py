@@ -388,9 +388,9 @@ class Paatos(BaseModel):
     voimassaalkaen: datetime.date = Field(alias="Voimassa alkaen 1")
     voimassaasti: datetime.date = Field(alias="Voimassa asti 1")
     lisatiedot: Optional[str] = Field(alias="Lisätiedot 1")
-    lahiosoite: str = Field(alias="Lähiosoite")
-    Postinumero: str
-    Postitoimipaikka: str
+    lahiosoite: Optional[str] = Field(alias="Lähiosoite")
+    Postinumero: Optional[str]
+    Postitoimipaikka: Optional[str]
     rawdata: Optional[Dict[str, str]] = None
 
     @validator("voimassaalkaen", "voimassaasti", pre=True)
@@ -413,11 +413,12 @@ class Paatos(BaseModel):
     def parse_paatos(value: str):
         if type(value) is not str:
             return None
-        words = value.split()
-        if any(" ".join(words[:-1]) == laji.value for laji in Tapahtumalaji) and any(
-            words[-1] == tulos.value for tulos in Paatostulos
-        ):
-            return value
+        words = value.lower().split()
+        for laji in Tapahtumalaji:
+            if " ".join(words[:-1]) == laji.value.lower():
+                for tulos in Paatostulos:
+                    if words[-1] == tulos.value.lower():
+                        return laji.value + " " + tulos.value
         return None
 
     @root_validator

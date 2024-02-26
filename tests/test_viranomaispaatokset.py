@@ -73,9 +73,9 @@ def test_import_paatokset(engine, datadir):
 
     session = Session(engine)
 
-    assert session.query(func.count(Viranomaispaatokset.id)).scalar() == 4
+    assert session.query(func.count(Viranomaispaatokset.id)).scalar() == 5
 
-    paatosnumerot = ["123/2022", "122/2022", "121/2022", "120/2022"]
+    paatosnumerot = ["123/2022", "122/2022", "121/2022", "120/2022", "117/2022"]
     result = session.query(Viranomaispaatokset.paatosnumero)
     assert [row[0] for row in result] == paatosnumerot
 
