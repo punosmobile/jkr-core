@@ -172,6 +172,18 @@ def import_and_create_kohteet(
     print("VALMIS!")
 
 
+@app.command("import_paatokset", help="Import decisions to JKR.")
+def import_paatokset(
+    siirtotiedosto: Path = typer.Argument(..., help="Polku siirtotiedostoon")
+):
+    translator = PaatosTranslator(Paatostiedosto(siirtotiedosto))
+    paatos_data = translator.as_jkr_data()
+    db = DbProvider()
+    db.write_paatokset(paatos_data, siirtotiedosto)
+
+    print("VALMIS!")
+
+
 @app.command("import_ilmoitukset", help="Import compost notices to JKR.")
 def import_ilmoitukset(
     siirtotiedosto: Path = typer.Argument(..., help="Kompostointi ilmoitus-tiedoston sijainti.")

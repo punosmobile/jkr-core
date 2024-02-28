@@ -19,7 +19,8 @@ __all__ = ["dbconf"]
 
 kohdentumattomat_filename = "kohdentumattomat"
 siirtotiedosto_fileext = ".csv"
-paatostiedosto_fileext, ilmoitustiedosto_fileext = ".xlsx"
+paatostiedosto_fileext = ".xlsx"
+ilmoitustiedosto_fileext = ".xlsx"
 
 
 def get_kohdentumattomat_siirtotiedosto_filename():

@@ -53,4 +53,3 @@ def test_kompostorin_kohteet_lisays(engine):
     # KompostorinKohteet taulussa neljä kohdentunutta kohdetta.
     # Kolmen kimppa sekä yksittäinen.
     assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 5
-

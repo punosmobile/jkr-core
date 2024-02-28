@@ -23,7 +23,6 @@ from .codes import get_code_id, init_code_objects
 from .database import engine
 from .models import (
     AKPPoistoSyy,
-    Ilmoitus,
     Jatetyyppi,
     Kohde,
     Kompostori,
@@ -33,9 +32,9 @@ from .models import (
     Tapahtumalaji,
     Tiedontuottaja,
     Viranomaispaatokset,
-    Osapuoli,
-    Osoite,
-    Katu,
+    # Osapuoli,
+    # Osoite,
+    # Katu,
 )
 
 from .services.buildings import counts as building_counts

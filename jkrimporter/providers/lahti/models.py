@@ -393,7 +393,7 @@ class Paatos(BaseModel):
     Postitoimipaikka: Optional[str]
     rawdata: Optional[Dict[str, str]] = None
 
-    @validator("vastausaika", "voimassaasti", pre=True)
+    @validator("voimassaalkaen", "voimassaasti", pre=True)
     def parse_date(value: Union[date, str]):
         if type(value) is str and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
