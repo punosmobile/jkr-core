@@ -172,6 +172,18 @@ def import_and_create_kohteet(
     print("VALMIS!")
 
 
+@app.command("import_ilmoitukset", help="Import compost notices to JKR.")
+def import_ilmoitukset(
+    siirtotiedosto: Path = typer.Argument(..., help="Kompostointi ilmoitus-tiedoston sijainti.")
+):
+    translator = IlmoitusTranslator(Ilmoitustiedosto(siirtotiedosto))
+    ilmoitus_data = translator.as_jkr_data()
+    db = DbProvider()
+    db.write_ilmoitukset(ilmoitus_data, siirtotiedosto)
+
+    print("VALMIS!")
+
+
 @provider_app.command("add", help="Lisää uusi tiedontuottaja järjestelmään.")
 def tiedontuottaja_add_new(
     tunnus: str = typer.Argument(..., help="Tiedontuottajan tunnus. Esim. 'PJH'"),

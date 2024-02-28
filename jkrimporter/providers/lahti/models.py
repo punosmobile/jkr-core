@@ -435,29 +435,50 @@ class Paatos(BaseModel):
 
 class Ilmoitus(BaseModel):
     Vastausaika: datetime.date
-    vastuuhenkilo_etunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi")  # Yhdistä sukunimen kanssa.
-    vastuuhenkilo_sukunimi: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi")  # Yhdistä etunimen kanssa.
-    vastuuhenkilo_puhelinnumero: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Puhelinnumero")
-    vastuuhenkilo_sahkoposti: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sähköposti")
-    vastuuhenkilo_postinumero: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero")  # Note, etunollat pitäisi lisätä. Pitäisi olla 5 numeroinen numerosarja.
-    vastuuhenkilo_postitoimipaikka: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka")
-    vastuuhenkilo_osoite: str = Field(alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite")
-    sijainti: str = Field(alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Rakennuksen katuosoite")
+    vastuuhenkilo_etunimi: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi"
+    )
+    vastuuhenkilo_sukunimi: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi"
+    )
+    vastuuhenkilo_postinumero: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero"
+    )  # Note, etunollat pitäisi lisätä. Pitäisi olla 5 numeroinen numerosarja.
+    vastuuhenkilo_postitoimipaikka: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka"
+    )
+    vastuuhenkilo_osoite: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite"
+    )
+    # sijainti: str = Field(alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Rakennuksen katuosoite")
     onko_kimppa: str = Field(alias="Kompostoria käyttävien rakennusten lukumäärä")
-    prt: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste")
-    onko_hyvaksytty: str = Field(alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne")  # lisätään vain hyväksytyt ilmoitukset.
+    prt: List[str] = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste"
+    )
+    onko_hyvaksytty: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne"
+    )
     voimassaasti: Union[datetime.date, str] = Field(alias="Voimassaolopäivä")
-    sijainti_prt: List[str] = Field(alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste")
-
-    # Combine first and last name.
-    @property
-    def vastuuhenkilo_nimi(self) -> str:
-        return f"{self.vastuuhenkilo_sukunimi} {self.vastuuhenkilo_etunimi}"
-
-    # Combine first and last name.
-    @property
-    def kayttaja_nimi(self) -> str:
-        return f"{self.kayttaja_sukunimi} {self.kayttaja_etunimi}"
+    sijainti_prt: List[str] = Field(
+        alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste"
+    )
+    kayttaja_etunimi: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi"
+    )
+    kayttaja_sukunimi: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi"
+    )
+    kayttaja_postinumero: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero"
+    )
+    kayttaja_postitoimipaikka: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka"
+    )
+    kayttaja_osoite: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen katuosoite"
+    )
+    # Store the original row.
+    rawdata: Optional[Dict[str, str]]
 
     @validator("Vastausaika", pre=True)
     def parse_voimassaasti(value: Union[date, str]):
@@ -473,7 +494,7 @@ class Ilmoitus(BaseModel):
             return reformatted_date
         return value
 
-    @validator('sijainti_prt', pre=True)
+    @validator('sijainti_prt', 'prt', pre=True)
     def parse_prts(value: str):
         if isinstance(value, str):
             return value.split(',')

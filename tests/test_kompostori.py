@@ -30,7 +30,6 @@ def test_kompostori(engine, datadir):
     session = Session(engine)
     # Ilmoitus.xlsx sisältää 5 riviä, joista kompostoreita syntyy 2.
     # Yksi rivi ei kohdennu, yksi on hylätty, ja yksi on kahden kimppa.
-    # Note! Kohdennus not implemented.
     assert session.query(func.count(Kompostori.id)).scalar() == 2
 
 
@@ -44,12 +43,14 @@ def test_kompostorin_kohteet(engine):
 def test_kompostori_osakkaan_lisays(engine, datadir):
     import_ilmoitukset(datadir + "/ilmoitukset_lisaa_komposti_osakas.xlsx")
     session = Session(engine)
-    # Tuodaan yksi rivi lisää, joka liitetään jo löytyvään kompostoriin osakkaaksi.
-    assert session.query(func.count(Kompostori.id)).scalar() == 2
+    # Tuodaan kaksi rivi lisää, toinen liitetään jo löytyvään kompostoriin osakkaaksi
+    # toinen luo uuden kompostorin uudella päivämäärällä.
+    assert session.query(func.count(Kompostori.id)).scalar() == 3
 
 
 def test_kompostorin_kohteet_lisays(engine):
     session = Session(engine)
     # KompostorinKohteet taulussa neljä kohdentunutta kohdetta.
     # Kolmen kimppa sekä yksittäinen.
-    assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 4
+    assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 5
+

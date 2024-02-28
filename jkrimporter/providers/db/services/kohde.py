@@ -120,16 +120,13 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
     # )
 
 
+# split this into two functions
 def find_kohde_by_prt(
     session: "Session",
     asiakas: "Union[Asiakas, JkrIlmoitukset]",
-    use_kompostorin_sijainti: "Optional[bool]" = False,
+    # use_kompostorin_sijainti: "Optional[bool]" = False,
 ) -> "Union[Kohde, None]":
-    if isinstance(asiakas, JkrIlmoitukset) and not use_kompostorin_sijainti:
-        return _find_kohde_by_asiakastiedot(
-            session, Rakennus.prt.in_(asiakas.kompostoijat), asiakas
-        )
-    elif isinstance(asiakas, JkrIlmoitukset) and use_kompostorin_sijainti:
+    if isinstance(asiakas, JkrIlmoitukset):
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.sijainti_prt), asiakas
         )
@@ -139,6 +136,63 @@ def find_kohde_by_prt(
         )
     else:
         raise ValueError("Invalid asiakas type")
+
+
+def find_kohteet_by_prt(
+        session: "Session",
+        asiakas: "JkrIlmoitukset"
+) -> "Tuple[List[Kohde], List[str]]":
+    found_kohteet = []
+    not_found_prts = []
+
+    for kompostoija in asiakas.kompostoijat:
+        kompostoija_info = f"Nimi: {kompostoija.nimi}, Rakennus: {kompostoija.rakennus}"
+        print(f"Kompostoija: {kompostoija_info}")
+        query = (
+            select(Kohde.id, Osapuoli.nimi)
+            .join(Kohde.rakennus_collection)
+            .join(KohteenOsapuolet)
+            .join(Osapuoli)
+            .join(Osoite, isouter=True)
+            .where(
+                Kohde.voimassaolo.overlaps(
+                    DateRange(
+                        asiakas.voimassa.lower or datetime.date.min,
+                        asiakas.voimassa.upper or datetime.date.max,
+                    )
+                ),
+                Rakennus.prt.in_(kompostoija.rakennus)
+            )
+            .distinct()
+        )
+
+        try:
+            kohteet = session.execute(query).all()
+        except NoResultFound:
+            print("Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
+            not_found_prts.append(kompostoija.rakennus)
+            continue
+
+        if len(kohteet) > 1:
+            for kohde_id, db_osapuoli_name in kohteet:
+                db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                kompostoija_nimi = clean_asoy_name(kompostoija.nimi)
+                vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
+
+                if (
+                    match_name(kompostoija_nimi, db_osapuoli_name) or
+                    match_name(vastuuhenkilo_nimi, db_osapuoli_name)
+                ):
+                    kohde = session.get(Kohde, kohde_id)
+                    print(f"Matches kohde: {Kohde}, kohde_id: {kohde_id}")
+                    found_kohteet.append(kohde)
+        else:
+            print(f"Löytyi kohde: {kohteet}")
+            kohde_id, _ = kohteet[0]
+            kohde = session.get(Kohde, kohde_id)
+            found_kohteet.append(kohde)
+
+    return found_kohteet, not_found_prts
 
 
 def find_kohde_by_kiinteisto(
@@ -219,31 +273,62 @@ def find_kohde_by_address(
 
 
 def _find_kohde_by_asiakastiedot(
-    # session: "Session", filter, asiakas: "Asiakas"
     session: "Session", filter, asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Union[Kohde, None]":
-    print(filter)
     if isinstance(asiakas, JkrIlmoitukset):
-        print(f"JkrIlmoitus has kompostoijat {asiakas.kompostoijat}")
-        kohteet = []
-        for kompostoija in asiakas.kompostoijat:
-            query = (
-                select(Kohde)
-                .join(Kohde.rakennus_collection)
-                .where(
-                    Kohde.voimassaolo.overlaps(
-                        DateRange(
-                            asiakas.voimassa.lower or datetime.date.min,
-                            asiakas.voimassa.upper or datetime.date.max,
-                        )
-                    ),
-                    Kohde.rakennus_collection.any(Rakennus.prt == kompostoija)
-                )
+        query = (
+            select(Kohde.id, Osapuoli.nimi)
+            .join(Kohde.rakennus_collection)
+            .join(KohteenOsapuolet)
+            .join(Osapuoli)
+            .join(Osoite, isouter=True)
+            .where(
+                Kohde.voimassaolo.overlaps(
+                    DateRange(
+                        asiakas.voimassa.lower or datetime.date.min,
+                        asiakas.voimassa.upper or datetime.date.max,
+                    )
+                ),
+                filter,
             )
-            found_kohde = session.execute(query).scalar()
-            if found_kohde:
-                kohteet.append(found_kohde)
-        return kohteet if kohteet else None
+            .distinct()
+        )
+        print(query)
+
+        try:
+            kohteet = session.execute(query).all()
+        except NoResultFound:
+            return None
+        print(kohteet)
+
+        names_by_kohde_id = defaultdict(set)
+        for kohde_id, db_osapuoli_name in kohteet:
+            names_by_kohde_id[kohde_id].add(db_osapuoli_name)
+
+        kompostoija_nimet = [
+            clean_asoy_name(kompostoija.nimi)
+            for kompostoija in asiakas.kompostoijat
+        ]
+        vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
+
+        for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
+            for db_osapuoli_name in db_osapuoli_names:
+                db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                print(kompostoija_nimet)
+                print(db_osapuoli_name)
+                if any(
+                    match_name(kompostoija_nimi, db_osapuoli_name)
+                    for kompostoija_nimi in kompostoija_nimet
+                ) or match_name(vastuuhenkilo_nimi, db_osapuoli_name):
+                    print(f"{db_osapuoli_name} match")
+                    kohde = session.get(Kohde, kohde_id)
+                    print("returning kohde")
+                    return kohde
+
+        if len(names_by_kohde_id) == 1:
+            return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
+
+        return None
 
     # The same kohde may be client at multiple urakoitsijat and have multiple customer
     # ids. Do *not* filter by missing/existing customer id.

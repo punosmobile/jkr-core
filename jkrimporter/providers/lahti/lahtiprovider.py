@@ -24,7 +24,7 @@ from jkrimporter.model import (
     Tunnus,
     TyhjennysSopimus,
     Tyhjennystapahtuma,
-    Vastuuhenkilo,
+    IlmoituksenHenkilo,
     Yhteystieto,
 )
 # from jkrimporter.providers.db.models import Ilmoitus as JkrIlmoitus
@@ -424,7 +424,6 @@ class IlmoitusTranslator:
 
         for row in self._source.ilmoitukset:
             if row.onko_hyvaksytty != "Hyväksytty":
-                # Skip rows where onko_hyvaksytty is not "Hyväksytty"
                 continue
             key = (
                 row.Vastausaika,
@@ -433,7 +432,6 @@ class IlmoitusTranslator:
                 row.vastuuhenkilo_postinumero,
                 row.vastuuhenkilo_postitoimipaikka,
                 row.vastuuhenkilo_osoite,
-                row.sijainti,
                 row.onko_kimppa,
                 tuple(row.sijainti_prt)
             )
@@ -442,7 +440,7 @@ class IlmoitusTranslator:
                     'alkupvm': row.Vastausaika,
                     'loppupvm': row.voimassaasti,
                     'voimassa': Interval(row.Vastausaika, row.voimassaasti),
-                    'vastuuhenkilo': Vastuuhenkilo(
+                    'vastuuhenkilo': IlmoituksenHenkilo(
                         nimi=(
                             row.vastuuhenkilo_sukunimi +
                             " " + row.vastuuhenkilo_etunimi
@@ -450,18 +448,38 @@ class IlmoitusTranslator:
                         postinumero=row.vastuuhenkilo_postinumero,
                         postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
                         osoite=row.vastuuhenkilo_osoite,
+                        rakennus=None,
                     ),
-                    'kompostoijat': [row.prt],
-                    'sijainti': row.sijainti,
+                    'kompostoijat': [IlmoituksenHenkilo(
+                        nimi=(
+                            row.kayttaja_sukunimi +
+                            " " + row.kayttaja_etunimi
+                        ),
+                        postinumero=row.kayttaja_postinumero,
+                        postitoimipaikka=row.kayttaja_postitoimipaikka,
+                        osoite=row.kayttaja_osoite,
+                        rakennus=row.prt,
+                    )],
                     'onko_kimppa': (
                         "Kompostori on useamman kiinteistön yhteinen kompostori (voit ilmoittaa enintään 5 rakennusta)"
                         in row.onko_kimppa
                     ),
                     'sijainti_prt': row.sijainti_prt,
-                    'tiedontuottaja': "ilmoitus"
+                    'tiedontuottaja': "ilmoitus",
+                    'rawdata': [row.rawdata]
                 }
             else:
-                grouped_data[key]['kompostoijat'].append(row.prt)
+                grouped_data[key]['kompostoijat'].append(IlmoituksenHenkilo(
+                    nimi=(
+                        row.kayttaja_sukunimi +
+                        " " + row.kayttaja_etunimi
+                    ),
+                    postinumero=row.kayttaja_postinumero,
+                    postitoimipaikka=row.kayttaja_postitoimipaikka,
+                    osoite=row.kayttaja_osoite,
+                    rakennus=row.prt
+                ))
+                grouped_data[key]['rawdata'].append(row.rawdata)
 
         # Convert grouped data to list
         data = [JkrIlmoitukset(**values) for values in grouped_data.values()]
