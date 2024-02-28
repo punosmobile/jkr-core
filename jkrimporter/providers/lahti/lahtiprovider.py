@@ -9,9 +9,12 @@ from jkrimporter.model import AKPPoistoSyy
 from jkrimporter.model import Asiakas as JkrAsiakas
 from jkrimporter.model import IlmoituksenHenkilo
 from jkrimporter.model import Jatelaji as JkrJatelaji
-from jkrimporter.model import JkrData, JkrIlmoitukset, Keraysvaline, KeraysvalineTyyppi
 from jkrimporter.model import Keskeytys as JkrKeskeytys
 from jkrimporter.model import (
+    JkrData,
+    JkrIlmoitukset,
+    Keraysvaline,
+    KeraysvalineTyyppi,
     KimppaSopimus,
     Osoite,
     Paatos,
