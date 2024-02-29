@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,318" last-zoom="0.45" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,313" last-zoom="0.45" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -2695,7 +2695,7 @@ select tallenna_velvoite_status('2020-3-1');
 	 dst-table="jkr.kohteen_rakennukset"
 	 src-required="false" dst-required="false"/>
 
-<view name="v_velvoitteita_rikkovat" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
+<view name="v_velvoitteiden_kohteet" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<position x="3540" y="2440"/>
@@ -2767,22 +2767,22 @@ select tallenna_velvoite_status('2020-3-1');
 </view>
 
 <relationship name="rel_v_velvoitteita_rikkovat_kohde" type="reltv" layers="0" faded-out="true"
-	 src-table="jkr.v_velvoitteita_rikkovat"
+	 src-table="jkr.v_velvoitteiden_kohteet"
 	 dst-table="jkr.kohde"
 	 src-required="false" dst-required="false"/>
 
 <relationship name="rel_v_velvoitteita_rikkovat_velvoitemalli" type="reltv" layers="0" faded-out="true"
-	 src-table="jkr.v_velvoitteita_rikkovat"
+	 src-table="jkr.v_velvoitteiden_kohteet"
 	 dst-table="jkr.velvoitemalli"
 	 src-required="false" dst-required="false"/>
 
 <relationship name="rel_v_velvoitteita_rikkovat_velvoite" type="reltv" layers="0" faded-out="true"
-	 src-table="jkr.v_velvoitteita_rikkovat"
+	 src-table="jkr.v_velvoitteiden_kohteet"
 	 dst-table="jkr.velvoite"
 	 src-required="false" dst-required="false"/>
 
 <relationship name="rel_v_velvoitteita_rikkovat_velvoite_status" type="reltv" layers="0" faded-out="true"
-	 src-table="jkr.v_velvoitteita_rikkovat"
+	 src-table="jkr.v_velvoitteiden_kohteet"
 	 dst-table="jkr.velvoite_status"
 	 src-required="false" dst-required="false"/>
 

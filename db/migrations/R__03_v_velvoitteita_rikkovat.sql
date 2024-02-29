@@ -37,3 +37,5 @@ CREATE OR REPLACE VIEW jkr.v_velvoitteita_rikkovat AS
   WHERE
     k.voimassaolo @> CURRENT_DATE
     AND NOT vs.ok;
+
+ALTER VIEW jkr.v_velvoitteita_rikkovat RENAME TO v_velvoitteiden_kohteet;
