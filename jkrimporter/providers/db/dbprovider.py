@@ -554,7 +554,7 @@ class DbProvider:
             self,
             ilmoitus_list: List[JkrIlmoitukset],
             ilmoitustiedosto: Path,
-        ):
+    ):  
         """
         This methods creates Kompostori and KompostorinKohteet from ilmoitus data.
         The method also stores kohdentumattomat rows.
@@ -591,21 +591,26 @@ class DbProvider:
                         if existing_kompostori:
                             print("Vastaava Kompostori löydetty ohitetaan luonti...")
                             komposti = existing_kompostori
+                        # Based on the comments on 23.2.2024, do not set ending dates
+                        # for Kompostori if new ilmoitus with the same vastuuhenkilo and
+                        # sijainti is added, even if the dates are different. Only set
+                        # end dates when lopetus ilmoitus is added.
+
                         else:
-                            print("Etsitään osoitteen Kompostorit...")
+                            # print("Etsitään osoitteen Kompostorit...")
                             # Look for all Kompostorit at osoite with same vastuuhenkilo
-                            kompostori_to_end = session.query(Kompostori).filter(
-                                Kompostori.osoite_id == osoite_id,
-                                Kompostori.osapuoli_id == osapuoli.id
-                            ).all()
+                            # kompostori_to_end = session.query(Kompostori).filter(
+                            #   Kompostori.osoite_id == osoite_id,
+                            #   Kompostori.osapuoli_id == osapuoli.id
+                            # ).all()
                             # If found, set ending date before adding new Kompostori.
-                            if kompostori_to_end:
-                                print("Asetetaan osoitteen muille Kompostoreille loppupäivämäärä.")
-                                for kompostori in kompostori_to_end:
-                                    kompostori.loppupvm = (
-                                        ilmoitus.alkupvm - timedelta(days=1)
-                                    )
-                                session.commit()
+                            # if kompostori_to_end:
+                            #   print("Asetetaan osoitteen muille Kompostoreille loppupäivämäärä.")
+                            #   for kompostori in kompostori_to_end:
+                            #       kompostori.loppupvm = (
+                            #           ilmoitus.alkupvm - timedelta(days=1)
+                            #       )
+                            #   session.commit()
                             print("Lisätään uusi Kompostori...")
                             komposti = Kompostori(
                                 alkupvm=ilmoitus.alkupvm,
@@ -622,9 +627,10 @@ class DbProvider:
                         )
                         if kohteet:
                             for kohde in kohteet:
-                                existing_kohde = session.query(KompostorinKohteet).filter(
-                                    KompostorinKohteet.kompostori_id == komposti.id,
-                                    KompostorinKohteet.kohde_id == kohde.id
+                                existing_kohde = session.query(
+                                    KompostorinKohteet).filter(
+                                        KompostorinKohteet.kompostori_id == komposti.id,
+                                        KompostorinKohteet.kohde_id == kohde.id
                                 ).first()
                                 if existing_kohde:
                                     print("Kohde jo Kompostorin kohteissa...")
@@ -636,18 +642,29 @@ class DbProvider:
                                             kohde=kohde
                                         ),
                                     )
-                            if kohdentumattomat_prt:
-                                for prt in kohdentumattomat_prt:
-                                    # Check if the specific key-value pair exists in rawdata
-                                    if ilmoitus.rawdata.get(
+                        if kohdentumattomat_prt:
+                            # Append rawdata dicts for each kohdentumaton kompostoija.
+                            for prt in kohdentumattomat_prt:
+                                for rawdata in ilmoitus.rawdata:
+                                    if rawdata.get(
                                         "Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste"
                                     ) == prt:
-                                        kohdentumattomat.append(ilmoitus.rawdata)
+                                        kohdentumattomat.append(rawdata)
                     else:
-                        kohdentumattomat.append(ilmoitus.rawdata)
+                        # Append each rawdata dict.
+                        for rawdata in ilmoitus.rawdata:
+                            kohdentumattomat.append(rawdata)
                 session.commit()
         except Exception as e:
             logger.exception(e)
+
+        if kohdentumattomat:
+            print(
+                f"Tallennetaan kohdentumattomat ilmoitukset ({len(kohdentumattomat)}) tiedostoon"
+            )
+            export_kohdentumattomat_ilmoitukset(
+                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+            )
 
     def write_paatokset(
         self,

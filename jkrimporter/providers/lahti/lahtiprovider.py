@@ -424,7 +424,7 @@ class IlmoitusTranslator:
         grouped_data = {}
 
         for row in self._source.ilmoitukset:
-            if row.onko_hyvaksytty != "Hyväksytty":
+            if row.onko_hyvaksytty.lower() != "hyväksytty":
                 continue
             key = (
                 row.Vastausaika,

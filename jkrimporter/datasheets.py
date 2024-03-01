@@ -88,6 +88,7 @@ def get_ilmoitustiedosto_headers():
         "1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen katuosoite",
         "1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero",
         "1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne",
         "1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste",
         "Voimassaolopäivä",
     ]

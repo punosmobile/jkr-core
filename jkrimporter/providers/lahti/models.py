@@ -481,16 +481,21 @@ class Ilmoitus(BaseModel):
     rawdata: Optional[Dict[str, str]]
 
     @validator("Vastausaika", pre=True)
-    def parse_voimassaasti(value: Union[date, str]):
+    def parse_vastausaika(value: Union[date, str]):
         if type(value) is str and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
 
     @validator("voimassaasti", pre=True)
-    def reformat_date(cls, value: Union[date, str]):
+    def parse_voimassaasti(cls, value: Union[date, str]):
         if isinstance(value, str):
-            parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-            reformatted_date = parsed_date.strftime("%d.%m.%Y")
+            try:
+                # Some rows come with milliseconds included
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                # Most come without milliseconds.
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            reformatted_date = parsed_date.strftime("%Y-%m-%d")
             return reformatted_date
         return value
 

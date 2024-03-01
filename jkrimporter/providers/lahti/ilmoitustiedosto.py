@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from openpyxl.reader.excel import load_workbook
@@ -59,5 +60,9 @@ class Ilmoitustiedosto:
                     f"Ilmoitus-olion luonti epäonnistui datalla: {row}. Virhe: {e}"
                 )
                 failed_validations.append(data)
+
+        export_kohdentumattomat_ilmoitukset(
+            os.path.dirname(self._path), failed_validations
+        )
 
         return ilmoitus_list

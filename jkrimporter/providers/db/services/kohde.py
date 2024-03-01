@@ -113,14 +113,6 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
         ulkoinen_asiakastieto.ulkoinen_asiakastieto = asiakas.ulkoinen_asiakastieto
 
 
-# def find_kohde_by_prt(session: "Session", asiakas: "Asiakas") -> "Union[Kohde, None]":
-    # print(f"asiakas has prts {asiakas.rakennukset}")
-    # return _find_kohde_by_asiakastiedot(
-        # session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
-    # )
-
-
-# split this into two functions
 def find_kohde_by_prt(
     session: "Session",
     asiakas: "Union[Asiakas, JkrIlmoitukset]",
@@ -151,8 +143,8 @@ def find_kohteet_by_prt(
         query = (
             select(Kohde.id, Osapuoli.nimi)
             .join(Kohde.rakennus_collection)
-            .join(KohteenOsapuolet)
-            .join(Osapuoli)
+            .join(KohteenOsapuolet, isouter=True)
+            .join(Osapuoli, isouter=True)
             .join(Osoite, isouter=True)
             .where(
                 Kohde.voimassaolo.overlaps(
@@ -173,24 +165,31 @@ def find_kohteet_by_prt(
             not_found_prts.append(kompostoija.rakennus)
             continue
 
+        kompostoija_nimi = clean_asoy_name(kompostoija.nimi)
         if len(kohteet) > 1:
+            names_by_kohde_id = defaultdict(set)
             for kohde_id, db_osapuoli_name in kohteet:
-                db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                kompostoija_nimi = clean_asoy_name(kompostoija.nimi)
-                vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
-
-                if (
-                    match_name(kompostoija_nimi, db_osapuoli_name) or
-                    match_name(vastuuhenkilo_nimi, db_osapuoli_name)
-                ):
-                    kohde = session.get(Kohde, kohde_id)
-                    print(f"Matches kohde: {Kohde}, kohde_id: {kohde_id}")
-                    found_kohteet.append(kohde)
-        else:
-            print(f"Löytyi kohde: {kohteet}")
-            kohde_id, _ = kohteet[0]
+                names_by_kohde_id[kohde_id].add(db_osapuoli_name)
+            for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
+                for db_osapuoli_name in db_osapuoli_names:
+                    if db_osapuoli_name is not None:
+                        db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                        print(kompostoija_nimi)
+                        print(db_osapuoli_name)
+                        if (
+                            match_name(kompostoija_nimi, db_osapuoli_name)
+                        ):
+                            print(f"{db_osapuoli_name} match")
+                            kohde = session.get(Kohde, kohde_id)
+                            print("Adding kohde to list")
+                            found_kohteet.append(kohde)
+        elif len(kohteet) == 1:
+            kohde_id = kohteet[0][0]
             kohde = session.get(Kohde, kohde_id)
             found_kohteet.append(kohde)
+        else:
+            print("Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
+            not_found_prts.append(kompostoija.rakennus)
 
     return found_kohteet, not_found_prts
 
@@ -276,6 +275,7 @@ def _find_kohde_by_asiakastiedot(
     session: "Session", filter, asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Union[Kohde, None]":
     if isinstance(asiakas, JkrIlmoitukset):
+        print(f"loppupvm: {asiakas.loppupvm}")
         query = (
             select(Kohde.id, Osapuoli.nimi)
             .join(Kohde.rakennus_collection)
@@ -304,28 +304,31 @@ def _find_kohde_by_asiakastiedot(
         names_by_kohde_id = defaultdict(set)
         for kohde_id, db_osapuoli_name in kohteet:
             names_by_kohde_id[kohde_id].add(db_osapuoli_name)
-
-        kompostoija_nimet = [
-            clean_asoy_name(kompostoija.nimi)
-            for kompostoija in asiakas.kompostoijat
-        ]
-        vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
-
-        for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
-            for db_osapuoli_name in db_osapuoli_names:
-                db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                print(kompostoija_nimet)
-                print(db_osapuoli_name)
-                if any(
-                    match_name(kompostoija_nimi, db_osapuoli_name)
-                    for kompostoija_nimi in kompostoija_nimet
-                ) or match_name(vastuuhenkilo_nimi, db_osapuoli_name):
-                    print(f"{db_osapuoli_name} match")
-                    kohde = session.get(Kohde, kohde_id)
-                    print("returning kohde")
-                    return kohde
-
-        if len(names_by_kohde_id) == 1:
+        if len(names_by_kohde_id) > 1:
+            print(
+                "Found multiple kohteet with the same address. Checking owners/inhabitants..."
+            )
+            vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
+            kompostoija_nimet = [
+                clean_asoy_name(kompostoija.nimi)
+                for kompostoija in asiakas.kompostoijat
+            ]
+            for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
+                for db_osapuoli_name in db_osapuoli_names:
+                    if db_osapuoli_name is not None:
+                        db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                        print(vastuuhenkilo_nimi)
+                        print(db_osapuoli_name)
+                        if any(
+                            match_name(vastuuhenkilo_nimi, db_osapuoli_name) or
+                            match_name(kompostoija_nimi, db_osapuoli_name)
+                            for kompostoija_nimi in kompostoija_nimet
+                        ):
+                            print(f"{db_osapuoli_name} match")
+                            kohde = session.get(Kohde, kohde_id)
+                            print("returning kohde")
+                            return kohde
+        elif len(names_by_kohde_id) == 1:
             return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
 
         return None
