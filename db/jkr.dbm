@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="198,183" last-zoom="0.45" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,318" last-zoom="0.45" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -609,7 +609,7 @@ where
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Jätteenkuljetusalueet sisältävä taulu.
 Jätteenkuljetusalueiden ulkopuoliset kiinteistöt liittyvät aluejätekeräykseen.]]></comment>
-	<position x="3780" y="2200"/>
+	<position x="3780" y="2220"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
@@ -2000,29 +2000,32 @@ Käytetään valitsemaan ne rakennukset, joilla tulisi olla lietteen keräys sä
 		</idxelement>
 </index>
 
-<table name="taajama" layers="0" collapse-mode="2" max-obj-count="8" z-value="0">
+<table name="taajama" layers="0" collapse-mode="2" max-obj-count="9" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
 	<comment><![CDATA[Taajamien aluerajaus.
 Käytetään biojätteen keräysvelvoitteen selvittämiseen, eli rakennusten jotka sijaitsevat yli 10000 hengen taajamissa (keskustaajamat).]]></comment>
-	<position x="3780" y="1980"/>
+	<position x="3780" y="1940"/>
 	<column name="id" not-null="true">
 		<type name="serial" length="0"/>
 	</column>
-	<column name="tilastokeskus_id">
-		<type name="text" length="0"/>
+	<column name="taajama_id">
+		<type name="smallint" length="0"/>
 	</column>
 	<column name="nimi">
-		<type name="text" length="0"/>
-	</column>
-	<column name="nimi_sv">
 		<type name="text" length="0"/>
 	</column>
 	<column name="vaesto_lkm">
 		<type name="bigint" length="0"/>
 	</column>
-	<column name="paivitetty">
+	<column name="alkupvm" not-null="true">
 		<type name="date" length="0"/>
+	</column>
+	<column name="loppupvm">
+		<type name="date" length="0"/>
+	</column>
+	<column name="voimassaolo">
+		<type name="daterange" length="0"/>
 	</column>
 	<column name="geom" not-null="true">
 		<type name="geometry" length="0" spatial-type="MULTIPOLYGON" variation="0" srid="3067"/>
