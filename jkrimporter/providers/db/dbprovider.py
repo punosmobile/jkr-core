@@ -1,8 +1,8 @@
-from collections import defaultdict
 import csv
-from datetime import datetime, timedelta
 import logging
 import os
+from collections import defaultdict
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
@@ -10,21 +10,23 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
-from jkrimporter.model import Asiakas, JkrData, Paatos
+from jkrimporter.datasheets import get_siirtotiedosto_headers
+from jkrimporter.model import Asiakas, JkrData, JkrIlmoitukset, Paatos
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
+from jkrimporter.utils.ilmoitus import export_kohdentumattomat_ilmoitukset
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
-from jkrimporter.datasheets import get_siirtotiedosto_headers
 
 from . import codes
-from .codes import get_code_id
-from .codes import init_code_objects
+from .codes import get_code_id, init_code_objects
 from .database import engine
 from .models import (
     AKPPoistoSyy,
     Jatetyyppi,
     Kohde,
+    Kompostori,
+    KompostorinKohteet,
     Kuljetus,
     Paatostulos,
     Tapahtumalaji,
@@ -35,6 +37,7 @@ from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_building_candidates_for_kohde,
     find_buildings_for_kohde,
+    find_osoite_by_prt,
     find_single_building_id_by_prt,
 )
 from .services.kohde import (
@@ -44,6 +47,7 @@ from .services.kohde import (
     find_kohde_by_address,
     find_kohde_by_kiinteisto,
     find_kohde_by_prt,
+    find_kohteet_by_prt,
     get_or_create_multiple_and_uninhabited_kohteet,
     get_or_create_paritalo_kohteet,
     get_or_create_single_asunto_kohteet,
@@ -51,7 +55,10 @@ from .services.kohde import (
     update_kohde,
     update_ulkoinen_asiakastieto,
 )
-from .services.osapuoli import create_or_update_haltija_osapuoli
+from .services.osapuoli import (
+    create_or_update_haltija_osapuoli,
+    create_or_update_komposti_yhteyshenkilo,
+)
 from .services.sopimus import update_sopimukset_for_kohde
 
 logger = logging.getLogger(__name__)
@@ -542,6 +549,107 @@ class DbProvider:
             logger.exception(e)
         finally:
             logger.debug(building_counts)
+
+    def write_ilmoitukset(
+            self,
+            ilmoitus_list: List[JkrIlmoitukset],
+            ilmoitustiedosto: Path,
+    ):  
+        """
+        This method creates Kompostori and KompostorinKohteet from ilmoitus data.
+        The method also stores kohdentumattomat rows.
+        """
+        kohdentumattomat = []
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print("Importoidaan ilmoitukset")
+                kohteet = []
+                for ilmoitus in ilmoitus_list:
+                    kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
+                    if kompostorin_kohde:
+                        print(f"Kompostorin kohde: {kompostorin_kohde}")
+                        osapuoli = create_or_update_komposti_yhteyshenkilo(
+                            session, kompostorin_kohde, ilmoitus
+                        )
+                        osoite_id = find_osoite_by_prt(session, ilmoitus)
+                        if not osoite_id:
+                            print(
+                                "Ei löytynyt osoite_id:tä rakennus: "
+                                + f"{ilmoitus.sijainti_prt}"
+                            )
+                            kohdentumattomat.append(ilmoitus.rawdata)
+                            continue
+                        # There should never be identical Kompostori
+                        existing_kompostori = session.query(Kompostori).filter(
+                            Kompostori.alkupvm == ilmoitus.alkupvm,
+                            Kompostori.loppupvm == ilmoitus.loppupvm,
+                            Kompostori.osoite_id == osoite_id,
+                            Kompostori.onko_kimppa == ilmoitus.onko_kimppa,
+                            Kompostori.osapuoli_id == osapuoli.id
+                        ).first()
+                        if existing_kompostori:
+                            print("Vastaava kompostori löydetty, ohitetaan luonti...")
+                            komposti = existing_kompostori
+                        # Based on the comments on 23.2.2024, do not set ending dates
+                        # for Kompostori if new ilmoitus with the same vastuuhenkilo and
+                        # sijainti is added, even if the dates are different. Only set
+                        # end dates when lopetus ilmoitus is added.
+                        else:
+                            print("Lisätään uusi kompostori...")
+                            komposti = Kompostori(
+                                alkupvm=ilmoitus.alkupvm,
+                                loppupvm=ilmoitus.loppupvm,
+                                osoite_id=osoite_id,
+                                onko_kimppa=ilmoitus.onko_kimppa,
+                                osapuoli=osapuoli,
+                            )
+                            session.add(komposti)
+                        # Look for kohde for each kompostoija.
+                        kohteet, kohdentumattomat_prt = find_kohteet_by_prt(
+                            session,
+                            ilmoitus
+                        )
+                        if kohteet:
+                            for kohde in kohteet:
+                                existing_kohde = session.query(
+                                    KompostorinKohteet).filter(
+                                        KompostorinKohteet.kompostori_id == komposti.id,
+                                        KompostorinKohteet.kohde_id == kohde.id
+                                ).first()
+                                if existing_kohde:
+                                    print("Kohde on jo kompostorin kohteissa...")
+                                else:
+                                    print("Lisätään kohde kompostorin kohteisiin...")
+                                    session.add(
+                                        KompostorinKohteet(
+                                            kompostori=komposti,
+                                            kohde=kohde
+                                        ),
+                                    )
+                        if kohdentumattomat_prt:
+                            # Append rawdata dicts for each kohdentumaton kompostoija.
+                            for prt in kohdentumattomat_prt:
+                                for rawdata in ilmoitus.rawdata:
+                                    if rawdata.get(
+                                        "Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste"
+                                    ) == prt:
+                                        kohdentumattomat.append(rawdata)
+                    else:
+                        # Append each rawdata dict.
+                        for rawdata in ilmoitus.rawdata:
+                            kohdentumattomat.append(rawdata)
+                session.commit()
+        except Exception as e:
+            logger.exception(e)
+
+        if kohdentumattomat:
+            print(
+                f"Tallennetaan kohdentumattomat ilmoitukset ({len(kohdentumattomat)}) tiedostoon"
+            )
+            export_kohdentumattomat_ilmoitukset(
+                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+            )
 
     def write_paatokset(
         self,

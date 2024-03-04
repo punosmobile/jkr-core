@@ -272,3 +272,25 @@ class Paatos:
     akppoistosyy: Optional[AKPPoistoSyy] = None
     jatetyyppi: Optional[Jatelaji] = None
     rawdata: Optional[Dict[str, str]] = None
+
+
+@dataclass
+class IlmoituksenHenkilo:
+    nimi: str
+    osoite: str
+    postinumero: str
+    postitoimipaikka: str
+    rakennus: Optional[List[str]]  # kompostoijan prt
+
+
+@dataclass
+class JkrIlmoitukset:
+    alkupvm: date
+    loppupvm: date
+    voimassa: Interval
+    vastuuhenkilo: IlmoituksenHenkilo
+    kompostoijat: List[IlmoituksenHenkilo]
+    onko_kimppa: str
+    tiedontuottaja: str
+    sijainti_prt: List[str]
+    rawdata: Optional[List[Dict[str, str]]] = None

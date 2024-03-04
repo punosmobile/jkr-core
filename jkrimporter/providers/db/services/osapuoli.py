@@ -1,8 +1,8 @@
-from jkrimporter.model import Asiakas, Jatelaji, SopimusTyyppi
+from jkrimporter.model import Asiakas, Jatelaji, JkrIlmoitukset, SopimusTyyppi
 
 from .. import codes
 from ..codes import OsapuolenlajiTyyppi, OsapuolenrooliTyyppi
-from ..models import KohteenOsapuolet, Osapuoli
+from ..models import Kohde, KohteenOsapuolet, Osapuoli
 from ..utils import is_asoy
 
 
@@ -118,3 +118,48 @@ def create_or_update_haltija_osapuoli(
 
     # Commit changes to the database
     session.commit()
+
+
+def create_or_update_komposti_yhteyshenkilo(
+    session, kohde: Kohde, ilmoitus: "JkrIlmoitukset",
+):
+    """
+    Luo kohteelle kompostin yhteyshenkilo
+    """
+
+    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KOMPOSTI_YHTEYSHENKILO]
+    # Look for existing osapuoli.
+    existing_osapuoli_entries = session.query(Osapuoli).join(KohteenOsapuolet).filter(
+        Osapuoli.tiedontuottaja_tunnus == "ilmoitus",
+        Osapuoli.nimi == ilmoitus.vastuuhenkilo.nimi,
+        Osapuoli.katuosoite == str(ilmoitus.vastuuhenkilo.osoite),
+        KohteenOsapuolet.osapuolenrooli == asiakasrooli
+    ).first()
+
+    if existing_osapuoli_entries:
+        return existing_osapuoli_entries
+
+    # Create new osapuoli entry
+    print("Creating new osapuoli...")
+    kompostin_yhteyshenkilo = Osapuoli(
+        nimi=ilmoitus.vastuuhenkilo.nimi,
+        katuosoite=str(ilmoitus.vastuuhenkilo.osoite),
+        postinumero=ilmoitus.vastuuhenkilo.postinumero,
+        postitoimipaikka=ilmoitus.vastuuhenkilo.postitoimipaikka,
+        tiedontuottaja_tunnus=ilmoitus.tiedontuottaja,
+    )
+
+    if is_asoy(ilmoitus.vastuuhenkilo.nimi):
+        kompostin_yhteyshenkilo.osapuolenlaji = (
+            codes.osapuolenlajit[OsapuolenlajiTyyppi.ASOY]
+        )
+
+    kohteen_osapuoli = KohteenOsapuolet(
+        kohde=kohde, osapuoli=kompostin_yhteyshenkilo, osapuolenrooli=asiakasrooli
+    )
+    session.add(kompostin_yhteyshenkilo, kohteen_osapuoli)
+
+    # Commit changes to the database
+    session.commit()
+
+    return kompostin_yhteyshenkilo

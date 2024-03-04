@@ -72,6 +72,28 @@ def get_paatostiedosto_headers():
     ]
 
 
+def get_ilmoitustiedosto_headers():
+    return [
+        "Vastausaika",
+        "Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi",
+        "Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi",
+        "Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite",
+        "Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero",
+        "Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka",
+        "Rakennuksen tiedot, jossa kompostori sijaitsee:Rakennuksen katuosoite",
+        "Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste",
+        "Kompostoria käyttävien rakennusten lukumäärä",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen katuosoite",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne",
+        "1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste",
+        "Voimassaolopäivä",
+    ]
+
+
 class CsvSheet:
     def __init__(self, file_path):
         self._file_path = file_path

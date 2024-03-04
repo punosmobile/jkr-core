@@ -1,17 +1,18 @@
 import datetime
 import logging
 from datetime import date
-from typing import TYPE_CHECKING, Union, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from addrparser import AddressParser
 
+from jkrimporter.model import AKPPoistoSyy
 from jkrimporter.model import Asiakas as JkrAsiakas
+from jkrimporter.model import IlmoituksenHenkilo
 from jkrimporter.model import Jatelaji as JkrJatelaji
 from jkrimporter.model import Keskeytys as JkrKeskeytys
-from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
 from jkrimporter.model import (
-    AKPPoistoSyy,
     JkrData,
+    JkrIlmoitukset,
     Keraysvaline,
     KeraysvalineTyyppi,
     KimppaSopimus,
@@ -23,12 +24,16 @@ from jkrimporter.model import (
     Tunnus,
     TyhjennysSopimus,
     Tyhjennystapahtuma,
-    Yhteystieto,
 )
+from jkrimporter.model import Tyhjennysvali as JkrTyhjennysvali
+from jkrimporter.model import Yhteystieto
+
+# from jkrimporter.providers.db.models import Ilmoitus as JkrIlmoitus
 from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
+from .ilmoitustiedosto import Ilmoitustiedosto
 from .paatostiedosto import Paatostiedosto
 from .siirtotiedosto import LahtiSiirtotiedosto
 
@@ -407,4 +412,77 @@ class PaatosTranslator:
                 )
             )
 
+        return data
+
+
+class IlmoitusTranslator:
+
+    def __init__(self, ilmoitustiedosto: Ilmoitustiedosto):
+        self._source = ilmoitustiedosto
+
+    def as_jkr_data(self):
+        grouped_data = {}
+
+        for row in self._source.ilmoitukset:
+            if row.onko_hyvaksytty.lower() != "hyväksytty":
+                continue
+            key = (
+                row.Vastausaika,
+                row.vastuuhenkilo_sukunimi,
+                row.vastuuhenkilo_etunimi,
+                row.vastuuhenkilo_postinumero,
+                row.vastuuhenkilo_postitoimipaikka,
+                row.vastuuhenkilo_osoite,
+                row.onko_kimppa,
+                tuple(row.sijainti_prt)
+            )
+            if key not in grouped_data:
+                grouped_data[key] = {
+                    'alkupvm': row.Vastausaika,
+                    'loppupvm': row.voimassaasti,
+                    'voimassa': Interval(row.Vastausaika, row.voimassaasti),
+                    'vastuuhenkilo': IlmoituksenHenkilo(
+                        nimi=(
+                            row.vastuuhenkilo_sukunimi +
+                            " " + row.vastuuhenkilo_etunimi
+                        ),
+                        postinumero=row.vastuuhenkilo_postinumero,
+                        postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
+                        osoite=row.vastuuhenkilo_osoite,
+                        rakennus=None,
+                    ),
+                    'kompostoijat': [IlmoituksenHenkilo(
+                        nimi=(
+                            row.kayttaja_sukunimi +
+                            " " + row.kayttaja_etunimi
+                        ),
+                        postinumero=row.kayttaja_postinumero,
+                        postitoimipaikka=row.kayttaja_postitoimipaikka,
+                        osoite=row.kayttaja_osoite,
+                        rakennus=row.prt,
+                    )],
+                    'onko_kimppa': (
+                        "Kompostori on useamman kiinteistön yhteinen kompostori (voit ilmoittaa enintään 5 rakennusta)"
+                        in row.onko_kimppa
+                    ),
+                    'sijainti_prt': row.sijainti_prt,
+                    'tiedontuottaja': "ilmoitus",
+                    'rawdata': [row.rawdata]
+                }
+            else:
+                grouped_data[key]['kompostoijat'].append(IlmoituksenHenkilo(
+                    nimi=(
+                        row.kayttaja_sukunimi +
+                        " " + row.kayttaja_etunimi
+                    ),
+                    postinumero=row.kayttaja_postinumero,
+                    postitoimipaikka=row.kayttaja_postitoimipaikka,
+                    osoite=row.kayttaja_osoite,
+                    rakennus=row.prt
+                ))
+                grouped_data[key]['rawdata'].append(row.rawdata)
+
+        # Convert grouped data to list
+        data = [JkrIlmoitukset(**values) for values in grouped_data.values()]
+        print(data)
         return data

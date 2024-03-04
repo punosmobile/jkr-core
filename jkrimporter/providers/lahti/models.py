@@ -4,7 +4,7 @@ from datetime import date
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, root_validator, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
 from jkrimporter.model import Paatostulos, Tapahtumalaji
 
@@ -431,3 +431,75 @@ class Paatos(BaseModel):
                     "Voimassaalkaen-päivämäärän on oltava ennen voimassaasti-päivämäärää."
                 )
         return values
+
+
+class Ilmoitus(BaseModel):
+    Vastausaika: datetime.date
+    vastuuhenkilo_etunimi: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi"
+    )
+    vastuuhenkilo_sukunimi: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi"
+    )
+    vastuuhenkilo_postinumero: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero"
+    )  # Note, etunollat pitäisi lisätä. Pitäisi olla 5 numeroinen numerosarja.
+    vastuuhenkilo_postitoimipaikka: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka"
+    )
+    vastuuhenkilo_osoite: str = Field(
+        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite"
+    )
+    onko_kimppa: str = Field(alias="Kompostoria käyttävien rakennusten lukumäärä")
+    prt: List[str] = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste"
+    )
+    onko_hyvaksytty: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne"
+    )
+    voimassaasti: Union[datetime.date, str] = Field(alias="Voimassaolopäivä")
+    sijainti_prt: List[str] = Field(
+        alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste"
+    )
+    kayttaja_etunimi: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi"
+    )
+    kayttaja_sukunimi: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi"
+    )
+    kayttaja_postinumero: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero"
+    )
+    kayttaja_postitoimipaikka: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka"
+    )
+    kayttaja_osoite: str = Field(
+        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen katuosoite"
+    )
+    # Store the original row.
+    rawdata: Optional[Dict[str, str]]
+
+    @validator("Vastausaika", pre=True)
+    def parse_vastausaika(value: Union[date, str]):
+        if type(value) is str and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        return value
+
+    @validator("voimassaasti", pre=True)
+    def parse_voimassaasti(cls, value: Union[date, str]):
+        if isinstance(value, str):
+            try:
+                # Some rows come with milliseconds included
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                # Most come without milliseconds.
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            reformatted_date = parsed_date.strftime("%Y-%m-%d")
+            return reformatted_date
+        return value
+
+    @validator('sijainti_prt', 'prt', pre=True)
+    def parse_prts(value: str):
+        if isinstance(value, str):
+            return value.split(',')
+        return value

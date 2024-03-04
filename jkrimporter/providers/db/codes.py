@@ -79,6 +79,7 @@ class OsapuolenrooliTyyppi(Enum):
     KARTONKI_KIMPPAOSAKAS = "Kimppaosakas kartonkipakkaus"
     LASI_KIMPPAOSAKAS = "Kimppaosakas lasipakkaus"
     METALLI_KIMPPAOSAKAS = "Kimppaosakas metalli"
+    KOMPOSTI_YHTEYSHENKILO = "Yhteyshenkilö kompostointi"
 
 
 class RakennuksenKayttotarkoitusTyyppi(Enum):
