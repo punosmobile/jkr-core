@@ -21,7 +21,7 @@ from jkrimporter.utils.progress import Progress
 from . import codes
 from .codes import get_code_id, init_code_objects
 from .database import engine
-from .models import (  # Osapuoli,; Osoite,; Katu,
+from .models import (
     AKPPoistoSyy,
     Jatetyyppi,
     Kohde,
@@ -556,7 +556,7 @@ class DbProvider:
             ilmoitustiedosto: Path,
     ):  
         """
-        This methods creates Kompostori and KompostorinKohteet from ilmoitus data.
+        This method creates Kompostori and KompostorinKohteet from ilmoitus data.
         The method also stores kohdentumattomat rows.
         """
         kohdentumattomat = []
@@ -575,7 +575,7 @@ class DbProvider:
                         osoite_id = find_osoite_by_prt(session, ilmoitus)
                         if not osoite_id:
                             print(
-                                "Ei löytyny osoite_id:tä rakennus: "
+                                "Ei löytynyt osoite_id:tä rakennus: "
                                 + f"{ilmoitus.sijainti_prt}"
                             )
                             kohdentumattomat.append(ilmoitus.rawdata)
@@ -589,29 +589,14 @@ class DbProvider:
                             Kompostori.osapuoli_id == osapuoli.id
                         ).first()
                         if existing_kompostori:
-                            print("Vastaava Kompostori löydetty ohitetaan luonti...")
+                            print("Vastaava kompostori löydetty, ohitetaan luonti...")
                             komposti = existing_kompostori
                         # Based on the comments on 23.2.2024, do not set ending dates
                         # for Kompostori if new ilmoitus with the same vastuuhenkilo and
                         # sijainti is added, even if the dates are different. Only set
                         # end dates when lopetus ilmoitus is added.
-
                         else:
-                            # print("Etsitään osoitteen Kompostorit...")
-                            # Look for all Kompostorit at osoite with same vastuuhenkilo
-                            # kompostori_to_end = session.query(Kompostori).filter(
-                            #   Kompostori.osoite_id == osoite_id,
-                            #   Kompostori.osapuoli_id == osapuoli.id
-                            # ).all()
-                            # If found, set ending date before adding new Kompostori.
-                            # if kompostori_to_end:
-                            #   print("Asetetaan osoitteen muille Kompostoreille loppupäivämäärä.")
-                            #   for kompostori in kompostori_to_end:
-                            #       kompostori.loppupvm = (
-                            #           ilmoitus.alkupvm - timedelta(days=1)
-                            #       )
-                            #   session.commit()
-                            print("Lisätään uusi Kompostori...")
+                            print("Lisätään uusi kompostori...")
                             komposti = Kompostori(
                                 alkupvm=ilmoitus.alkupvm,
                                 loppupvm=ilmoitus.loppupvm,
@@ -633,9 +618,9 @@ class DbProvider:
                                         KompostorinKohteet.kohde_id == kohde.id
                                 ).first()
                                 if existing_kohde:
-                                    print("Kohde jo Kompostorin kohteissa...")
+                                    print("Kohde on jo kompostorin kohteissa...")
                                 else:
-                                    print("Lisätään Kohde Kompostorin kohteisiin...")
+                                    print("Lisätään kohde kompostorin kohteisiin...")
                                     session.add(
                                         KompostorinKohteet(
                                             kompostori=komposti,

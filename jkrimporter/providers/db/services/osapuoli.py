@@ -128,7 +128,7 @@ def create_or_update_komposti_yhteyshenkilo(
     """
 
     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KOMPOSTI_YHTEYSHENKILO]
-    # Look for exsisting osapuoli.
+    # Look for existing osapuoli.
     existing_osapuoli_entries = session.query(Osapuoli).join(KohteenOsapuolet).filter(
         Osapuoli.tiedontuottaja_tunnus == "ilmoitus",
         Osapuoli.nimi == ilmoitus.vastuuhenkilo.nimi,

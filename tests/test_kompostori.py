@@ -1,10 +1,11 @@
 import pytest
 import os
+from openpyxl.reader.excel import load_workbook
+
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
-from openpyxl.reader.excel import load_workbook
 from jkrimporter.cli.jkr import import_ilmoitukset
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import Kompostori, KompostorinKohteet
@@ -34,7 +35,7 @@ def test_kompostori(engine, datadir):
     # Yksi rivi ei kohdennu, yksi on hylätty, ja yksi on kahden kimppa.
     assert session.query(func.count(Kompostori.id)).scalar() == 2
 
-    # KompostorinKohteet taulussa kolme kohdentunutta kohdetta.
+    # KompostorinKohteet-taulussa kolme kohdentunutta kohdetta.
     # Kahden kimppa sekä yksittäinen.
     assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 3
 
@@ -48,10 +49,10 @@ def test_kompostori(engine, datadir):
 def test_kompostori_osakkaan_lisays(engine, datadir):
     import_ilmoitukset(datadir + "/ilmoitukset_lisaa_komposti_osakas.xlsx")
     session = Session(engine)
-    # Tuodaan kaksi rivi lisää, toinen liitetään jo löytyvään kompostoriin osakkaaksi
+    # Tuodaan kaksi riviä lisää, toinen liitetään jo löytyvään kompostoriin osakkaaksi,
     # toinen luo uuden kompostorin uudella päivämäärällä.
     assert session.query(func.count(Kompostori.id)).scalar() == 3
 
-    # KompostorinKohteet taulussa viisi kohdentunutta kohdetta.
+    # KompostorinKohteet-taulussa viisi kohdentunutta kohdetta.
     # Kolmen kimppa sekä kaksi yksittäistä, joilla sama kohde_id.
     assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 5

@@ -288,7 +288,6 @@ class JkrIlmoitukset:
     alkupvm: date
     loppupvm: date
     voimassa: Interval
-    # sijainti: str
     vastuuhenkilo: IlmoituksenHenkilo
     kompostoijat: List[IlmoituksenHenkilo]
     onko_kimppa: str

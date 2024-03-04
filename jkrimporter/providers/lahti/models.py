@@ -450,7 +450,6 @@ class Ilmoitus(BaseModel):
     vastuuhenkilo_osoite: str = Field(
         alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite"
     )
-    # sijainti: str = Field(alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Rakennuksen katuosoite")
     onko_kimppa: str = Field(alias="Kompostoria käyttävien rakennusten lukumäärä")
     prt: List[str] = Field(
         alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste"

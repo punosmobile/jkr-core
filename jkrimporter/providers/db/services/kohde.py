@@ -114,9 +114,7 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
 
 
 def find_kohde_by_prt(
-    session: "Session",
-    asiakas: "Union[Asiakas, JkrIlmoitukset]",
-    # use_kompostorin_sijainti: "Optional[bool]" = False,
+    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Union[Kohde, None]":
     if isinstance(asiakas, JkrIlmoitukset):
         return _find_kohde_by_asiakastiedot(
