@@ -26,17 +26,6 @@ WHERE
                 AND pt.selite = 'myönteinen'
             )
         )
-    )
-    AND NOT EXISTS (
-        SELECT 1
-        FROM jkr.kuljetus ku
-        WHERE ku.kohde_id = k.id
-        AND EXISTS (
-            SELECT 1
-            FROM jkr_koodistot.jatetyyppi jt
-            WHERE ku.jatetyyppi_id = jt.id
-            AND jt.selite = 'Sekajäte'
-        )
     );
 $$
 LANGUAGE SQL STABLE;
