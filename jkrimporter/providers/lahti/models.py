@@ -435,11 +435,11 @@ class Paatos(BaseModel):
 
 class Ilmoitus(BaseModel):
     Vastausaika: datetime.date
-    vastuuhenkilo_etunimi: str = Field(
-        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi"
+    vastuuhenkilo_etunimi: Optional[str] = Field(
+        None, alias="Kompostoinnin vastuuhenkilön yhteystiedot:Etunimi"
     )
-    vastuuhenkilo_sukunimi: str = Field(
-        alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi"
+    vastuuhenkilo_sukunimi: Optional[str] = Field(
+        None, alias="Kompostoinnin vastuuhenkilön yhteystiedot:Sukunimi"
     )
     vastuuhenkilo_postinumero: str = Field(
         alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postinumero"
@@ -461,11 +461,11 @@ class Ilmoitus(BaseModel):
     sijainti_prt: List[str] = Field(
         alias="Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste"
     )
-    kayttaja_etunimi: str = Field(
-        alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi"
+    kayttaja_etunimi: Optional[str] = Field(
+        None, alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi"
     )
-    kayttaja_sukunimi: str = Field(
-        alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi"
+    kayttaja_sukunimi: Optional[str] = Field(
+        None, alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi"
     )
     kayttaja_postinumero: str = Field(
         alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero"
@@ -485,8 +485,14 @@ class Ilmoitus(BaseModel):
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
 
+    @validator("vastuuhenkilo_postinumero")
+    def add_zeros(value: str):
+        if len(value) < 5:
+            return "0" * (5 - len(value)) + value
+        return value
+
     @validator("voimassaasti", pre=True)
-    def parse_voimassaasti(cls, value: Union[date, str]):
+    def parse_voimassaasti(value: Union[date, str]):
         if isinstance(value, str):
             try:
                 # Some rows come with milliseconds included
@@ -503,3 +509,14 @@ class Ilmoitus(BaseModel):
         if isinstance(value, str):
             return value.split(',')
         return value
+
+    @root_validator
+    def validate_dates(cls, values):
+        voimassaalkaen = values.get("Vastausaika")
+        voimassaasti = values.get("voimassaasti")
+        if voimassaalkaen is not None and voimassaasti is not None:
+            if voimassaalkaen >= voimassaasti:
+                raise ValueError(
+                    "Voimassaalkaen-päivämäärän on oltava ennen voimassaasti-päivämäärää."
+                )
+        return values
