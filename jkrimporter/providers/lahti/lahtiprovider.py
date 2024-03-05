@@ -420,12 +420,27 @@ class IlmoitusTranslator:
     def __init__(self, ilmoitustiedosto: Ilmoitustiedosto):
         self._source = ilmoitustiedosto
 
+    @staticmethod
+    def _get_name(sukunimi: Optional[str], etunimi: Optional[str]) -> Optional[str]:
+        if sukunimi is not None and etunimi is not None:
+            if sukunimi != etunimi:
+                return sukunimi + " " + etunimi
+            else:
+                return sukunimi
+        elif sukunimi is not None:
+            return sukunimi
+        elif etunimi is not None:
+            return etunimi
+        else:
+            return None
+
     def as_jkr_data(self):
         grouped_data = {}
 
         for row in self._source.ilmoitukset:
             if row.onko_hyvaksytty.lower() != "hyväksytty":
                 continue
+
             key = (
                 row.Vastausaika,
                 row.vastuuhenkilo_sukunimi,
@@ -442,9 +457,9 @@ class IlmoitusTranslator:
                     'loppupvm': row.voimassaasti,
                     'voimassa': Interval(row.Vastausaika, row.voimassaasti),
                     'vastuuhenkilo': IlmoituksenHenkilo(
-                        nimi=(
-                            row.vastuuhenkilo_sukunimi +
-                            " " + row.vastuuhenkilo_etunimi
+                        nimi=self._get_name(
+                            row.vastuuhenkilo_sukunimi,
+                            row.vastuuhenkilo_etunimi
                         ),
                         postinumero=row.vastuuhenkilo_postinumero,
                         postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
@@ -452,9 +467,9 @@ class IlmoitusTranslator:
                         rakennus=None,
                     ),
                     'kompostoijat': [IlmoituksenHenkilo(
-                        nimi=(
-                            row.kayttaja_sukunimi +
-                            " " + row.kayttaja_etunimi
+                        nimi=self._get_name(
+                            row.kayttaja_sukunimi,
+                            row.kayttaja_etunimi
                         ),
                         postinumero=row.kayttaja_postinumero,
                         postitoimipaikka=row.kayttaja_postitoimipaikka,
@@ -471,9 +486,9 @@ class IlmoitusTranslator:
                 }
             else:
                 grouped_data[key]['kompostoijat'].append(IlmoituksenHenkilo(
-                    nimi=(
-                        row.kayttaja_sukunimi +
-                        " " + row.kayttaja_etunimi
+                    nimi=self._get_name(
+                        row.kayttaja_sukunimi,
+                        row.kayttaja_etunimi
                     ),
                     postinumero=row.kayttaja_postinumero,
                     postitoimipaikka=row.kayttaja_postitoimipaikka,

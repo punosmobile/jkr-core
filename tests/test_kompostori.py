@@ -43,7 +43,7 @@ def test_kompostori(engine, datadir):
     xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
     workbook = load_workbook(xlsx_file_path)
     sheet = workbook[workbook.sheetnames[0]]
-    assert sheet.max_row == 5
+    assert sheet.max_row == 6
 
 
 def test_kompostori_osakkaan_lisays(engine, datadir):
