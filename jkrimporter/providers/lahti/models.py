@@ -537,6 +537,6 @@ class Ilmoitus(BaseModel):
         if voimassaalkaen is not None and voimassaasti is not None:
             if voimassaalkaen >= voimassaasti:
                 raise ValueError(
-                    "Voimassaalkaen-päivämäärän on oltava ennen voimassaasti-päivämäärää."
+                    "Vastausaika-päivämäärän on oltava ennen voimassaolopäivä-päivämäärää."
                 )
         return values
