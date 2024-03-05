@@ -511,6 +511,26 @@ class Ilmoitus(BaseModel):
         return value
 
     @root_validator
+    def check_vastuuhenkilo_names(cls, values):
+        etunimi = values.get('vastuuhenkilo_etunimi')
+        sukunimi = values.get('vastuuhenkilo_sukunimi')
+        if etunimi is None and sukunimi is None:
+            raise ValueError(
+                "Suku- ja etunimi eivät saa olla tyhjiä."
+            )
+        return values
+
+    @root_validator
+    def check_kayttaja_names(cls, values):
+        etunimi = values.get('kayttaja_etunimi')
+        sukunimi = values.get('kayttaja_sukunimi')
+        if etunimi is None and sukunimi is None:
+            raise ValueError(
+                "Suku- ja etunimi eivät saa olla tyhjiä."
+            )
+        return values
+
+    @root_validator
     def validate_dates(cls, values):
         voimassaalkaen = values.get("Vastausaika")
         voimassaasti = values.get("voimassaasti")
