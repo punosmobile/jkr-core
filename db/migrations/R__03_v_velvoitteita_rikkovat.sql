@@ -1,4 +1,4 @@
-CREATE OR REPLACE VIEW jkr.v_velvoitteita_rikkovat AS
+CREATE OR REPLACE VIEW jkr.v_velvoitteiden_kohteet AS
   SELECT
     k.id AS kohde_id,
     k.geom,
@@ -36,4 +36,4 @@ CREATE OR REPLACE VIEW jkr.v_velvoitteita_rikkovat AS
       ON k.id = yht.kohde_id
   WHERE
     k.voimassaolo @> CURRENT_DATE
-    AND NOT vs.ok;
+    AND vs.ok;
