@@ -7,4 +7,13 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Velvoiteyhteenveto ei tarvitse jätteenkuljetusta'
-    );
+    ),
+    (
+        'Velvoiteyhteenveto',
+        'kohde',
+        'kohteet_joilla_keskeyttava_paatos_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto ei tarvitse jätteenkuljetusta'
+    )
+ON CONFLICT DO NOTHING;
