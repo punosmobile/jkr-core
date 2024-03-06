@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,177" last-zoom="0.45" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,178" last-zoom="0.45" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -2704,8 +2704,10 @@ select tallenna_velvoite_status('2020-3-1');
 	<role name="jkr_admin"/>
 	<position x="3540" y="2440"/>
 	<reference>
-		<expression><![CDATA[ SELECT k.id AS kohde_id,
+		<expression><![CDATA[  SELECT
+    k.id AS kohde_id,
     k.geom,
+    vm.id AS velvoitemalli_id,
     vm.selite,
     vs.pvm,
     vs.ok,
@@ -2716,17 +2718,31 @@ select tallenna_velvoite_status('2020-3-1');
     yht.postitoimipaikka,
     yht.postinumero,
     yht.erikoisosoite
-   FROM ((((jkr.kohde k
-     JOIN jkr.velvoite v ON ((k.id = v.kohde_id)))
-     JOIN ( SELECT velvoite_status.id,
-            velvoite_status.pvm,
-            velvoite_status.ok,
-            velvoite_status.velvoite_id,
-            row_number() OVER (PARTITION BY velvoite_status.velvoite_id ORDER BY velvoite_status.pvm DESC) AS row_number
-           FROM jkr.velvoite_status
-          WHERE (NOT velvoite_status.ok)) vs ON (((v.id = vs.velvoite_id) AND (vs.row_number = 1))))
-     JOIN jkr.velvoitemalli vm ON ((vm.id = v.velvoitemalli_id)))
-     LEFT JOIN jkr.v_kohteen_yhteystiedot yht ON ((k.id = yht.kohde_id)));]]></expression>
+  FROM
+    jkr.kohde k
+    JOIN jkr.velvoite v
+      ON k.id = v.kohde_id
+    JOIN (
+      SELECT
+        velvoite_status.id,
+        velvoite_status.pvm,
+        velvoite_status.ok,
+        velvoite_status.velvoite_id,
+        velvoite_status.tallennuspvm,
+        row_number() OVER (
+          PARTITION BY velvoite_status.velvoite_id
+          ORDER BY velvoite_status.pvm DESC
+        ) AS row_number
+      FROM jkr.velvoite_status
+    ) vs
+      ON v.id = vs.velvoite_id AND vs.row_number = 1
+    JOIN jkr.velvoitemalli vm
+      ON vm.id = v.velvoitemalli_id
+    LEFT JOIN jkr.v_kohteen_yhteystiedot yht
+      ON k.id = yht.kohde_id
+  WHERE
+    k.voimassaolo @> CURRENT_DATE
+    AND vs.ok;]]></expression>
 	<column name="kohde_id">
 		<type name="integer" length="0"/>
 	</column>
@@ -3201,14 +3217,6 @@ where
       and vp.paatospvm <= $1 and $1 <= vp.paatosvoimassapvm
   )]]></definition>
 </function>
-
-<index name="uidx_velvoitemalli_selite" table="jkr.velvoitemalli"
-	 concurrent="false" unique="true" fast-update="false" buffering="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="selite"/>
-		</idxelement>
-</index>
 
 <relationship name="tiedontuottaja_has_many_sopimus" type="rel1n" layers="0"
 	 src-col-pattern="{st}_{sc}"
@@ -3943,6 +3951,20 @@ JOIN jkr.kohteen_rakennukset kr ON k.id = kr.kohde_id
 JOIN jkr.viranomaispaatokset vp ON kr.rakennus_id = vp.rakennus_id;]]></expression>
 	</reference>
 </view>
+
+<index name="uidx_velvoitemalli_saanto_tayttymissaanto_jatetyyppi_id" table="jkr.velvoitemalli"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="saanto"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="tayttymissaanto"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="jatetyyppi_id"/>
+		</idxelement>
+</index>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
