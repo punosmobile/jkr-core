@@ -2,6 +2,7 @@ CREATE OR REPLACE VIEW jkr.v_velvoitteiden_kohteet AS
   SELECT
     k.id AS kohde_id,
     k.geom,
+    vm.id AS velvoitemalli_id,
     vm.selite,
     vs.pvm,
     vs.ok,
