@@ -363,7 +363,7 @@ def _verify_rakennukset(
 def find_osoite_by_prt(
     session: "Session", asiakas: Union["JkrIlmoitukset", "LopetusIlmoitus"]
 ):
-    if isinstance(asiakas, "JkrIlmoitukset"):
+    if asiakas.sijainti_prt:
         prts = asiakas.sijainti_prt
     else:
         prts = asiakas.prt

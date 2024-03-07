@@ -548,10 +548,10 @@ class LopetusIlmoitus(BaseModel):
         alias="Rakennuksen tiedot:Käsittelijän lisäämä tunniste"
     )
     etunimi: Optional[str] = Field(
-        None, "Kompostoinnin vastuuhenkilö:Etunimi"
+        None, alias="Kompostoinnin vastuuhenkilö:Etunimi"
     )
     sukunimi: Optional[str] = Field(
-        None, "Kompostoinnin vastuuhenkilö:Sukunimi"
+        None, alias="Kompostoinnin vastuuhenkilö:Sukunimi"
     )
     rawdata: Optional[Dict[str, str]]
 
