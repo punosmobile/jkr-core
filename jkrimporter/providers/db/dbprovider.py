@@ -694,17 +694,18 @@ class DbProvider:
                             continue
                         ending_kompostorit = session.query(Kompostori).filter(
                             # Get all Kompostori, with the osoite_id, and starting date
-                            # earlier than the lopetusilmoitus date.
+                            # earlier and ending date greater than lopetusilmoitus date.
                             Kompostori.osoite_id == osoite_id,
-                            Kompostori.alkupvm < ilmoitus.paivamaara
                             # Kompostori.alkupvm <= ilmoitus.paivamaara
+                            Kompostori.alkupvm < ilmoitus.Vastausaika,
+                            Kompostori.loppupvm > ilmoitus.Vastausaika
                         ).all()
                         if ending_kompostorit:
                             print(
                                 f"Lopetettavia kompostoreita löytynyt {len(ending_kompostorit)} kpl."
                             )
                             for kompostori in ending_kompostorit:
-                                kompostori.loppupvm = ilmoitus.paivamaara
+                                kompostori.loppupvm = ilmoitus.Vastausaika
                             session.commit()
                         else:
                             print("Lopetettavia kompostoreita ei löytynyt...")

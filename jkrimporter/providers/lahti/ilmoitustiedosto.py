@@ -10,7 +10,10 @@ from jkrimporter.datasheets import (
     get_lopetustiedosto_headers
 )
 from jkrimporter.providers.lahti.models import Ilmoitus, LopetusIlmoitus
-from jkrimporter.utils.ilmoitus import export_kohdentumattomat_ilmoitukset
+from jkrimporter.utils.ilmoitus import (
+    export_kohdentumattomat_ilmoitukset,
+    export_kohdentumattomat_lopetusilmoitukset,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +109,7 @@ class LopetusIlmoitustiedosto:
             print(
                 f"Tiedosto: {self._path}, puuttuvat sarakeotsikot: {missing_headers_list}"
             )
-            raise RuntimeError("Lopetus ilmoitustiedostosta puuttuu oletettuja sarakeotsikoita.")
+            raise RuntimeError("Lopetus lopetusilmoitustiedostosta puuttuu oletettuja sarakeotsikoita.")
 
         for row in sheet.iter_rows(min_row=2, values_only=True):
             try:
@@ -120,7 +123,7 @@ class LopetusIlmoitustiedosto:
                 )
                 failed_validations.append(data)
 
-        export_kohdentumattomat_ilmoitukset(
+        export_kohdentumattomat_lopetusilmoitukset(
             os.path.dirname(self._path), failed_validations
         )
 

@@ -279,24 +279,43 @@ def _find_kohde_by_asiakastiedot(
     asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus]"
 ) -> "Union[Kohde, None]":
     if isinstance(asiakas, (JkrIlmoitukset, LopetusIlmoitus)):
-        query = (
-            select(Kohde.id, Osapuoli.nimi)
-            .join(Kohde.rakennus_collection)
-            .join(KohteenOsapuolet, isouter=True)
-            .join(Osapuoli, isouter=True)
-            .join(Osoite, isouter=True)
-            .where(
-                Kohde.voimassaolo.overlaps(
-                    DateRange(
-                        asiakas.voimassa.lower or datetime.date.min,
-                        asiakas.voimassa.upper or datetime.date.max,
-                    )
-                ),
-                filter,
+        if hasattr(asiakas, 'sijainti_prt'):
+            query = (
+                select(Kohde.id, Osapuoli.nimi)
+                .join(Kohde.rakennus_collection)
+                .join(KohteenOsapuolet, isouter=True)
+                .join(Osapuoli, isouter=True)
+                .join(Osoite, isouter=True)
+                .where(
+                    Kohde.voimassaolo.overlaps(
+                        DateRange(
+                            asiakas.voimassa.lower or datetime.date.min,
+                            asiakas.voimassa.upper or datetime.date.max,
+                        )
+                    ),
+                    filter,
+                )
+                .distinct()
             )
-            .distinct()
-        )
-        print(query)
+            print(query)
+        else:
+            query = (
+                select(Kohde.id, Osapuoli.nimi)
+                .join(Kohde.rakennus_collection)
+                .join(KohteenOsapuolet, isouter=True)
+                .join(Osapuoli, isouter=True)
+                .join(Osoite, isouter=True)
+                .where(
+                    Kohde.voimassaolo.overlaps(
+                        DateRange(
+                            asiakas.Vastausaika
+                        )
+                    ),
+                    filter,
+                )
+                .distinct()
+            )
+            print(query)
 
         try:
             kohteet = session.execute(query).all()

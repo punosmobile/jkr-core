@@ -298,7 +298,7 @@ class JkrIlmoitukset:
 
 @dataclass
 class LopetusIlmoitus:
-    paivamaara: date
+    Vastausaika: date
     nimi: str
     prt: List[str]
     rawdata: Optional[Dict[str, str]] = None
