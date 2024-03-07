@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
-from jkrimporter.model import Asiakas, JkrIlmoitukset, Yhteystieto
+from jkrimporter.model import Asiakas, JkrIlmoitukset, LopetusIlmoitus, Yhteystieto
 
 from .. import codes
 from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi
@@ -114,7 +114,7 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
 
 
 def find_kohde_by_prt(
-    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset]"
+    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus]"
 ) -> "Union[Kohde, None]":
     if isinstance(asiakas, JkrIlmoitukset):
         return _find_kohde_by_asiakastiedot(
@@ -123,6 +123,10 @@ def find_kohde_by_prt(
     elif isinstance(asiakas, Asiakas):
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
+        )
+    elif isinstance(asiakas, LopetusIlmoitus):
+        return _find_kohde_by_asiakastiedot(
+            session, Rakennus.prt.in_(asiakas.prt), asiakas
         )
     else:
         raise ValueError("Invalid asiakas type")
@@ -270,10 +274,11 @@ def find_kohde_by_address(
 
 
 def _find_kohde_by_asiakastiedot(
-    session: "Session", filter, asiakas: "Union[Asiakas, JkrIlmoitukset]"
+    session: "Session",
+    filter,
+    asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus]"
 ) -> "Union[Kohde, None]":
-    if isinstance(asiakas, JkrIlmoitukset):
-        print(f"loppupvm: {asiakas.loppupvm}")
+    if isinstance(asiakas, (JkrIlmoitukset, LopetusIlmoitus)):
         query = (
             select(Kohde.id, Osapuoli.nimi)
             .join(Kohde.rakennus_collection)
@@ -306,11 +311,18 @@ def _find_kohde_by_asiakastiedot(
             print(
                 "Found multiple kohteet with the same address. Checking owners/inhabitants..."
             )
-            vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
-            kompostoija_nimet = [
-                clean_asoy_name(kompostoija.nimi)
-                for kompostoija in asiakas.kompostoijat
-            ]
+            if isinstance(asiakas, JkrIlmoitukset):
+                vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
+                # I dont think we should use kompostoija names to find kohde for kompostori.
+                # In most cases vastuuhenkilo and kompostoija is the same entity.
+                # In kimppa cases using also kompostoija, could give false positives in rare cases.
+                # kompostoija_nimet = [
+                    # clean_asoy_name(kompostoija.nimi)
+                    # for kompostoija in asiakas.kompostoijat
+                # ]
+            else:
+                vastuuhenkilo_nimi = clean_asoy_name(asiakas.nimi)
+
             for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
                 for db_osapuoli_name in db_osapuoli_names:
                     if db_osapuoli_name is not None:
@@ -318,9 +330,9 @@ def _find_kohde_by_asiakastiedot(
                         print(vastuuhenkilo_nimi)
                         print(db_osapuoli_name)
                         if any(
-                            match_name(vastuuhenkilo_nimi, db_osapuoli_name) or
-                            match_name(kompostoija_nimi, db_osapuoli_name)
-                            for kompostoija_nimi in kompostoija_nimet
+                            match_name(vastuuhenkilo_nimi, db_osapuoli_name)  # or
+                            # match_name(kompostoija_nimi, db_osapuoli_name)
+                            # for kompostoija_nimi in kompostoija_nimet
                         ):
                             print(f"{db_osapuoli_name} match")
                             kohde = session.get(Kohde, kohde_id)

@@ -59,7 +59,7 @@ def export_kohdentumattomat_ilmoitukset(
     workbook_failed.save(output_file_path_failed)
 
 
-def export_kohdentumattomat_lopetus_ilmoitukset(
+def export_kohdentumattomat_lopetusilmoitukset(
         folder: Path,
         kohdentumattomat: List[Dict[str, str]]
 ):

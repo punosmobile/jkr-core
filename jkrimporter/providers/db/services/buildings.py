@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Union
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
@@ -30,7 +30,7 @@ AREA_LIMIT = 30000
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from jkrimporter.model import Asiakas, Yhteystieto, JkrIlmoitukset
+    from jkrimporter.model import Asiakas, Yhteystieto, JkrIlmoitukset, LopetusIlmoitus
 
 
 def minimum_distance_of_buildings(buildings):
@@ -361,9 +361,14 @@ def _verify_rakennukset(
 
 
 def find_osoite_by_prt(
-    session: "Session", asiakas: "JkrIlmoitukset"
+    session: "Session", asiakas: Union["JkrIlmoitukset", "LopetusIlmoitus"]
 ):
-    for prt in asiakas.sijainti_prt:
+    if isinstance(asiakas, "JkrIlmoitukset"):
+        prts = asiakas.sijainti_prt
+    else:
+        prts = asiakas.prt
+
+    for prt in prts:
         rakennus = session.query(Rakennus).filter_by(prt=prt).first()
         if rakennus:
             osoite = (

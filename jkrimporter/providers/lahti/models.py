@@ -544,7 +544,7 @@ class Ilmoitus(BaseModel):
 
 class LopetusIlmoitus(BaseModel):
     Vastausaika: datetime.date  # Kompostoinnin päättymisen ajankohta.
-    prt: str = Field(
+    prt: List[str] = Field(
         alias="Rakennuksen tiedot:Käsittelijän lisäämä tunniste"
     )
     etunimi: Optional[str] = Field(
@@ -553,6 +553,13 @@ class LopetusIlmoitus(BaseModel):
     sukunimi: Optional[str] = Field(
         None, "Kompostoinnin vastuuhenkilö:Sukunimi"
     )
+    rawdata: Optional[Dict[str, str]]
+
+    @validator('prt', pre=True)
+    def parse_prts(value: str):
+        if isinstance(value, str):
+            return value.split(',')
+        return value
 
     @validator("Vastausaika", pre=True)
     def parse_vastausaika(value: Union[date, str]):

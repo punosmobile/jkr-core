@@ -11,9 +11,18 @@ from sqlalchemy.orm import Session
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.datasheets import get_siirtotiedosto_headers
-from jkrimporter.model import Asiakas, JkrData, JkrIlmoitukset, Paatos
+from jkrimporter.model import (
+    Asiakas,
+    JkrData,
+    JkrIlmoitukset,
+    Paatos,
+    LopetusIlmoitus
+)
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
-from jkrimporter.utils.ilmoitus import export_kohdentumattomat_ilmoitukset
+from jkrimporter.utils.ilmoitus import (
+    export_kohdentumattomat_ilmoitukset,
+    export_kohdentumattomat_lopetusilmoitukset
+)
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
@@ -650,6 +659,70 @@ class DbProvider:
             export_kohdentumattomat_ilmoitukset(
                 os.path.dirname(ilmoitustiedosto), kohdentumattomat
             )
+
+
+    def write_lopetusilmoitukset(
+            self,
+            lopetusilmoitus_list: List[LopetusIlmoitus],
+            ilmoitustiedosto: Path,
+    ):
+        """
+        This method sets end dates for Kompostori based on lopetusilmoitus data.
+        The method also stores kohdentumattomat rows.
+        """
+        kohdentumattomat = []
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print("Importoidaan lopetusilmoitukset")
+                for ilmoitus in lopetusilmoitus_list:
+                    # Do I actually even need the kohde for kompostori for anything?
+                    # A: Yes, to make sure that it kohdentuu to a kohde.
+                    # Q: But is it actually nessecary to be a part of kohde?
+                    # For example, does it matter as long as the building with the same prt exists?
+                    # Is there any actual concrete reason why it couldnt kohdentua to a building without a kohde.
+                    # A: It does matter, because the osapuoli has to be a part of a kohde.
+                    kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
+                    if kompostorin_kohde:
+                        osoite_id = find_osoite_by_prt(session, ilmoitus)
+                        if not osoite_id:
+                            print(
+                                "Ei löytynyt osoite_id:tä rakennus: "
+                                + f"{ilmoitus.prt}"
+                            )
+                            kohdentumattomat.append(ilmoitus.rawdata)
+                            continue
+                        ending_kompostorit = session.query(Kompostori).filter(
+                            # Get all Kompostori, with the osoite_id, and starting date
+                            # earlier than the lopetusilmoitus date.
+                            Kompostori.osoite_id == osoite_id,
+                            Kompostori.alkupvm < ilmoitus.paivamaara
+                            # Kompostori.alkupvm <= ilmoitus.paivamaara
+                        ).all()
+                        if ending_kompostorit:
+                            print(
+                                f"Lopetettavia kompostoreita löytynyt {len(ending_kompostorit)} kpl."
+                            )
+                            for kompostori in ending_kompostorit:
+                                kompostori.loppupvm = ilmoitus.paivamaara
+                            session.commit()
+                        else:
+                            print("Lopetettavia kompostoreita ei löytynyt...")
+                            kohdentumattomat.append(ilmoitus.rawdata)
+                    else:
+                        kohdentumattomat.append(ilmoitus.rawdata)
+                session.commit()
+        except Exception as e:
+            logger.exception(e)
+
+        if kohdentumattomat:
+            print(
+                f"Tallennetaan kohdentumattomat lopetusilmoitukset ({len(kohdentumattomat)}) tiedostoon"
+            )
+            export_kohdentumattomat_lopetusilmoitukset(
+                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+            )
+
 
     def write_paatokset(
         self,
