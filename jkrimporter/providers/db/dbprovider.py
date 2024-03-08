@@ -690,7 +690,6 @@ class DbProvider:
                             # Get all Kompostori, with the osoite_id, and starting date
                             # earlier and ending date greater than lopetusilmoitus date.
                             Kompostori.osoite_id == osoite_id,
-                            # Kompostori.alkupvm <= ilmoitus.paivamaara
                             Kompostori.alkupvm < ilmoitus.Vastausaika,
                             Kompostori.loppupvm > ilmoitus.Vastausaika
                         ).all()
