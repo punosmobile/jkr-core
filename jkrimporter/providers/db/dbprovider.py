@@ -11,9 +11,18 @@ from sqlalchemy.orm import Session
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.datasheets import get_siirtotiedosto_headers
-from jkrimporter.model import Asiakas, JkrData, JkrIlmoitukset, Paatos
+from jkrimporter.model import (
+    Asiakas,
+    JkrData,
+    JkrIlmoitukset,
+    Paatos,
+    LopetusIlmoitus
+)
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
-from jkrimporter.utils.ilmoitus import export_kohdentumattomat_ilmoitukset
+from jkrimporter.utils.ilmoitus import (
+    export_kohdentumattomat_ilmoitukset,
+    export_kohdentumattomat_lopetusilmoitukset
+)
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
@@ -650,6 +659,64 @@ class DbProvider:
             export_kohdentumattomat_ilmoitukset(
                 os.path.dirname(ilmoitustiedosto), kohdentumattomat
             )
+
+
+    def write_lopetusilmoitukset(
+            self,
+            lopetusilmoitus_list: List[LopetusIlmoitus],
+            ilmoitustiedosto: Path,
+    ):
+        """
+        This method sets end dates for Kompostori based on lopetusilmoitus data.
+        The method also stores kohdentumattomat rows.
+        """
+        kohdentumattomat = []
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print("Importoidaan lopetusilmoitukset")
+                for ilmoitus in lopetusilmoitus_list:
+                    kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
+                    if kompostorin_kohde:
+                        osoite_id = find_osoite_by_prt(session, ilmoitus)
+                        if not osoite_id:
+                            print(
+                                "Ei löytynyt osoite_id:tä rakennukselle: "
+                                + f"{ilmoitus.prt}"
+                            )
+                            kohdentumattomat.append(ilmoitus.rawdata)
+                            continue
+                        ending_kompostorit = session.query(Kompostori).filter(
+                            # Get all Kompostori, with the osoite_id, and starting date
+                            # earlier and ending date greater than lopetusilmoitus date.
+                            Kompostori.osoite_id == osoite_id,
+                            Kompostori.alkupvm < ilmoitus.Vastausaika,
+                            Kompostori.loppupvm > ilmoitus.Vastausaika
+                        ).all()
+                        if ending_kompostorit:
+                            print(
+                                f"Lopetettavia kompostoreita löytynyt {len(ending_kompostorit)} kpl."
+                            )
+                            for kompostori in ending_kompostorit:
+                                kompostori.loppupvm = ilmoitus.Vastausaika
+                            session.commit()
+                        else:
+                            print("Lopetettavia voimassaolevia kompostoreita ei löytynyt...")
+                    else:
+                        print(f"Kohdetta ei löytynyt rakennuksella: {ilmoitus.prt}")
+                        kohdentumattomat.append(ilmoitus.rawdata)
+                session.commit()
+        except Exception as e:
+            logger.exception(e)
+
+        if kohdentumattomat:
+            print(
+                f"Tallennetaan kohdentumattomat lopetusilmoitukset ({len(kohdentumattomat)}) tiedostoon"
+            )
+            export_kohdentumattomat_lopetusilmoitukset(
+                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+            )
+
 
     def write_paatokset(
         self,

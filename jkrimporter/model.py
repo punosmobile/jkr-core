@@ -294,3 +294,11 @@ class JkrIlmoitukset:
     tiedontuottaja: str
     sijainti_prt: List[str]
     rawdata: Optional[List[Dict[str, str]]] = None
+
+
+@dataclass
+class LopetusIlmoitus:
+    Vastausaika: date
+    nimi: str
+    prt: List[str]
+    rawdata: Optional[Dict[str, str]] = None

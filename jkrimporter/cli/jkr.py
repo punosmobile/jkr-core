@@ -15,11 +15,16 @@ from jkrimporter.providers.db.services.tiedontuottaja import (
     remove_tiedontuottaja,
     rename_tiedontuottaja,
 )
-from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
+
 from jkrimporter.providers.lahti.lahtiprovider import (
     IlmoitusTranslator,
     LahtiTranslator,
+    LopetusIlmoitusTranslator,
     PaatosTranslator,
+)
+from jkrimporter.providers.lahti.ilmoitustiedosto import (
+    Ilmoitustiedosto,
+    LopetusIlmoitustiedosto,
 )
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
@@ -184,6 +189,18 @@ def import_ilmoitukset(
     ilmoitus_data = translator.as_jkr_data()
     db = DbProvider()
     db.write_ilmoitukset(ilmoitus_data, siirtotiedosto)
+
+    print("VALMIS!")
+
+
+@app.command("import_lopetusilmoitukset", help="Import compost ending notices to JKR.")
+def import_lopetusilmoitukset(
+    siirtotiedosto: Path = typer.Argument(..., help="Kompostoinnin lopetusilmoitus-tiedoston sijainti.")
+):
+    translator = LopetusIlmoitusTranslator(LopetusIlmoitustiedosto(siirtotiedosto))
+    lopetusilmoitus_data = translator.as_jkr_data()
+    db = DbProvider()
+    db.write_lopetusilmoitukset(lopetusilmoitus_data, siirtotiedosto)
 
     print("VALMIS!")
 

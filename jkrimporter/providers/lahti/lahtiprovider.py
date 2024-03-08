@@ -16,6 +16,7 @@ from jkrimporter.model import (
     Keraysvaline,
     KeraysvalineTyyppi,
     KimppaSopimus,
+    LopetusIlmoitus,
     Osoite,
     Paatos,
     Paatostulos,
@@ -33,7 +34,7 @@ from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
-from .ilmoitustiedosto import Ilmoitustiedosto
+from .ilmoitustiedosto import Ilmoitustiedosto, LopetusIlmoitustiedosto
 from .paatostiedosto import Paatostiedosto
 from .siirtotiedosto import LahtiSiirtotiedosto
 
@@ -500,4 +501,39 @@ class IlmoitusTranslator:
         # Convert grouped data to list
         data = [JkrIlmoitukset(**values) for values in grouped_data.values()]
         print(data)
+        return data
+
+
+class LopetusIlmoitusTranslator:
+
+    def __init__(self, lopetusilmoitukset: LopetusIlmoitustiedosto):
+        self._source = lopetusilmoitukset
+
+    @staticmethod
+    def _get_name(sukunimi: Optional[str], etunimi: Optional[str]) -> Optional[str]:
+        if sukunimi is not None and etunimi is not None:
+            if sukunimi != etunimi:
+                return sukunimi + " " + etunimi
+            else:
+                return sukunimi
+        elif sukunimi is not None:
+            return sukunimi
+        elif etunimi is not None:
+            return etunimi
+        else:
+            return None
+
+    def as_jkr_data(self):
+        data = []
+
+        for row in self._source.lopetusilmoitukset:
+            data.append(
+                LopetusIlmoitus(
+                    Vastausaika=row.Vastausaika,
+                    nimi=self._get_name(row.sukunimi, row.etunimi),
+                    prt=row.prt,
+                    rawdata=row.rawdata,
+                )
+            )
+
         return data

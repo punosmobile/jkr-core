@@ -13,7 +13,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
-from jkrimporter.model import Asiakas, JkrIlmoitukset, Yhteystieto
+from jkrimporter.model import Asiakas, JkrIlmoitukset, LopetusIlmoitus, Yhteystieto
 
 from .. import codes
 from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi
@@ -114,7 +114,7 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
 
 
 def find_kohde_by_prt(
-    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset]"
+    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus]"
 ) -> "Union[Kohde, None]":
     if isinstance(asiakas, JkrIlmoitukset):
         return _find_kohde_by_asiakastiedot(
@@ -123,6 +123,10 @@ def find_kohde_by_prt(
     elif isinstance(asiakas, Asiakas):
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
+        )
+    elif isinstance(asiakas, LopetusIlmoitus):
+        return _find_kohde_by_ilmoitustiedot(
+            session, Rakennus.prt.in_(asiakas.prt), asiakas
         )
     else:
         raise ValueError("Invalid asiakas type")
@@ -269,11 +273,70 @@ def find_kohde_by_address(
     return _find_kohde_by_asiakastiedot(session, filter, asiakas)
 
 
+def _find_kohde_by_ilmoitustiedot(
+        session: "Session",
+        filter,
+        ilmoitus: "LopetusIlmoitus"
+) -> "Union[Kohde, None]":
+    print(f"LopetusIlmoitus.nimi: {ilmoitus.nimi}")
+    query = (
+        select(Kohde.id, Osapuoli.nimi)
+        .join(Kohde.rakennus_collection)
+        .join(KohteenOsapuolet, isouter=True)
+        .join(Osapuoli, isouter=True)
+        .join(Osoite, isouter=True)
+        .where(
+            Kohde.voimassaolo.overlaps(
+                DateRange(
+                    ilmoitus.Vastausaika
+                )
+            ),
+            filter,
+        )
+        .distinct()
+    )
+    print(query)
+
+    try:
+        kohteet = session.execute(query).all()
+    except NoResultFound:
+        return None
+    print(kohteet)
+
+    names_by_kohde_id = defaultdict(set)
+    for kohde_id, db_osapuoli_name in kohteet:
+        names_by_kohde_id[kohde_id].add(db_osapuoli_name)
+    if len(names_by_kohde_id) > 1:
+        print(
+            "Found multiple kohteet with the same address. Checking owners/inhabitants..."
+        )
+        vastuuhenkilo_nimi = clean_asoy_name(ilmoitus.nimi)
+
+        for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
+            for db_osapuoli_name in db_osapuoli_names:
+                if db_osapuoli_name is not None:
+                    db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                    print(vastuuhenkilo_nimi)
+                    print(db_osapuoli_name)
+                    if (
+                        match_name(vastuuhenkilo_nimi, db_osapuoli_name)
+                    ):
+                        print(f"{db_osapuoli_name} match")
+                        kohde = session.get(Kohde, kohde_id)
+                        print("returning kohde")
+                        return kohde
+    elif len(names_by_kohde_id) == 1:
+        return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
+
+    return None
+
+
 def _find_kohde_by_asiakastiedot(
-    session: "Session", filter, asiakas: "Union[Asiakas, JkrIlmoitukset]"
+    session: "Session",
+    filter,
+    asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Union[Kohde, None]":
     if isinstance(asiakas, JkrIlmoitukset):
-        print(f"loppupvm: {asiakas.loppupvm}")
         query = (
             select(Kohde.id, Osapuoli.nimi)
             .join(Kohde.rakennus_collection)
@@ -311,6 +374,7 @@ def _find_kohde_by_asiakastiedot(
                 clean_asoy_name(kompostoija.nimi)
                 for kompostoija in asiakas.kompostoijat
             ]
+
             for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
                 for db_osapuoli_name in db_osapuoli_names:
                     if db_osapuoli_name is not None:

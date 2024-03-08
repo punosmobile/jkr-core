@@ -94,6 +94,15 @@ def get_ilmoitustiedosto_headers():
     ]
 
 
+def get_lopetustiedosto_headers():
+    return [
+        "Vastausaika",
+        "Kompostoinnin vastuuhenkilö:Etunimi",
+        "Kompostoinnin vastuuhenkilö:Sukunimi",
+        "Rakennuksen tiedot:Käsittelijän lisäämä tunniste",
+    ]
+
+
 class CsvSheet:
     def __init__(self, file_path):
         self._file_path = file_path

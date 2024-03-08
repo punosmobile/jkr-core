@@ -540,3 +540,39 @@ class Ilmoitus(BaseModel):
                     "Vastausaika-päivämäärän on oltava ennen voimassaolopäivä-päivämäärää."
                 )
         return values
+
+
+class LopetusIlmoitus(BaseModel):
+    Vastausaika: datetime.date  # Kompostoinnin päättymisen ajankohta.
+    prt: List[str] = Field(
+        alias="Rakennuksen tiedot:Käsittelijän lisäämä tunniste"
+    )
+    etunimi: Optional[str] = Field(
+        None, alias="Kompostoinnin vastuuhenkilö:Etunimi"
+    )
+    sukunimi: Optional[str] = Field(
+        None, alias="Kompostoinnin vastuuhenkilö:Sukunimi"
+    )
+    rawdata: Optional[Dict[str, str]]
+
+    @validator('prt', pre=True)
+    def parse_prts(value: str):
+        if isinstance(value, str):
+            return value.split(',')
+        return value
+
+    @validator("Vastausaika", pre=True)
+    def parse_vastausaika(value: Union[date, str]):
+        if type(value) is str and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        return value
+
+    @root_validator
+    def check_name(cls, values):
+        etunimi = values.get('etunimi')
+        sukunimi = values.get('sukunimi')
+        if etunimi is None and sukunimi is None:
+            raise ValueError(
+                "Suku- ja etunimi eivät saa olla tyhjiä."
+            )
+        return values
