@@ -676,12 +676,6 @@ class DbProvider:
                 init_code_objects(session)
                 print("Importoidaan lopetusilmoitukset")
                 for ilmoitus in lopetusilmoitus_list:
-                    # Do I actually even need the kohde for kompostori for anything?
-                    # A: Yes, to make sure that it kohdentuu to a kohde.
-                    # Q: But is it actually nessecary to be a part of kohde?
-                    # For example, does it matter as long as the building with the same prt exists?
-                    # Is there any actual concrete reason why it couldnt kohdentua to a building without a kohde.
-                    # A: It does matter, because the osapuoli has to be a part of a kohde.
                     kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
                     if kompostorin_kohde:
                         osoite_id = find_osoite_by_prt(session, ilmoitus)
