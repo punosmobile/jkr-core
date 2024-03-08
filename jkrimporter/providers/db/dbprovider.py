@@ -687,7 +687,7 @@ class DbProvider:
                         osoite_id = find_osoite_by_prt(session, ilmoitus)
                         if not osoite_id:
                             print(
-                                "Ei löytynyt osoite_id:tä rakennus: "
+                                "Ei löytynyt osoite_id:tä rakennukselle: "
                                 + f"{ilmoitus.prt}"
                             )
                             kohdentumattomat.append(ilmoitus.rawdata)
@@ -708,9 +708,9 @@ class DbProvider:
                                 kompostori.loppupvm = ilmoitus.Vastausaika
                             session.commit()
                         else:
-                            print("Lopetettavia kompostoreita ei löytynyt...")
-                            kohdentumattomat.append(ilmoitus.rawdata)
+                            print("Lopetettavia voimassaolevia kompostoreita ei löytynyt...")
                     else:
+                        print(f"Kohdetta ei löytynyt rakennuksella: {ilmoitus.prt}")
                         kohdentumattomat.append(ilmoitus.rawdata)
                 session.commit()
         except Exception as e:
