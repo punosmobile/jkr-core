@@ -188,7 +188,7 @@ def test_import_paatokset(engine, datadir):
     assert paatos_120[3] == rakennus_134567890B_id
 
     # Kohdentumattomat.xlsx sisältää kaksi kohdentumatonta päätöstä.
-    xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
+    xlsx_file_path = os.path.join(datadir, "kohdentumattomat_paatokset.xlsx")
     workbook = load_workbook(xlsx_file_path)
     sheet = workbook[workbook.sheetnames[0]]
     assert sheet.max_row == 3

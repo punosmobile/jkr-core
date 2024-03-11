@@ -18,18 +18,21 @@ dbconf = {
 __all__ = ["dbconf"]
 
 kohdentumattomat_filename = "kohdentumattomat"
-siirtotiedosto_fileext = ".csv"
-paatostiedosto_fileext = ".xlsx"
-ilmoitustiedosto_fileext = ".xlsx"
+csv_fileext = ".csv"
+excel_fileext = ".xlsx"
 
 
 def get_kohdentumattomat_siirtotiedosto_filename():
-    return kohdentumattomat_filename + siirtotiedosto_fileext
+    return f"{kohdentumattomat_filename}_kuljetukset{csv_fileext}"
 
 
 def get_kohdentumattomat_paatos_filename():
-    return kohdentumattomat_filename + paatostiedosto_fileext
+    return f"{kohdentumattomat_filename}_paatokset{excel_fileext}"
 
 
 def get_kohdentumattomat_ilmoitus_filename():
-    return kohdentumattomat_filename + ilmoitustiedosto_fileext
+    return f"{kohdentumattomat_filename}_ilmoitukset{excel_fileext}"
+
+
+def get_kohdentumattomat_lopetusilmoitus_filename():
+    return f"{kohdentumattomat_filename}_lopetusilmoitukset{excel_fileext}"

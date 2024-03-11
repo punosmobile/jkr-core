@@ -36,8 +36,8 @@ def test_lopetusilmoitus(engine, datadir):
     # Kahdelle kompostorille asettuu loppupäivämääräksi 18.8.2022.
     assert session.query(func.count(Kompostori.id)).filter(Kompostori.loppupvm == end_date).scalar() == 2
 
-    # Kohdentumattomat.xlsx sisältää yhden kohdentumattoman lopetusilmoitusrivin.
-    xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
+    # Kohdentumattomat tiedostossa kaksi riviä.
+    xlsx_file_path = os.path.join(datadir, "kohdentumattomat_lopetusilmoitukset.xlsx")
     workbook = load_workbook(xlsx_file_path)
     sheet = workbook[workbook.sheetnames[0]]
     assert sheet.max_row == 2

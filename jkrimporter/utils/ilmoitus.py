@@ -4,7 +4,10 @@ from typing import Dict, List
 
 import openpyxl
 
-from jkrimporter.conf import get_kohdentumattomat_ilmoitus_filename
+from jkrimporter.conf import (
+    get_kohdentumattomat_ilmoitus_filename,
+    get_kohdentumattomat_lopetusilmoitus_filename,
+)
 from jkrimporter.datasheets import (
     get_ilmoitustiedosto_headers,
     get_lopetustiedosto_headers
@@ -66,7 +69,7 @@ def export_kohdentumattomat_lopetusilmoitukset(
     expected_headers = get_lopetustiedosto_headers()
 
     output_file_path_failed = os.path.join(
-        folder, get_kohdentumattomat_ilmoitus_filename()
+        folder, get_kohdentumattomat_lopetusilmoitus_filename()
     )
 
     if os.path.exists(output_file_path_failed):

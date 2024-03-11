@@ -465,16 +465,12 @@ class IlmoitusTranslator:
                         postinumero=row.vastuuhenkilo_postinumero,
                         postitoimipaikka=row.vastuuhenkilo_postitoimipaikka,
                         osoite=row.vastuuhenkilo_osoite,
-                        rakennus=None,
                     ),
                     'kompostoijat': [IlmoituksenHenkilo(
                         nimi=self._get_name(
                             row.kayttaja_sukunimi,
                             row.kayttaja_etunimi
                         ),
-                        postinumero=row.kayttaja_postinumero,
-                        postitoimipaikka=row.kayttaja_postitoimipaikka,
-                        osoite=row.kayttaja_osoite,
                         rakennus=row.prt,
                     )],
                     'onko_kimppa': (
@@ -491,9 +487,6 @@ class IlmoitusTranslator:
                         row.kayttaja_sukunimi,
                         row.kayttaja_etunimi
                     ),
-                    postinumero=row.kayttaja_postinumero,
-                    postitoimipaikka=row.kayttaja_postitoimipaikka,
-                    osoite=row.kayttaja_osoite,
                     rakennus=row.prt
                 ))
                 grouped_data[key]['rawdata'].append(row.rawdata)

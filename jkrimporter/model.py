@@ -277,10 +277,10 @@ class Paatos:
 @dataclass
 class IlmoituksenHenkilo:
     nimi: str
-    osoite: str
-    postinumero: str
-    postitoimipaikka: str
-    rakennus: Optional[List[str]]  # kompostoijan prt
+    osoite: Optional[str] = None
+    postinumero: Optional[str] = None
+    postitoimipaikka: Optional[str] = None
+    rakennus: Optional[List[str]] = None  # kompostoijan prt
 
 
 @dataclass

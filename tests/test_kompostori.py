@@ -40,7 +40,7 @@ def test_kompostori(engine, datadir):
     assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 3
 
     # Kohdentumattomat.xlsx sisältää neljä kohdentumatonta ilmoitusriviä.
-    xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
+    xlsx_file_path = os.path.join(datadir, "kohdentumattomat_ilmoitukset.xlsx")
     workbook = load_workbook(xlsx_file_path)
     sheet = workbook[workbook.sheetnames[0]]
     assert sheet.max_row == 6
