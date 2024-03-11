@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from jkrimporter import conf
 from jkrimporter.cli.jkr import import_lopetusilmoitukset
+from jkrimporter.conf import get_kohdentumattomat_ilmoitus_filename
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import Kompostori
 from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
@@ -36,8 +37,16 @@ def test_lopetusilmoitus(engine, datadir):
     # Kahdelle kompostorille asettuu loppupäivämääräksi 18.8.2022.
     assert session.query(func.count(Kompostori.id)).filter(Kompostori.loppupvm == end_date).scalar() == 2
 
-    # Kohdentumattomat.xlsx sisältää yhden kohdentumattoman lopetusilmoitusrivin.
-    xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
+    # Etsitään tiedosto jonka nimi sisältää "kohdentumattomat_ilmoitus".
+    files_in_dir = os.listdir(datadir)
+    matching_files = [
+        filename for filename in files_in_dir if "kohdentumattomat_lopetusilmoitus" in filename
+    ]
+    # Kohdentumattomat_ilmoitus löytyy.
+    assert len(matching_files) == 1
+
+    # Kohdentumattomat tiedostossa kaksi riviä.
+    xlsx_file_path = os.path.join(datadir, matching_files[0])
     workbook = load_workbook(xlsx_file_path)
     sheet = workbook[workbook.sheetnames[0]]
     assert sheet.max_row == 2

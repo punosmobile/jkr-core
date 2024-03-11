@@ -27,7 +27,9 @@ from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 @pytest.fixture(scope="module", autouse=True)
 def engine():
     engine = create_engine(
-        "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(**conf.dbconf),
+        "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
+            **conf.dbconf
+        ),
         future=True,
         json_serializer=json_dumps
     )
@@ -240,8 +242,16 @@ def test_import_data(engine, datadir):
     # Kuljetusdatassa on yksi keskeytys.
     assert session.query(func.count(Keskeytys.id)).scalar() == 1
 
+    # Etsitään "kohdentumattomat_kuljetus" tiedosto.
+    files_in_dir = os.listdir(datadir)
+    matching_files = [
+        filename for filename in files_in_dir if "kohdentumattomat_kuljetus" in filename
+    ]
+    # Kohdentumattomat_kuljetus löytyy.
+    assert len(matching_files) == 1
+
     # Kohdentumattomat.csv sisältää kuusi kohdentumatonta Asiakas-riviä.
-    csv_file_path = os.path.join(datadir, "kohdentumattomat.csv")
+    csv_file_path = os.path.join(datadir, matching_files[0])
     assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
     with open(csv_file_path, 'r') as csvfile:
         csv_reader = csv.reader(csvfile)
@@ -256,7 +266,7 @@ def test_import_data(engine, datadir):
     fixed_content = csv_file_content.replace("000000000W", "100456789B")
     fixed_folder = os.path.join(datadir, "fixed")
     os.makedirs(fixed_folder)
-    csv_file_write_path = os.path.join(fixed_folder, "kohdentumattomat.csv")
+    csv_file_write_path = os.path.join(fixed_folder, matching_files[0])
     with open(csv_file_write_path, "w") as csvfile:
         csvfile.write(fixed_content)
 

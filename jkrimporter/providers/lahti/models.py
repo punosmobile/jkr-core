@@ -467,15 +467,6 @@ class Ilmoitus(BaseModel):
     kayttaja_sukunimi: Optional[str] = Field(
         None, alias="1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi"
     )
-    kayttaja_postinumero: str = Field(
-        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postinumero"
-    )
-    kayttaja_postitoimipaikka: str = Field(
-        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen postitoimipaikka"
-    )
-    kayttaja_osoite: str = Field(
-        alias="1. Kompostoria käyttävän rakennuksen tiedot:Rakennuksen katuosoite"
-    )
     # Store the original row.
     rawdata: Optional[Dict[str, str]]
 

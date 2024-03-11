@@ -187,8 +187,17 @@ def test_import_paatokset(engine, datadir):
     _assert_tapahtumalaji(session, paatos_120[2], "Keskeyttäminen")
     assert paatos_120[3] == rakennus_134567890B_id
 
+    # Etsitään "kohdentumattomat_paatos" tiedosto.
+    files_in_dir = os.listdir(datadir)
+    matching_files = [
+        filename for filename in files_in_dir if "kohdentumattomat_paatos" in filename
+    ]
+
+    # Kohdentumattomat_paatos löytyy.
+    assert len(matching_files) == 1
+
     # Kohdentumattomat.xlsx sisältää kaksi kohdentumatonta päätöstä.
-    xlsx_file_path = os.path.join(datadir, "kohdentumattomat.xlsx")
+    xlsx_file_path = os.path.join(datadir, matching_files[0])
     workbook = load_workbook(xlsx_file_path)
     sheet = workbook[workbook.sheetnames[0]]
     assert sheet.max_row == 3

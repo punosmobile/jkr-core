@@ -1,4 +1,5 @@
 import os
+import datetime
 
 from dotenv import dotenv_values
 
@@ -18,18 +19,26 @@ dbconf = {
 __all__ = ["dbconf"]
 
 kohdentumattomat_filename = "kohdentumattomat"
-siirtotiedosto_fileext = ".csv"
-paatostiedosto_fileext = ".xlsx"
-ilmoitustiedosto_fileext = ".xlsx"
+csv_fileext = ".csv"
+excel_fileext = ".xlsx"
+
+
+def get_current_date_time():
+    now = datetime.datetime.now()
+    return now.strftime("%d_%m_%Y_%H_%M")
 
 
 def get_kohdentumattomat_siirtotiedosto_filename():
-    return kohdentumattomat_filename + siirtotiedosto_fileext
+    return f"{kohdentumattomat_filename}_kuljetus_{get_current_date_time()}{csv_fileext}"
 
 
 def get_kohdentumattomat_paatos_filename():
-    return kohdentumattomat_filename + paatostiedosto_fileext
+    return f"{kohdentumattomat_filename}_paatos_{get_current_date_time()}{excel_fileext}"
 
 
 def get_kohdentumattomat_ilmoitus_filename():
-    return kohdentumattomat_filename + ilmoitustiedosto_fileext
+    return f"{kohdentumattomat_filename}_ilmoitus_{get_current_date_time()}{excel_fileext}"
+
+
+def get_kohdentumattomat_lopetusilmoitus_filename():
+    return f"{kohdentumattomat_filename}_lopetusilmoitus_{get_current_date_time()}{excel_fileext}"
