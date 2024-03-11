@@ -39,7 +39,7 @@ def test_lopetusilmoitus(engine, datadir):
     # Etsitään tiedosto jonka nimi sisältää "kohdentumattomat_ilmoitus".
     files_in_dir = os.listdir(datadir)
     matching_files = [
-        filename for filename in files_in_dir if "kohdentumattomat_lopetusilmoitus" in filename
+        filename for filename in files_in_dir if "kohdentumattomat_lopetusilmoitukset" in filename
     ]
     # Kohdentumattomat_ilmoitus löytyy.
     assert len(matching_files) == 1

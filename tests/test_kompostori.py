@@ -41,7 +41,7 @@ def test_kompostori(engine, datadir):
 
     files_in_dir = os.listdir(datadir)
     matching_files = [
-        filename for filename in files_in_dir if "kohdentumattomat_ilmoitus" in filename
+        filename for filename in files_in_dir if "kohdentumattomat_ilmoitukset" in filename
     ]
     # kohdentumattomat_ilmoitus tiedosto löytyy.
     assert len(matching_files) == 1

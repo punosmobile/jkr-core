@@ -29,16 +29,16 @@ def get_current_date_time():
 
 
 def get_kohdentumattomat_siirtotiedosto_filename():
-    return f"{kohdentumattomat_filename}_kuljetus_{get_current_date_time()}{csv_fileext}"
+    return f"{kohdentumattomat_filename}_kuljetukset_{get_current_date_time()}{csv_fileext}"
 
 
 def get_kohdentumattomat_paatos_filename():
-    return f"{kohdentumattomat_filename}_paatos_{get_current_date_time()}{excel_fileext}"
+    return f"{kohdentumattomat_filename}_paatokset_{get_current_date_time()}{excel_fileext}"
 
 
 def get_kohdentumattomat_ilmoitus_filename():
-    return f"{kohdentumattomat_filename}_ilmoitus_{get_current_date_time()}{excel_fileext}"
+    return f"{kohdentumattomat_filename}_ilmoitukset_{get_current_date_time()}{excel_fileext}"
 
 
 def get_kohdentumattomat_lopetusilmoitus_filename():
-    return f"{kohdentumattomat_filename}_lopetusilmoitus_{get_current_date_time()}{excel_fileext}"
+    return f"{kohdentumattomat_filename}_lopetusilmoitukset_{get_current_date_time()}{excel_fileext}"

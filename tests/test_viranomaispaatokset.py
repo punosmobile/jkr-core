@@ -190,7 +190,7 @@ def test_import_paatokset(engine, datadir):
     # Etsitään "kohdentumattomat_paatos" tiedosto.
     files_in_dir = os.listdir(datadir)
     matching_files = [
-        filename for filename in files_in_dir if "kohdentumattomat_paatos" in filename
+        filename for filename in files_in_dir if "kohdentumattomat_paatokset" in filename
     ]
 
     # Kohdentumattomat_paatos löytyy.

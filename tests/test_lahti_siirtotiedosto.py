@@ -245,7 +245,7 @@ def test_import_data(engine, datadir):
     # Etsitään "kohdentumattomat_kuljetus" tiedosto.
     files_in_dir = os.listdir(datadir)
     matching_files = [
-        filename for filename in files_in_dir if "kohdentumattomat_kuljetus" in filename
+        filename for filename in files_in_dir if "kohdentumattomat_kuljetukset" in filename
     ]
     # Kohdentumattomat_kuljetus löytyy.
     assert len(matching_files) == 1
