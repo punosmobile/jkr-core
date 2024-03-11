@@ -23,22 +23,17 @@ csv_fileext = ".csv"
 excel_fileext = ".xlsx"
 
 
-def get_current_date_time():
-    now = datetime.datetime.now()
-    return now.strftime("%d_%m_%Y_%H_%M")
-
-
 def get_kohdentumattomat_siirtotiedosto_filename():
-    return f"{kohdentumattomat_filename}_kuljetukset_{get_current_date_time()}{csv_fileext}"
+    return f"{kohdentumattomat_filename}_kuljetukset{csv_fileext}"
 
 
 def get_kohdentumattomat_paatos_filename():
-    return f"{kohdentumattomat_filename}_paatokset_{get_current_date_time()}{excel_fileext}"
+    return f"{kohdentumattomat_filename}_paatokset{excel_fileext}"
 
 
 def get_kohdentumattomat_ilmoitus_filename():
-    return f"{kohdentumattomat_filename}_ilmoitukset_{get_current_date_time()}{excel_fileext}"
+    return f"{kohdentumattomat_filename}_ilmoitukset{excel_fileext}"
 
 
 def get_kohdentumattomat_lopetusilmoitus_filename():
-    return f"{kohdentumattomat_filename}_lopetusilmoitukset_{get_current_date_time()}{excel_fileext}"
+    return f"{kohdentumattomat_filename}_lopetusilmoitukset{excel_fileext}"
