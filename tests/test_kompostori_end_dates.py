@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from jkrimporter import conf
 from jkrimporter.cli.jkr import import_lopetusilmoitukset
-from jkrimporter.conf import get_kohdentumattomat_ilmoitus_filename
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import Kompostori
 from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
