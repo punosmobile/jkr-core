@@ -1,6 +1,35 @@
 @echo off
 setlocal
 
+REM Tarkistetaan .env tiedosto.
+if not exist "%APPDATA%\jkr\.env" (
+    echo Error: .env file not found at %APPDATA%\jkr\.env
+    exit /b 1
+)
+
+REM Ladataan muuttujat .env tiedostosta.
+for /f "usebackq tokens=1,* delims==" %%a in ("%APPDATA%\jkr\.env") do (
+    set "%%a=%%b"
+)
+
+REM Tarkistetaan onko tarvittavat muuttujat asetettu.
+if "%JKR_DB_HOST%"=="" (
+    echo Error: HOST variable not set in .env file
+    exit /b 1
+)
+if "%JKR_DB_PORT%"=="" (
+    echo Error: PORT variable not set in .env file
+    exit /b 1
+)
+if "%JKR_DB%"=="" (
+    echo Error: DB_NAME variable not set in .env file
+    exit /b 1
+)
+if "%JKR_USER%"=="" (
+    echo Error: USER variable not set in .env file
+    exit /b 1
+)
+
 REM Tarkistetaan parametrit
 IF "%~3"=="" (
    ECHO Anna parametrit järjestyksessä
@@ -16,12 +45,6 @@ CHCP 65001
 REM Kerrotaan Postgresille myäs että terminaalin encoding on UTF-8
 SET PGCLIENTENCODING=UTF8
 
-SET HOST=<palvelimen nimi>
-SET PORT=<tietokantaportti>
-SET DB_NAME=<tietokannan_nimi>
-SET USER=<kayttajatunnus>
-REM Määritä salasana %APPDATA%\postgresql\pgpass.conf tiedostossa
-
 SET SHP_FILE=%~1
 SET DATE_FROM=%~2
 SET POPULATION=%~3
@@ -30,9 +53,9 @@ for %%A in ("%SHP_FILE%") do (
    SET "SHP_TABLE=%%~nA"
 )
 
-REM Määritä polku QGISin ogr2ogr-asennukseen. Esim. "C:\\Program Files\\QGIS 3.30.2\\bin".
-SET OGR2OGR_PATH="C:\\Program Files\\QGIS 3.28.9\\bin"
+REM Määritä polku QGISin ogr2ogr-asennukseen. Esim. "C:\\Program Files\\QGIS 3.28.10\\bin".
+SET OGR2OGR_PATH="C:\\Program Files\\QGIS 3.28.11\\bin"
 
-%OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -update -append PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr" -nln taajama -nlt MULTIPOLYGON -dialect SQLITE -sql "SELECT ""Geometry"" as geom, ""Urakkaraja"" as nimi, %POPULATION% as vaesto_lkm, ""fid"" as taajama_id, '%DATE_FROM%' as alkupvm FROM ""%SHP_TABLE%""" "%SHP_FILE%"
+%OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -update -append PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr" -nln taajama -nlt MULTIPOLYGON -dialect SQLITE -sql "SELECT ""Geometry"" as geom, ""Urakkaraja"" as nimi, %POPULATION% as vaesto_lkm, ""fid"" as taajama_id, '%DATE_FROM%' as alkupvm FROM ""%SHP_TABLE%""" "%SHP_FILE%"
 
 ECHO Valmis!

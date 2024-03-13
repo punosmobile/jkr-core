@@ -2,11 +2,16 @@ import os
 
 from dotenv import dotenv_values
 
+# Path to the .env file in the user's %APPDATA%/jkr directory
+dotenv_path = os.path.join(os.getenv('APPDATA'), 'jkr', '.env')
+
+# Read the environment variables from the .env file
 env = {
-    **dotenv_values(".env"),
+    **dotenv_values(dotenv_path),
     **os.environ,
 }
 
+# Define database configuration using environment variables
 dbconf = {
     "host": env.get("JKR_DB_HOST", None),
     "port": env.get("JKR_DB_PORT", None),
