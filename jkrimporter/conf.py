@@ -18,9 +18,6 @@ dbconf = {
     "username": env.get("JKR_USER", None),
     "password": env.get("JKR_PASSWORD", None),
     "dbname": env.get("JKR_DB", None),
-    # "test_port": env.get("JKR_TEST_DB_PORT", None),
-    # "test_password": env.get("JKR_TEST_PASSWORD", None),
-    # "test_dbname": env.get("JKR_TEST_DB", None),
 }
 dbtestconf = {
     "host": env.get("JKR_DB_HOST", None),

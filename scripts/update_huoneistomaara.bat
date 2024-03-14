@@ -39,15 +39,14 @@ if "%JKR_USER%"=="" (
     echo Error: USER variable not set in .env file
     exit /b 1
 )
+if "%QGIS_BIN_PATH%"=="" (
+    echo Error: QGIS_BIN_PATH variable not set in .env file
+    exit /b1
+)
 
-REM Määritä polku QGISin psql-asennukseen. Esim. "C:\\Program Files\\QGIS 3.30.2\\bin".
-SET PSQL_PATH="<Tiedostopolku QGISin bin kansioon>"
-
-REM Määritä polku QGISin ogr2ogr-asennukseen. Esim. "C:\\Program Files\\QGIS 3.30.2\\bin".
-SET OGR2OGR_PATH="<Tiedostopolku QGISin bin kansioon>"
 
 ECHO Luetaan huoneistomäärät
-%OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln huoneistomaara %EXCEL_FILE% "Huoneistolkm"
+"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%HOST% port=%PORT% dbname=%DB_NAME% user=%USER% ACTIVE_SCHEMA=jkr_dvv" -nln huoneistomaara %EXCEL_FILE% "Huoneistolkm"
 
 ECHO Päivitetään huoneistomäärät rakennus-tauluun
-%PSQL_PATH%\\psql -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f "update_huoneistomaara.sql"
+"%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f "update_huoneistomaara.sql"

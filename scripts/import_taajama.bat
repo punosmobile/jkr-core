@@ -29,6 +29,10 @@ if "%JKR_USER%"=="" (
     echo Error: USER variable not set in .env file
     exit /b 1
 )
+if "%QGIS_BIN_PATH%"=="" (
+    echo Error: QGIS_BIN_PATH variable not set in .env file
+    exit /b1
+)
 
 REM Tarkistetaan parametrit
 IF "%~3"=="" (
@@ -53,9 +57,6 @@ for %%A in ("%SHP_FILE%") do (
    SET "SHP_TABLE=%%~nA"
 )
 
-REM Määritä polku QGISin ogr2ogr-asennukseen. Esim. "C:\\Program Files\\QGIS 3.28.10\\bin".
-SET OGR2OGR_PATH="C:\\Program Files\\QGIS 3.28.11\\bin"
-
-%OGR2OGR_PATH%\\ogr2ogr -f PostgreSQL -update -append PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr" -nln taajama -nlt MULTIPOLYGON -dialect SQLITE -sql "SELECT ""Geometry"" as geom, ""Urakkaraja"" as nimi, %POPULATION% as vaesto_lkm, ""fid"" as taajama_id, '%DATE_FROM%' as alkupvm FROM ""%SHP_TABLE%""" "%SHP_FILE%"
+"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -update -append PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr" -nln taajama -nlt MULTIPOLYGON -dialect SQLITE -sql "SELECT ""Geometry"" as geom, ""Urakkaraja"" as nimi, %POPULATION% as vaesto_lkm, ""fid"" as taajama_id, '%DATE_FROM%' as alkupvm FROM ""%SHP_TABLE%""" "%SHP_FILE%"
 
 ECHO Valmis!
