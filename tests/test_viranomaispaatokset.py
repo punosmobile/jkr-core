@@ -25,7 +25,7 @@ def engine():
     engine = create_engine(
         # "postgresql://{username}:{test_password}@{host}:{test_port}/{test_dbname}".format(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
-            **conf.dbtestconf
+            **conf.dbconf
         ),
         future=True,
         json_serializer=json_dumps,

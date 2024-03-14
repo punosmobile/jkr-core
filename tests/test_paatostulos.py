@@ -11,7 +11,7 @@ from jkrimporter.providers.db.models import Paatostulos
 def engine():
     engine = create_engine(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
-            **conf.dbtestconf
+            **conf.dbconf
         ),
         future=True,
         json_serializer=json_dumps,

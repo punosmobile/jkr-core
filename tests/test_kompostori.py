@@ -21,7 +21,7 @@ def json_dumps(value):
 def engine():
     engine = create_engine(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
-            **conf.dbtestconf
+            **conf.dbconf
         ),
         future=True,
         json_serializer=json_dumps,  # Use the test-specific json_dumps function here
