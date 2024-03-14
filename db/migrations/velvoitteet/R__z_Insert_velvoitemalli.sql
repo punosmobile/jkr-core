@@ -1,6 +1,7 @@
-INSERT INTO jkr.velvoitemalli(selite, saanto, tayttymissaanto, jatetyyppi_id, alkupvm, kuvaus)
+INSERT INTO jkr.velvoitemalli(id,selite, saanto, tayttymissaanto, jatetyyppi_id, alkupvm, kuvaus)
 VALUES
     (
+        1,
         'Velvoiteyhteenveto',
         'kohde',
         'kohteet_joilla_vapauttava_paatos_voimassa',
@@ -9,6 +10,7 @@ VALUES
         'Velvoiteyhteenveto ei tarvitse jätteenkuljetusta'
     ),
     (
+        2,
         'Velvoiteyhteenveto',
         'kohde',
         'kohteet_joilla_keskeyttava_paatos_voimassa',
@@ -17,6 +19,7 @@ VALUES
         'Velvoiteyhteenveto ei tarvitse jätteenkuljetusta'
     ),
     (
+        3,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_puuttuu',
@@ -25,6 +28,7 @@ VALUES
         'Sekajäte puuttuu'
     ),
     (
+        4,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_yli_4_vk_ei_bio',
@@ -33,6 +37,7 @@ VALUES
         'Sekajäte väärä tyhjennysväli'
     ),
     (
+        5,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_0_tai_yli_16_vk',
@@ -41,6 +46,7 @@ VALUES
         'Sekajäte väärä tyhjennysväli'
     ),
     (
+        6,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_yli_16_vk_pidentava_ei_ok',
@@ -49,6 +55,7 @@ VALUES
         'Sekajäte väärä tyhjennysväli'
     ),
     (
+        7,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_yli_16_vk_ei_bio_pidentava_ok',
@@ -57,6 +64,7 @@ VALUES
         'Sekajäte väärä tyhjennysväli'
     ),
     (
+        8,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_alle_4_vk',
@@ -65,6 +73,7 @@ VALUES
         'Sekajäte kunnossa'
     ),
     (
+        9,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_enint_16_vk_bio_on',
@@ -73,6 +82,7 @@ VALUES
         'Sekajäte kunnossa'
     ),
     (
+        10,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_enint_16_vk_kompostointi_ok',
@@ -81,6 +91,7 @@ VALUES
         'Sekajäte kunnossa'
     ),
     (
+        11,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_yli_16_vk_kompostointi_ok_pidentava_ok',
@@ -89,6 +100,7 @@ VALUES
         'Sekajäte kunnossa'
     ),
     (
+        12,
         'Sekajäte',
         'kohde',
         'kohteet_joilla_seka_yli_16_vk_bio_on_pidentava_ok',
