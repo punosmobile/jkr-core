@@ -1,5 +1,5 @@
-from datetime import datetime
 import subprocess
+from datetime import datetime
 
 import pytest
 from sqlalchemy import and_, create_engine, distinct, func, or_, select
@@ -9,13 +9,20 @@ from jkrimporter import conf
 from jkrimporter.providers.db.codes import init_code_objects
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
-from jkrimporter.providers.db.models import Kohde, KohteenOsapuolet, Osapuoli, Osapuolenrooli
+from jkrimporter.providers.db.models import (
+    Kohde,
+    KohteenOsapuolet,
+    Osapuolenrooli,
+    Osapuoli,
+)
 
 
 @pytest.fixture(scope="module", autouse=True)
 def engine():
     engine = create_engine(
-        "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(**conf.dbconf),
+        "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
+            **conf.dbtestconf
+        ),
         future=True,
         json_serializer=json_dumps
     )

@@ -16,7 +16,7 @@ for /f "usebackq tokens=1,* delims==" %%a in ("%APPDATA%\jkr\.env") do (
     set "%%a=%%b"
 )
 
-REM Check if required variables are set
+REM Tarkistetaan onko tarvittavat muuttujat asetettu.
 if "%JKR_DB_HOST%"=="" (
     echo Error: HOST variable not set in .env file
     exit /b 1

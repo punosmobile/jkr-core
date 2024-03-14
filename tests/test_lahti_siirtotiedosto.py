@@ -1,8 +1,8 @@
 import csv
 import os
 from pathlib import Path
-import pytest
 
+import pytest
 from sqlalchemy import create_engine, func, or_, select, text
 from sqlalchemy.orm import Session
 
@@ -28,7 +28,7 @@ from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 def engine():
     engine = create_engine(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
-            **conf.dbconf
+            **conf.dbtestconf
         ),
         future=True,
         json_serializer=json_dumps

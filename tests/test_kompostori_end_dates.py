@@ -1,8 +1,8 @@
-import pytest
-import os
 import datetime
-from openpyxl.reader.excel import load_workbook
+import os
 
+import pytest
+from openpyxl.reader.excel import load_workbook
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,7 @@ from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
 def engine():
     engine = create_engine(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
-            **conf.dbconf
+            **conf.dbtestconf
         ),
         future=True,
         json_serializer=json_dumps,

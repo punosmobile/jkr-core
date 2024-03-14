@@ -1,32 +1,35 @@
-import pytest
+import json
 import os
-from openpyxl.reader.excel import load_workbook
 
+import pytest
+from openpyxl.reader.excel import load_workbook
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
 from jkrimporter.cli.jkr import import_ilmoitukset
-from jkrimporter.providers.db.database import json_dumps
+from jkrimporter.providers.db.database import JSONEncoderWithDateSupport, json_dumps
 from jkrimporter.providers.db.models import Kompostori, KompostorinKohteet
 from jkrimporter.providers.lahti.ilmoitustiedosto import Ilmoitustiedosto
 
+
+# Redefine json_dumps with test-specific behavior
+def json_dumps(value):
+    return json.dumps(value, cls=JSONEncoderWithDateSupport)
 
 @pytest.fixture(scope="module", autouse=True)
 def engine():
     engine = create_engine(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
-            **conf.dbconf
+            **conf.dbtestconf
         ),
         future=True,
-        json_serializer=json_dumps,
+        json_serializer=json_dumps,  # Use the test-specific json_dumps function here
     )
     return engine
 
-
 def test_readable(datadir):
     assert Ilmoitustiedosto.readable_by_me(datadir + "/ilmoitukset.xlsx")
-
 
 def test_kompostori(engine, datadir):
     import_ilmoitukset(datadir + "/ilmoitukset.xlsx")
@@ -44,7 +47,6 @@ def test_kompostori(engine, datadir):
     workbook = load_workbook(xlsx_file_path)
     sheet = workbook[workbook.sheetnames[0]]
     assert sheet.max_row == 6
-
 
 def test_kompostori_osakkaan_lisays(engine, datadir):
     import_ilmoitukset(datadir + "/ilmoitukset_lisaa_komposti_osakas.xlsx")
