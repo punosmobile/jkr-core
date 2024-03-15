@@ -47,8 +47,8 @@ $ nano .env
 ```
 
 ```bash
-docker-compose up db -d
-docker-compose up flyway
+docker-compose --env-file "${env:APPDATA}/jkr/.env" up db -d
+docker-compose --env-file "${env:APPDATA}/jkr/.env" up flyway
 ```
 
 ## Handling database model changes
@@ -65,7 +65,7 @@ pgmodeler-cli.exe --export-to-file --input jkr.dbm --output migrations/V1__initi
 ### Creating incremental migrations
 ```bash
 # 1. Verify db is up to date (all current migrations applied) by running 
-docker-compose up flyway
+docker-compose --env-file "${env:APPDATA}/jkr/.env" up flyway
 
 # 2. Modify the pgmodeler model
 
@@ -75,19 +75,19 @@ pgmodeler-cli.exe --diff --save --input jkr.dbm --compare-to jkr --conn-alias lo
 # 4. Validate and modify the migration file
 
 # 5. Migrate by running 
-docker-compose up flyway
+docker-compose --env-file "${env:APPDATA}/jkr/.env" up flyway
 
 # 6. Verify all changes in model are apllied to the database by executing step 3 again and checking that no diff is generated.
 ```
 
 **Repairing migrations**
 ```bash
-docker-compose run --rm flyway repair
+docker-compose --env-file "${env:APPDATA}/jkr/.env" run --rm flyway repair
 ```
 
 ### Running migrations against different platform
 ```bash
-docker-compose run --rm flyway migrate -user=jkr_admin -password=<password> -url=jdbc:postgresql://trepx-paikka1.tre.t.verkko:5432/ymparisto_test_db
+docker-compose --env-file "${env:APPDATA}/jkr/.env" run --rm flyway migrate -user=jkr_admin -password=<password> -url=jdbc:postgresql://trepx-paikka1.tre.t.verkko:5432/ymparisto_test_db
 ```
 
 ## Using the QGIS project
