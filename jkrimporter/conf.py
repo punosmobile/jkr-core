@@ -1,18 +1,19 @@
 import os
+import sys
 
 from dotenv import dotenv_values
 
-from tests.conftest import TEST_ENV
-
 
 # Path to the .env file in the user's %APPDATA%/jkr directory
-dotenv_path = os.path.join(os.getenv('APPDATA'), 'jkr', '.env')
+dotenv_path = os.path.join(os.getenv("APPDATA"), "jkr", ".env")
 
 # Read the environment variables from the .env file
 env = {
     **dotenv_values(dotenv_path),
     **os.environ,
 }
+
+test_command = "pytest"
 
 # Define database configuration using environment variables
 dbconf = {
@@ -22,7 +23,9 @@ dbconf = {
     "password": env.get("JKR_PASSWORD", None),
     "dbname": env.get("JKR_DB", None),
 }
-if TEST_ENV:
+if (
+    os.path.basename(sys.argv[0]) == test_command
+):  # Running tests, set configuration for test database
     dbconf["port"] = env.get("JKR_TEST_DB_PORT", None)
     dbconf["password"] = env.get("JKR_TEST_PASSWORD", None)
     dbconf["dbname"] = env.get("JKR_TEST_DB", None)
