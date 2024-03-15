@@ -5,6 +5,8 @@ import subprocess
 
 from pytest import fixture
 
+TEST_ENV = True
+
 
 @fixture
 def datadir(tmpdir, request):

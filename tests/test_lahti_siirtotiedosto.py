@@ -1,8 +1,8 @@
 import csv
 import os
 from pathlib import Path
-import pytest
 
+import pytest
 from sqlalchemy import create_engine, func, or_, select, text
 from sqlalchemy.orm import Session
 

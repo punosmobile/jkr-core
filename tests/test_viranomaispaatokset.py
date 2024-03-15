@@ -1,7 +1,7 @@
-from datetime import date
 import os
-import pytest
+from datetime import date
 
+import pytest
 from openpyxl.reader.excel import load_workbook
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session
@@ -23,6 +23,7 @@ from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 @pytest.fixture(scope="module", autouse=True)
 def engine():
     engine = create_engine(
+        # "postgresql://{username}:{test_password}@{host}:{test_port}/{test_dbname}".format(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
             **conf.dbconf
         ),
