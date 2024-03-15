@@ -5,8 +5,6 @@ import subprocess
 
 from pytest import fixture
 
-TEST_ENV = True
-
 
 @fixture
 def datadir(tmpdir, request):
@@ -27,6 +25,7 @@ def datadir(tmpdir, request):
     print(os.listdir(tmpdir))
 
     return tmpdir
+
 
 @fixture
 def faulty_datadir(tmpdir, request):
