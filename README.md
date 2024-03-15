@@ -38,7 +38,7 @@ $ poetry install
 
 Install docker and docker-compose (version >= 1.28.0)
 
-Copy .env.template to .env and change parameters
+Copy .env.template to %APPDATA%/jkr/.env and change parameters
 ```bash
 $ cp .env.template .env
 
@@ -148,19 +148,13 @@ If you do not want to import posti data, leave <POSTI> out of the command.
 
 The testing procedures are under construction. Currently, the tests can be run only in a Windows system. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.
 
-1. The ogr2ogr converter is used in importing DVV data. Set the correct path to ogr2ogr.exe in `/tests/scripts/init_database.bat`.
+1. The settings for the local test database are stored in `%APPDATA%/jkr/.env`. Copy the defaults from `/tests/.env.template`.
 
-```bash
-SET OGR2OGR_PATH="C:\\Program Files\\QGIS 3.28.9\\bin"
-```
-
-2. The settings for the local test database are stored in `/tests/.env`. Copy the defaults from `/tests/.env.template`.
-
-3. When calling `pytest` the batch file `/tests/scripts/init_database.bat` is run before the tests related to the database.
+2. When calling `pytest` the batch file `/tests/scripts/init_database.bat` is run before the tests related to the database.
 
 NOTE:
 
-If your environment contains saved environmental variables, they could cause issues with the tests.
+If your environment contains saved environmental variables, they may cause issues with the tests.
 
 ### Test data
 
