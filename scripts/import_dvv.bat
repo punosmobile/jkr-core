@@ -59,16 +59,16 @@ if "%QGIS_BIN_PATH%"=="" (
 )
 
 ECHO Rakennukset
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln rakennus "../tests/data/test_data_import/DVV_original.xlsx" "R1 rakennus"
+"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln rakennus "../data/DVV/DVV_rakennukset.xlsx" "R1 rakennus"
 
 ECHO Osoitteet
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln osoite "../tests/data/test_data_import/DVV_original.xlsx" "R3 osoite"
+"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln osoite "../data/DVV/DVV_rakennukset.xlsx" "R3 osoite"
 
 ECHO Omistajat
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln omistaja "../tests/data/test_data_import/DVV_original.xlsx" "R4 omistaja"
+"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln omistaja "../data/DVV/DVV_rakennukset.xlsx" "R4 omistaja"
 
 ECHO Asukkaat
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln vanhin "../tests/data/test_data_import/DVV_original.xlsx" "R9 huon asukk"
+"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln vanhin "../data/DVV/DVV_rakennukset.xlsx" "R9 huon asukk"
 
 ECHO Muunnetaan jkr-muotoon...
 "%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v formatted_date="%formatted_date%" -f "import_dvv.sql"
