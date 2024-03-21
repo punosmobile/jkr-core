@@ -1,4 +1,4 @@
-CREATE VIEW jkr.v_vah_5_huoneistoa_hyotyjatteiden_erilliskeraysalue
+CREATE VIEW jkr.v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue
 AS
 SELECT k.id,
     k.nimi,
@@ -26,4 +26,4 @@ WHERE k.id NOT IN (
     WHERE t.id IS NULL
 );
 
-ALTER VIEW jkr.v_vah_5_huoneistoa_hyotyjatteiden_erilliskeraysalue OWNER TO jkr_admin;
+ALTER VIEW jkr.v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue OWNER TO jkr_admin;
