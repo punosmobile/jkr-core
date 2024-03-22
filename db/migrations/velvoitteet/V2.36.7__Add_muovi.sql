@@ -133,6 +133,7 @@ WHERE
             SELECT 1
             FROM jkr.tyhjennysvali tv
             WHERE tv.sopimus_id = s.id
+            AND tv.tyhjennysvali >= 0
             AND tv.tyhjennysvali <= 12
         )
     )
@@ -168,6 +169,7 @@ WHERE
                 SELECT 1
                 FROM jkr.tyhjennysvali tv
                 WHERE tv.sopimus_id = ski.id
+                AND tv.tyhjennysvali > 0
                 AND tv.tyhjennysvali <= 12
             )
         )
