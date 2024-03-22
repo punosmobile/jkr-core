@@ -26,6 +26,12 @@ WHERE
             WHERE sk.sopimustyyppi_id = st.id
             AND st.selite = 'Kimppasopimus'
         )
+        AND EXISTS (
+            SELECT 1
+            FROM jkr_koodistot.jatetyyppi jt
+            WHERE (sk.jatetyyppi_id = jt.id
+            AND jt.selite = 'Biojäte')
+        )
         AND sk.voimassaolo @> $1
         AND EXISTS (
             SELECT 1
@@ -76,6 +82,12 @@ WHERE
             FROM jkr_koodistot.sopimustyyppi st
             WHERE sk.sopimustyyppi_id = st.id
             AND st.selite = 'Kimppasopimus'
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM jkr_koodistot.jatetyyppi jt
+            WHERE (sk.jatetyyppi_id = jt.id
+            AND jt.selite = 'Biojäte')
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (
@@ -133,6 +145,12 @@ WHERE
             FROM jkr_koodistot.sopimustyyppi st
             WHERE sk.sopimustyyppi_id = st.id
             AND st.selite = 'Kimppasopimus'
+        )
+        AND EXISTS (
+            SELECT 1
+            FROM jkr_koodistot.jatetyyppi jt
+            WHERE (sk.jatetyyppi_id = jt.id
+            AND jt.selite = 'Biojäte')
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (

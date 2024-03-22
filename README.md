@@ -87,7 +87,7 @@ docker-compose --env-file "${env:APPDATA}/jkr/.env" run --rm flyway repair
 
 ### Running migrations against different platform
 ```bash
-docker-compose --env-file "${env:APPDATA}/jkr/.env" run --rm flyway migrate -user=jkr_admin -password=<password> -url=jdbc:postgresql://trepx-paikka1.tre.t.verkko:5432/ymparisto_test_db
+docker-compose run --rm flyway migrate -user=jkr_admin -password=<password> -url=jdbc:postgresql://trepx-paikka1.tre.t.verkko:5432/ymparisto_test_db
 ```
 
 ## Using the QGIS project
