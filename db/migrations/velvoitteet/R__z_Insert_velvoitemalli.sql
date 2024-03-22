@@ -152,5 +152,32 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2022-1-1',
         'Biojäte kunnossa'
+    ),
+    (
+        18,
+        'Muovi',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_muovi_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muovi'),
+        '2022-1-1',
+        'Muovipakkaus puuttuu'
+    ),
+    (
+        19,
+        'Muovi',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_muovi_yli_12_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muovi'),
+        '2022-1-1',
+        'Muovi väärä tyhjennysväli'
+    ),
+    (
+        20,
+        'Muovi',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_muovi_enintaan_12_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muovi'),
+        '2022-1-1',
+        'Muovi kunnossa'
     )
 ON CONFLICT DO NOTHING;
