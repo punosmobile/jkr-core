@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION  jkr.kohteet_joilla_muovi_puuttuu(date) RETURNS TABLE (kohde_id integer) AS
+CREATE OR REPLACE FUNCTION jkr.kohteet_joilla_muovi_puuttuu(date) RETURNS TABLE (kohde_id integer) AS
 $$
 SELECT DISTINCT k.id
 FROM
@@ -30,7 +30,7 @@ WHERE
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
             WHERE sk.jatetyyppi_id = jt.id
-            AND jt.selite = 'Biojäte'
+            AND jt.selite = 'Muovi'
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (
@@ -87,7 +87,7 @@ WHERE
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
             WHERE sk.jatetyyppi_id = jt.id
-            AND jt.selite = 'Biojäte'
+            AND jt.selite = 'Muovi'
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (
@@ -151,7 +151,7 @@ WHERE
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
             WHERE sk.jatetyyppi_id = jt.id
-            AND jt.selite = 'Biojäte'
+            AND jt.selite = 'Muovi'
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (
