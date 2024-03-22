@@ -29,8 +29,8 @@ WHERE
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
-            WHERE (sk.jatetyyppi_id = jt.id
-            AND jt.selite = 'Biojäte')
+            WHERE sk.jatetyyppi_id = jt.id
+            AND jt.selite = 'Biojäte'
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (
@@ -86,8 +86,8 @@ WHERE
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
-            WHERE (sk.jatetyyppi_id = jt.id
-            AND jt.selite = 'Biojäte')
+            WHERE sk.jatetyyppi_id = jt.id
+            AND jt.selite = 'Biojäte'
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (
@@ -149,8 +149,8 @@ WHERE
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
-            WHERE (sk.jatetyyppi_id = jt.id
-            AND jt.selite = 'Biojäte')
+            WHERE sk.jatetyyppi_id = jt.id
+            AND jt.selite = 'Biojäte'
         )
         AND sk.voimassaolo @> $1
         AND EXISTS (
