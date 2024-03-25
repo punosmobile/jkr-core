@@ -179,5 +179,32 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muovi'),
         '2022-1-1',
         'Muovi kunnossa'
+    ),
+    (
+        21,
+        'Kartonki',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_kartonki_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Kartonki'),
+        '2022-1-1',
+        'Kartonkipakkaus puuttuu'
+    ),
+    (
+        22,
+        'Kartonki',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_kartonki_yli_12_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Kartonki'),
+        '2022-1-1',
+        'Kartonkipakkaus väärä tyhjennysväli'
+    ),
+    (
+        23,
+        'Kartonki',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_kartonki_enintaan_12_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Kartonki'),
+        '2022-1-1',
+        'Kartonkipakkaus kunnossa'
     )
 ON CONFLICT DO NOTHING;
