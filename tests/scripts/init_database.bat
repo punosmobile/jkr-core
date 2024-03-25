@@ -1,11 +1,11 @@
 @echo off
 
 REM Luodaan kanta alusta dockerilla
-"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" stop jkr_test_database
-"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" rm jkr_test_database
-"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" volume rm jkr-core_postgis-data-test
-"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" compose --env-file "%APPDATA%\jkr\.env" -f ..\\docker-compose.yml up -d db_test
-"C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" compose --env-file "%APPDATA%\jkr\.env" -f ..\\docker-compose.yml run --rm flyway_test migrate
+docker stop jkr_test_database
+docker rm jkr_test_database
+docker volume rm jkr-core_postgis-data-test
+docker compose --env-file "%APPDATA%\jkr\.env" -f ..\\docker-compose.yml up -d db_test
+docker compose --env-file "%APPDATA%\jkr\.env" -f ..\\docker-compose.yml run --rm flyway_test migrate
 
 REM Vaihdetaan terminaalin code page UTF-8:ksi
 CHCP 65001
