@@ -206,5 +206,59 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Kartonki'),
         '2022-1-1',
         'Kartonkipakkaus kunnossa'
+    ),
+    (
+        24,
+        'Lasi',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_lasi_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Lasi'),
+        '2022-1-1',
+        'Lasipakkaus puuttuu'
+    ),
+    (
+        25,
+        'Lasi',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_lasi_yli_26_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Lasi'),
+        '2022-1-1',
+        'Lasipakkaus väärä tyhjennysväli'
+    ),
+    (
+        26,
+        'Lasi',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_lasi_enintaan_26_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Lasi'),
+        '2022-1-1',
+        'Lasipakkaus kunnossa'
+    ),
+    (
+        27,
+        'Metalli',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_metalli_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
+        '2022-1-1',
+        'Metalli puuttuu'
+    ),
+    (
+        28,
+        'Metalli',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_metalli_yli_26_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
+        '2022-1-1',
+        'Metalli väärä tyhjennysväli'
+    ),
+    (
+        29,
+        'Metalli',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_metalli_enintaan_26_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
+        '2022-1-1',
+        'Metalli kunnossa'
     )
 ON CONFLICT DO NOTHING;

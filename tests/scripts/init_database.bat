@@ -9,7 +9,7 @@ docker compose --env-file "%APPDATA%\jkr\.env" -f ..\\docker-compose.yml run --r
 
 REM Vaihdetaan terminaalin code page UTF-8:ksi
 CHCP 65001
-REM Kerrotaan Postgresille my├Âs terminaalin encoding UTF-8
+REM Kerrotaan Postgresille myÔö£├és terminaalin encoding UTF-8
 SET PGCLIENTENCODING=UTF8
 
 REM Tarkistetaan .env tiedosto.
