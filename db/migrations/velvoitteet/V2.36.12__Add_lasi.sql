@@ -45,7 +45,7 @@ WHERE
                 AND jt.selite = 'Lasi'
             )   
         )
-    )
+    );
 $$
 LANGUAGE SQL STABLE;
 
