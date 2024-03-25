@@ -49,7 +49,7 @@ WHERE
 $$
 LANGUAGE SQL STABLE;
 
-CREATE OR REPLACE FUNCTION jkr.kohteet_joilla_lasi_yli_5_vk(date) RETURNS TABLE (kohde_id integer) AS
+CREATE OR REPLACE FUNCTION jkr.kohteet_joilla_lasi_yli_26_vk(date) RETURNS TABLE (kohde_id integer) AS
 $$
 SELECT DISTINCT k.id
 FROM
