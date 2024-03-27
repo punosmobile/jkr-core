@@ -260,5 +260,149 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
         '2022-1-1',
         'Metalli kunnossa'
+    ),
+    (
+        30,
+        'Velvoiteyhteenveto',
+        'v_ei_erilliskeraysalueet',
+        'kohteet_joilla_seka_ok',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto jätteenkuljetus kunnossa'
+    ),
+    (
+        31,
+        'Velvoiteyhteenveto',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_ok_kompostointi_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto jätteenkuljetus kunnossa'
+    ),
+    (
+        32,
+        'Velvoiteyhteenveto',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_ok_bio_enint_4',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto jätteenkuljetus kunnossa'
+    ),
+    (
+        33,
+        'Velvoiteyhteenveto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_ok_bio_enint_4_muut_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto jätteenkuljetus kunnossa'
+    ),
+    (
+        34,
+        'Velvoiteyhteenveto',
+        'kohde',
+        'kohteet_joilla_seka_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto ei jätehuoltoa'
+    ),
+    (
+        35,
+        'Velvoiteyhteenveto',
+        'v_erilliskeraysalueet',
+        'kohteet_joilla_seka_ok_bio_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto biojäte puuttuu'
+    ),
+    (
+        36,
+        'Velvoiteyhteenveto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_muovi_enintaan_12_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto pakkausjäte puutteellinen'
+    ),
+    (
+        37,
+        'Velvoiteyhteenveto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_ok_bio_enint_4_metalli_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto pakkausjäte puutteellinen'
+    ),
+    (
+        38,
+        'Velvoiteyhteenveto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_ok_bio_enint_4_lasi_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto pakkausjäte puutteellinen'
+    ),
+    (
+        39,
+        'Velvoiteyhteenveto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_ok_bio_enint_4_muovi_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto pakkausjäte puutteellinen'
+    ),
+    (
+        40,
+        'Velvoiteyhteenveto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_vaara_tvali_muut_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto väärä tyhjennysväli sekajäte'
+    ),
+    (
+        41,
+        'Velvoiteyhteenveto',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_vaara_tvali_bio_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto väärä tyhjennysväli sekajäte'
+    ),
+    (
+        42,
+        'Velvoiteyhteenveto',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_vaara_tvali_kompostointi_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto väärä tyhjennysväli sekajäte'
+    ),
+    (
+        43,
+        'Velvoiteyhteenveto',
+        'v_ei_erilliskeraysalueet',
+        'kohteet_joilla_seka_vaara_tvali',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto väärä tyhjennysväli sekajäte'
+    ),
+    (
+        44,
+        'Velvoiteyhteenveto',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_bio_vaara_tvali_seka_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto väärä tyhjennysväli biojäte'
+    ),
+    (
+        45,
+        'Velvoiteyhteenveto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_bio_vaara_tvali_muut_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2022-1-1',
+        'Velvoiteyhteenveto väärä tyhjennysväli biojäte'
     )
 ON CONFLICT DO NOTHING;
