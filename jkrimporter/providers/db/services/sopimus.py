@@ -262,4 +262,4 @@ def update_sopimukset_for_kohde(
                     if raportointi_loppupvm
                     else asiakas.voimassa.upper,
                 )
-                update_tyhjennysvalit(session, asiakas, db_sopimus, sopimus)
+            update_tyhjennysvalit(session, asiakas, db_sopimus, sopimus)
