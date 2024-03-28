@@ -14,6 +14,8 @@ from jkrimporter.providers.db.models import (
     KohteenOsapuolet,
     Osapuolenrooli,
     Osapuoli,
+    RakennuksenOmistajat,
+    RakennuksenVanhimmat,
 )
 
 
@@ -135,11 +137,35 @@ def test_update_dvv_kohteet(engine):
     # Perusmaksurekisteristä luodun kohteen Asunto Oy Kahden Laulumuisto loppupäivämäärä ei ole muuttunut
     _assert_kohteen_loppupvm(session, '2100-01-01', 'Asunto Oy Kahden Laulumuisto')
 
-    # Päättyneelle kohteelle Kemp (asukas vaihtunut) asetettu loppupäivämäärä oikein
-    _assert_kohteen_loppupvm(session, '2023-01-16', 'Kemp')
+    # Päättyneelle kohteelle Kemp (asukas vaihtunut) asetettu loppupäivämäärät oikein
+    _assert_kohteen_loppupvm(session, "2023-01-16", "Kemp")
+    osapuoli_nimi_filter = Osapuoli.nimi == "Kemp Johan"
+    osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
+    loppu_pvm_filter = RakennuksenVanhimmat.loppupvm == func.to_date(
+        "2023-01-16", "YYYY-MM-DD"
+    )
+    rakennuksen_vanhimmat_id = (
+        session.query(RakennuksenVanhimmat.id)
+        .filter(RakennuksenVanhimmat.osapuoli_id == osapuoli_id)
+        .filter(loppu_pvm_filter)
+        .scalar()
+    )
+    assert rakennuksen_vanhimmat_id is not None
 
-    # Päättyneelle kohteelle Pohjonen (omistaja vaihtunut) asetettu loppupäivämäärä oikein
+    # Päättyneelle kohteelle Pohjonen (omistaja vaihtunut) asetettu loppupäivämäärät oikein
     _assert_kohteen_loppupvm(session, '2023-01-22', 'Pohjonen')
+    osapuoli_nimi_filter = Osapuoli.nimi == "Pohjonen Aarno Armas"
+    osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
+    loppu_pvm_filter = RakennuksenOmistajat.omistuksen_loppupvm == func.to_date(
+        "2023-01-22", "YYYY-MM-DD"
+    )
+    rakennuksen_vanhimmat_id = (
+        session.query(RakennuksenOmistajat.id)
+        .filter(RakennuksenOmistajat.osapuoli_id == osapuoli_id)
+        .filter(loppu_pvm_filter)
+        .scalar()
+    )
+    assert rakennuksen_vanhimmat_id is not None
 
     # Muilla kohteilla ei loppupäivämäärää
     loppu_pvm_filter = Kohde.loppupvm != None
