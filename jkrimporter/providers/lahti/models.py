@@ -214,6 +214,20 @@ class AsiakasRow(BaseModel):
                 raise ValueError("If tyhjennysvali2 is not empty, Voimassaoloviikotalkaen2 and Voimassaoloviikotasti2 must not be empty.")
         return values
 
+    @root_validator(pre=True)
+    def validate_tyhjennysvali(cls, values):
+        tyyppiIdEWC = values.get("tyyppiIdEWC")
+        tyhjennysvali = values.get("tyhjennysvali")
+        
+        if tyhjennysvali is not None:
+            tyhjennysvali = int(tyhjennysvali)
+        # Check if tyyppiIdEWC is not "Aluekeräys" or "Aluekeräyspiste"
+        if tyyppiIdEWC not in ["Aluekeräys", "Aluekeräyspiste"]:
+            # If tyyppiIdEWC is not one of these values, tyhjennysvali must be greater than 0
+            if tyhjennysvali is None or tyhjennysvali <= 0:
+                raise ValueError("For other tyyppiIdEWC values, tyhjennysvali must be greater than 0.")
+        return values
+
 
 class Asiakas(BaseModel):
     UrakoitsijaId: str
