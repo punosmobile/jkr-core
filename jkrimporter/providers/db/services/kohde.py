@@ -857,6 +857,7 @@ def create_new_kohde_from_buildings(
     omistajat: "Set[Osapuoli]",
     poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
+    buildings_have_old_kohde: bool = False,
 ):
     """
     Create combined kohde for the given list of building ids. Omistaja or asukas
@@ -897,7 +898,9 @@ def create_new_kohde_from_buildings(
         )
     else:
         kohde_display_name = "Tuntematon"
-    alkupvm = parse_alkupvm_for_kohde(session, rakennus_ids, poimintapvm)
+    alkupvm = poimintapvm
+    if buildings_have_old_kohde:
+        alkupvm = parse_alkupvm_for_kohde(session, rakennus_ids, poimintapvm)
     kohde = Kohde(
         nimi=kohde_display_name,
         kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
@@ -1072,14 +1075,27 @@ def update_or_create_kohde_from_buildings(
         # All combinations are checked above.
     else:
         print("Sopivaa kohdetta ei löydy, luodaan uusi kohde.")
+        if poimintapvm:
+            old_kohde_id = old_kohde_id_for_buildings(
+                session, rakennus_ids, poimintapvm
+            )
         new_kohde = create_new_kohde_from_buildings(
-            session, rakennus_ids, asukkaat, omistajat, poimintapvm, loppupvm
+            session,
+            rakennus_ids,
+            asukkaat,
+            omistajat,
+            poimintapvm,
+            loppupvm,
+            old_kohde_id is not None,
         )
         if new_kohde and poimintapvm:
-            old_kohde_id = old_kohde_id_for_buildings(session, rakennus_ids, poimintapvm)
             if old_kohde_id:
-                print(f"Löytyi päättyvä kohde {old_kohde_id}, asetetaan loppupäivämäärä.")
-                set_old_kohde_loppupvm(session, old_kohde_id, new_kohde.alkupvm - timedelta(days=1))
+                print(
+                    f"Löytyi päättyvä kohde {old_kohde_id}, asetetaan loppupäivämäärä."
+                )
+                set_old_kohde_loppupvm(
+                    session, old_kohde_id, new_kohde.alkupvm - timedelta(days=1)
+                )
         return new_kohde
 
     # Return existing kohde when found

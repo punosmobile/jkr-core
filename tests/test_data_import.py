@@ -71,7 +71,15 @@ def test_import_dvv_kohteet(engine, datadir):
         print(f"Creating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 6
+    lkm_kohteet = 6
+    assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
+
+    # Kohteiden alkupäivämääränä on poimintapäivämäärä
+    alku_pvm_filter = Kohde.alkupvm == func.to_date("2022-01-28", "YYYY-MM-DD")
+    assert (
+        session.query(func.count(Kohde.id)).filter(alku_pvm_filter).scalar()
+        == lkm_kohteet
+    )
 
     # Perusmaksurekisteristä luodulla kohteella Asunto Oy Kahden Laulumuisto on loppupäivämäärä
     kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
