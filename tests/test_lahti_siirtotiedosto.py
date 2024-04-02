@@ -220,8 +220,8 @@ def test_import_data(engine, datadir):
         == lkm_sopimukset
     )
 
-    # Tyhjennysvalejä on 11, kahdella sopimuksista on useita tyhjennysvälejä.
-    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 11
+    # Tyhjennysvalejä on 15, kahdella sopimuksista on useita tyhjennysvälejä.
+    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 15
 
     # Kohteella Asunto Oy Kahden Laulumuisto on kaksi tyhjennysväliä muovijätteellä ja kolme kartongilla.
     kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
@@ -242,7 +242,7 @@ def test_import_data(engine, datadir):
     # Kuljetusdatassa on yksi keskeytys.
     assert session.query(func.count(Keskeytys.id)).scalar() == 1
 
-    # Kohdentumattomat.csv sisältää kuusi kohdentumatonta Asiakas-riviä.
+    # Kohdentumattomat.csv sisältää kahdeksan kohdentumatonta Asiakas-riviä.
     csv_file_path = os.path.join(datadir, "kohdentumattomat_kuljetukset.csv")
     assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
     with open(csv_file_path, 'r') as csvfile:
@@ -250,7 +250,7 @@ def test_import_data(engine, datadir):
         header = next(csv_reader, None)
         assert header is not None
         rows = list(csv_reader)
-        assert len(rows) == 6
+        assert len(rows) == 8
 
     # Korjataan kuljetuksen PRT kohdentumattomissa.
     with open(csv_file_path, "r") as csvfile:

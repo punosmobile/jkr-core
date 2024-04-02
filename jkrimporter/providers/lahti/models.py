@@ -46,12 +46,12 @@ class AsiakasRow(BaseModel):
     astiamaara: float = Field(alias="SUM(astiamaara)")
     koko: Optional[float]
     paino: Optional[float] = Field(alias="SUM(paino)")
-    tyhjennysvali: Optional[int] = None
+    tyhjennysvali: Optional[int] = None  # AKP does not need tyhjennysvali to be valid
     tyhjennysvali2: Optional[int] = None
     kertaaviikossa: Optional[int] = None
     kertaaviikossa2: Optional[int] = None
-    Voimassaoloviikotalkaen: Optional[int] = None
-    Voimassaoloviikotasti: Optional[int] = None
+    Voimassaoloviikotalkaen: int
+    Voimassaoloviikotasti: int
     Voimassaoloviikotalkaen2: Optional[int] = None
     Voimassaoloviikotasti2: Optional[int] = None
     Kuntatun: Optional[int] = None
@@ -158,12 +158,10 @@ class AsiakasRow(BaseModel):
         return value
 
     @validator(
-        "tyhjennysvali",
         "Voimassaoloviikotalkaen",
         "Voimassaoloviikotasti",
         "Voimassaoloviikotalkaen2",
         "Voimassaoloviikotasti2",
-        "tyhjennysvali2",
         pre=True,
     )
     def fix_na(value: str):
@@ -189,7 +187,14 @@ class AsiakasRow(BaseModel):
             value = float(value.replace(",", "."))
         return value
 
-    @validator("kaynnit", "kertaaviikossa", "kertaaviikossa2", pre=True)
+    @validator(
+        "kaynnit",
+        "kertaaviikossa",
+        "kertaaviikossa2",
+        "tyhjennysvali",
+        "tyhjennysvali2",
+        pre=True
+    )
     def validate_kaynnit(cls, value):
         if isinstance(value, str):
             try:
@@ -197,6 +202,34 @@ class AsiakasRow(BaseModel):
             except (ValueError, TypeError):
                 return None
         return value
+
+    @root_validator(pre=True)
+    def validate_optional_fields(cls, values):
+        tyhjennysvali2 = values.get("tyhjennysvali2")
+        voimassaoloviikotalkaen2 = values.get("Voimassaoloviikotalkaen2")
+        voimassaoloviikotasti2 = values.get("Voimassaoloviikotasti2")
+
+        if tyhjennysvali2 is not None:
+            if voimassaoloviikotalkaen2 is None or voimassaoloviikotasti2 is None:
+                raise ValueError("If tyhjennysvali2 is not empty, Voimassaoloviikotalkaen2 and Voimassaoloviikotasti2 must not be empty.")
+        return values
+
+    @root_validator(pre=True)
+    def validate_tyhjennysvali(cls, values):
+        tyyppiIdEWC = values.get("tyyppiIdEWC")
+        tyhjennysvali = values.get("tyhjennysvali")
+
+        if tyhjennysvali is not None and tyhjennysvali != '':
+            tyhjennysvali = int(tyhjennysvali)
+        else:
+            tyhjennysvali = None
+        # Check if tyyppiIdEWC is not "Aluekeräys" or "Aluekeräyspiste" tyhjennysvali must be > 0
+        if tyyppiIdEWC not in ["Aluekeräys", "Aluekeräyspiste"]:
+            if tyhjennysvali is None or tyhjennysvali <= 0:
+                raise ValueError(
+                    "For other tyyppiIdEWC values than AKP, tyhjennysvali must be greater than 0."
+                )
+        return values
 
 
 class Asiakas(BaseModel):
