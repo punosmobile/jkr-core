@@ -227,7 +227,7 @@ class AsiakasRow(BaseModel):
         if tyyppiIdEWC not in ["Aluekeräys", "Aluekeräyspiste"]:
             if tyhjennysvali is None or tyhjennysvali <= 0:
                 raise ValueError(
-                    "For other tyyppiIdEWC values, tyhjennysvali must be greater than 0."
+                    "For other tyyppiIdEWC values than AKP, tyhjennysvali must be greater than 0."
                 )
         return values
 
