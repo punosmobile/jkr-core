@@ -65,13 +65,14 @@ def test_import_data(engine, datadir):
     session = Session(engine)
 
     # Kohteita ei pidä muodostua lisää
-    lkm_kohteet = 9
+    lkm_kohteet = 11
     assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
 
     # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa
     loppu_pvms = [
         func.to_date("2023-01-16", "YYYY-MM-DD"),
         func.to_date("2023-01-22", "YYYY-MM-DD"),
+        func.to_date("2023-01-30", "YYYY-MM-DD"),
         func.to_date("2100-01-01", "YYYY-MM-DD"),
     ]
     loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))

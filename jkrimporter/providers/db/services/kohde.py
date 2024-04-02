@@ -830,6 +830,7 @@ def create_new_kohde(session: "Session", asiakas: "Asiakas"):
 def parse_alkupvm_for_kohde(
     session: "Session",
     rakennus_ids: "List[int]",
+    old_kohde_alkupvm: "datetime.date",
     poimintapvm: "Optional[datetime.date]",
 ):
     latest_omistaja_change = (
@@ -843,11 +844,19 @@ def parse_alkupvm_for_kohde(
 
     if latest_omistaja_change is None and latest_vanhin_change is None:
         return poimintapvm
+
+    latest_change = old_kohde_alkupvm
     if latest_omistaja_change is None and latest_vanhin_change is not None:
-        return latest_vanhin_change
-    if latest_vanhin_change is None and latest_omistaja_change is not None:
-        return latest_omistaja_change
-    return max(latest_omistaja_change, latest_vanhin_change)
+        latest_change = latest_vanhin_change
+    elif latest_vanhin_change is None and latest_omistaja_change is not None:
+        latest_change = latest_omistaja_change
+    else:
+        latest_change = max(latest_omistaja_change, latest_vanhin_change)
+
+    if latest_change > old_kohde_alkupvm:
+        return latest_change
+    else:
+        return poimintapvm
 
 
 def create_new_kohde_from_buildings(
@@ -857,7 +866,7 @@ def create_new_kohde_from_buildings(
     omistajat: "Set[Osapuoli]",
     poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
-    buildings_have_old_kohde: bool = False,
+    old_kohde: "Optional[Kohde]",
 ):
     """
     Create combined kohde for the given list of building ids. Omistaja or asukas
@@ -899,8 +908,10 @@ def create_new_kohde_from_buildings(
     else:
         kohde_display_name = "Tuntematon"
     alkupvm = poimintapvm
-    if buildings_have_old_kohde:
-        alkupvm = parse_alkupvm_for_kohde(session, rakennus_ids, poimintapvm)
+    if old_kohde:
+        alkupvm = parse_alkupvm_for_kohde(
+            session, rakennus_ids, old_kohde.alkupvm, poimintapvm
+        )
     kohde = Kohde(
         nimi=kohde_display_name,
         kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
@@ -939,11 +950,11 @@ def create_new_kohde_from_buildings(
     return kohde
 
 
-def old_kohde_id_for_buildings(
+def old_kohde_for_buildings(
     session: "Session", rakennus_ids: "List[int]", poimintapvm: "datetime.date"
 ):
     kohde_query = (
-        select(Kohde.id)
+        select(Kohde)
         .join(KohteenRakennukset)
         .filter(
             KohteenRakennukset.rakennus_id.in_(rakennus_ids),
@@ -1076,9 +1087,7 @@ def update_or_create_kohde_from_buildings(
     else:
         print("Sopivaa kohdetta ei löydy, luodaan uusi kohde.")
         if poimintapvm:
-            old_kohde_id = old_kohde_id_for_buildings(
-                session, rakennus_ids, poimintapvm
-            )
+            old_kohde = old_kohde_for_buildings(session, rakennus_ids, poimintapvm)
         new_kohde = create_new_kohde_from_buildings(
             session,
             rakennus_ids,
@@ -1086,15 +1095,15 @@ def update_or_create_kohde_from_buildings(
             omistajat,
             poimintapvm,
             loppupvm,
-            old_kohde_id is not None,
+            old_kohde,
         )
         if new_kohde and poimintapvm:
-            if old_kohde_id:
+            if old_kohde:
                 print(
-                    f"Löytyi päättyvä kohde {old_kohde_id}, asetetaan loppupäivämäärä."
+                    f"Löytyi päättyvä kohde {old_kohde.id}, asetetaan loppupäivämäärä."
                 )
                 set_old_kohde_loppupvm(
-                    session, old_kohde_id, new_kohde.alkupvm - timedelta(days=1)
+                    session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
                 )
         return new_kohde
 
