@@ -250,7 +250,7 @@ def test_import_data(engine, datadir):
         header = next(csv_reader, None)
         assert header is not None
         rows = list(csv_reader)
-        assert len(rows) == 6
+        assert len(rows) == 8
 
     # Korjataan kuljetuksen PRT kohdentumattomissa.
     with open(csv_file_path, "r") as csvfile:

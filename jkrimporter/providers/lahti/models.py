@@ -218,14 +218,17 @@ class AsiakasRow(BaseModel):
     def validate_tyhjennysvali(cls, values):
         tyyppiIdEWC = values.get("tyyppiIdEWC")
         tyhjennysvali = values.get("tyhjennysvali")
-        
-        if tyhjennysvali is not None:
+
+        if tyhjennysvali is not None and tyhjennysvali != '':
             tyhjennysvali = int(tyhjennysvali)
-        # Check if tyyppiIdEWC is not "Aluekeräys" or "Aluekeräyspiste"
+        else:
+            tyhjennysvali = None
+        # Check if tyyppiIdEWC is not "Aluekeräys" or "Aluekeräyspiste" tyhjennysvali must be > 0
         if tyyppiIdEWC not in ["Aluekeräys", "Aluekeräyspiste"]:
-            # If tyyppiIdEWC is not one of these values, tyhjennysvali must be greater than 0
             if tyhjennysvali is None or tyhjennysvali <= 0:
-                raise ValueError("For other tyyppiIdEWC values, tyhjennysvali must be greater than 0.")
+                raise ValueError(
+                    "For other tyyppiIdEWC values, tyhjennysvali must be greater than 0."
+                )
         return values
 
 
