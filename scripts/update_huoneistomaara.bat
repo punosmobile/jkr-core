@@ -49,4 +49,4 @@ ECHO Luetaan huoneistomäärät
 "%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln huoneistomaara %EXCEL_FILE% "Huoneistolkm"
 
 ECHO Päivitetään huoneistomäärät rakennus-tauluun
-"%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f "update_huoneistomaara.sql"
+"%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f "scripts//update_huoneistomaara.sql"
