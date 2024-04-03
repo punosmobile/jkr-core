@@ -169,6 +169,20 @@ def import_and_create_kohteet(
     print("VALMIS!")
 
 
+@app.command("update_huoneistomaara",
+             help="Imports and updates number of appartments associated with buildings.")
+def update_huoneistomaara(
+    huoneisto_xlsx: Path = typer.Argument(None, help="Huoniestolukumäärä-tiedoston sijainti")
+):
+    bat_file = ".\\scripts\\update_huoneistomaara.bat"
+
+    cmd_args = [bat_file, huoneisto_xlsx]
+
+    subprocess.call(cmd_args)
+
+    print("Huoneistolukumäärät päivitetty!")
+
+
 @app.command("import_paatokset", help="Import decisions to JKR.")
 def import_paatokset(
     siirtotiedosto: Path = typer.Argument(..., help="Polku siirtotiedostoon")
