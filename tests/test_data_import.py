@@ -14,6 +14,8 @@ from jkrimporter.providers.db.models import (
     KohteenOsapuolet,
     Osapuolenrooli,
     Osapuoli,
+    RakennuksenOmistajat,
+    RakennuksenVanhimmat,
 )
 
 
@@ -69,7 +71,15 @@ def test_import_dvv_kohteet(engine, datadir):
         print(f"Creating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 5
+    lkm_kohteet = 7
+    assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
+
+    # Kohteiden alkupäivämääränä on poimintapäivämäärä
+    alku_pvm_filter = Kohde.alkupvm == func.to_date("2022-01-28", "YYYY-MM-DD")
+    assert (
+        session.query(func.count(Kohde.id)).filter(alku_pvm_filter).scalar()
+        == lkm_kohteet
+    )
 
     # Perusmaksurekisteristä luodulla kohteella Asunto Oy Kahden Laulumuisto on loppupäivämäärä
     kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
@@ -101,6 +111,30 @@ def test_import_dvv_kohteet(engine, datadir):
     assert session.query(func.count(KohteenOsapuolet.kohde_id)).filter(vanhin_asukas_filter).scalar() == 3
 
 
+def _assert_kohteen_alkupvm(session, pvmstr, nimi):
+    kohde_nimi_filter = Kohde.nimi == nimi
+    alku_pvm_filter = Kohde.alkupvm == func.to_date(pvmstr, "YYYY-MM-DD")
+    kohde_id = (
+        session.query(Kohde.id)
+        .filter(kohde_nimi_filter)
+        .filter(alku_pvm_filter)
+        .scalar()
+    )
+    assert kohde_id is not None
+
+
+def _assert_kohteen_loppupvm(session, pvmstr, nimi):
+    kohde_nimi_filter = Kohde.nimi == nimi
+    loppu_pvm_filter = Kohde.loppupvm == func.to_date(pvmstr, "YYYY-MM-DD")
+    kohde_id = (
+        session.query(Kohde.id)
+        .filter(kohde_nimi_filter)
+        .filter(loppu_pvm_filter)
+        .scalar()
+    )
+    assert kohde_id is not None
+
+
 def test_update_dvv_kohteet(engine):
     # Updating the test database created before test fixtures
     update_test_db_command = ".\\scripts\\update_database.bat"
@@ -118,26 +152,52 @@ def test_update_dvv_kohteet(engine):
         print(f"Updating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 7
+    assert session.query(func.count(Kohde.id)).scalar() == 11
 
     # Perusmaksurekisteristä luodun kohteen Asunto Oy Kahden Laulumuisto loppupäivämäärä ei ole muuttunut
-    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
-    loppu_pvm_filter = Kohde.loppupvm == func.to_date('2100-01-01', 'YYYY-MM-DD')
-    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(loppu_pvm_filter).scalar()
-    assert kohde_id is not None
+    _assert_kohteen_loppupvm(session, '2100-01-01', 'Asunto Oy Kahden Laulumuisto')
 
-    # Päättyneelle kohteelle Kemp asetettu loppupäivämäärä
-    kohde_nimi_filter = Kohde.nimi == 'Kemp'
-    loppu_pvm_filter = Kohde.loppupvm == func.to_date('2023-01-30', 'YYYY-MM-DD')
-    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(loppu_pvm_filter).scalar()
-    assert kohde_id is not None
+    # Päättyneelle kohteelle Kemp (asukas vaihtunut) asetettu loppupäivämäärät oikein
+    _assert_kohteen_loppupvm(session, "2023-01-16", "Kemp")
+    osapuoli_nimi_filter = Osapuoli.nimi == "Kemp Johan"
+    osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
+    loppu_pvm_filter = RakennuksenVanhimmat.loppupvm == func.to_date(
+        "2023-01-16", "YYYY-MM-DD"
+    )
+    rakennuksen_vanhimmat_id = (
+        session.query(RakennuksenVanhimmat.id)
+        .filter(RakennuksenVanhimmat.osapuoli_id == osapuoli_id)
+        .filter(loppu_pvm_filter)
+        .scalar()
+    )
+    assert rakennuksen_vanhimmat_id is not None
+
+    # Päättyneelle ja uudelle kohteelle Riipinen (asukas vaihtunut) asetettu alku- ja loppupäivämäärät oikein
+    _assert_kohteen_alkupvm(session, "2022-01-28", "Riipinen")
+    _assert_kohteen_loppupvm(session, "2023-01-30", "Riipinen")
+    _assert_kohteen_alkupvm(session, "2023-01-31", "Riipinen")
+
+    # Päättyneelle kohteelle Pohjonen (omistaja vaihtunut) asetettu loppupäivämäärät oikein
+    _assert_kohteen_loppupvm(session, '2023-01-22', 'Pohjonen')
+    osapuoli_nimi_filter = Osapuoli.nimi == "Pohjonen Aarno Armas"
+    osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
+    loppu_pvm_filter = RakennuksenOmistajat.omistuksen_loppupvm == func.to_date(
+        "2023-01-22", "YYYY-MM-DD"
+    )
+    rakennuksen_vanhimmat_id = (
+        session.query(RakennuksenOmistajat.id)
+        .filter(RakennuksenOmistajat.osapuoli_id == osapuoli_id)
+        .filter(loppu_pvm_filter)
+        .scalar()
+    )
+    assert rakennuksen_vanhimmat_id is not None
 
     # Muilla kohteilla ei loppupäivämäärää
     loppu_pvm_filter = Kohde.loppupvm != None
-    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 2
+    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 4
 
     # Uudessa kohteessa Kyykoski osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
-    kohde_filter = and_(Kohde.nimi == 'Kyykoski', Kohde.alkupvm == '2023-01-31')
+    kohde_filter = and_(Kohde.nimi == 'Kyykoski', Kohde.alkupvm == '2023-01-17')
     kohde_id = session.execute(select(Kohde.id).where(kohde_filter)).fetchone()[0]
     osapuoli_filter = or_(Osapuoli.nimi.like('Granström%'), Osapuoli.nimi.like('Kyykoski%'))
     osapuoli_ids = \
