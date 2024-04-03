@@ -119,6 +119,23 @@ def _assert_kohde_has_kuljetus_with_jatelaji(session, kohde_nimi, jatetyyppi_sel
         )
 
 
+def _assert_kohde_has_osapuoli_with_rooli(session, kohde_nimi, rooli_selite):
+    kohde_nimi_filter = Kohde.nimi == kohde_nimi
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    osapuolen_roolit_query = select([KohteenOsapuolet.osapuolenrooli_id]).where(
+        KohteenOsapuolet.kohde_id == kohde_id
+    )
+    osapuolen_roolit = [
+        row[0] for row in session.execute(osapuolen_roolit_query).fetchall()
+    ]
+    tilaaja_id = (
+        session.query(Osapuolenrooli.id)
+        .filter(Osapuolenrooli.selite == rooli_selite)
+        .scalar()
+    )
+    assert tilaaja_id in osapuolen_roolit
+
+
 def test_import_dvv_kohteet(engine, datadir):
     try:
         with Session(engine) as session:
@@ -193,7 +210,7 @@ def test_import_dvv_kohteet(engine, datadir):
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Sekajäte")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Sekajäte")
     import_data(
-        datadir + "/kuljetus2", "LSJ", False, False, True, "1.1.2023", "1.3.2023"
+        datadir + "/kuljetus2", "LSJ", False, False, True, "1.1.2023", "31.3.2023"
     )
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Kartonki")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Kartonki")
@@ -234,7 +251,7 @@ def _remove_kuljetusdata_from_database(session):
     session.commit()
 
 
-def test_update_dvv_kohteet(engine):
+def test_update_dvv_kohteet(engine, datadir):
     # Updating the test database created before test fixtures
     update_test_db_command = ".\\scripts\\update_database.bat"
     try:
@@ -335,5 +352,11 @@ def test_update_dvv_kohteet(engine):
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Sekajäte", False)
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Kartonki")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Kartonki")
+
+    # Kyykoskelle syntyy tilaajarooli seuraavasta kuljetuksesta
+    import_data(
+        datadir + "/kuljetus3", "LSJ", False, False, True, "1.4.2023", "30.6.2023"
+    )
+    _assert_kohde_has_osapuoli_with_rooli(session, "Kyykoski", "Tilaaja sekajäte")
 
     _remove_kuljetusdata_from_database(session)
