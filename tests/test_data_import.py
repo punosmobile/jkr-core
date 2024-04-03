@@ -6,16 +6,21 @@ from sqlalchemy import and_, create_engine, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
+from jkrimporter.cli.jkr import import_data, tiedontuottaja_add_new
 from jkrimporter.providers.db.codes import init_code_objects
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
 from jkrimporter.providers.db.models import (
+    Jatetyyppi,
     Kohde,
     KohteenOsapuolet,
+    Kuljetus,
     Osapuolenrooli,
     Osapuoli,
     RakennuksenOmistajat,
     RakennuksenVanhimmat,
+    Sopimus,
+    Tiedontuottaja,
 )
 
 
@@ -26,47 +31,103 @@ def engine():
             **conf.dbconf
         ),
         future=True,
-        json_serializer=json_dumps
+        json_serializer=json_dumps,
     )
     return engine
 
 
 def test_osapuolenrooli(engine):
-    osapuolenroolit = [(1, 'Omistaja'),
-                       (2, 'Vanhin asukas'),
-                       (11, 'Tilaaja sekajäte'),
-                       (12, 'Tilaaja biojäte'),
-                       (13, 'Tilaaja muovipakkaus'),
-                       (14, 'Tilaaja kartonkipakkaus'),
-                       (15, 'Tilaaja lasipakkaus'),
-                       (16, 'Tilaaja metalli'),
-                       (17, 'Tilaaja monilokero'),
-                       (18, 'Tilaaja liete'),
-                       (111, 'Kimppaisäntä sekajäte'),
-                       (112, 'Kimppaisäntä biojäte'),
-                       (113, 'Kimppaisäntä muovipakkaus'),
-                       (114, 'Kimppaisäntä kartonkipakkaus'),
-                       (115, 'Kimppaisäntä lasipakkaus'),
-                       (116, 'Kimppaisäntä metalli'),
-                       (211, 'Kimppaosakas sekajäte'),
-                       (212, 'Kimppaosakas biojäte'),
-                       (213, 'Kimppaosakas muovipakkaus'),
-                       (214, 'Kimppaosakas kartonkipakkaus'),
-                       (215, 'Kimppaosakas lasipakkaus'),
-                       (216, 'Kimppaosakas metalli'),
-                       (311, 'Yhteyshenkilö kompostointi')]
+    osapuolenroolit = [
+        (1, "Omistaja"),
+        (2, "Vanhin asukas"),
+        (11, "Tilaaja sekajäte"),
+        (12, "Tilaaja biojäte"),
+        (13, "Tilaaja muovipakkaus"),
+        (14, "Tilaaja kartonkipakkaus"),
+        (15, "Tilaaja lasipakkaus"),
+        (16, "Tilaaja metalli"),
+        (17, "Tilaaja monilokero"),
+        (18, "Tilaaja liete"),
+        (111, "Kimppaisäntä sekajäte"),
+        (112, "Kimppaisäntä biojäte"),
+        (113, "Kimppaisäntä muovipakkaus"),
+        (114, "Kimppaisäntä kartonkipakkaus"),
+        (115, "Kimppaisäntä lasipakkaus"),
+        (116, "Kimppaisäntä metalli"),
+        (211, "Kimppaosakas sekajäte"),
+        (212, "Kimppaosakas biojäte"),
+        (213, "Kimppaosakas muovipakkaus"),
+        (214, "Kimppaosakas kartonkipakkaus"),
+        (215, "Kimppaosakas lasipakkaus"),
+        (216, "Kimppaosakas metalli"),
+        (311, "Yhteyshenkilö kompostointi"),
+    ]
     session = Session(engine)
     result = session.execute(select([Osapuolenrooli.id, Osapuolenrooli.selite]))
     assert [tuple(row) for row in result] == osapuolenroolit
+
+
+def _assert_kohde_has_sopimus_with_jatelaji(session, kohde_nimi, jatetyyppi_selite, exists=True):
+    jatetyyppi_id = (
+        select([Jatetyyppi.id])
+        .where(Jatetyyppi.selite == jatetyyppi_selite)
+        .scalar_subquery()
+    )
+    kohde_nimi_filter = Kohde.nimi == kohde_nimi
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    if exists:
+        assert (
+            session.query(Sopimus.id)
+            .filter(Sopimus.kohde_id == kohde_id)
+            .filter(Sopimus.jatetyyppi_id == jatetyyppi_id)
+            .scalar()
+            is not None
+        )
+    else:
+        assert (
+            session.query(Sopimus.id)
+            .filter(Sopimus.kohde_id == kohde_id)
+            .filter(Sopimus.jatetyyppi_id == jatetyyppi_id)
+            .scalar()
+            is None
+        )
+
+
+def _assert_kohde_has_kuljetus_with_jatelaji(session, kohde_nimi, jatetyyppi_selite, exists=True):
+    jatetyyppi_id = (
+        select([Jatetyyppi.id])
+        .where(Jatetyyppi.selite == jatetyyppi_selite)
+        .scalar_subquery()
+    )
+    kohde_nimi_filter = Kohde.nimi == kohde_nimi
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    if exists:
+        assert (
+            session.query(Kuljetus.id)
+            .filter(Kuljetus.kohde_id == kohde_id)
+            .filter(Kuljetus.jatetyyppi_id == jatetyyppi_id)
+            .scalar()
+            is not None
+        )
+    else:
+        assert (
+            session.query(Kuljetus.id)
+            .filter(Kuljetus.kohde_id == kohde_id)
+            .filter(Kuljetus.jatetyyppi_id == jatetyyppi_id)
+            .scalar()
+            is None
+        )
 
 
 def test_import_dvv_kohteet(engine, datadir):
     try:
         with Session(engine) as session:
             init_code_objects(session)
-            import_dvv_kohteet(session,
-                               poimintapvm=datetime.strptime("28.1.2022", "%d.%m.%Y").date(),
-                               perusmaksutiedosto=datadir / "perusmaksurekisteri.xlsx")
+            import_dvv_kohteet(
+                session,
+                poimintapvm=datetime.strptime("28.1.2022", "%d.%m.%Y").date(),
+                perusmaksutiedosto=datadir / "perusmaksurekisteri.xlsx",
+            )
     except Exception as e:
         print(f"Creating kohteet failed: {e}")
 
@@ -82,9 +143,14 @@ def test_import_dvv_kohteet(engine, datadir):
     )
 
     # Perusmaksurekisteristä luodulla kohteella Asunto Oy Kahden Laulumuisto on loppupäivämäärä
-    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
-    loppu_pvm_filter = Kohde.loppupvm == func.to_date('2100-01-01', 'YYYY-MM-DD')
-    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(loppu_pvm_filter).scalar()
+    kohde_nimi_filter = Kohde.nimi == "Asunto Oy Kahden Laulumuisto"
+    loppu_pvm_filter = Kohde.loppupvm == func.to_date("2100-01-01", "YYYY-MM-DD")
+    kohde_id = (
+        session.query(Kohde.id)
+        .filter(kohde_nimi_filter)
+        .filter(loppu_pvm_filter)
+        .scalar()
+    )
     assert kohde_id is not None
 
     # Muilla kohteilla ei loppupäivämäärää
@@ -93,22 +159,44 @@ def test_import_dvv_kohteet(engine, datadir):
 
     # Kaikilla kohteilla vähintään yksi omistaja
     kohteet = select(Kohde.id)
-    kohteet_having_omistaja = \
-        select([distinct(KohteenOsapuolet.kohde_id)]).where(KohteenOsapuolet.osapuolenrooli_id == 1)
-    assert [row[0] for row in session.execute(kohteet)] == \
-        [row[0] for row in session.execute(kohteet_having_omistaja)]
+    kohteet_having_omistaja = select([distinct(KohteenOsapuolet.kohde_id)]).where(
+        KohteenOsapuolet.osapuolenrooli_id == 1
+    )
+    assert [row[0] for row in session.execute(kohteet)] == [
+        row[0] for row in session.execute(kohteet_having_omistaja)
+    ]
 
     # Kohteissa nimeltä Forsström, Kemp ja Lindroth vain yksi asuttu huoneisto, vanhin asukas osapuoleksi
-    kohde_nimi_filter = or_(Kohde.nimi == 'Forsström', Kohde.nimi == 'Kemp', Kohde.nimi == 'Lindroth')
+    kohde_nimi_filter = or_(
+        Kohde.nimi == "Forsström", Kohde.nimi == "Kemp", Kohde.nimi == "Lindroth"
+    )
     vanhin_asukas_filter = KohteenOsapuolet.osapuolenrooli_id == 2
-    kohde_ids = \
-        session.execute(select(Kohde.id).where(kohde_nimi_filter)).fetchall()
-    vanhin_asukas_id = \
-        session.execute(select(KohteenOsapuolet.kohde_id).where(vanhin_asukas_filter)).fetchall()
+    kohde_ids = session.execute(select(Kohde.id).where(kohde_nimi_filter)).fetchall()
+    vanhin_asukas_id = session.execute(
+        select(KohteenOsapuolet.kohde_id).where(vanhin_asukas_filter)
+    ).fetchall()
     assert kohde_ids == vanhin_asukas_id
 
     # Muissa kohteissa ei vanhinta asukasta osapuolena
-    assert session.query(func.count(KohteenOsapuolet.kohde_id)).filter(vanhin_asukas_filter).scalar() == 3
+    assert (
+        session.query(func.count(KohteenOsapuolet.kohde_id))
+        .filter(vanhin_asukas_filter)
+        .scalar()
+        == 3
+    )
+
+    # Lisätään kuljetukset kohteelle Kemp
+    tiedontuottaja_add_new("LSJ", "Testituottaja")
+    import_data(
+        datadir + "/kuljetus1", "LSJ", False, False, True, "1.9.2022", "31.12.2022"
+    )
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Sekajäte")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Sekajäte")
+    import_data(
+        datadir + "/kuljetus2", "LSJ", False, False, True, "1.1.2023", "1.3.2023"
+    )
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Kartonki")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Kartonki")
 
 
 def _assert_kohteen_alkupvm(session, pvmstr, nimi):
@@ -135,19 +223,33 @@ def _assert_kohteen_loppupvm(session, pvmstr, nimi):
     assert kohde_id is not None
 
 
+def _remove_kuljetusdata_from_database(session):
+    session.query(Kuljetus).delete()
+    session.query(Sopimus).delete()
+    session.query(Osapuoli).filter(
+        Osapuoli.tiedontuottaja_tunnus == "0000000-0"
+    ).delete()
+    session.query(Tiedontuottaja).filter(Tiedontuottaja.tunnus == "0000000-0").delete()
+    session.query(Tiedontuottaja).filter(Tiedontuottaja.tunnus == "LSJ").delete()
+    session.commit()
+
+
 def test_update_dvv_kohteet(engine):
     # Updating the test database created before test fixtures
     update_test_db_command = ".\\scripts\\update_database.bat"
     try:
-        subprocess.check_output(update_test_db_command, shell=True, stderr=subprocess.STDOUT)
+        subprocess.check_output(
+            update_test_db_command, shell=True, stderr=subprocess.STDOUT
+        )
     except subprocess.CalledProcessError as e:
         print(f"Creating test database failed: {e.output}")
 
     try:
         with Session(engine) as session:
             init_code_objects(session)
-            import_dvv_kohteet(session,
-                               poimintapvm=datetime.strptime("31.1.2023", "%d.%m.%Y").date())
+            import_dvv_kohteet(
+                session, poimintapvm=datetime.strptime("31.1.2023", "%d.%m.%Y").date()
+            )
     except Exception as e:
         print(f"Updating kohteet failed: {e}")
 
@@ -155,7 +257,7 @@ def test_update_dvv_kohteet(engine):
     assert session.query(func.count(Kohde.id)).scalar() == 11
 
     # Perusmaksurekisteristä luodun kohteen Asunto Oy Kahden Laulumuisto loppupäivämäärä ei ole muuttunut
-    _assert_kohteen_loppupvm(session, '2100-01-01', 'Asunto Oy Kahden Laulumuisto')
+    _assert_kohteen_loppupvm(session, "2100-01-01", "Asunto Oy Kahden Laulumuisto")
 
     # Päättyneelle kohteelle Kemp (asukas vaihtunut) asetettu loppupäivämäärät oikein
     _assert_kohteen_loppupvm(session, "2023-01-16", "Kemp")
@@ -178,7 +280,7 @@ def test_update_dvv_kohteet(engine):
     _assert_kohteen_alkupvm(session, "2023-01-31", "Riipinen")
 
     # Päättyneelle kohteelle Pohjonen (omistaja vaihtunut) asetettu loppupäivämäärät oikein
-    _assert_kohteen_loppupvm(session, '2023-01-22', 'Pohjonen')
+    _assert_kohteen_loppupvm(session, "2023-01-22", "Pohjonen")
     osapuoli_nimi_filter = Osapuoli.nimi == "Pohjonen Aarno Armas"
     osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
     loppu_pvm_filter = RakennuksenOmistajat.omistuksen_loppupvm == func.to_date(
@@ -197,14 +299,22 @@ def test_update_dvv_kohteet(engine):
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 4
 
     # Uudessa kohteessa Kyykoski osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
-    kohde_filter = and_(Kohde.nimi == 'Kyykoski', Kohde.alkupvm == '2023-01-17')
+    kohde_filter = and_(Kohde.nimi == "Kyykoski", Kohde.alkupvm == "2023-01-17")
     kohde_id = session.execute(select(Kohde.id).where(kohde_filter)).fetchone()[0]
-    osapuoli_filter = or_(Osapuoli.nimi.like('Granström%'), Osapuoli.nimi.like('Kyykoski%'))
-    osapuoli_ids = \
+    osapuoli_filter = or_(
+        Osapuoli.nimi.like("Granström%"), Osapuoli.nimi.like("Kyykoski%")
+    )
+    osapuoli_ids = (
         session.query(Osapuoli.id).filter(osapuoli_filter).order_by(Osapuoli.id)
-    kohteen_osapuolet_ids = \
-        session.query(KohteenOsapuolet.osapuoli_id).filter(KohteenOsapuolet.kohde_id == kohde_id).order_by(KohteenOsapuolet.osapuoli_id)
-    assert [r1.id for r1 in osapuoli_ids] == [r2.osapuoli_id for r2 in kohteen_osapuolet_ids]
+    )
+    kohteen_osapuolet_ids = (
+        session.query(KohteenOsapuolet.osapuoli_id)
+        .filter(KohteenOsapuolet.kohde_id == kohde_id)
+        .order_by(KohteenOsapuolet.osapuoli_id)
+    )
+    assert [r1.id for r1 in osapuoli_ids] == [
+        r2.osapuoli_id for r2 in kohteen_osapuolet_ids
+    ]
 
     # Uudella kohteella Tuntematon ei ole osapuolia
     kohde_nimi_filter = Kohde.nimi == "Tuntematon"
@@ -215,3 +325,15 @@ def test_update_dvv_kohteet(engine):
         .scalar()
         == 0
     )
+
+    # Saman ajanjakson sopimukset ja kuljetukset ovat siirtyneet Kempiltä Kyykoskelle
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Sekajäte")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Sekajäte")
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Kartonki", False)
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Kartonki", False)
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Sekajäte", False)
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Sekajäte", False)
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Kartonki")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Kartonki")
+
+    _remove_kuljetusdata_from_database(session)

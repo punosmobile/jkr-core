@@ -21,11 +21,13 @@ from ..models import (
     Kohde,
     KohteenOsapuolet,
     KohteenRakennukset,
+    Kuljetus,
     Osapuoli,
     Osoite,
     RakennuksenOmistajat,
     RakennuksenVanhimmat,
     Rakennus,
+    Sopimus,
     UlkoinenAsiakastieto,
 )
 from ..utils import clean_asoy_name, form_display_name, is_asoy, is_company, is_yhteiso
@@ -974,6 +976,26 @@ def set_old_kohde_loppupvm(session: "Session", kohde_id: int, loppupvm: "datetim
     session.commit()
 
 
+def move_sopimukset_and_kuljetukset_to_new_kohde(
+    session: "Session", alkupvm: "datetime.date", old_kohde_id: int, new_kohde_id: int
+):
+    session.execute(
+        update(Sopimus)
+        .where(Sopimus.kohde_id == old_kohde_id)
+        .where(Sopimus.alkupvm <= alkupvm)
+        .where(Sopimus.loppupvm >= alkupvm)
+        .values(kohde_id=new_kohde_id)
+    )
+    session.execute(
+        update(Kuljetus)
+        .where(Kuljetus.kohde_id == old_kohde_id)
+        .where(Kuljetus.alkupvm <= alkupvm)
+        .where(Kuljetus.loppupvm >= alkupvm)
+        .values(kohde_id=new_kohde_id)
+    )
+    session.commit()
+
+
 def update_or_create_kohde_from_buildings(
     session: "Session",
     dvv_rakennustiedot: "Dict[int, Rakennustiedot]",
@@ -1104,6 +1126,9 @@ def update_or_create_kohde_from_buildings(
                 )
                 set_old_kohde_loppupvm(
                     session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
+                )
+                move_sopimukset_and_kuljetukset_to_new_kohde(
+                    session, new_kohde.alkupvm, old_kohde.id, new_kohde.id
                 )
         return new_kohde
 
