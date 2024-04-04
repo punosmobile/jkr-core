@@ -982,14 +982,12 @@ def move_sopimukset_and_kuljetukset_to_new_kohde(
     session.execute(
         update(Sopimus)
         .where(Sopimus.kohde_id == old_kohde_id)
-        .where(Sopimus.alkupvm <= alkupvm)
         .where(Sopimus.loppupvm >= alkupvm)
         .values(kohde_id=new_kohde_id)
     )
     session.execute(
         update(Kuljetus)
         .where(Kuljetus.kohde_id == old_kohde_id)
-        .where(Kuljetus.alkupvm <= alkupvm)
         .where(Kuljetus.loppupvm >= alkupvm)
         .values(kohde_id=new_kohde_id)
     )
