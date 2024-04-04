@@ -70,7 +70,7 @@ def test_import_data(engine, datadir):
 
     # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa
     loppu_pvms = [
-        func.to_date("2023-01-16", "YYYY-MM-DD"),
+        func.to_date("2022-06-16", "YYYY-MM-DD"),
         func.to_date("2023-01-22", "YYYY-MM-DD"),
         func.to_date("2023-01-30", "YYYY-MM-DD"),
         func.to_date("2100-01-01", "YYYY-MM-DD"),
