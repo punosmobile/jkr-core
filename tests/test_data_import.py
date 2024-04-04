@@ -205,12 +205,12 @@ def test_import_dvv_kohteet(engine, datadir):
     # Lisätään kuljetukset kohteelle Kemp
     tiedontuottaja_add_new("LSJ", "Testituottaja")
     import_data(
-        datadir + "/kuljetus1", "LSJ", False, False, True, "1.9.2022", "31.12.2022"
+        datadir + "/kuljetus1", "LSJ", False, False, True, "1.1.2022", "31.12.2022"
     )
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Sekajäte")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Sekajäte")
     import_data(
-        datadir + "/kuljetus2", "LSJ", False, False, True, "1.1.2023", "31.3.2023"
+        datadir + "/kuljetus2", "LSJ", False, False, True, "1.1.2023", "31.12.2023"
     )
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Kartonki")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Kartonki")
@@ -277,11 +277,11 @@ def test_update_dvv_kohteet(engine, datadir):
     _assert_kohteen_loppupvm(session, "2100-01-01", "Asunto Oy Kahden Laulumuisto")
 
     # Päättyneelle kohteelle Kemp (asukas vaihtunut) asetettu loppupäivämäärät oikein
-    _assert_kohteen_loppupvm(session, "2023-01-16", "Kemp")
+    _assert_kohteen_loppupvm(session, "2022-06-16", "Kemp")
     osapuoli_nimi_filter = Osapuoli.nimi == "Kemp Johan"
     osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
     loppu_pvm_filter = RakennuksenVanhimmat.loppupvm == func.to_date(
-        "2023-01-16", "YYYY-MM-DD"
+        "2022-06-16", "YYYY-MM-DD"
     )
     rakennuksen_vanhimmat_id = (
         session.query(RakennuksenVanhimmat.id)
@@ -316,7 +316,7 @@ def test_update_dvv_kohteet(engine, datadir):
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 4
 
     # Uudessa kohteessa Kyykoski osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
-    kohde_filter = and_(Kohde.nimi == "Kyykoski", Kohde.alkupvm == "2023-01-17")
+    kohde_filter = and_(Kohde.nimi == "Kyykoski", Kohde.alkupvm == "2022-06-17")
     kohde_id = session.execute(select(Kohde.id).where(kohde_filter)).fetchone()[0]
     osapuoli_filter = or_(
         Osapuoli.nimi.like("Granström%"), Osapuoli.nimi.like("Kyykoski%")
@@ -344,14 +344,22 @@ def test_update_dvv_kohteet(engine, datadir):
     )
 
     # Saman ajanjakson sopimukset ja kuljetukset ovat siirtyneet Kempiltä Kyykoskelle
-    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Sekajäte")
-    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Sekajäte")
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Sekajäte", False)
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Sekajäte", False)
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Kartonki", False)
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Kartonki", False)
-    _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Sekajäte", False)
-    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Sekajäte", False)
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Biojäte", False)
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Biojäte", False)
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Metalli")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Metalli")
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Sekajäte")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Sekajäte")
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Kartonki")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Kartonki")
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Metalli")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Metalli")
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Biojäte")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Biojäte")
 
     # Kyykoskelle syntyy tilaajarooli seuraavasta kuljetuksesta
     import_data(
