@@ -21,6 +21,8 @@ from ..models import (
     Kohde,
     KohteenOsapuolet,
     KohteenRakennukset,
+    Kompostori,
+    KompostorinKohteet,
     Kuljetus,
     Osapuoli,
     Osoite,
@@ -991,6 +993,20 @@ def set_paatos_loppupvm_for_old_kohde(
     session.commit()
 
 
+def set_kompostori_loppupvm_for_old_kohde(
+    session: "Session", kohde_id: int, loppupvm: "datetime.date"
+):
+    kompostori_ids = (
+        session.query(KompostorinKohteet.kompostori_id)
+        .filter(KompostorinKohteet.kohde_id == kohde_id)
+        .subquery()
+    )
+    session.query(Kompostori).filter(
+        Kompostori.id.in_(kompostori_ids)
+    ).update({Kompostori.loppupvm: loppupvm}, synchronize_session=False)
+    session.commit()
+
+
 def move_sopimukset_and_kuljetukset_to_new_kohde(
     session: "Session", alkupvm: "datetime.date", old_kohde_id: int, new_kohde_id: int
 ):
@@ -1144,6 +1160,9 @@ def update_or_create_kohde_from_buildings(
                     session, new_kohde.alkupvm, old_kohde.id, new_kohde.id
                 )
                 set_paatos_loppupvm_for_old_kohde(
+                    session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
+                )
+                set_kompostori_loppupvm_for_old_kohde(
                     session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
                 )
         return new_kohde
