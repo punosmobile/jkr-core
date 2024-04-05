@@ -6,7 +6,12 @@ from sqlalchemy import and_, create_engine, distinct, func, or_, select
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
-from jkrimporter.cli.jkr import import_data, tiedontuottaja_add_new
+from jkrimporter.cli.jkr import (
+    import_data,
+    import_ilmoitukset,
+    import_paatokset,
+    tiedontuottaja_add_new,
+)
 from jkrimporter.providers.db.codes import init_code_objects
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
@@ -14,6 +19,8 @@ from jkrimporter.providers.db.models import (
     Jatetyyppi,
     Kohde,
     KohteenOsapuolet,
+    Kompostori,
+    KompostorinKohteet,
     Kuljetus,
     Osapuolenrooli,
     Osapuoli,
@@ -21,6 +28,7 @@ from jkrimporter.providers.db.models import (
     RakennuksenVanhimmat,
     Sopimus,
     Tiedontuottaja,
+    Viranomaispaatokset,
 )
 
 
@@ -67,7 +75,9 @@ def test_osapuolenrooli(engine):
     assert [tuple(row) for row in result] == osapuolenroolit
 
 
-def _assert_kohde_has_sopimus_with_jatelaji(session, kohde_nimi, jatetyyppi_selite, exists=True):
+def _assert_kohde_has_sopimus_with_jatelaji(
+    session, kohde_nimi, jatetyyppi_selite, exists=True
+):
     jatetyyppi_id = (
         select([Jatetyyppi.id])
         .where(Jatetyyppi.selite == jatetyyppi_selite)
@@ -93,7 +103,9 @@ def _assert_kohde_has_sopimus_with_jatelaji(session, kohde_nimi, jatetyyppi_seli
         )
 
 
-def _assert_kohde_has_kuljetus_with_jatelaji(session, kohde_nimi, jatetyyppi_selite, exists=True):
+def _assert_kohde_has_kuljetus_with_jatelaji(
+    session, kohde_nimi, jatetyyppi_selite, exists=True
+):
     jatetyyppi_id = (
         select([Jatetyyppi.id])
         .where(Jatetyyppi.selite == jatetyyppi_selite)
@@ -215,6 +227,12 @@ def test_import_dvv_kohteet(engine, datadir):
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Kartonki")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Kartonki")
 
+    # Lisätään päätökset kohteelle Kemp
+    import_paatokset(datadir + "/paatokset.xlsx")
+
+    # Lisätään kompostointi-ilmoitukset kohteelle Kemp
+    import_ilmoitukset(datadir + "/ilmoitukset.xlsx")
+
 
 def _assert_kohteen_alkupvm(session, pvmstr, nimi):
     kohde_nimi_filter = Kohde.nimi == nimi
@@ -251,6 +269,17 @@ def _remove_kuljetusdata_from_database(session):
     session.commit()
 
 
+def _remove_paatosdata_from_database(session):
+    session.query(Viranomaispaatokset).delete()
+    session.commit()
+
+
+def _remove_kompostoridata_from_database(session):
+    session.query(KompostorinKohteet).delete()
+    session.query(Kompostori).delete()
+    session.commit()
+
+
 def test_update_dvv_kohteet(engine, datadir):
     # Updating the test database created before test fixtures
     update_test_db_command = ".\\scripts\\update_database.bat"
@@ -279,7 +308,13 @@ def test_update_dvv_kohteet(engine, datadir):
     # Päättyneelle kohteelle Kemp (asukas vaihtunut) asetettu loppupäivämäärät oikein
     _assert_kohteen_loppupvm(session, "2022-06-16", "Kemp")
     osapuoli_nimi_filter = Osapuoli.nimi == "Kemp Johan"
-    osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
+    osapuoli_tiedontuottaja_filter = Osapuoli.tiedontuottaja_tunnus == "dvv"
+    osapuoli_id = (
+        session.query(Osapuoli.id)
+        .filter(osapuoli_nimi_filter)
+        .filter(osapuoli_tiedontuottaja_filter)
+        .scalar()
+    )
     loppu_pvm_filter = RakennuksenVanhimmat.loppupvm == func.to_date(
         "2022-06-16", "YYYY-MM-DD"
     )
@@ -366,5 +401,28 @@ def test_update_dvv_kohteet(engine, datadir):
         datadir + "/kuljetus3", "LSJ", False, False, True, "1.4.2023", "30.6.2023"
     )
     _assert_kohde_has_osapuoli_with_rooli(session, "Kyykoski", "Tilaaja sekajäte")
-
     _remove_kuljetusdata_from_database(session)
+
+    # Kempin viranonmaispäätökselle on vaihdettu loppupäivämäärä
+    loppu_pvm_filter = Viranomaispaatokset.loppupvm == func.to_date(
+        "2022-06-16", "YYYY-MM-DD"
+    )
+    assert (
+        session.query(func.count(Viranomaispaatokset.id))
+        .filter(loppu_pvm_filter)
+        .scalar()
+        == 1
+    )
+    _remove_paatosdata_from_database(session)
+
+    # Kempin kompostorille on vaihdettu loppupäivämäärä
+    loppu_pvm_filter = Kompostori.loppupvm == func.to_date(
+        "2022-06-16", "YYYY-MM-DD"
+    )
+    assert (
+        session.query(func.count(Kompostori.id))
+        .filter(loppu_pvm_filter)
+        .scalar()
+        == 1
+    )
+    _remove_kompostoridata_from_database(session)
