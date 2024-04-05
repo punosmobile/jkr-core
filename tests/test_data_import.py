@@ -405,7 +405,7 @@ def test_update_dvv_kohteet(engine, datadir):
 
     # Kempin viranonmaispäätökselle on vaihdettu loppupäivämäärä
     loppu_pvm_filter = Viranomaispaatokset.loppupvm == func.to_date(
-        "2023-01-16", "YYYY-MM-DD"
+        "2022-06-16", "YYYY-MM-DD"
     )
     assert (
         session.query(func.count(Viranomaispaatokset.id))
@@ -417,7 +417,7 @@ def test_update_dvv_kohteet(engine, datadir):
 
     # Kempin kompostorille on vaihdettu loppupäivämäärä
     loppu_pvm_filter = Kompostori.loppupvm == func.to_date(
-        "2023-01-16", "YYYY-MM-DD"
+        "2022-06-16", "YYYY-MM-DD"
     )
     assert (
         session.query(func.count(Kompostori.id))
