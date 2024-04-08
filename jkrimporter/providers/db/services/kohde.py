@@ -988,22 +988,59 @@ def set_paatos_loppupvm_for_old_kohde(
         .subquery()
     )
     session.query(Viranomaispaatokset).filter(
-        Viranomaispaatokset.rakennus_id.in_(rakennus_ids)
+        and_(
+            Viranomaispaatokset.rakennus_id.in_(rakennus_ids),
+            Viranomaispaatokset.alkupvm <= loppupvm
+        )
     ).update({Viranomaispaatokset.loppupvm: loppupvm}, synchronize_session=False)
     session.commit()
 
 
-def set_kompostori_loppupvm_for_old_kohde(
-    session: "Session", kohde_id: int, loppupvm: "datetime.date"
+def update_kompostori(
+    session: "Session", old_kohde_id: int, loppupvm: "datetime.date", new_kohde_id: int
 ):
+    # Set loppupvm
     kompostori_ids = (
         session.query(KompostorinKohteet.kompostori_id)
-        .filter(KompostorinKohteet.kohde_id == kohde_id)
+        .filter(KompostorinKohteet.kohde_id == old_kohde_id)
         .subquery()
     )
     session.query(Kompostori).filter(
-        Kompostori.id.in_(kompostori_ids)
+        and_(
+            Kompostori.id.in_(kompostori_ids),
+            Kompostori.alkupvm <= loppupvm
+        )
     ).update({Kompostori.loppupvm: loppupvm}, synchronize_session=False)
+
+    # Move osapuoli to new kohde.
+    kompostori_id_by_date = (
+        session.query(Kompostori.id)
+        .filter(
+            and_(
+                Kompostori.id.in_(kompostori_ids),
+                Kompostori.alkupvm > loppupvm
+            )
+        )
+        .subquery()
+    )
+
+    kompostori_osapuoli_ids = (
+        session.query(Kompostori.osapuoli_id)
+        .filter(Kompostori.id.in_(kompostori_id_by_date))
+        .subquery()
+    )
+    session.query(KohteenOsapuolet).filter(
+        and_(
+            KohteenOsapuolet.osapuoli_id.in_(kompostori_osapuoli_ids),
+            KohteenOsapuolet.kohde_id == old_kohde_id,
+            KohteenOsapuolet.osapuolenrooli_id == 311
+        )
+    ).update({KohteenOsapuolet.kohde_id: new_kohde_id}, synchronize_session=False)
+
+    # Update KompostorinKohteet
+    session.query(KompostorinKohteet).filter(
+        KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date)
+    ).update({KompostorinKohteet.kohde_id: new_kohde_id}, synchronize_session=False)
     session.commit()
 
 
@@ -1162,8 +1199,11 @@ def update_or_create_kohde_from_buildings(
                 set_paatos_loppupvm_for_old_kohde(
                     session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
                 )
-                set_kompostori_loppupvm_for_old_kohde(
-                    session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
+                update_kompostori(
+                    session,
+                    old_kohde.id,
+                    new_kohde.alkupvm - timedelta(days=1),
+                    new_kohde.id
                 )
         return new_kohde
 
