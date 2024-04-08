@@ -445,4 +445,15 @@ def test_update_dvv_kohteet(engine, datadir):
         .scalar()
         == 1
     )
+
+    # Forsströmin kompostori on edelleen voimassa.
+    kohde_filter = Kohde.nimi == "Forsström"
+    kohde_id = session.execute(select(Kohde.id).where(kohde_filter)).fetchone()[0]
+    assert (
+        session.query(func.count(KompostorinKohteet.kohde_id))
+        .filter(KompostorinKohteet.kohde_id == kohde_id)
+        .scalar()
+        == 1
+    )
+
     _remove_kompostoridata_from_database(session)
