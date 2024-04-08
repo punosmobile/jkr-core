@@ -1039,7 +1039,10 @@ def update_kompostori(
 
     # Update KompostorinKohteet
     session.query(KompostorinKohteet).filter(
-        KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date)
+        and_(
+            KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date),
+            KompostorinKohteet.kohde_id == old_kohde_id,
+        )
     ).update({KompostorinKohteet.kohde_id: new_kohde_id}, synchronize_session=False)
     session.commit()
 
