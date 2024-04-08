@@ -356,7 +356,6 @@ def test_update_dvv_kohteet(engine, datadir):
     osapuoli_filter = or_(
         Osapuoli.nimi.like("Granström%"),
         Osapuoli.nimi.like("Kyykoski%"),
-        # Osapuoli.nimi.like("Pyykoski%"),
     )
     osapuoli_ids = (
         session.query(Osapuoli.id).filter(osapuoli_filter).order_by(Osapuoli.id)
