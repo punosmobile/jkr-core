@@ -354,7 +354,9 @@ def test_update_dvv_kohteet(engine, datadir):
     kohde_filter = and_(Kohde.nimi == "Kyykoski", Kohde.alkupvm == "2022-06-17")
     kohde_id = session.execute(select(Kohde.id).where(kohde_filter)).fetchone()[0]
     osapuoli_filter = or_(
-        Osapuoli.nimi.like("Granström%"), Osapuoli.nimi.like("Kyykoski%")
+        Osapuoli.nimi.like("Granström%"),
+        Osapuoli.nimi.like("Kyykoski%"),
+        # Osapuoli.nimi.like("Pyykoski%"),
     )
     osapuoli_ids = (
         session.query(Osapuoli.id).filter(osapuoli_filter).order_by(Osapuoli.id)
@@ -403,9 +405,12 @@ def test_update_dvv_kohteet(engine, datadir):
     _assert_kohde_has_osapuoli_with_rooli(session, "Kyykoski", "Tilaaja sekajäte")
     _remove_kuljetusdata_from_database(session)
 
-    # Kempin viranonmaispäätökselle on vaihdettu loppupäivämäärä
+    # Kempin viranonmaispäätökselle on vaihdettu loppupäivämäärä ja luotu uusi
     loppu_pvm_filter = Viranomaispaatokset.loppupvm == func.to_date(
         "2022-06-16", "YYYY-MM-DD"
+    )
+    new_paatos_filter = Viranomaispaatokset.loppupvm == func.to_date(
+        "2100-01-01", "YYYY-MM-DD"
     )
     assert (
         session.query(func.count(Viranomaispaatokset.id))
@@ -413,15 +418,30 @@ def test_update_dvv_kohteet(engine, datadir):
         .scalar()
         == 1
     )
+    assert (
+        session.query(func.count(Viranomaispaatokset.id))
+        .filter(new_paatos_filter)
+        .scalar()
+        == 1
+    )
     _remove_paatosdata_from_database(session)
 
-    # Kempin kompostorille on vaihdettu loppupäivämäärä
+    # Kempin kompostorille on vaihdettu loppupäivämäärä ja luotu uusi.
     loppu_pvm_filter = Kompostori.loppupvm == func.to_date(
         "2022-06-16", "YYYY-MM-DD"
+    )
+    new_ilmoitus_filter = Kompostori.loppupvm == func.to_date(
+        "2027-01-11", "YYYY-MM-DD"
     )
     assert (
         session.query(func.count(Kompostori.id))
         .filter(loppu_pvm_filter)
+        .scalar()
+        == 1
+    )
+    assert (
+        session.query(func.count(Kompostori.id))
+        .filter(new_ilmoitus_filter)
         .scalar()
         == 1
     )

@@ -988,7 +988,10 @@ def set_paatos_loppupvm_for_old_kohde(
         .subquery()
     )
     session.query(Viranomaispaatokset).filter(
-        Viranomaispaatokset.rakennus_id.in_(rakennus_ids)
+        and_(
+            Viranomaispaatokset.rakennus_id.in_(rakennus_ids),
+            Viranomaispaatokset.alkupvm <= loppupvm
+        )
     ).update({Viranomaispaatokset.loppupvm: loppupvm}, synchronize_session=False)
     session.commit()
 
@@ -1002,7 +1005,10 @@ def set_kompostori_loppupvm_for_old_kohde(
         .subquery()
     )
     session.query(Kompostori).filter(
-        Kompostori.id.in_(kompostori_ids)
+        and_(
+            Kompostori.id.in_(kompostori_ids),
+            Kompostori.alkupvm <= loppupvm
+        )
     ).update({Kompostori.loppupvm: loppupvm}, synchronize_session=False)
     session.commit()
 
