@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,178" last-zoom="0.45" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="190,0" last-zoom="0.45" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -3952,7 +3952,7 @@ JOIN jkr.viranomaispaatokset vp ON kr.rakennus_id = vp.rakennus_id;]]></expressi
 	</reference>
 </view>
 
-<index name="uidx_velvoitemalli_saanto_tayttymissaanto_jatetyyppi_id" table="jkr.velvoitemalli"
+<index name="uidx_velvoitemalli_saanto_tayttymissaanto_jatetyyppi_id_selite" table="jkr.velvoitemalli"
 	 concurrent="false" unique="true" fast-update="false" buffering="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
@@ -3963,6 +3963,9 @@ JOIN jkr.viranomaispaatokset vp ON kr.rakennus_id = vp.rakennus_id;]]></expressi
 		</idxelement>
 		<idxelement use-sorting="false">
 			<column name="jatetyyppi_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="selite"/>
 		</idxelement>
 </index>
 
