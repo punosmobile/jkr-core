@@ -70,6 +70,7 @@ $$
       ok = EXCLUDED.ok,
       tallennuspvm = CURRENT_DATE
   ;
+  REFRESH MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet;
   SELECT 1;
 $$ LANGUAGE SQL;
 
