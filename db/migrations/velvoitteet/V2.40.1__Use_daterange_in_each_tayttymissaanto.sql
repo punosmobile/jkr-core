@@ -1,3 +1,6 @@
+SET check_function_bodies = false;
+
+
 DROP FUNCTION jkr.kohteet_joilla_vapauttava_paatos_voimassa;
 CREATE FUNCTION jkr.kohteet_joilla_vapauttava_paatos_voimassa(daterange) RETURNS TABLE (kohde_id integer) AS
 $$
@@ -3552,3 +3555,6 @@ WHERE
     );
 $$
 LANGUAGE SQL STABLE;
+
+
+SET check_function_bodies = true;
