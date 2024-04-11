@@ -1,0 +1,1 @@
+DROP VIEW IF EXISTS jkr.v_velvoitteiden_kohteet;

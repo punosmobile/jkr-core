@@ -1,4 +1,6 @@
-CREATE OR REPLACE VIEW jkr.v_velvoitteiden_kohteet AS
+DROP MATERIALIZED VIEW IF EXISTS jkr.v_velvoitteiden_kohteet;
+-- REPLACE doesn't work with materialized view.
+CREATE MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet AS
   SELECT
     k.id AS kohde_id,
     k.geom,
