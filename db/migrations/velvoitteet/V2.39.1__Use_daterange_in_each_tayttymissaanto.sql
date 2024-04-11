@@ -13,7 +13,7 @@ WHERE
             SELECT 1
             FROM jkr.viranomaispaatokset vp
             WHERE vp.rakennus_id = kr.rakennus_id
-            AND vp.voimassaolo @> $1
+            AND vp.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.tapahtumalaji tl
@@ -47,7 +47,7 @@ WHERE
             SELECT 1
             FROM jkr.viranomaispaatokset vp
             WHERE vp.rakennus_id = kr.rakennus_id
-            AND vp.voimassaolo @> $1
+            AND vp.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.tapahtumalaji tl
@@ -81,7 +81,7 @@ WHERE
             SELECT 1
             FROM jkr.viranomaispaatokset vp
             WHERE vp.rakennus_id = kr.rakennus_id
-            AND vp.voimassaolo @> $1
+            AND vp.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.tapahtumalaji tl
@@ -111,7 +111,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -135,12 +135,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Sekajäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -176,7 +176,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -206,12 +206,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Sekajäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -230,7 +230,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -254,12 +254,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Biojäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -299,7 +299,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -329,12 +329,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Sekajäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -388,7 +388,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -403,7 +403,7 @@ WHERE
                 SELECT 1
                 FROM jkr.viranomaispaatokset vp
                 WHERE vp.rakennus_id = kr.rakennus_id
-                AND vp.voimassaolo @> $1
+                AND vp.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.tapahtumalaji tl
@@ -440,7 +440,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -458,12 +458,12 @@ WHERE
             WHERE sk.sopimustyyppi_id = st.id
             AND st.selite = 'Kimppasopimus'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -480,7 +480,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -495,7 +495,7 @@ WHERE
                 SELECT 1
                 FROM jkr.viranomaispaatokset vp
                 WHERE vp.rakennus_id = kr.rakennus_id
-                AND vp.voimassaolo @> $1
+                AND vp.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.tapahtumalaji tl
@@ -532,7 +532,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -562,12 +562,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Sekajäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -598,7 +598,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -628,12 +628,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Sekajäte'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -654,7 +654,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -678,12 +678,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Biojäte'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -708,7 +708,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -738,12 +738,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Sekajäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -781,7 +781,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -796,7 +796,7 @@ WHERE
                 SELECT 1
                 FROM jkr.viranomaispaatokset vp
                 WHERE vp.rakennus_id = kr.rakennus_id
-                AND vp.voimassaolo @> $1
+                AND vp.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.tapahtumalaji tl
@@ -834,7 +834,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -858,12 +858,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Biojäte'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -877,7 +877,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -892,7 +892,7 @@ WHERE
                 SELECT 1
                 FROM jkr.viranomaispaatokset vp
                 WHERE vp.rakennus_id = kr.rakennus_id
-                AND vp.voimassaolo @> $1
+                AND vp.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.tapahtumalaji tl
@@ -929,7 +929,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -953,12 +953,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Biojäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -982,7 +982,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1006,12 +1006,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Biojäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1039,7 +1039,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1069,12 +1069,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Biojäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1104,7 +1104,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1134,12 +1134,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Biojäte'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1173,7 +1173,7 @@ WHERE
             SELECT 1
             FROM jkr.kompostori ko
             WHERE ko.id = kk.kompostori_id
-            AND ko.voimassaolo @> $1
+            AND ko.voimassaolo && $1
         )
     );
 $$
@@ -1191,7 +1191,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1215,12 +1215,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Muovi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1244,7 +1244,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1274,12 +1274,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Muovi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1309,7 +1309,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1340,12 +1340,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Muovi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1376,7 +1376,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1400,12 +1400,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Kartonki'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1429,7 +1429,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1459,12 +1459,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Kartonki'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1494,7 +1494,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1524,12 +1524,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Kartonki'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1559,7 +1559,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1583,12 +1583,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Lasi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1612,7 +1612,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1642,12 +1642,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Lasi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1677,7 +1677,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1708,12 +1708,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Lasi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1744,7 +1744,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1768,12 +1768,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Metalli'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1797,7 +1797,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1827,12 +1827,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Metalli'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -1862,7 +1862,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -1893,12 +1893,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Metalli'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2062,7 +2062,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2086,12 +2086,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Kartonki'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2106,7 +2106,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2130,12 +2130,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Metalli'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2150,7 +2150,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2174,12 +2174,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Lasi'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2194,7 +2194,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2218,12 +2218,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Muovi'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2311,7 +2311,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -2335,12 +2335,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Kartonki'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2390,7 +2390,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -2414,12 +2414,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Metalli'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2469,7 +2469,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -2493,12 +2493,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Lasi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2548,7 +2548,7 @@ WHERE
         SELECT 1
         FROM jkr.sopimus s
         WHERE s.kohde_id = k.id
-        AND s.voimassaolo @> $1
+        AND s.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr_koodistot.jatetyyppi jt
@@ -2572,12 +2572,12 @@ WHERE
             WHERE sk.jatetyyppi_id = jt.id
             AND jt.selite = 'Muovi'
         )
-        AND sk.voimassaolo @> $1
+        AND sk.voimassaolo && $1
         AND EXISTS (
             SELECT 1
             FROM jkr.sopimus ski
             WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-            AND ski.voimassaolo @> $1
+            AND ski.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2620,7 +2620,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2644,12 +2644,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Biojäte'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2664,7 +2664,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2688,12 +2688,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Kartonki'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2708,7 +2708,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2732,12 +2732,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Metalli'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2752,7 +2752,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2776,12 +2776,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Lasi'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2796,7 +2796,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2820,12 +2820,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Muovi'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2869,7 +2869,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -2893,12 +2893,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Biojäte'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -2990,7 +2990,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -3014,12 +3014,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Sekajäte'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -3049,7 +3049,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -3073,12 +3073,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Sekajäte'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -3093,7 +3093,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -3117,12 +3117,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Kartonki'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -3137,7 +3137,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -3161,12 +3161,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Metalli'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -3181,7 +3181,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -3205,12 +3205,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Lasi'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
@@ -3225,7 +3225,7 @@ WHERE
             SELECT 1
             FROM jkr.sopimus s
             WHERE s.kohde_id = k.id
-            AND s.voimassaolo @> $1
+            AND s.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr_koodistot.jatetyyppi jt
@@ -3249,12 +3249,12 @@ WHERE
                 WHERE sk.jatetyyppi_id = jt.id
                 AND jt.selite = 'Muovi'
             )
-            AND sk.voimassaolo @> $1
+            AND sk.voimassaolo && $1
             AND EXISTS (
                 SELECT 1
                 FROM jkr.sopimus ski
                 WHERE ski.kohde_id = sk.kimppaisanta_kohde_id
-                AND ski.voimassaolo @> $1
+                AND ski.voimassaolo && $1
                 AND EXISTS (
                     SELECT 1
                     FROM jkr_koodistot.jatetyyppi jt
