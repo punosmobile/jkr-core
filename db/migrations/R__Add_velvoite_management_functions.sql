@@ -29,7 +29,7 @@ END;
 $BODY$;
 
 
-create or replace function jkr.velvoite_status(date) RETURNS TABLE(velvoite_id int, pvm date, ok bool) AS
+create or replace function jkr.velvoite_status(daterange) RETURNS TABLE(velvoite_id int, jakso daterange, ok bool) AS
 $$
 DECLARE
   velvoitemalli RECORD;
@@ -52,8 +52,8 @@ BEGIN
           on v.kohde_id = ok.kohde_id
         where
           vm.id = $2
-          and k.voimassaolo @> $1
-          and vm.voimassaolo @> $1
+          and k.voimassaolo && $1
+          and vm.voimassaolo && $1
     ';
     RETURN QUERY EXECUTE select_sql USING $1, velvoitemalli.id;
   end loop;
@@ -61,11 +61,12 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-create or replace function jkr.tallenna_velvoite_status(date) RETURNS int AS
+DROP FUNCTION IF EXISTS jkr.tallenna_velvoite_status;
+create or replace function jkr.tallenna_velvoite_status(daterange) RETURNS int AS
 $$
-  INSERT INTO jkr.velvoite_status (velvoite_id, pvm, ok, tallennuspvm)
-  select velvoite_id, pvm, ok, CURRENT_DATE from jkr.velvoite_status($1)
-  ON CONFLICT (velvoite_id, pvm) DO UPDATE
+  INSERT INTO jkr.velvoite_status (velvoite_id, jakso, ok, tallennuspvm)
+  select velvoite_id, jakso, ok, CURRENT_DATE from jkr.velvoite_status($1)
+  ON CONFLICT (velvoite_id, jakso) DO UPDATE
     SET
       ok = EXCLUDED.ok,
       tallennuspvm = CURRENT_DATE
