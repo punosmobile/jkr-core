@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,313" last-zoom="0.45" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="0,157" last-zoom="0.4" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -3947,6 +3947,42 @@ JOIN jkr.viranomaispaatokset vp ON kr.rakennus_id = vp.rakennus_id;]]></expressi
 			<column name="selite"/>
 		</idxelement>
 </index>
+
+<view name="v_velvoite_status" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
+	<schema name="jkr"/>
+	<role name="jkr_admin"/>
+	<comment><![CDATA[Velvoitenäkymä, joka sisältää kaikki jkr.velvoite_status-taulun kentät. Näkymässä jkr.velvoite_status-taulun kenttä "jakso" on muutettu tekstimuotoiseksi, jotta sitä voidaan QGISsin puolella käyttää.]]></comment>
+	<position x="1128.89" y="2441.94"/>
+	<reference>
+		<expression><![CDATA[SELECT id,
+       lower(jakso) || ' - ' || upper(jakso) AS jakso,
+       ok,
+       velvoite_id,
+       tallennuspvm
+FROM jkr.velvoite_status;]]></expression>
+	<column name="id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="jakso">
+		<type name="text" length="0"/>
+	</column>
+	<column name="ok">
+		<type name="bool" length="0"/>
+	</column>
+	<column name="velvoite_id">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="tallennuspvm">
+		<type name="date" length="0"/>
+	</column>
+		<reftable name="jkr.velvoite_status"/>
+	</reference>
+</view>
+
+<relationship name="rel_v_velvoite_status_velvoite_status" type="reltv" layers="0" faded-out="true"
+	 src-table="jkr.v_velvoite_status"
+	 dst-table="jkr.velvoite_status"
+	 src-required="false" dst-required="false"/>
 
 <constraint name="rakennus_fk" type="fk-constr" alias="rakennus_fk" comparison-type="MATCH FULL"
 	 upd-action="CASCADE" del-action="CASCADE" ref-table="jkr.rakennus" table="jkr.rakennuksen_omistajat">
