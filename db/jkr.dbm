@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="0,157" last-zoom="0.4" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="0,150" last-zoom="0.4" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -3967,7 +3967,7 @@ FROM jkr.velvoite_status;]]></expression>
 		<type name="text" length="0"/>
 	</column>
 	<column name="ok">
-		<type name="bool" length="0"/>
+		<type name="boolean" length="0"/>
 	</column>
 	<column name="velvoite_id">
 		<type name="integer" length="0"/>
