@@ -6,7 +6,7 @@ CREATE MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet AS
     k.geom,
     vm.id AS velvoitemalli_id,
     vm.selite,
-    vs.pvm,
+    vs.jakso,
     vs.ok,
     yht.kiinteistotunnus,
     yht.prt,
@@ -22,13 +22,13 @@ CREATE MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet AS
     JOIN (
       SELECT
         velvoite_status.id,
-        velvoite_status.pvm,
+        velvoite_status.jakso,
         velvoite_status.ok,
         velvoite_status.velvoite_id,
         velvoite_status.tallennuspvm,
         row_number() OVER (
           PARTITION BY velvoite_status.velvoite_id
-          ORDER BY velvoite_status.pvm DESC
+          ORDER BY upper(velvoite_status.jakso) DESC
         ) AS row_number
       FROM jkr.velvoite_status
     ) vs

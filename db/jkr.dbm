@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="190,0" last-zoom="0.45" max-obj-count="54"
+<dbmodel pgmodeler-ver="0.9.4" use-changelog="false" last-position="196,313" last-zoom="0.45" max-obj-count="54"
 	 default-schema="jkr" default-owner="jkr_admin"
 	 layers="taulut,yhteystieto,kohde,velvoite,kuljetus,keräysväline,sopimus"
 	 active-layers="0"
@@ -2078,9 +2078,9 @@ select tallenna_velvoite_status('2020-3-1');
 		<type name="serial" length="0"/>
 		<comment><![CDATA[Taulun avaimena toimiva uniikki sarjanumeromuotoinen tunniste]]></comment>
 	</column>
-	<column name="pvm" not-null="true">
-		<type name="date" length="0"/>
-		<comment><![CDATA[Ajanhetken päivämäärä kun velvollisuuden täyttymistä on tarkistettu.]]></comment>
+	<column name="jakso" not-null="true">
+		<type name="daterange" length="0"/>
+		<comment><![CDATA[Ajanjakso, jolla velvollisuuden täyttyminen on tarkistettu.]]></comment>
 	</column>
 	<column name="ok" not-null="true">
 		<type name="bool" length="0"/>
@@ -2314,14 +2314,14 @@ select tallenna_velvoite_status('2020-3-1');
 		</idxelement>
 </index>
 
-<index name="uidx_velvoite_status_velvoite_id_pvm" table="jkr.velvoite_status"
+<index name="uidx_velvoite_status_velvoite_id_jakso" table="jkr.velvoite_status"
 	 concurrent="false" unique="true" fast-update="false" buffering="false"
 	 index-type="btree" factor="0">
 		<idxelement use-sorting="false">
 			<column name="velvoite_id"/>
 		</idxelement>
 		<idxelement use-sorting="false">
-			<column name="pvm"/>
+			<column name="jakso"/>
 		</idxelement>
 </index>
 
@@ -2709,7 +2709,7 @@ select tallenna_velvoite_status('2020-3-1');
     k.geom,
     vm.id AS velvoitemalli_id,
     vm.selite,
-    vs.pvm,
+    vs.jakso,
     vs.ok,
     yht.kiinteistotunnus,
     yht.prt,
@@ -2725,13 +2725,13 @@ select tallenna_velvoite_status('2020-3-1');
     JOIN (
       SELECT
         velvoite_status.id,
-        velvoite_status.pvm,
+        velvoite_status.jakso,
         velvoite_status.ok,
         velvoite_status.velvoite_id,
         velvoite_status.tallennuspvm,
         row_number() OVER (
           PARTITION BY velvoite_status.velvoite_id
-          ORDER BY velvoite_status.pvm DESC
+          ORDER BY upper(velvoite_status.jakso) DESC
         ) AS row_number
       FROM jkr.velvoite_status
     ) vs
@@ -3338,27 +3338,6 @@ end;]]></definition>
 	 table="jkr.kohteen_rakennukset">
 		<function signature="jkr.trg_kohteen_rakennukset_ai_remove_from_rakennusehdokkaat()"/>
 </trigger>
-
-<view name="v_velvoite_status_current_date" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
-	<schema name="jkr"/>
-	<role name="jkr_admin"/>
-	<position x="4200" y="1700"/>
-	<reference>
-		<expression><![CDATA[ SELECT velvoite_status.velvoite_id,
-    velvoite_status.pvm,
-    velvoite_status.ok
-   FROM jkr.velvoite_status(CURRENT_DATE) velvoite_status(velvoite_id, pvm, ok);]]></expression>
-	<column name="velvoite_id">
-		<type name="integer" length="0"/>
-	</column>
-	<column name="pvm">
-		<type name="date" length="0"/>
-	</column>
-	<column name="ok">
-		<type name="boolean" length="0"/>
-	</column>
-	</reference>
-</view>
 
 <policy name="muut_paitsi_master_muokattavissa" table="jkr_qgis_projektit.qgis_projects" command="ALL" permissive="true">
 
