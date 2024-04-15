@@ -526,7 +526,7 @@ def get_dvv_rakennustiedot_without_kohde(
             select(Rakennus.id)
             .join(KohteenRakennukset)
             .join(Kohde)
-            .filter(poimintapvm == Kohde.alkupvm)
+            .filter(poimintapvm < Kohde.loppupvm)
         )
     else:
         rakennus_id_with_current_kohde = (
