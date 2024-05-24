@@ -25,14 +25,6 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<roles names="jkr_editor" role-type="member" />
 </role>
 
-<role name="jkr_admin_cp"
- createrole="true"
- login="true"
- encrypted="true"
- password="jkr_admin"
- sql-disabled="true">
-</role>
-
 <database name="jkr" encoding="UTF8" lc-collate="en_US.utf8" lc-ctype="en_US.utf8" is-template="false" allow-conns="true" sql-disabled="true">
 	<role name="postgres"/>
 	<tablespace name="pg_default"/>
@@ -55,10 +47,6 @@ CAUTION: Do not modify this file unless you know what you are doing.
 
 <schema name="jkr_qgis_projektit" layers="0" rect-visible="true" fill-color="#e1e1e1">
 	<role name="jkr_admin"/>
-</schema>
-
-<schema name="jkr_cp" layers="0" rect-visible="true" fill-color="#e1e1e1" sql-disabled="true">
-	<role name="jkr_admin_cp"/>
 </schema>
 
 <tag name="koodisto">
@@ -4034,25 +4022,6 @@ FROM jkr.velvoite_status;]]></expression>
 	</constraint>
 </table>
 
-<index name="idx_velvoiteyhteenveto_velvoiteyhteenvetomalli_id" table="jkr.velvoiteyhteenveto"
-	 concurrent="false" unique="false" fast-update="false" buffering="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="velvoiteyhteenvetomalli_id"/>
-		</idxelement>
-</index>
-
-<index name="uidx_velvoiteyhteenveto_kohde_id_velvoiteyhteenvetomalli_id" table="jkr.velvoiteyhteenveto"
-	 concurrent="false" unique="false" fast-update="false" buffering="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="kohde_id"/>
-		</idxelement>
-		<idxelement use-sorting="false">
-			<column name="velvoiteyhteenvetomalli_id"/>
-		</idxelement>
-</index>
-
 <view name="v_velvoiteyhteenveto_status" layers="0" collapse-mode="2" max-obj-count="1" z-value="0">
 	<schema name="jkr"/>
 	<role name="jkr_admin"/>
@@ -4093,25 +4062,6 @@ FROM jkr.velvoite_status;]]></expression>
 	</constraint>
 </table>
 
-<index name="idx_velvoiteyhteenveto_status_velvoiteyhteenveto_id" table="jkr.velvoiteyhteenveto_status"
-	 concurrent="false" unique="false" fast-update="false" buffering="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="velvoiteyhteenveto_id"/>
-		</idxelement>
-</index>
-
-<index name="uidx_velvoiteyhteenveto_status_velvoiteyhteenveto_id_jakso" table="jkr.velvoiteyhteenveto_status"
-	 concurrent="false" unique="true" fast-update="false" buffering="false"
-	 index-type="btree" factor="0">
-		<idxelement use-sorting="false">
-			<column name="velvoiteyhteenveto_id"/>
-		</idxelement>
-		<idxelement use-sorting="false">
-			<column name="jakso"/>
-		</idxelement>
-</index>
-
 <relationship name="velvoiteyhteenvetomalli_has_many_velvoiteyhteenveto" type="rel1n" layers="0"
 	 src-col-pattern="{st}_{sc}"
 	 pk-pattern="{dt}_pk" uq-pattern="{dt}_uq"
@@ -4124,6 +4074,14 @@ FROM jkr.velvoite_status;]]></expression>
 		<position x="0" y="0"/>
 	</label>
 </relationship>
+
+<index name="idx_velvoiteyhteenveto_velvoiteyhteenvetomalli_id" table="jkr.velvoiteyhteenveto"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="velvoiteyhteenvetomalli_id"/>
+		</idxelement>
+</index>
 
 <relationship name="kohde_has_many_velvoiteyhteenveto" type="rel1n" layers="0"
 	 src-col-pattern="{st}_{sc}"
@@ -4146,5 +4104,35 @@ FROM jkr.velvoite_status;]]></expression>
 		<position x="0" y="0"/>
 	</label>
 </relationship>
+
+<index name="uidx_velvoiteyhteenveto_status_velvoiteyhteenveto_id_jakso" table="jkr.velvoiteyhteenveto_status"
+	 concurrent="false" unique="true" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="velvoiteyhteenveto_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="jakso"/>
+		</idxelement>
+</index>
+
+<index name="uidx_velvoiteyhteenveto_kohde_id_velvoiteyhteenvetomalli_id" table="jkr.velvoiteyhteenveto"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="kohde_id"/>
+		</idxelement>
+		<idxelement use-sorting="false">
+			<column name="velvoiteyhteenvetomalli_id"/>
+		</idxelement>
+</index>
+
+<index name="idx_velvoiteyhteenveto_status_velvoiteyhteenveto_id" table="jkr.velvoiteyhteenveto_status"
+	 concurrent="false" unique="false" fast-update="false" buffering="false"
+	 index-type="btree" factor="0">
+		<idxelement use-sorting="false">
+			<column name="velvoiteyhteenveto_id"/>
+		</idxelement>
+</index>
 
 </dbmodel>
