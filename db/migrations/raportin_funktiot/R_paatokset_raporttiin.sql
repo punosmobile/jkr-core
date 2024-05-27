@@ -2,16 +2,16 @@ CREATE OR REPLACE FUNCTION jkr.kohteiden_paatokset(kohde_ids integer[])
 RETURNS TABLE(
     Kohde_id integer,
     Kompostoi date,
-    Perusmaksupaatos_voimassa date,
-    Perusmaksupaatos text,
-    Tyhjennysvalipaatos_voimassa date,
-    Tyhjennysvalipaatos text,
-    Akp_kohtuullistaminen_voimassa date,
-    Akp_kohtuullistaminen text,
-    Keskeytys_voimassa date,
-    Keskeytys text,
-    Erilliskerayksesta_poikkeaminen_voimassa date,
-    Erilliskerayksesta_poikkeaminen text
+    "Perusmaksupäätös voimassa" date,
+    "Perusmaksupäätös" text,
+    "Tyhjennysvälipäätös voimassa" date,
+    "Tyhjennysvälipäätös" text,
+    "Akp-kohtuullistaminen voimassa" date,
+    "Akp-kohtuullistaminen" text,
+    "Keskeytys voimassa" date,
+    "Keskeytys" text,
+    "Erilliskeräysvelvoitteesta poikkeaminen voimassa" date,
+    "Erilliskeräysvelvoitteesta poikkeaminen" text
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -31,10 +31,26 @@ BEGIN
             MAX(CASE WHEN vp.tapahtumalaji_koodi = 'PERUSMAKSU' THEN vp.paatosnumero END) AS perusmaksupaatos,
             MAX(CASE WHEN vp.tapahtumalaji_koodi = 'TYHJENNYSVALI' THEN vp.loppupvm END) AS tyhjennysvalipaatos_voimassa,
             MAX(CASE WHEN vp.tapahtumalaji_koodi = 'TYHJENNYSVALI' THEN vp.paatosnumero END) AS tyhjennysvalipaatos,
-            MAX(CASE WHEN vp.tapahtumalaji_koodi = 'AKP' THEN vp.loppupvm END) AS akp_kohtuullistaminen_voimassa,
-            MAX(CASE WHEN vp.tapahtumalaji_koodi = 'AKP' THEN vp.paatosnumero END) AS akp_kohtuullistaminen,
-            MAX(CASE WHEN vp.tapahtumalaji_koodi = 'KESKEYTTAMINEN' THEN vp.loppupvm END) AS keskeytys_voimassa,
-            MAX(CASE WHEN vp.tapahtumalaji_koodi = 'KESKEYTTAMINEN' THEN vp.paatosnumero END) AS keskeytys,
+            CASE WHEN 
+                SUM(CASE WHEN vp.tapahtumalaji_koodi = 'AKP' THEN 1 ELSE 0 END) = COUNT(*) THEN
+                    MAX(CASE WHEN vp.tapahtumalaji_koodi = 'AKP' THEN vp.loppupvm END)
+                ELSE NULL
+            END AS akp_kohtuullistaminen_voimassa,
+            CASE WHEN 
+                SUM(CASE WHEN vp.tapahtumalaji_koodi = 'AKP' THEN 1 ELSE 0 END) = COUNT(*) THEN
+                    MAX(CASE WHEN vp.tapahtumalaji_koodi = 'AKP' THEN vp.paatosnumero END)
+                ELSE NULL
+            END AS akp_kohtuullistaminen,
+            CASE WHEN 
+                SUM(CASE WHEN vp.tapahtumalaji_koodi = 'KESKEYTTAMINEN' THEN 1 ELSE 0 END) = COUNT(*) THEN
+                    MAX(CASE WHEN vp.tapahtumalaji_koodi = 'KESKEYTTAMINEN' THEN vp.loppupvm END)
+                ELSE NULL
+            END AS keskeytys_voimassa,
+            CASE WHEN 
+                SUM(CASE WHEN vp.tapahtumalaji_koodi = 'KESKEYTTAMINEN' THEN 1 ELSE 0 END) = COUNT(*) THEN
+                    MAX(CASE WHEN vp.tapahtumalaji_koodi = 'KESKEYTTAMINEN' THEN vp.paatosnumero END)
+                ELSE NULL
+            END AS keskeytys,
             MAX(CASE WHEN vp.tapahtumalaji_koodi = 'ERILLISKERAYKSESTA_POIKKEAMINEN' THEN vp.loppupvm END) AS erilliskerayksesta_poikkeaminen_voimassa,
             MAX(CASE WHEN vp.tapahtumalaji_koodi = 'ERILLISKERAYKSESTA_POIKKEAMINEN' THEN vp.paatosnumero END) AS erilliskerayksesta_poikkeaminen
         FROM
