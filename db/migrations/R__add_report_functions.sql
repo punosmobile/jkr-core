@@ -102,3 +102,70 @@ BEGIN
         paatokset p ON p.kohde_id = k_id.kohde_id;
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids integer[], tarkistuspvm date)
+RETURNS TABLE(
+    Kohde_id integer,
+    Muovi date,
+    Kartonki date,
+    Metalli date,
+    Lasi date,
+    Biojäte date,
+    Monilokero date,
+    Sekajate date,
+    Akp date
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH valid_kuljetukset AS (
+        SELECT
+            k.kohde_id,
+            CASE WHEN jt.selite = 'Muovi' THEN k.loppupvm END AS muovi,
+            CASE WHEN jt.selite = 'Kartonki' THEN k.loppupvm END AS kartonki,
+            CASE WHEN jt.selite = 'Metalli' THEN k.loppupvm END AS metalli,
+            CASE WHEN jt.selite = 'Lasi' THEN k.loppupvm END AS lasi,
+            CASE WHEN jt.selite = 'Biojäte' THEN k.loppupvm END AS biojate,
+            CASE WHEN jt.selite = 'Monilokero' THEN k.loppupvm END AS monilokero,
+            CASE WHEN jt.selite = 'Sekajäte' THEN k.loppupvm END AS sekajate,
+            CASE WHEN jt.selite = 'Muu' THEN k.loppupvm END AS akp
+        FROM
+            jkr.kuljetus k
+        JOIN
+            jkr_koodistot.jatetyyppi jt ON k.jatetyyppi_id = jt.id
+        WHERE
+            k.kohde_id = ANY(kohde_ids)
+            AND k.aikavali @> tarkistuspvm
+    ),
+    aggregated_kuljetukset AS (
+        SELECT
+            vk.kohde_id,
+            MAX(vk.muovi) AS muovi,
+            MAX(vk.kartonki) AS kartonki,
+            MAX(vk.metalli) AS metalli,
+            MAX(vk.lasi) AS lasi,
+            MAX(vk.biojate) AS biojate,
+            MAX(vk.monilokero) AS monilokero,
+            MAX(vk.sekajate) AS sekajate,
+            MAX(vk.akp) AS akp
+        FROM
+            valid_kuljetukset vk
+        GROUP BY
+            vk.kohde_id
+    )
+    SELECT
+        k_id.kohde_id,
+        ak.muovi,
+        ak.kartonki,
+        ak.metalli,
+        ak.lasi,
+        ak.biojate,
+        ak.monilokero,
+        ak.sekajate,
+        ak.akp
+    FROM
+        unnest(kohde_ids) AS k_id(kohde_id)
+    LEFT JOIN
+        aggregated_kuljetukset ak ON ak.kohde_id = k_id.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
