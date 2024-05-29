@@ -169,3 +169,86 @@ BEGIN
         aggregated_kuljetukset ak ON ak.kohde_id = k_id.kohde_id;
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids integer[], tarkistuspvm date)
+RETURNS TABLE(
+    Kohde_id integer,
+    Velvoiteyhteenveto text,
+    Sekajätevelvoite text,
+    Biojätevelvoite text,
+    Muovipakkausvelvoite text,
+    Kartonkipakkausvelvoite text,
+    Lasipakkausvelvoite text,
+    Metallipakkausvelvoite text
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH velvoiteyhteenveto_data AS (
+        SELECT
+            v.kohde_id,
+            vs.jakso,
+            vvm.kuvaus
+        FROM
+            jkr.velvoiteyhteenveto v
+        JOIN
+            jkr.velvoiteyhteenveto_status vs ON v.id = vs.velvoiteyhteenveto_id
+        JOIN
+            jkr.velvoiteyhteenvetomalli vvm ON v.velvoiteyhteenvetomalli_id = vvm.id
+        WHERE
+            v.kohde_id = ANY(kohde_ids)
+            AND vs.ok = TRUE
+            AND vs.jakso @> tarkistuspvm
+        ORDER BY
+            vs.jakso DESC
+    ),
+    velvoite_data AS (
+        SELECT
+            v.kohde_id,
+            vs.jakso,
+            vm.kuvaus,
+            vm.selite
+        FROM
+            jkr.velvoite v
+        JOIN
+            jkr.velvoite_status vs ON v.id = vs.velvoite_id
+        JOIN
+            jkr.velvoitemalli vm ON v.velvoitemalli_id = vm.id
+        WHERE
+            v.kohde_id = ANY(kohde_ids)
+            AND vs.ok = TRUE
+            AND vs.jakso @> tarkistuspvm
+        ORDER BY
+            vs.jakso DESC
+    ),
+    aggregated_velvoite AS (
+        SELECT
+            vd.kohde_id,
+            MAX(CASE WHEN vd.selite = 'Sekajäte' THEN vd.kuvaus END) AS sekajatevelvoite,
+            MAX(CASE WHEN vd.selite = 'Biojäte' THEN vd.kuvaus END) AS biojatevelvoite,
+            MAX(CASE WHEN vd.selite = 'Muovipakkaus' THEN vd.kuvaus END) AS muovipakkausvelvoite,
+            MAX(CASE WHEN vd.selite = 'Kartonkipakkaus' THEN vd.kuvaus END) AS kartonkipakkausvelvoite,
+            MAX(CASE WHEN vd.selite = 'Lasipakkaus' THEN vd.kuvaus END) AS lasipakkausvelvoite,
+            MAX(CASE WHEN vd.selite = 'Metalli' THEN vd.kuvaus END) AS metallipakkausvelvoite
+        FROM
+            velvoite_data vd
+        GROUP BY
+            vd.kohde_id
+    )
+    SELECT
+        k_id.kohde_id,
+        vy.kuvaus AS velvoiteyhteenveto,
+        av.sekajatevelvoite,
+        av.biojatevelvoite,
+        av.muovipakkausvelvoite,
+        av.kartonkipakkausvelvoite,
+        av.lasipakkausvelvoite,
+        av.metallipakkausvelvoite
+    FROM
+        unnest(kohde_ids) AS k_id(kohde_id)
+    LEFT JOIN
+        (SELECT DISTINCT ON (kohde_id) * FROM velvoiteyhteenveto_data) vy ON vy.kohde_id = k_id.kohde_id
+    LEFT JOIN
+        aggregated_velvoite av ON av.kohde_id = k_id.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
