@@ -25,8 +25,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION jkr.filter_kohde_ids_for_report(
     tarkastelupvm DATE,
     kunta TEXT,
-    huoneistomaara INTEGER,
-    velvoite_status_tallennuspvm DATE,
+    huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
     is_taajama_yli_200 BOOLEAN
 )
@@ -62,28 +61,28 @@ BEGIN
                                             FROM jkr.kohteen_rakennukset kr
                                             WHERE
                                                 k.id = kr.kohde_id AND r.id = kr.rakennus_id
+                                                LIMIT 1
                                         )
                                 )
                         )
                 )
         ))
-        AND (huoneistomaara IS NULL OR (
-            SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
-            FROM jkr.kohteen_rakennukset kr
-            JOIN jkr.rakennus r ON r.id = kr.rakennus_id
-            WHERE kr.kohde_id = k.id
-        ) = huoneistomaara)
-        AND (velvoite_status_tallennuspvm IS NULL OR EXISTS (
-            SELECT 1
-            FROM jkr.velvoite v
-            WHERE
-                v.kohde_id = k.id
-                AND EXISTS (
-                    SELECT 1
-                    FROM jkr.velvoite_status vs
-                    WHERE vs.velvoite_id = v.id AND vs.tallennuspvm = velvoite_status_tallennuspvm
-                )
-        ))
+        AND (huoneistomaara IS NULL
+            OR (
+                huoneistomaara = 4 AND
+                (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
+                FROM jkr.kohteen_rakennukset kr
+                JOIN jkr.rakennus r ON r.id = kr.rakennus_id
+                WHERE kr.kohde_id = k.id) <= 4
+            )
+            OR (
+                huoneistomaara = 5 AND
+                (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
+                FROM jkr.kohteen_rakennukset kr
+                JOIN jkr.rakennus r ON r.id = kr.rakennus_id
+                WHERE kr.kohde_id = k.id) >= 5
+            )
+        )
         AND (is_taajama_yli_10000 IS NULL OR
             (
                 is_taajama_yli_10000 = true
@@ -104,5 +103,93 @@ BEGIN
                 AND k.id NOT IN (SELECT kohde_ids_in_taajama FROM jkr.kohde_ids_in_taajama(200))
             )
         );
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION jkr.get_report_filter(
+    tarkastelupvm DATE,
+    kohde_ids INTEGER[]
+)
+RETURNS TABLE(
+    kohde_id INTEGER,
+    tarkastelupvm_out DATE,
+    kunta TEXT,
+    huoneistomaara BIGINT,
+    taajama_yli_10000 TEXT,
+    taajama_yli_200 TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        k.id, 
+        tarkastelupvm,
+        (SELECT ku.nimi_fi
+        FROM jkr_osoite.kunta ku
+        WHERE EXISTS (
+            SELECT 1
+            FROM jkr_osoite.posti p
+            WHERE
+                ku.koodi = p.kunta_koodi
+                AND EXISTS (
+                    SELECT 1
+                    FROM jkr.osoite o
+                    WHERE
+                        p.numero = o.posti_numero
+                        AND EXISTS (
+                            SELECT 1
+                            FROM jkr.rakennus r
+                            WHERE
+                                o.rakennus_id = r.id
+                                AND EXISTS (
+                                    SELECT 1
+                                    FROM jkr.kohteen_rakennukset kr
+                                    WHERE
+                                        k.id = kr.kohde_id AND r.id = kr.rakennus_id
+                                        LIMIT 1
+                                )
+                        )
+                )
+        )),
+        (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
+        FROM jkr.kohteen_rakennukset kr
+        JOIN jkr.rakennus r ON r.id = kr.rakennus_id
+        WHERE kr.kohde_id = k.id),
+        (SELECT t.nimi
+        FROM jkr.taajama t
+        WHERE 
+            t.vaesto_lkm >= 10000
+            AND EXISTS (
+                SELECT 1
+                FROM jkr.rakennus r
+                WHERE
+                    ST_Contains(t.geom, r.geom)
+                    AND EXISTS (
+                        SELECT 1
+                        FROM jkr.kohteen_rakennukset kr
+                        WHERE
+                            kr.kohde_id = k.id AND kr.rakennus_id = r.id
+                    )
+            ) 
+        ),
+        (SELECT t.nimi
+        FROM jkr.taajama t
+        WHERE 
+            t.vaesto_lkm >= 200
+            AND EXISTS (
+                SELECT 1
+                FROM jkr.rakennus r
+                WHERE
+                    ST_Contains(t.geom, r.geom)
+                    AND EXISTS (
+                        SELECT 1
+                        FROM jkr.kohteen_rakennukset kr
+                        WHERE
+                            kr.kohde_id = k.id AND kr.rakennus_id = r.id
+                    )
+            ) 
+        )
+    FROM jkr.kohde k
+    WHERE k.id = ANY(kohde_ids);
 END;
 $$ LANGUAGE plpgsql;
