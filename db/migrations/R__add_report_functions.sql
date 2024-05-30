@@ -171,9 +171,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids integer[], tarkistuspvm date)
+CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids integer[], tarkistuspvm daterange)
 RETURNS TABLE(
     Kohde_id integer,
+    "Velvoitteen tallennuspvm" date,
     Velvoiteyhteenveto text,
     Sekajätevelvoite text,
     Biojätevelvoite text,
@@ -182,7 +183,21 @@ RETURNS TABLE(
     Lasipakkausvelvoite text,
     Metallipakkausvelvoite text
 ) AS $$
+DECLARE
+    selected_tallennuspvm date;
 BEGIN
+    SELECT 
+        vs.tallennuspvm
+    INTO 
+        selected_tallennuspvm
+    FROM 
+        jkr.velvoite_status vs
+    WHERE 
+        vs.jakso && tarkistuspvm
+    ORDER BY 
+        vs.tallennuspvm DESC
+    LIMIT 1;
+
     RETURN QUERY
     WITH velvoiteyhteenveto_data AS (
         SELECT
@@ -198,7 +213,7 @@ BEGIN
         WHERE
             v.kohde_id = ANY(kohde_ids)
             AND vs.ok = TRUE
-            AND vs.jakso @> tarkistuspvm
+            AND vs.tallennuspvm = selected_tallennuspvm
         ORDER BY
             vs.jakso DESC
     ),
@@ -217,7 +232,7 @@ BEGIN
         WHERE
             v.kohde_id = ANY(kohde_ids)
             AND vs.ok = TRUE
-            AND vs.jakso @> tarkistuspvm
+            AND vs.tallennuspvm = selected_tallennuspvm
         ORDER BY
             vs.jakso DESC
     ),
@@ -237,6 +252,7 @@ BEGIN
     )
     SELECT
         k_id.kohde_id,
+        selected_tallennuspvm AS "Velvoitteen tallennuspvm",
         vy.kuvaus AS velvoiteyhteenveto,
         av.sekajatevelvoite,
         av.biojatevelvoite,
@@ -252,3 +268,5 @@ BEGIN
         aggregated_velvoite av ON av.kohde_id = k_id.kohde_id;
 END;
 $$ LANGUAGE plpgsql;
+
+
