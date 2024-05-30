@@ -193,3 +193,43 @@ BEGIN
     WHERE k.id = ANY(kohde_ids);
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION jkr.print_report(
+    tarkastelupvm DATE,
+    kunta TEXT,
+    huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
+    is_taajama_yli_10000 BOOLEAN,
+    is_taajama_yli_200 BOOLEAN
+)
+RETURNS TABLE(
+    kohde_id INTEGER,
+    tarkastelupvm_out DATE,
+    kunta_out TEXT,
+    huoneistomaara_out BIGINT,
+    taajama_yli_10000 TEXT,
+    taajama_yli_200 TEXT
+) AS $$
+DECLARE
+    kohde_ids INTEGER[];
+    report_start date := DATE_TRUNC('quarter', tarkastelupvm) - INTERVAL '6 months';
+    report_end date := DATE_TRUNC('quarter', tarkastelupvm) + INTERVAL '3 months' - INTERVAL '1 day';
+    report_period daterange := daterange(report_start, report_end);
+BEGIN
+    SELECT array_agg(id) INTO kohde_ids
+    FROM jkr.filter_kohde_ids_for_report(
+        tarkastelupvm,
+        kunta,
+        huoneistomaara,
+        is_taajama_yli_10000,
+        is_taajama_yli_200
+    ) AS id;
+
+    RETURN QUERY
+    SELECT *
+    FROM jkr.get_report_filter(
+        tarkastelupvm,
+        kohde_ids
+    );
+END;
+$$ LANGUAGE plpgsql;
