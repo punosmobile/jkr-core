@@ -104,7 +104,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-REATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids integer[], tarkistusjakso daterange)
+CREATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids integer[], tarkistusjakso daterange)
 RETURNS TABLE(
     Kohde_id integer,
     Muovi date,
