@@ -241,8 +241,8 @@ BEGIN
             vd.kohde_id,
             MAX(CASE WHEN vd.selite = 'Sekajäte' THEN vd.kuvaus END) AS sekajatevelvoite,
             MAX(CASE WHEN vd.selite = 'Biojäte' THEN vd.kuvaus END) AS biojatevelvoite,
-            MAX(CASE WHEN vd.selite = 'Muovipakkaus' THEN vd.kuvaus END) AS muovipakkausvelvoite,
-            MAX(CASE WHEN vd.selite = 'Kartonkipakkaus' THEN vd.kuvaus END) AS kartonkipakkausvelvoite,
+            MAX(CASE WHEN vd.selite = 'Muovi' THEN vd.kuvaus END) AS muovipakkausvelvoite,
+            MAX(CASE WHEN vd.selite = 'Kartonki' THEN vd.kuvaus END) AS kartonkipakkausvelvoite,
             MAX(CASE WHEN vd.selite = 'Lasipakkaus' THEN vd.kuvaus END) AS lasipakkausvelvoite,
             MAX(CASE WHEN vd.selite = 'Metalli' THEN vd.kuvaus END) AS metallipakkausvelvoite
         FROM
