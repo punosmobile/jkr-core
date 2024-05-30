@@ -104,7 +104,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids integer[], tarkistuspvm date)
+REATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids integer[], tarkistusjakso daterange)
 RETURNS TABLE(
     Kohde_id integer,
     Muovi date,
@@ -135,7 +135,7 @@ BEGIN
             jkr_koodistot.jatetyyppi jt ON k.jatetyyppi_id = jt.id
         WHERE
             k.kohde_id = ANY(kohde_ids)
-            AND k.aikavali @> tarkistuspvm
+            AND k.aikavali && tarkistusjakso
     ),
     aggregated_kuljetukset AS (
         SELECT
@@ -166,12 +166,14 @@ BEGIN
     FROM
         unnest(kohde_ids) AS k_id(kohde_id)
     LEFT JOIN
-        aggregated_kuljetukset ak ON ak.kohde_id = k_id.kohde_id;
+        aggregated_kuljetukset ak ON ak.kohde_id = k_id.kohde_id
+    ORDER BY
+        k_id.kohde_id;
 END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids integer[], tarkistuspvm daterange)
+CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids integer[], tarkistusjakso daterange)
 RETURNS TABLE(
     Kohde_id integer,
     "Velvoitteen tallennuspvm" date,
@@ -193,7 +195,7 @@ BEGIN
     FROM 
         jkr.velvoite_status vs
     WHERE 
-        vs.jakso && tarkistuspvm
+        vs.jakso && tarkistusjakso
     ORDER BY 
         vs.tallennuspvm DESC
     LIMIT 1;
