@@ -150,7 +150,8 @@ BEGIN
                                 )
                         )
                 )
-        )),
+        )
+        LIMIT 1),
         (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
         FROM jkr.kohteen_rakennukset kr
         JOIN jkr.rakennus r ON r.id = kr.rakennus_id
@@ -171,7 +172,7 @@ BEGIN
                             kr.kohde_id = k.id AND kr.rakennus_id = r.id
                     )
             ) 
-        ),
+        LIMIT 1),
         (SELECT t.nimi
         FROM jkr.taajama t
         WHERE 
@@ -188,7 +189,7 @@ BEGIN
                             kr.kohde_id = k.id AND kr.rakennus_id = r.id
                     )
             ) 
-        )
+        LIMIT 1)
     FROM jkr.kohde k
     WHERE k.id = ANY(kohde_ids);
 END;
