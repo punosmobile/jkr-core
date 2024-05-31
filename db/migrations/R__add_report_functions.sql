@@ -274,3 +274,184 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+CREATE OR REPLACE FUNCTION jkr.kohteiden_rakennustiedot(kohde_ids integer[])
+RETURNS TABLE(
+    Kohde_id integer,
+    "PRT 1" text,
+    "Käyttötila 1" text,
+    "Käyttötarkoitus 1" text,
+    Katuosoite text,
+    Postinumero text,
+    Postitoimipaikka text,
+    Sijaintikiinteistö text,
+    "X-koordinaatti" float,
+    "Y-koordinaatti" float,
+    "PRT 2" text,
+    "Käyttötila 2" text,
+    "Käyttötarkoitus 2" text,
+    "PRT 3" text,
+    "Käyttötila 3" text,
+    "Käyttötarkoitus 3" text,
+    "PRT 4" text,
+    "Käyttötila 4" text,
+    "Käyttötarkoitus 4" text,
+    "PRT 5" text,
+    "Käyttötila 5" text,
+    "Käyttötarkoitus 5" text,
+    "PRT 6" text,
+    "Käyttötila 6" text,
+    "Käyttötarkoitus 6" text,
+    "PRT 7" text,
+    "Käyttötila 7" text,
+    "Käyttötarkoitus 7" text,
+    "PRT 8" text,
+    "Käyttötila 8" text,
+    "Käyttötarkoitus 8" text,
+    "PRT 9" text,
+    "Käyttötila 9" text,
+    "Käyttötarkoitus 9" text,
+    "PRT 10" text,
+    "Käyttötila 10" text,
+    "Käyttötarkoitus 10" text,
+    "PRT 11" text,
+    "Käyttötila 11" text,
+    "Käyttötarkoitus 11" text,
+    "PRT 12" text,
+    "Käyttötila 12" text,
+    "Käyttötarkoitus 12" text,
+    "PRT 13" text,
+    "Käyttötila 13" text,
+    "Käyttötarkoitus 13" text,
+    "PRT 14" text,
+    "Käyttötila 14" text,
+    "Käyttötarkoitus 14" text,
+    "PRT 15" text,
+    "Käyttötila 15" text,
+    "Käyttötarkoitus 15" text,
+    "PRT 16" text,
+    "Käyttötila 16" text,
+    "Käyttötarkoitus 16" text,
+    "PRT 17" text,
+    "Käyttötila 17" text,
+    "Käyttötarkoitus 17" text
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH significant_rakennukset AS (
+        SELECT
+            kr.kohde_id,
+            r.id AS rakennus_id,
+            r.prt::text AS prt,
+            ro.selite::text AS kayttotila,
+            rt.selite::text AS kayttotarkoitus,
+            r.kiinteistotunnus::text AS sijaintikiinteisto,
+            ST_X(ST_Transform(r.geom, 3067)) AS x_koordinaatti,
+            ST_Y(ST_Transform(r.geom, 3067)) AS y_koordinaatti
+        FROM
+            jkr.kohteen_rakennukset kr
+        JOIN
+            jkr.rakennus r ON kr.rakennus_id = r.id
+        LEFT JOIN
+            jkr_koodistot.rakennuksenkayttotarkoitus rt ON r.rakennuksenkayttotarkoitus_koodi = rt.koodi
+        LEFT JOIN
+            jkr_koodistot.rakennuksenolotila ro ON r.rakennuksenolotila_koodi = ro.koodi
+        WHERE
+            kr.kohde_id = ANY(kohde_ids)
+            AND (
+                rt.selite = ANY(ARRAY[
+                    'Yhden asunnon talot', 'Kahden asunnon talot', 'Muut erilliset pientalot', 'Rivitalot',
+                    'Luhtitalot', 'Ketjutalot', 'Muut asuinkerrostalot', 'Vapaa-ajan asuinrakennukset',
+                    'Muut asuntolarakennukset', 'Vanhainkodit', 'Lasten- ja koulukodit',
+                    'Kehitysvammaisten hoitolaitokset', 'Muut huoltolaitosrakennukset', 'Lasten päiväkodit',
+                    'Muualla luokittelemattomat sosiaalitoimen rakennukset', 'Yleissivistävien oppilaitosten rakennukset',
+                    'Ammatillisten oppilaitosten rakennukset', 'Korkeakoulurakennukset', 'Tutkimuslaitosrakennukset',
+                    'Järjestöjen, liittojen, työnantajien yms. opetusrakennukset', 'Muualla luokittelemattomat opetusrakennukset'
+                ])
+            )
+    ),
+    first_significant_address AS (
+        SELECT DISTINCT ON (sr.kohde_id)
+            sr.kohde_id,
+            (k.katunimi_fi || ' ' || ao.osoitenumero)::text AS katuosoite,
+            ao.posti_numero::text AS postinumero,
+            kun.nimi_fi::text AS postitoimipaikka
+        FROM
+            significant_rakennukset sr
+        JOIN
+            jkr.osoite ao ON sr.rakennus_id = ao.rakennus_id
+        LEFT JOIN
+            jkr_osoite.katu k ON ao.katu_id = k.id
+        LEFT JOIN
+            jkr_osoite.kunta kun ON k.kunta_koodi = kun.koodi
+    ),
+    ranked_rakennukset AS (
+        SELECT DISTINCT ON (sr.kohde_id, sr.rakennus_id)
+            sr.*,
+            ROW_NUMBER() OVER (PARTITION BY sr.kohde_id ORDER BY sr.rakennus_id) AS rn
+        FROM significant_rakennukset sr
+    )
+    SELECT
+        sr.kohde_id,
+        MAX(CASE WHEN rn = 1 THEN sr.prt END) AS "PRT 1",
+        MAX(CASE WHEN rn = 1 THEN sr.kayttotila END) AS "Käyttötila 1",
+        MAX(CASE WHEN rn = 1 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 1",
+        fa.katuosoite,
+        fa.postinumero,
+        fa.postitoimipaikka,
+        MAX(CASE WHEN rn = 1 THEN sr.sijaintikiinteisto END) AS sijaintikiinteisto,
+        MAX(CASE WHEN rn = 1 THEN sr.x_koordinaatti END) AS "X-koordinaatti",
+        MAX(CASE WHEN rn = 1 THEN sr.y_koordinaatti END) AS "Y-koordinaatti",
+        MAX(CASE WHEN rn = 2 THEN sr.prt END) AS "PRT 2",
+        MAX(CASE WHEN rn = 2 THEN sr.kayttotila END) AS "Käyttötila 2",
+        MAX(CASE WHEN rn = 2 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 2",
+        MAX(CASE WHEN rn = 3 THEN sr.prt END) AS "PRT 3",
+        MAX(CASE WHEN rn = 3 THEN sr.kayttotila END) AS "Käyttötila 3",
+        MAX(CASE WHEN rn = 3 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 3",
+        MAX(CASE WHEN rn = 4 THEN sr.prt END) AS "PRT 4",
+        MAX(CASE WHEN rn = 4 THEN sr.kayttotila END) AS "Käyttötila 4",
+        MAX(CASE WHEN rn = 4 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 4",
+        MAX(CASE WHEN rn = 5 THEN sr.prt END) AS "PRT 5",
+        MAX(CASE WHEN rn = 5 THEN sr.kayttotila END) AS "Käyttötila 5",
+        MAX(CASE WHEN rn = 5 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 5",
+        MAX(CASE WHEN rn = 6 THEN sr.prt END) AS "PRT 6",
+        MAX(CASE WHEN rn = 6 THEN sr.kayttotila END) AS "Käyttötila 6",
+        MAX(CASE WHEN rn = 6 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 6",
+        MAX(CASE WHEN rn = 7 THEN sr.prt END) AS "PRT 7",
+        MAX(CASE WHEN rn = 7 THEN sr.kayttotila END) AS "Käyttötila 7",
+        MAX(CASE WHEN rn = 7 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 7",
+        MAX(CASE WHEN rn = 8 THEN sr.prt END) AS "PRT 8",
+        MAX(CASE WHEN rn = 8 THEN sr.kayttotila END) AS "Käyttötila 8",
+        MAX(CASE WHEN rn = 8 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 8",
+        MAX(CASE WHEN rn = 9 THEN sr.prt END) AS "PRT 9",
+        MAX(CASE WHEN rn = 9 THEN sr.kayttotila END) AS "Käyttötila 9",
+        MAX(CASE WHEN rn = 9 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 9",
+        MAX(CASE WHEN rn = 10 THEN sr.prt END) AS "PRT 10",
+        MAX(CASE WHEN rn = 10 THEN sr.kayttotila END) AS "Käyttötila 10",
+        MAX(CASE WHEN rn = 10 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 10",
+        MAX(CASE WHEN rn = 11 THEN sr.prt END) AS "PRT 11",
+        MAX(CASE WHEN rn = 11 THEN sr.kayttotila END) AS "Käyttötila 11",
+        MAX(CASE WHEN rn = 11 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 11",
+        MAX(CASE WHEN rn = 12 THEN sr.prt END) AS "PRT 12",
+        MAX(CASE WHEN rn = 12 THEN sr.kayttotila END) AS "Käyttötila 12",
+        MAX(CASE WHEN rn = 12 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 12",
+        MAX(CASE WHEN rn = 13 THEN sr.prt END) AS "PRT 13",
+        MAX(CASE WHEN rn = 13 THEN sr.kayttotila END) AS "Käyttötila 13",
+        MAX(CASE WHEN rn = 13 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 13",
+        MAX(CASE WHEN rn = 14 THEN sr.prt END) AS "PRT 14",
+        MAX(CASE WHEN rn = 14 THEN sr.kayttotila END) AS "Käyttötila 14",
+        MAX(CASE WHEN rn = 14 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 14",
+        MAX(CASE WHEN rn = 15 THEN sr.prt END) AS "PRT 15",
+        MAX(CASE WHEN rn = 15 THEN sr.kayttotila END) AS "Käyttötila 15",
+        MAX(CASE WHEN rn = 15 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 15",
+        MAX(CASE WHEN rn = 16 THEN sr.prt END) AS "PRT 16",
+        MAX(CASE WHEN rn = 16 THEN sr.kayttotila END) AS "Käyttötila 16",
+        MAX(CASE WHEN rn = 16 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 16",
+        MAX(CASE WHEN rn = 17 THEN sr.prt END) AS "PRT 17",
+        MAX(CASE WHEN rn = 17 THEN sr.kayttotila END) AS "Käyttötila 17",
+        MAX(CASE WHEN rn = 17 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 17"
+    FROM ranked_rakennukset sr
+    LEFT JOIN first_significant_address fa ON sr.kohde_id = fa.kohde_id
+    GROUP BY sr.kohde_id, fa.katuosoite, fa.postinumero, fa.postitoimipaikka
+    ORDER BY sr.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
