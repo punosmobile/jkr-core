@@ -67,7 +67,7 @@ BEGIN
                         )
                 )
         ))
-        AND (huoneistomaara IS NULL
+        AND (huoneistomaara IS NULL OR huoneistomaara = 0
             OR (
                 huoneistomaara = 4 AND
                 (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
