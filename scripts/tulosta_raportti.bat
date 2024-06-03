@@ -39,9 +39,9 @@ IF "%~5"=="" (
    ECHO Anna parametrit järjestyksessä
    ECHO 1. polku CSV-tiedostoon
    ECHO 2. tarkastelupäivämäärä, esim. 2020-01-01
-   ECHO 3. kunta, esim. Orimattila
-   ECHO 4. huoneistomäärä, 4 = enintään neljä, 5 = vähintään viisi
-   ECHO 5. taajaman koko, 200 tai 10000
+   ECHO 3. kunta, esim. Orimattila, * = kaikki kunnat
+   ECHO 4. huoneistomäärä, 4 = enintään neljä, 5 = vähintään viisi, 0 = kaikki huoneistomäärät
+   ECHO 5. taajaman koko, 200 tai 10000, 0 = ei taajamarajausta
    ECHO esim. .\tulosta_raportti.bat "C:\tmp\raportit\raportti_orimattila_4_200.csv" 2020-01-01 Orimattila 4 200
    EXIT /b 1
 )
