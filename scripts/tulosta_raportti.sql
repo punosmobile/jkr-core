@@ -1,10 +1,10 @@
 CREATE TEMP TABLE tmp_report_result(
     kohde_id INTEGER,
-    tarkastelupvm_out DATE,
-    kunta_out TEXT,
-    huoneistomaara_out BIGINT,
-    taajama_yli_10000 TEXT,
-    taajama_yli_200 TEXT
+    tarkastelupvm DATE,
+    "Kohteen rakennuksen 1 sijaintikunta" TEXT,
+    huoneistolkm BIGINT,
+    "yli 10 000 taajama" TEXT,
+    "200 asukkaan taajama" TEXT
 );
 
 INSERT INTO tmp_report_result
