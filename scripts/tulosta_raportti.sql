@@ -1,3 +1,5 @@
+\set copy_command '\\copy tmp_report_result TO ' :'csv_path' ' WITH CSV HEADER'
+
 CREATE TEMP TABLE tmp_report_result(
     kohde_id INTEGER,
     tarkastelupvm DATE,
@@ -16,4 +18,4 @@ SELECT * FROM jkr.print_report(
     CASE WHEN :'taajama_size' = 200 THEN TRUE ELSE NULL END
 );
 
-\copy tmp_report_result TO C:/tmp/raportti.csv WITH CSV HEADER 
+:copy_command
