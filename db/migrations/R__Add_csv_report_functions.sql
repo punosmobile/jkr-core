@@ -685,8 +685,8 @@ DECLARE
     sekajate_ids INTEGER[];
     salpakierto_ids INTEGER[];
     omistaja_id INTEGER;
+    vanhin_id INTEGER;
 BEGIN
-    -- Fetch the necessary role IDs
     SELECT ARRAY(
         SELECT id 
         FROM jkr_koodistot.osapuolenrooli
@@ -709,6 +709,10 @@ BEGIN
     FROM jkr_koodistot.osapuolenrooli
     WHERE selite = 'Omistaja';
 
+    SELECT id INTO vanhin_id
+    FROM jkr_koodistot.osapuolenrooli
+    WHERE selite = 'Vanhin asukas';
+
     RETURN QUERY
     WITH owners AS (
         SELECT
@@ -719,8 +723,6 @@ BEGIN
             o.postitoimipaikka,
             ROW_NUMBER() OVER (PARTITION BY ko.kohde_id) AS rn
         FROM jkr.kohteen_osapuolet ko
-        JOIN (SELECT DISTINCT osapuoli_id FROM jkr.rakennuksen_omistajat) ro
-		ON ko.osapuoli_id = ro.osapuoli_id
         JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
         WHERE ko.kohde_id = ANY(kohde_ids)
         AND ko.osapuolenrooli_id = omistaja_id
@@ -804,15 +806,22 @@ BEGIN
         MAX(CASE WHEN o.rn = 1 THEN COALESCE(o.katuosoite, '') ELSE NULL END) AS "Omistaja 1 katuosoite",
         MAX(CASE WHEN o.rn = 1 THEN COALESCE(o.postinumero, '') ELSE NULL END) AS "Omistaja 1 postinumero",
         MAX(CASE WHEN o.rn = 1 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) AS "Omistaja 1 postitoimipaikka",
-        CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.nimi, '') ELSE NULL END) END AS "Omistaja 2 nimi",
-    	CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.katuosoite, '') ELSE NULL END) END AS "Omistaja 2 katuosoite",
-    	CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.postinumero, '') ELSE NULL END) END AS "Omistaja 2 postinumero",
-    	CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) END AS "Omistaja 2 postitoimipaikka",
-        CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.nimi, '') ELSE NULL END) END AS "Omistaja 2 nimi",
-    	CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.katuosoite, '') ELSE NULL END) END AS "Omistaja 2 katuosoite",
-    	CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.postinumero, '') ELSE NULL END) END AS "Omistaja 2 postinumero",
-    	CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) END AS "Omistaja 2 postitoimipaikka",
-        '' AS "Vahimman asukkaan nimi"
+        MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.nimi, '') ELSE NULL END) AS "Omistaja 2 nimi",
+    	MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.katuosoite, '') ELSE NULL END) AS "Omistaja 2 katuosoite",
+        MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.postinumero, '') ELSE NULL END) AS "Omistaja 2 postinumero",
+        MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) AS "Omistaja 2 postitoimipaikka",
+        MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.nimi, '') ELSE NULL END) AS "Omistaja 2 nimi",
+    	MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.katuosoite, '') ELSE NULL END) AS "Omistaja 2 katuosoite",
+    	MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.postinumero, '') ELSE NULL END) AS "Omistaja 2 postinumero",
+    	MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) AS "Omistaja 2 postitoimipaikka",
+        (
+            SELECT o.nimi
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = vanhin_id
+            LIMIT 1
+        ) AS "Vahimman asukkaan nimi"
     FROM unnest(kohde_ids) AS k(kohde_id)
     LEFT JOIN owners o ON k.kohde_id = o.kohde_id
     GROUP BY k.kohde_id;
