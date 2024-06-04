@@ -455,3 +455,168 @@ BEGIN
     ORDER BY sr.kohde_id;
 END;
 $$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION jkr.kohteiden_tiedot(kohde_ids integer[])
+RETURNS TABLE(
+    Kohde_id integer,
+    "Komposti-ilmoituksen tekijän nimi" text,
+    "Sekajätteen tilaajan nimi" text,
+    "Sekajätteen tilaajan katuosoite" text,
+    "Sekajätteen tilaajan postinumero" text,
+    "Sekajätteen tilaajan postitoimipaikka" text,
+    "Salpakierron tilaajan nimi" text,
+    "Salpakierron tilaajan katuosoite" text,
+    "Salpakierron postinumero" text,
+    "Salpakierron postitoimipaikka" text,
+    "Omistaja 1 nimi" text,
+    "Omistaja 1 katuosoite" text,
+    "Omistaja 1 postinumero" text,
+    "Omistaja 1 postitoimipaikka" text,
+    "Omistaja 2 nimi" text,
+    "Omistaja 2 katuosoite" text,
+    "Omistaja 2 postinumero" text,
+    "Omistaja 2 postitoimipaikka" text,
+    "Omistaja 3 nimi" text,
+    "Omistaja 3 katuosoite" text,
+    "Omistaja 3 postinumero" text,
+    "Omistaja 3 postitoimipaikka" text,
+    "Vahimman asukkaan nimi" text
+) AS $$
+DECLARE
+    sekajate_ids integer[];
+    salpakierto_ids integer[];
+    omistaja_id integer;
+BEGIN
+    -- Fetch the necessary role IDs
+    SELECT ARRAY(
+        SELECT id 
+        FROM jkr_koodistot.osapuolenrooli
+        WHERE selite IN ('Tilaaja sekajäte', 'Kimppaisäntä sekajäte', 'Kimppaosakas sekajäte')
+    ) INTO sekajate_ids;
+
+    SELECT ARRAY(
+        SELECT id 
+        FROM jkr_koodistot.osapuolenrooli
+        WHERE selite IN (
+            'Tilaaja biojäte', 'Kimppaisäntä biojäte', 'Kimppaosakas biojäte',
+            'Tilaaja muovipakkaus', 'Kimppaisäntä muovipakkaus', 'Kimppaosakas muovipakkaus',
+            'Tilaaja kartonkipakkaus', 'Kimppaisäntä kartonkipakkaus', 'Kimppaosakas kartonkipakkaus',
+            'Tilaaja lasipakkaus', 'Kimppaisäntä lasipakkaus', 'Kimppaosakas lasipakkaus',
+            'Tilaaja metalli', 'Kimppaisäntä metalli', 'Kimppaosakas metalli'
+        )
+    ) INTO salpakierto_ids;
+
+    SELECT id INTO omistaja_id
+    FROM jkr_koodistot.osapuolenrooli
+    WHERE selite = 'Omistaja';
+
+    RETURN QUERY
+    WITH owners AS (
+        SELECT
+            ko.kohde_id,
+            o.nimi,
+            o.katuosoite,
+            o.postinumero,
+            o.postitoimipaikka,
+            ROW_NUMBER() OVER (PARTITION BY ko.kohde_id) AS rn
+        FROM jkr.kohteen_osapuolet ko
+        JOIN (SELECT DISTINCT osapuoli_id FROM jkr.rakennuksen_omistajat) ro
+		ON ko.osapuoli_id = ro.osapuoli_id
+        JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+        WHERE ko.kohde_id = ANY(kohde_ids)
+        AND ko.osapuolenrooli_id = omistaja_id
+    )
+    SELECT
+        k.kohde_id,
+        (
+            SELECT o.nimi
+            FROM jkr.kompostorin_kohteet kk
+            JOIN jkr.kompostori ko ON kk.kompostori_id = ko.id
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE kk.kohde_id = k.kohde_id
+            ORDER BY ko.loppupvm DESC
+            LIMIT 1
+        ) AS "Komposti-ilmoituksen tekijän nimi",
+        (
+            SELECT o.nimi
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(sekajate_ids)
+            LIMIT 1
+        ) AS "Sekajätteen tilaajan nimi",
+        (
+            SELECT o.katuosoite
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(sekajate_ids)
+            LIMIT 1
+        ) AS "Sekajätteen tilaajan katuosoite",
+        (
+            SELECT o.postinumero
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(sekajate_ids)
+            LIMIT 1
+        ) AS "Sekajätteen tilaajan postinumero",
+        (
+            SELECT o.postitoimipaikka
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(sekajate_ids)
+            LIMIT 1
+        ) AS "Sekajätteen tilaajan postitoimipaikka",
+        (
+            SELECT o.nimi
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(salpakierto_ids)
+            LIMIT 1
+        ) AS "Salpakierron tilaajan nimi",
+        (
+            SELECT o.katuosoite
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(salpakierto_ids)
+            LIMIT 1
+        ) AS "Salpakierron tilaajan katuosoite",
+        (
+            SELECT o.postinumero
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(salpakierto_ids)
+            LIMIT 1
+        ) AS "Salpakierron postinumero",
+        (
+            SELECT o.postitoimipaikka
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = ANY(salpakierto_ids)
+            LIMIT 1
+        ) AS "Salpakierron postitoimipaikka",
+        MAX(CASE WHEN o.rn = 1 THEN COALESCE(o.nimi, '') ELSE NULL END) AS "Omistaja 1 nimi",
+        MAX(CASE WHEN o.rn = 1 THEN COALESCE(o.katuosoite, '') ELSE NULL END) AS "Omistaja 1 katuosoite",
+        MAX(CASE WHEN o.rn = 1 THEN COALESCE(o.postinumero, '') ELSE NULL END) AS "Omistaja 1 postinumero",
+        MAX(CASE WHEN o.rn = 1 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) AS "Omistaja 1 postitoimipaikka",
+        CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.nimi, '') ELSE NULL END) END AS "Omistaja 2 nimi",
+    	CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.katuosoite, '') ELSE NULL END) END AS "Omistaja 2 katuosoite",
+    	CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.postinumero, '') ELSE NULL END) END AS "Omistaja 2 postinumero",
+    	CASE WHEN COUNT(*) > 1 THEN MAX(CASE WHEN o.rn = 2 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) END AS "Omistaja 2 postitoimipaikka",
+        CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.nimi, '') ELSE NULL END) END AS "Omistaja 2 nimi",
+    	CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.katuosoite, '') ELSE NULL END) END AS "Omistaja 2 katuosoite",
+    	CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.postinumero, '') ELSE NULL END) END AS "Omistaja 2 postinumero",
+    	CASE WHEN COUNT(*) > 2 THEN MAX(CASE WHEN o.rn = 3 THEN COALESCE(o.postitoimipaikka, '') ELSE NULL END) END AS "Omistaja 2 postitoimipaikka",
+        '' AS "Vahimman asukkaan nimi"
+    FROM unnest(kohde_ids) AS k(kohde_id)
+    LEFT JOIN owners o ON k.kohde_id = o.kohde_id
+    GROUP BY k.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
