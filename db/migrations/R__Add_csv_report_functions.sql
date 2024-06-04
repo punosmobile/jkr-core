@@ -70,14 +70,14 @@ BEGIN
         AND (huoneistomaara IS NULL OR huoneistomaara = 0
             OR (
                 huoneistomaara = 4 AND
-                (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
+                (SELECT SUM(COALESCE((r.huoneistomaara)::INTEGER, 1))
                 FROM jkr.kohteen_rakennukset kr
                 JOIN jkr.rakennus r ON r.id = kr.rakennus_id
                 WHERE kr.kohde_id = k.id) <= 4
             )
             OR (
                 huoneistomaara = 5 AND
-                (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
+                (SELECT SUM(COALESCE((r.huoneistomaara)::INTEGER, 1))
                 FROM jkr.kohteen_rakennukset kr
                 JOIN jkr.rakennus r ON r.id = kr.rakennus_id
                 WHERE kr.kohde_id = k.id) >= 5
@@ -107,20 +107,20 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_paatokset(kohde_ids integer[], tarkistusjakso daterange)
+CREATE OR REPLACE FUNCTION jkr.kohteiden_paatokset(kohde_ids INTEGER[], tarkistusjakso daterange)
 RETURNS TABLE(
-    Kohde_id integer,
-    Kompostoi date,
-    "Perusmaksupäätös voimassa" date,
-    "Perusmaksupäätös" text,
-    "Tyhjennysvälipäätös voimassa" date,
-    "Tyhjennysvälipäätös" text,
-    "Akp-kohtuullistaminen voimassa" date,
-    "Akp-kohtuullistaminen" text,
-    "Keskeytys voimassa" date,
-    "Keskeytys" text,
-    "Erilliskeräysvelvoitteesta poikkeaminen voimassa" date,
-    "Erilliskeräysvelvoitteesta poikkeaminen" text
+    Kohde_id INTEGER,
+    Kompostoi DATE,
+    "Perusmaksupäätös voimassa" DATE,
+    "Perusmaksupäätös" TEXT,
+    "Tyhjennysvälipäätös voimassa" DATE,
+    "Tyhjennysvälipäätös" TEXT,
+    "Akp-kohtuullistaminen voimassa" DATE,
+    "Akp-kohtuullistaminen" TEXT,
+    "Keskeytys voimassa" DATE,
+    "Keskeytys" TEXT,
+    "Erilliskeräysvelvoitteesta poikkeaminen voimassa" DATE,
+    "Erilliskeräysvelvoitteesta poikkeaminen" TEXT
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -215,17 +215,17 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids integer[], tarkistusjakso daterange)
+CREATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids INTEGER[], tarkistusjakso DATErange)
 RETURNS TABLE(
-    Kohde_id integer,
-    Muovi date,
-    Kartonki date,
-    Metalli date,
-    Lasi date,
-    Biojäte date,
-    Monilokero date,
-    Sekajate date,
-    Akp date
+    Kohde_id INTEGER,
+    Muovi DATE,
+    Kartonki DATE,
+    Metalli DATE,
+    Lasi DATE,
+    Biojäte DATE,
+    Monilokero DATE,
+    Sekajate DATE,
+    Akp DATE
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -329,7 +329,7 @@ BEGIN
                 )
         )
         LIMIT 1),
-        (SELECT SUM(COALESCE((r.huoneistomaara)::integer, 1))
+        (SELECT SUM(COALESCE((r.huoneistomaara)::INTEGER, 1))
         FROM jkr.kohteen_rakennukset kr
         JOIN jkr.rakennus r ON r.id = kr.rakennus_id
         WHERE kr.kohde_id = k.id),
@@ -373,20 +373,20 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids integer[], tarkistusjakso daterange)
+CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids INTEGER[], tarkistusjakso DATErange)
 RETURNS TABLE(
-    Kohde_id integer,
-    "Velvoitteen tallennuspvm" date,
-    Velvoiteyhteenveto text,
-    Sekajätevelvoite text,
-    Biojätevelvoite text,
-    Muovipakkausvelvoite text,
-    Kartonkipakkausvelvoite text,
-    Lasipakkausvelvoite text,
-    Metallipakkausvelvoite text
+    Kohde_id INTEGER,
+    "Velvoitteen tallennuspvm" DATE,
+    Velvoiteyhteenveto TEXT,
+    Sekajätevelvoite TEXT,
+    Biojätevelvoite TEXT,
+    Muovipakkausvelvoite TEXT,
+    Kartonkipakkausvelvoite TEXT,
+    Lasipakkausvelvoite TEXT,
+    Metallipakkausvelvoite TEXT
 ) AS $$
 DECLARE
-    selected_tallennuspvm date;
+    selected_tallennuspvm DATE;
 BEGIN
     SELECT 
         vs.tallennuspvm
@@ -472,66 +472,66 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_rakennustiedot(kohde_ids integer[])
+CREATE OR REPLACE FUNCTION jkr.kohteiden_rakennustiedot(kohde_ids INTEGER[])
 RETURNS TABLE(
-    Kohde_id integer,
-    "PRT 1" text,
-    "Käyttötila 1" text,
-    "Käyttötarkoitus 1" text,
-    Katuosoite text,
-    Postinumero text,
-    Postitoimipaikka text,
-    Sijaintikiinteistö text,
-    "X-koordinaatti" float,
-    "Y-koordinaatti" float,
-    "PRT 2" text,
-    "Käyttötila 2" text,
-    "Käyttötarkoitus 2" text,
-    "PRT 3" text,
-    "Käyttötila 3" text,
-    "Käyttötarkoitus 3" text,
-    "PRT 4" text,
-    "Käyttötila 4" text,
-    "Käyttötarkoitus 4" text,
-    "PRT 5" text,
-    "Käyttötila 5" text,
-    "Käyttötarkoitus 5" text,
-    "PRT 6" text,
-    "Käyttötila 6" text,
-    "Käyttötarkoitus 6" text,
-    "PRT 7" text,
-    "Käyttötila 7" text,
-    "Käyttötarkoitus 7" text,
-    "PRT 8" text,
-    "Käyttötila 8" text,
-    "Käyttötarkoitus 8" text,
-    "PRT 9" text,
-    "Käyttötila 9" text,
-    "Käyttötarkoitus 9" text,
-    "PRT 10" text,
-    "Käyttötila 10" text,
-    "Käyttötarkoitus 10" text,
-    "PRT 11" text,
-    "Käyttötila 11" text,
-    "Käyttötarkoitus 11" text,
-    "PRT 12" text,
-    "Käyttötila 12" text,
-    "Käyttötarkoitus 12" text,
-    "PRT 13" text,
-    "Käyttötila 13" text,
-    "Käyttötarkoitus 13" text,
-    "PRT 14" text,
-    "Käyttötila 14" text,
-    "Käyttötarkoitus 14" text,
-    "PRT 15" text,
-    "Käyttötila 15" text,
-    "Käyttötarkoitus 15" text,
-    "PRT 16" text,
-    "Käyttötila 16" text,
-    "Käyttötarkoitus 16" text,
-    "PRT 17" text,
-    "Käyttötila 17" text,
-    "Käyttötarkoitus 17" text
+    Kohde_id INTEGER,
+    "PRT 1" TEXT,
+    "Käyttötila 1" TEXT,
+    "Käyttötarkoitus 1" TEXT,
+    Katuosoite TEXT,
+    Postinumero TEXT,
+    Postitoimipaikka TEXT,
+    Sijaintikiinteistö TEXT,
+    "X-koordinaatti" FLOAT,
+    "Y-koordinaatti" FLOAT,
+    "PRT 2" TEXT,
+    "Käyttötila 2" TEXT,
+    "Käyttötarkoitus 2" TEXT,
+    "PRT 3" TEXT,
+    "Käyttötila 3" TEXT,
+    "Käyttötarkoitus 3" TEXT,
+    "PRT 4" TEXT,
+    "Käyttötila 4" TEXT,
+    "Käyttötarkoitus 4" TEXT,
+    "PRT 5" TEXT,
+    "Käyttötila 5" TEXT,
+    "Käyttötarkoitus 5" TEXT,
+    "PRT 6" TEXT,
+    "Käyttötila 6" TEXT,
+    "Käyttötarkoitus 6" TEXT,
+    "PRT 7" TEXT,
+    "Käyttötila 7" TEXT,
+    "Käyttötarkoitus 7" TEXT,
+    "PRT 8" TEXT,
+    "Käyttötila 8" TEXT,
+    "Käyttötarkoitus 8" TEXT,
+    "PRT 9" TEXT,
+    "Käyttötila 9" TEXT,
+    "Käyttötarkoitus 9" TEXT,
+    "PRT 10" TEXT,
+    "Käyttötila 10" TEXT,
+    "Käyttötarkoitus 10" TEXT,
+    "PRT 11" TEXT,
+    "Käyttötila 11" TEXT,
+    "Käyttötarkoitus 11" TEXT,
+    "PRT 12" TEXT,
+    "Käyttötila 12" TEXT,
+    "Käyttötarkoitus 12" TEXT,
+    "PRT 13" TEXT,
+    "Käyttötila 13" TEXT,
+    "Käyttötarkoitus 13" TEXT,
+    "PRT 14" TEXT,
+    "Käyttötila 14" TEXT,
+    "Käyttötarkoitus 14" TEXT,
+    "PRT 15" TEXT,
+    "Käyttötila 15" TEXT,
+    "Käyttötarkoitus 15" TEXT,
+    "PRT 16" TEXT,
+    "Käyttötila 16" TEXT,
+    "Käyttötarkoitus 16" TEXT,
+    "PRT 17" TEXT,
+    "Käyttötila 17" TEXT,
+    "Käyttötarkoitus 17" TEXT
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -539,10 +539,10 @@ BEGIN
         SELECT
             kr.kohde_id,
             r.id AS rakennus_id,
-            r.prt::text AS prt,
-            ro.selite::text AS kayttotila,
-            rt.selite::text AS kayttotarkoitus,
-            r.kiinteistotunnus::text AS sijaintikiinteisto,
+            r.prt::TEXT AS prt,
+            ro.selite::TEXT AS kayttotila,
+            rt.selite::TEXT AS kayttotarkoitus,
+            r.kiinteistotunnus::TEXT AS sijaintikiinteisto,
             ST_X(ST_Transform(r.geom, 3067)) AS x_koordinaatti,
             ST_Y(ST_Transform(r.geom, 3067)) AS y_koordinaatti
         FROM
@@ -570,9 +570,9 @@ BEGIN
     first_significant_address AS (
         SELECT DISTINCT ON (sr.kohde_id)
             sr.kohde_id,
-            (k.katunimi_fi || ' ' || ao.osoitenumero)::text AS katuosoite,
-            ao.posti_numero::text AS postinumero,
-            kun.nimi_fi::text AS postitoimipaikka
+            (k.katunimi_fi || ' ' || ao.osoitenumero)::TEXT AS katuosoite,
+            ao.posti_numero::TEXT AS postinumero,
+            kun.nimi_fi::TEXT AS postitoimipaikka
         FROM
             significant_rakennukset sr
         JOIN
@@ -655,36 +655,36 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_tiedot(kohde_ids integer[])
+CREATE OR REPLACE FUNCTION jkr.kohteiden_tiedot(kohde_ids INTEGER[])
 RETURNS TABLE(
-    Kohde_id integer,
-    "Komposti-ilmoituksen tekijän nimi" text,
-    "Sekajätteen tilaajan nimi" text,
-    "Sekajätteen tilaajan katuosoite" text,
-    "Sekajätteen tilaajan postinumero" text,
-    "Sekajätteen tilaajan postitoimipaikka" text,
-    "Salpakierron tilaajan nimi" text,
-    "Salpakierron tilaajan katuosoite" text,
-    "Salpakierron postinumero" text,
-    "Salpakierron postitoimipaikka" text,
-    "Omistaja 1 nimi" text,
-    "Omistaja 1 katuosoite" text,
-    "Omistaja 1 postinumero" text,
-    "Omistaja 1 postitoimipaikka" text,
-    "Omistaja 2 nimi" text,
-    "Omistaja 2 katuosoite" text,
-    "Omistaja 2 postinumero" text,
-    "Omistaja 2 postitoimipaikka" text,
-    "Omistaja 3 nimi" text,
-    "Omistaja 3 katuosoite" text,
-    "Omistaja 3 postinumero" text,
-    "Omistaja 3 postitoimipaikka" text,
-    "Vahimman asukkaan nimi" text
+    Kohde_id INTEGER,
+    "Komposti-ilmoituksen tekijän nimi" TEXT,
+    "Sekajätteen tilaajan nimi" TEXT,
+    "Sekajätteen tilaajan katuosoite" TEXT,
+    "Sekajätteen tilaajan postinumero" TEXT,
+    "Sekajätteen tilaajan postitoimipaikka" TEXT,
+    "Salpakierron tilaajan nimi" TEXT,
+    "Salpakierron tilaajan katuosoite" TEXT,
+    "Salpakierron postinumero" TEXT,
+    "Salpakierron postitoimipaikka" TEXT,
+    "Omistaja 1 nimi" TEXT,
+    "Omistaja 1 katuosoite" TEXT,
+    "Omistaja 1 postinumero" TEXT,
+    "Omistaja 1 postitoimipaikka" TEXT,
+    "Omistaja 2 nimi" TEXT,
+    "Omistaja 2 katuosoite" TEXT,
+    "Omistaja 2 postinumero" TEXT,
+    "Omistaja 2 postitoimipaikka" TEXT,
+    "Omistaja 3 nimi" TEXT,
+    "Omistaja 3 katuosoite" TEXT,
+    "Omistaja 3 postinumero" TEXT,
+    "Omistaja 3 postitoimipaikka" TEXT,
+    "Vahimman asukkaan nimi" TEXT
 ) AS $$
 DECLARE
-    sekajate_ids integer[];
-    salpakierto_ids integer[];
-    omistaja_id integer;
+    sekajate_ids INTEGER[];
+    salpakierto_ids INTEGER[];
+    omistaja_id INTEGER;
 BEGIN
     -- Fetch the necessary role IDs
     SELECT ARRAY(
@@ -834,117 +834,117 @@ RETURNS TABLE(
     huoneistomaara_out BIGINT,
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
-    "Komposti-ilmoituksen tekijän nimi" text,
-    "Sekajätteen tilaajan nimi" text,
-    "Sekajätteen tilaajan katuosoite" text,
-    "Sekajätteen tilaajan postinumero" text,
-    "Sekajätteen tilaajan postitoimipaikka" text,
-    "Salpakierron tilaajan nimi" text,
-    "Salpakierron tilaajan katuosoite" text,
-    "Salpakierron postinumero" text,
-    "Salpakierron postitoimipaikka" text,
-    "Omistaja 1 nimi" text,
-    "Omistaja 1 katuosoite" text,
-    "Omistaja 1 postinumero" text,
-    "Omistaja 1 postitoimipaikka" text,
-    "Omistaja 2 nimi" text,
-    "Omistaja 2 katuosoite" text,
-    "Omistaja 2 postinumero" text,
-    "Omistaja 2 postitoimipaikka" text,
-    "Omistaja 3 nimi" text,
-    "Omistaja 3 katuosoite" text,
-    "Omistaja 3 postinumero" text,
-    "Omistaja 3 postitoimipaikka" text,
-    "Vahimman asukkaan nimi" text,
-    "Velvoitteen tallennuspvm" date,
-    Velvoiteyhteenveto text,
-    Sekajätevelvoite text,
-    Biojätevelvoite text,
-    Muovipakkausvelvoite text,
-    Kartonkipakkausvelvoite text,
-    Lasipakkausvelvoite text,
-    Metallipakkausvelvoite text,
-    Muovi date,
-    Kartonki date,
-    Metalli date,
-    Lasi date,
-    Biojäte date,
-    Monilokero date,
-    Sekajate date,
-    Akp date,
-    Kompostoi date,
-    "Perusmaksupäätös voimassa" date,
-    "Perusmaksupäätös" text,
-    "Tyhjennysvälipäätös voimassa" date,
-    "Tyhjennysvälipäätös" text,
-    "Akp-kohtuullistaminen voimassa" date,
-    "Akp-kohtuullistaminen" text,
-    "Keskeytys voimassa" date,
-    "Keskeytys" text,
-    "Erilliskeräysvelvoitteesta poikkeaminen voimassa" date,
-    "Erilliskeräysvelvoitteesta poikkeaminen" text,
-    "PRT 1" text,
-    "Käyttötila 1" text,
-    "Käyttötarkoitus 1" text,
-    Katuosoite text,
-    Postinumero text,
-    Postitoimipaikka text,
-    Sijaintikiinteistö text,
-    "X-koordinaatti" float,
-    "Y-koordinaatti" float,
-    "PRT 2" text,
-    "Käyttötila 2" text,
-    "Käyttötarkoitus 2" text,
-    "PRT 3" text,
-    "Käyttötila 3" text,
-    "Käyttötarkoitus 3" text,
-    "PRT 4" text,
-    "Käyttötila 4" text,
-    "Käyttötarkoitus 4" text,
-    "PRT 5" text,
-    "Käyttötila 5" text,
-    "Käyttötarkoitus 5" text,
-    "PRT 6" text,
-    "Käyttötila 6" text,
-    "Käyttötarkoitus 6" text,
-    "PRT 7" text,
-    "Käyttötila 7" text,
-    "Käyttötarkoitus 7" text,
-    "PRT 8" text,
-    "Käyttötila 8" text,
-    "Käyttötarkoitus 8" text,
-    "PRT 9" text,
-    "Käyttötila 9" text,
-    "Käyttötarkoitus 9" text,
-    "PRT 10" text,
-    "Käyttötila 10" text,
-    "Käyttötarkoitus 10" text,
-    "PRT 11" text,
-    "Käyttötila 11" text,
-    "Käyttötarkoitus 11" text,
-    "PRT 12" text,
-    "Käyttötila 12" text,
-    "Käyttötarkoitus 12" text,
-    "PRT 13" text,
-    "Käyttötila 13" text,
-    "Käyttötarkoitus 13" text,
-    "PRT 14" text,
-    "Käyttötila 14" text,
-    "Käyttötarkoitus 14" text,
-    "PRT 15" text,
-    "Käyttötila 15" text,
-    "Käyttötarkoitus 15" text,
-    "PRT 16" text,
-    "Käyttötila 16" text,
-    "Käyttötarkoitus 16" text,
-    "PRT 17" text,
-    "Käyttötila 17" text,
-    "Käyttötarkoitus 17" text  
+    "Komposti-ilmoituksen tekijän nimi" TEXT,
+    "Sekajätteen tilaajan nimi" TEXT,
+    "Sekajätteen tilaajan katuosoite" TEXT,
+    "Sekajätteen tilaajan postinumero" TEXT,
+    "Sekajätteen tilaajan postitoimipaikka" TEXT,
+    "Salpakierron tilaajan nimi" TEXT,
+    "Salpakierron tilaajan katuosoite" TEXT,
+    "Salpakierron postinumero" TEXT,
+    "Salpakierron postitoimipaikka" TEXT,
+    "Omistaja 1 nimi" TEXT,
+    "Omistaja 1 katuosoite" TEXT,
+    "Omistaja 1 postinumero" TEXT,
+    "Omistaja 1 postitoimipaikka" TEXT,
+    "Omistaja 2 nimi" TEXT,
+    "Omistaja 2 katuosoite" TEXT,
+    "Omistaja 2 postinumero" TEXT,
+    "Omistaja 2 postitoimipaikka" TEXT,
+    "Omistaja 3 nimi" TEXT,
+    "Omistaja 3 katuosoite" TEXT,
+    "Omistaja 3 postinumero" TEXT,
+    "Omistaja 3 postitoimipaikka" TEXT,
+    "Vahimman asukkaan nimi" TEXT,
+    "Velvoitteen tallennuspvm" DATE,
+    Velvoiteyhteenveto TEXT,
+    Sekajätevelvoite TEXT,
+    Biojätevelvoite TEXT,
+    Muovipakkausvelvoite TEXT,
+    Kartonkipakkausvelvoite TEXT,
+    Lasipakkausvelvoite TEXT,
+    Metallipakkausvelvoite TEXT,
+    Muovi DATE,
+    Kartonki DATE,
+    Metalli DATE,
+    Lasi DATE,
+    Biojäte DATE,
+    Monilokero DATE,
+    Sekajate DATE,
+    Akp DATE,
+    Kompostoi DATE,
+    "Perusmaksupäätös voimassa" DATE,
+    "Perusmaksupäätös" TEXT,
+    "Tyhjennysvälipäätös voimassa" DATE,
+    "Tyhjennysvälipäätös" TEXT,
+    "Akp-kohtuullistaminen voimassa" DATE,
+    "Akp-kohtuullistaminen" TEXT,
+    "Keskeytys voimassa" DATE,
+    "Keskeytys" TEXT,
+    "Erilliskeräysvelvoitteesta poikkeaminen voimassa" DATE,
+    "Erilliskeräysvelvoitteesta poikkeaminen" TEXT,
+    "PRT 1" TEXT,
+    "Käyttötila 1" TEXT,
+    "Käyttötarkoitus 1" TEXT,
+    Katuosoite TEXT,
+    Postinumero TEXT,
+    Postitoimipaikka TEXT,
+    Sijaintikiinteistö TEXT,
+    "X-koordinaatti" FLOAT,
+    "Y-koordinaatti" FLOAT,
+    "PRT 2" TEXT,
+    "Käyttötila 2" TEXT,
+    "Käyttötarkoitus 2" TEXT,
+    "PRT 3" TEXT,
+    "Käyttötila 3" TEXT,
+    "Käyttötarkoitus 3" TEXT,
+    "PRT 4" TEXT,
+    "Käyttötila 4" TEXT,
+    "Käyttötarkoitus 4" TEXT,
+    "PRT 5" TEXT,
+    "Käyttötila 5" TEXT,
+    "Käyttötarkoitus 5" TEXT,
+    "PRT 6" TEXT,
+    "Käyttötila 6" TEXT,
+    "Käyttötarkoitus 6" TEXT,
+    "PRT 7" TEXT,
+    "Käyttötila 7" TEXT,
+    "Käyttötarkoitus 7" TEXT,
+    "PRT 8" TEXT,
+    "Käyttötila 8" TEXT,
+    "Käyttötarkoitus 8" TEXT,
+    "PRT 9" TEXT,
+    "Käyttötila 9" TEXT,
+    "Käyttötarkoitus 9" TEXT,
+    "PRT 10" TEXT,
+    "Käyttötila 10" TEXT,
+    "Käyttötarkoitus 10" TEXT,
+    "PRT 11" TEXT,
+    "Käyttötila 11" TEXT,
+    "Käyttötarkoitus 11" TEXT,
+    "PRT 12" TEXT,
+    "Käyttötila 12" TEXT,
+    "Käyttötarkoitus 12" TEXT,
+    "PRT 13" TEXT,
+    "Käyttötila 13" TEXT,
+    "Käyttötarkoitus 13" TEXT,
+    "PRT 14" TEXT,
+    "Käyttötila 14" TEXT,
+    "Käyttötarkoitus 14" TEXT,
+    "PRT 15" TEXT,
+    "Käyttötila 15" TEXT,
+    "Käyttötarkoitus 15" TEXT,
+    "PRT 16" TEXT,
+    "Käyttötila 16" TEXT,
+    "Käyttötarkoitus 16" TEXT,
+    "PRT 17" TEXT,
+    "Käyttötila 17" TEXT,
+    "Käyttötarkoitus 17" TEXT  
 ) AS $$
 DECLARE
     kohde_ids INTEGER[];
-    report_start date := DATE_TRUNC('quarter', tarkastelupvm) - INTERVAL '6 months';
-    report_end date := DATE_TRUNC('quarter', tarkastelupvm) + INTERVAL '3 months' - INTERVAL '1 day';
+    report_start DATE := DATE_TRUNC('quarter', tarkastelupvm) - INTERVAL '6 months';
+    report_end DATE := DATE_TRUNC('quarter', tarkastelupvm) + INTERVAL '3 months' - INTERVAL '1 day';
     report_period daterange := daterange(report_start, report_end);
 BEGIN
     SELECT array_agg(id) INTO kohde_ids
