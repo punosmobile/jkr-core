@@ -51,6 +51,6 @@ CHCP 65001
 REM Kerrotaan Postgresille, että terminaalin encoding on UTF-8.
 SET PGCLIENTENCODING=UTF8
 
-"%QGIS_BIN_PATH%\\psql" -v csv_path=%~1 -v check_date=%~2 -v municipality=%~3 -v count_apartments=%~4 -v taajama_size=%~5 -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f tulosta_raportti.sql
+"%QGIS_BIN_PATH%\\psql" -v csv_path=%~1 -v check_date=%~2 -v municipality=%~3 -v count_apartments=%~4 -v taajama_size=%~5 -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f scripts\tulosta_raportti.sql
 
 ECHO Valmis!
