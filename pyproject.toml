@@ -6,7 +6,12 @@ build-backend = "poetry.core.masonry.api"
 name = "jkr-core"
 version = "0.5.0"
 description = ""
-authors = ["Lauri Kajan <lauri.kajan@gispo.fi>"]
+authors = [
+    "Lauri Kajan <lauri.kajan@gispo.fi>",
+    "Riku Oja <riku@gispo.fi>",
+    "Miikka Kallio <miikka.kallio@gispo.fi>",
+    "Ismo Lahtinen <ismo.lahtinen@gispo.fi>"
+]
 license = "GPL-3.0-or-later"
 packages = [
     { include = "jkrimporter" },
