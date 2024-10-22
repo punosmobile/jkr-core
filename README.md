@@ -28,7 +28,7 @@ Now import script can be started
 The development environment uses [Poetry](https://python-poetry.org/). Install it before anything.
 
 ```bash
-$ git clone https://github.com/GispoCoding/jkr-core.git
+$ git clone https://github.com/punosmobile/jkr-core.git
 $ cd jkr-core
 
 $ poetry install

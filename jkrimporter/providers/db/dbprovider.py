@@ -58,7 +58,6 @@ from .services.kohde import (
     find_kohde_by_prt,
     find_kohteet_by_prt,
     get_or_create_multiple_and_uninhabited_kohteet,
-    get_or_create_paritalo_kohteet,
     get_or_create_single_asunto_kohteet,
     get_ulkoinen_asiakastieto,
     update_kohde,
@@ -287,9 +286,9 @@ def import_dvv_kohteet(
         print("No perusmaksu data")
 
     # 3) Paritalokohteet
-    paritalo_kohteet = get_or_create_paritalo_kohteet(session, poimintapvm, loppupvm)
-    session.commit()
-    print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
+    # paritalo_kohteet = get_or_create_paritalo_kohteet(session, poimintapvm, loppupvm)
+    # session.commit()
+    # print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
 
     # 4) Muut kohteet
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(

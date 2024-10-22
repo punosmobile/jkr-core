@@ -48,6 +48,8 @@ class KohdeTyyppi(Enum):
     LAHIKERAYS = "lähikeräys"
     PUTKIKERAYS = "putkikeräys"
     KIINTEISTO = "kiinteistö"
+    HAPA = "hapa"
+    BIOHAPA = "biohapa" 
 
 
 class OsapuolenlajiTyyppi(Enum):
