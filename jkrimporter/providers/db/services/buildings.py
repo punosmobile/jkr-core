@@ -33,24 +33,22 @@ if TYPE_CHECKING:
     from jkrimporter.model import Asiakas, Yhteystieto, JkrIlmoitukset, LopetusIlmoitus
 
 
-def minimum_distance_of_buildings(buildings):
+def minimum_distance_of_buildings(buildings: List[Rakennus]) -> float:
     """
-    Returns closest distance of the furthest building to any other building.
+    Palauttaa lyhimmän etäisyyden rakennusten välillä.
     """
+    if len(buildings) < 2:
+        return float('inf')
+        
+    min_distance = float('inf')
     points = [to_shape(building.geom) for building in buildings if building.geom]
-    largest_minimum = 0
-    for first_point in points:
-        minimum = None
-        # iterate all other points to find closest point to each point
-        for second_point in points:
-            if second_point is not first_point:
-                distance = first_point.distance(second_point)
-                if not minimum or distance < minimum:
-                    minimum = distance
-        # distance to the closest point is the new minimum distance
-        if minimum and minimum > largest_minimum:
-            largest_minimum = minimum
-    return largest_minimum
+    
+    for i, first_point in enumerate(points[:-1]):
+        for second_point in points[i+1:]:
+            distance = first_point.distance(second_point)
+            min_distance = min(min_distance, distance)
+            
+    return min_distance
 
 
 def convex_hull_area_of_buildings(buildings):
