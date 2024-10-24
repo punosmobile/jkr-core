@@ -266,36 +266,76 @@ def import_dvv_kohteet(
     poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date] = None,
     perusmaksutiedosto: Optional[Path] = None,
-):
-    # Set end date for each kohde without end date. This will remain as an end
-    # date for non-active kohteet. The active kohteet will be updated below and
-    # the end date is cleared.
-    if poimintapvm is not None:
-        set_end_dates_to_kohteet(session, poimintapvm)
+) -> None:
+    """
+    Luo kohteet DVV rakennustiedoista määritysten mukaisessa järjestyksessä.
+    
+    Kohteiden luontijärjestys:
+    1. Perusmaksurekisterin kohteet (rivitalot, kerrostalot jne.)
+    2. Yhden asunnon kohteet (omakotitalot, paritalot)
+    3. Kaikki jäljellä olevat kohteet
+    
+    Args:
+        session: Tietokantaistunto
+        poimintapvm: Uusien kohteiden alkupäivämäärä ja vanhojen loppupäivämäärä-1
+        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupäivää)
+        perusmaksutiedosto: Polku perusmaksurekisterin Excel-tiedostoon
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("\nAloitetaan DVV-kohteiden luonti...")
 
-    # 1) Yhden asunnon kohteet
+    # Aseta loppupäivämäärä olemassa oleville kohteille ilman loppupäivää
+    if poimintapvm is not None:
+        previous_pvm = poimintapvm - timedelta(days=1)
+        logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
+        
+        add_date_query = text(
+            "UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL"
+        )
+        session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
+        session.commit()
+        logger.info("Loppupäivämäärät asetettu")
+
+    # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)  
+    if perusmaksutiedosto:
+        logger.info("\nLuodaan perusmaksurekisterin kohteet...")
+        try:
+            perusmaksukohteet = create_perusmaksurekisteri_kohteet(
+                session, perusmaksutiedosto, poimintapvm, loppupvm
+            )
+            session.commit()
+            logger.info(
+                f"Luotu {len(perusmaksukohteet)} kohdetta perusmaksurekisterin perusteella"
+            )
+        except Exception as e:
+            logger.error(f"Virhe perusmaksurekisterin käsittelyssä: {str(e)}")
+            raise
+    else:
+        logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
+
+    # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
+    logger.info("\nLuodaan yhden asunnon kohteet...")
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
-    print(f"Imported {len(single_asunto_kohteet)} single kohteet")
+    logger.info(f"Luotu {len(single_asunto_kohteet)} yhden asunnon kohdetta")
 
-    # 2) Perusmaksurekisterin kohteet
-    if perusmaksutiedosto:
-        perusmaksukohteet = create_perusmaksurekisteri_kohteet(
-            session, perusmaksutiedosto, poimintapvm, loppupvm
-        )
-        session.commit()
-        print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
-    else:
-        print("No perusmaksu data")
-
-    # 3) Muut kohteet
+    # 3. Muut kohteet (kaikki loput rakennukset)
+    logger.info("\nLuodaan loput kohteet...")
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
-    print(f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet")
+    logger.info(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
+
+    # Yhteenveto
+    total_kohteet = (
+        (len(perusmaksukohteet) if 'perusmaksukohteet' in locals() else 0) +
+        len(single_asunto_kohteet) + 
+        len(multiple_and_uninhabited_kohteet)
+    )
+    logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 
 
 class DbProvider:

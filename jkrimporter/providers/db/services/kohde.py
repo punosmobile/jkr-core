@@ -715,50 +715,55 @@ def _is_significant_building(rakennustiedot: "Rakennustiedot") -> bool:
 def _cluster_rakennustiedot(
     rakennustiedot_to_cluster: "Set[Rakennustiedot]",
     distance_limit: int,
-    existing_cluster: "Optional[Set[Rakennustiedot]]" = None,
+    existing_cluster: "Optional[Set[Rakennustiedot]]" = None
 ) -> "List[Set[Rakennustiedot]]":
     """
-    Return rakennustiedot clustered so that all buildings within distance_limit
-    to any other building are joined to the same cluster.
-
-    Optionally, we may specify an existing cluster that may not be split. This is
-    meant for cases in which we know the buildings should belong together (e.g.
-    because of perusmaksu, or grouping additional buildings to cluster).
+    Klusteroi rakennukset kun KAIKKI kriteerit täyttyvät:
+    1. Sama omistaja JA asukas
+    2. Sama osoite
+    3. Etäisyys alle raja-arvon
     """
     clusters = []
-    # start cluster from first remaining building (or existing cluster, if
-    # provided).
-    cluster = existing_cluster.copy() if existing_cluster else None
     while rakennustiedot_to_cluster:
-        if not cluster:
-            cluster = set([rakennustiedot_to_cluster.pop()])
-
-        other_rakennustiedot_to_cluster = rakennustiedot_to_cluster.copy()
-        while other_rakennustiedot_to_cluster:
-            for other_rakennustiedot in other_rakennustiedot_to_cluster:
-                if (
-                    minimum_distance_of_buildings(
-                        [rakennustiedot[0] for rakennustiedot in cluster]
-                        + [other_rakennustiedot[0]]
-                    )
-                    < distance_limit
-                ):
-                    # found another building. add found building to cluster
-                    # and start the loop anew.
-                    cluster.add(other_rakennustiedot)
-                    break
-            else:
-                # cluster finished! other_rakennustiedot_to_cluster did not
-                # contain any buildings within set distance of cluster.
-                break
-            # found another building. remove found building from set to process
-            # and start the loop anew.
-            other_rakennustiedot_to_cluster.remove(other_rakennustiedot)
-        # cluster finished! removing clustered buildings and starting the loop anew.
+        current_building = rakennustiedot_to_cluster.pop()
+        cluster = {current_building}
+        
+        # Kerää samaan klusteriin kuuluvat rakennukset
+        matches = {
+            building for building in rakennustiedot_to_cluster
+            if (
+                # 1. Sama omistaja JA asukas
+                _match_ownership_and_residents(current_building, building) and
+                # 2. Sama osoite
+                _match_addresses(current_building[3], building[3]) and
+                # 3. Etäisyys alle rajan
+                minimum_distance_of_buildings(
+                    [current_building[0], building[0]]
+                ) < distance_limit
+            )
+        }
+        
+        cluster.update(matches)
+        rakennustiedot_to_cluster -= matches
         clusters.append(cluster)
-        rakennustiedot_to_cluster -= cluster
-        cluster = None
+
     return clusters
+
+
+def _match_ownership_and_residents(
+    building1: Rakennustiedot,
+    building2: Rakennustiedot
+) -> bool:
+    """
+    Tarkistaa että rakennuksilla on sama omistaja JA asukas
+    """
+    owners1 = {owner.osapuoli_id for owner in building1[2]}
+    owners2 = {owner.osapuoli_id for owner in building2[2]}
+    residents1 = {res.osapuoli_id for res in building1[1]}
+    residents2 = {res.osapuoli_id for res in building2[1]}
+
+    return (owners1 == owners2 and owners1) and (residents1 == residents2 and residents1)
+
 
 def update_old_kohde_data(
     session: "Session", 
