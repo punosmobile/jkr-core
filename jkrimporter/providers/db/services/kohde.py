@@ -1,9 +1,11 @@
 import datetime
 import re
+import logging
 from collections import defaultdict
+from datetime import datetime as dt
 from datetime import timedelta
 from functools import lru_cache
-from typing import DefaultDict, Set, List, Dict,TYPE_CHECKING,NamedTuple, FrozenSet, Optional
+from typing import TypeVar, DefaultDict, Set, List, Dict,TYPE_CHECKING,NamedTuple, FrozenSet, Optional, Generic, Iterable, Callable
 
 from openpyxl import load_workbook
 from psycopg2.extras import DateRange
@@ -36,7 +38,9 @@ from ..models import (
     Viranomaispaatokset,
 )
 from ..utils import clean_asoy_name, form_display_name, is_asoy, is_company, is_yhteiso
-from .buildings import DISTANCE_LIMIT, minimum_distance_of_buildings
+from .buildings import DISTANCE_LIMIT, create_nearby_buildings_lookup, minimum_distance_of_buildings
+
+T = TypeVar('T')
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -65,6 +69,92 @@ if TYPE_CHECKING:
         lisarakennukset: FrozenSet[KohteenRakennukset]
         asukkaat: FrozenSet[KohteenOsapuolet]
         omistajat: FrozenSet[KohteenOsapuolet]
+
+class BatchProgressTracker(Generic[T]):
+    """
+    Seuraa eräajon edistymistä ja tulostaa säännöllisiä tilannepäivityksiä.
+    """
+    def __init__(self, total: int, operation_name: str, update_interval: int = 1):
+        self.total = total
+        self.current = 0
+        self.start_time = dt.now()
+        self.last_update = self.start_time
+        self.operation_name = operation_name
+        self.update_interval = update_interval
+        self.logger = logging.getLogger(__name__)
+        
+        # Tulosta aloitusviesti
+        self.logger.info(f"\nAloitetaan {operation_name}")
+        self.logger.info(f"Käsitellään yhteensä {total:,} kohdetta")
+
+    def update(self, increment: int = 1) -> None:
+        """Päivitä laskuri ja tulosta edistyminen jos on kulunut tarpeeksi aikaa."""
+        self.current += increment
+        now = dt.now()
+        
+        if (now - self.last_update).seconds >= self.update_interval:
+            self._print_progress(now)
+            self.last_update = now
+
+    def _print_progress(self, now: dt) -> None:
+        elapsed = now - self.start_time
+        if self.current > 0:
+            items_per_second = self.current / elapsed.total_seconds()
+            remaining_items = self.total - self.current
+            eta = timedelta(seconds=int(remaining_items / items_per_second)) if items_per_second > 0 else "---"
+        else:
+            items_per_second = 0
+            eta = "---"
+
+        self.logger.info(
+            f"{self.operation_name}: "
+            f"({self.current:,}/{self.total:,}) "
+            f"nopeudella {items_per_second:.1f}/s, "
+            f"aikaa jäljellä {eta}"
+        )
+
+    def done(self) -> None:
+        """Tulosta yhteenveto kun prosessi on valmis."""
+        elapsed = dt.now() - self.start_time
+        items_per_second = self.current / elapsed.total_seconds()
+        
+        self.logger.info(
+            f"\n{self.operation_name} valmis!\n"
+            f"Käsitelty {self.current:,} kohdetta, "
+            f"aikaa kului {elapsed}, "
+            f"keskimääräinen nopeus {items_per_second:.1f}/s"
+        )
+
+
+def process_with_progress(
+    items: Iterable[T],
+    operation_name: str,
+    process_func: Callable[[T], None],
+    total: Optional[int] = None
+) -> None:
+    """
+    Kääre-funktio, joka prosessoi kokoelman ja näyttää edistymisen.
+    
+    Args:
+        items: Käsiteltävä kokoelma
+        operation_name: Operaation nimi logeissa
+        process_func: Funktio joka käsittelee yhden kohteen
+        total: Kohteiden kokonaismäärä (jos ei ole len(items))
+    """
+    if total is None:
+        try:
+            total = len(items)
+        except TypeError:
+            total = 0  # Jos kokoelman kokoa ei voi määrittää
+            
+    progress = BatchProgressTracker(total, operation_name)
+    
+    try:
+        for item in items:
+            process_func(item)
+            progress.update()
+    finally:
+        progress.done()
 
 class Rakennustiedot(NamedTuple):
     rakennus: 'Rakennus'
@@ -200,15 +290,6 @@ def find_kohteet_by_prt(
             not_found_prts.append(kompostoija.rakennus)
 
     return found_kohteet, not_found_prts
-
-
-def find_kohde_by_kiinteisto(
-    session: "Session", asiakas: "Asiakas"
-) -> "Union[Kohde, None]":
-    print(f"asiakas has kiinteistöt {asiakas.kiinteistot}")
-    return _find_kohde_by_asiakastiedot(
-        session, Rakennus.kiinteistotunnus.in_(asiakas.kiinteistot), asiakas
-    )
 
 
 def find_kohde_by_address(
@@ -517,6 +598,7 @@ def get_kohde_by_address(
     ...
 
 
+
 def get_dvv_rakennustiedot_without_kohde(
     session: "Session",
     poimintapvm: "Optional[datetime.date]",
@@ -684,54 +766,90 @@ def _add_auxiliary_buildings(
     building_sets: List[Set[Rakennustiedot]]
 ) -> List[Set[Rakennustiedot]]:
     """
-    Lisää apurakennukset kohteille uusien kriteerien mukaan.
-    Args:
-        dvv_rakennustiedot: Dict joka sisältää kaikki rakennustiedot
-        building_sets: Lista rakennusryhmistä joihin apurakennukset lisätään
-    Returns:
-        Lista päivitetyistä rakennusryhmistä
+    Optimoitu versio apurakennusten lisäämisestä edistymisen seurannalla.
     """
-    sets_to_return: List[Set[Rakennustiedot]] = []
+    logger = logging.getLogger(__name__)
+    logger.info("\nValmistellaan apurakennusten lisäämistä...")
+    
+    # Luo lookup-taulut
+    nearby_buildings = create_nearby_buildings_lookup(dvv_rakennustiedot)
+    logger.info(f"Löydettiin {sum(len(v) for v in nearby_buildings.values())} lähellä olevaa rakennusparia")
+    
+    # Rakenna muut lookup-taulut
+    owner_lookup = defaultdict(set)
+    address_lookup = defaultdict(set)
+    
+    for rakennus_id, (rakennus, _, omistajat, osoitteet) in dvv_rakennustiedot.items():
+        for omistaja in omistajat:
+            owner_lookup[omistaja.osapuoli_id].add(rakennus_id)
+        for osoite in osoitteet:
+            address_key = (osoite.katu_id, osoite.osoitenumero)
+            address_lookup[address_key].add(rakennus_id)
+    
+    sets_to_return = []
+    progress = BatchProgressTracker(len(building_sets), "Apurakennusten lisäys")
     
     for building_set in building_sets:
         set_to_return = building_set.copy()
-        print(f"- Etsitään lisärakennuksia rakennuksille {[tiedot[0].prt for tiedot in building_set]} -")
+        main_building_ids = {tiedot[0].id for tiedot in building_set}
         
-        for building, elders, owners, addresses in building_set:
-            owner_ids = {owner.osapuoli_id for owner in owners}
+        # Kerää päärakennusten tiedot
+        main_building_owners = set()
+        main_building_addresses = set()
+        
+        for building_data in building_set:
+            main_building_owners.update(owner.osapuoli_id for owner in building_data[2])
+            main_building_addresses.update(
+                (address.katu_id, address.osoitenumero) 
+                for address in building_data[3]
+            )
+
+        # Kerää potentiaaliset apurakennukset
+        potential_auxiliary_buildings = set()
+        for main_id in main_building_ids:
+            potential_auxiliary_buildings.update(nearby_buildings[main_id])
+        
+        logger.debug(
+            f"Käsitellään rakennusryhmä {main_building_ids}, "
+            f"löydetty {len(potential_auxiliary_buildings)} potentiaalista apurakennusta"
+        )
             
-            # Etsi kaikki potentiaaliset apurakennukset 300m säteellä
-            # Kerää kaikki rakennukset yhdeksi listaksi ennen etäisyyden laskemista
-            nearby_buildings = set()
-            for rakennustiedot in dvv_rakennustiedot.values():
-                if rakennustiedot[0].id != building.id:  # Älä vertaa rakennusta itseensä
-                    building_list = [building, rakennustiedot[0]]
-                    if building.geom is not None and rakennustiedot[0].geom is not None:
-                        if minimum_distance_of_buildings(building_list) < DISTANCE_LIMIT:
-                            nearby_buildings.add(rakennustiedot)
+        # Käsittele potentiaaliset apurakennukset
+        aux_added = 0
+        for aux_id in potential_auxiliary_buildings:
+            if aux_id in main_building_ids:
+                continue
+                
+            aux_building_data = dvv_rakennustiedot[aux_id]
             
-            # Lisää vain rakennukset joilla sama omistaja/osoite
-            rakennustiedot_to_add = {
-                rakennustiedot for rakennustiedot in nearby_buildings
-                if (
-                    not _is_significant_building(rakennustiedot) and  # Ei merkittävä rakennus
-                    (
-                        not rakennustiedot[2] or  # Ei omistajaa
-                        ({omistaja.osapuoli_id for omistaja in rakennustiedot[2]} & owner_ids) or  # Sama omistaja 
-                        _is_sauna(rakennustiedot[0])  # Tai sauna
-                    ) and (
-                        _is_sauna(rakennustiedot[0]) or  
-                        _match_addresses(rakennustiedot[3], addresses)  # Sama osoite (paitsi saunoille)
-                    )
-                )
+            if _is_significant_building(aux_building_data):
+                continue
+                
+            aux_owner_ids = {owner.osapuoli_id for owner in aux_building_data[2]}
+            aux_addresses = {
+                (address.katu_id, address.osoitenumero) 
+                for address in aux_building_data[3]
             }
             
-            if rakennustiedot_to_add:
-                print(f"Lisätään apurakennukset: {[tiedot[0].prt for tiedot in rakennustiedot_to_add]}")
-            set_to_return |= rakennustiedot_to_add
-            
+            # Tarkista kriteerit ja lisää sopivat apurakennukset
+            if _is_sauna(aux_building_data[0]):
+                if not aux_owner_ids or (aux_owner_ids & main_building_owners):
+                    set_to_return.add(aux_building_data)
+                    aux_added += 1
+                    continue
+                    
+            if (bool(aux_addresses & main_building_addresses) and
+                (not aux_owner_ids or (aux_owner_ids & main_building_owners))):
+                set_to_return.add(aux_building_data)
+                aux_added += 1
+                
+        if aux_added > 0:
+            logger.debug(f"Lisätty {aux_added} apurakennusta")
+                
         sets_to_return.append(set_to_return)
+        progress.update()
         
+    progress.done()
     return sets_to_return
 
 
@@ -1573,6 +1691,22 @@ def create_perusmaksurekisteri_kohteet(
     Luo kohteet perusmaksurekisterin perusteella.
     Vain määritellyt talotyypit huomioidaan.
     """
+    logger = logging.getLogger(__name__)
+    logger.info("\nLuodaan perusmaksurekisterin kohteet...")
+    
+    # Hae ensin kaikki DVV rakennustiedot
+    dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
+        session, poimintapvm, loppupvm
+    )
+    logger.info(f"Löydettiin {len(dvv_rakennustiedot)} rakennusta ilman kohdetta")
+    
+    # Luo lookup PRT -> Rakennustiedot
+    dvv_rakennustiedot_by_prt = {
+        tiedot[0].prt: tiedot 
+        for tiedot in dvv_rakennustiedot.values() 
+        if tiedot[0].prt  # Skip if PRT is None
+    }
+    
     ALLOWED_TYPES = {
         '021',  # Rivitalot
         '022',  # Ketjutalot
@@ -1584,11 +1718,16 @@ def create_perusmaksurekisteri_kohteet(
     perusmaksut = load_workbook(filename=perusmaksutiedosto)
     sheet = perusmaksut["Tietopyyntö asiakasrekisteristä"]
     
+    logger.info("Käsitellään perusmaksurekisterin rivit...")
+    rows_processed = 0
+    buildings_found = 0
+    
     # Kerää vain sallitut rakennustyypit
     for index, row in enumerate(sheet.values):
         if index == 0:  # Skip header
             continue
             
+        rows_processed += 1
         asiakasnumero = str(row[2])
         prt = str(row[3])
         
@@ -1602,9 +1741,15 @@ def create_perusmaksurekisteri_kohteet(
             
         if rakennus.rakennuksenkayttotarkoitus in ALLOWED_TYPES:
             buildings_to_combine[asiakasnumero]["prt"].add(prt)
+            buildings_found += 1
+    
+    logger.info(f"Käsitelty {rows_processed:,} riviä, löydetty {buildings_found:,} sopivaa rakennusta")
     
     # Luo kohteet sallituille rakennuksille
     building_sets = []
+    valid_sets = 0
+    
+    logger.info("Muodostetaan rakennusryhmät...")
     for asiakasnumero, data in buildings_to_combine.items():
         building_set = set()
         for prt in data["prt"]:
@@ -1614,16 +1759,41 @@ def create_perusmaksurekisteri_kohteet(
                 
         if building_set:
             building_sets.append(building_set)
+            valid_sets += 1
             
+    logger.info(f"Muodostettu {valid_sets:,} rakennusryhmää")
+    
+    # Create owners_by_rakennus_id lookup for get_or_create_kohteet_from_rakennustiedot
+    owners_by_rakennus_id = defaultdict(set)
+    rakennus_owners = session.execute(
+        select(RakennuksenOmistajat.rakennus_id, Osapuoli).join(
+            Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id
+        )
+    ).all()
+    for (rakennus_id, owner) in rakennus_owners:
+        owners_by_rakennus_id[rakennus_id].add(owner)
+    
+    # Create inhabitants_by_rakennus_id lookup
+    inhabitants_by_rakennus_id = defaultdict(set)
+    rakennus_inhabitants = session.execute(
+        select(RakennuksenVanhimmat.rakennus_id, Osapuoli).join(
+            Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id
+        )
+    ).all()
+    for (rakennus_id, inhabitant) in rakennus_inhabitants:
+        inhabitants_by_rakennus_id[rakennus_id].add(inhabitant)
+            
+    logger.info("Luodaan kohteet...")
     # Luo kohteet ja aseta loppupäivämäärä 2100
     kohteet = get_or_create_kohteet_from_rakennustiedot(
         session,
         dvv_rakennustiedot,
         building_sets,
         owners_by_rakennus_id,
-        defaultdict(set),  # Ei asukkaita 
+        inhabitants_by_rakennus_id,
         poimintapvm,
         datetime.date(2100, 1, 1)
     )
     
+    logger.info(f"Luotu {len(kohteet):,} kohdetta perusmaksurekisterin perusteella")
     return kohteet

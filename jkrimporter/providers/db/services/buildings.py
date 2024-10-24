@@ -1,12 +1,15 @@
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List, Union
+from typing import TYPE_CHECKING, Dict, List, Set, Union
+
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
 from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
 from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+from ..database import engine
 
 from jkrimporter.model import Rakennustunnus
 from jkrimporter.providers.db.utils import clean_asoy_name, is_asoy
@@ -60,6 +63,62 @@ def convex_hull_area_of_buildings(buildings):
 
     return area
 
+def create_nearby_buildings_lookup(
+    dvv_rakennustiedot: Dict[int, "Rakennustiedot"]
+) -> Dict[int, Set[int]]:
+    """
+    Luo hakutaulukko lähekkäisistä rakennuksista hyödyntäen materializoitua näkymää.
+    
+    Args:
+        dvv_rakennustiedot: Sanakirja rakennustiedoista joille etsitään lähellä olevia rakennuksia
+        
+    Returns:
+        Dict[int, Set[int]]: Sanakirja muotoa {rakennus_id: {lähellä_oleva_id1, ...}}
+    """
+    logger = logging.getLogger(__name__)
+    nearby_lookup = defaultdict(set)
+    
+    # Käytetään vain kokonaislukuja SQL kyselyssä (suorituskyky)
+    building_ids = list(dvv_rakennustiedot.keys())
+    
+    with Session(engine) as session:
+        # Hae kaikki rakennusparit jotka ovat alle 300m päässä toisistaan
+        query = """
+        SELECT rakennus1_id, rakennus2_id 
+        FROM jkr.nearby_buildings 
+        WHERE rakennus1_id = ANY(:ids) 
+          AND rakennus2_id = ANY(:ids)
+          AND distance <= 300
+        """
+        
+        result = session.execute(
+            query,
+            {"ids": building_ids}
+        )
+        
+        # Lisää molemmat suunnat hakutaulukkoon
+        pairs_added = 0
+        for r1_id, r2_id in result:
+            nearby_lookup[r1_id].add(r2_id)
+            nearby_lookup[r2_id].add(r1_id)
+            pairs_added += 1
+            
+        logger.debug(
+            f"Haettu {pairs_added} lähellä olevaa rakennusparia "
+            f"({len(building_ids)} rakennukselle)"
+        )
+            
+    return nearby_lookup
+
+def refresh_nearby_buildings_materialized_view() -> None:
+    """
+    Päivitä materializoitu näkymä nearby_buildings.
+    Tätä tulee kutsua kun rakennusten sijaintitiedot muuttuvat.
+    """
+    with Session(engine) as session:
+        session.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY jkr.nearby_buildings")
+        session.commit()
+
 
 def match_omistaja(rakennus, haltija, preprocessor=lambda x: x):
     omistajat = rakennus.omistajat
@@ -72,14 +131,13 @@ def match_omistaja(rakennus, haltija, preprocessor=lambda x: x):
 counts: Dict[str, int] = defaultdict(int)
 
 
-def prt_on_single_customer_or_double_house(rakennukset, prt_counts):
-    paritalo = codes.rakennuksenkayttotarkoitukset[
-        RakennuksenKayttotarkoitusTyyppi.PARITALO
-    ]
+def prt_on_single_customer(rakennukset, prt_counts):
+    # paritalo = codes.rakennuksenkayttotarkoitukset[
+    #     RakennuksenKayttotarkoitusTyyppi.PARITALO
+    # ]
     return all(
         prt_counts[rakennus.prt] == 1
         or prt_counts[rakennus.prt] == 2
-        and rakennus.rakennuksenkayttotarkoitus == paritalo
         for rakennus in rakennukset
     )
 
@@ -108,7 +166,7 @@ def find_buildings_for_kohde(
             counts["prt vain yhdella tai kahdella asiakkaalla"] += 1
             rakennukset = _find_by_prt(session, asiakas.rakennukset)
             if rakennukset:
-                if prt_on_single_customer_or_double_house(
+                if prt_on_single_customer(
                     rakennukset, on_how_many_customers
                 ):
                     counts["prt yhdellä tai jos kahdella, niin kaikki paritaloja"] += 1

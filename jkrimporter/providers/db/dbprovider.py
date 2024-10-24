@@ -54,7 +54,6 @@ from .services.kohde import (
     create_new_kohde,
     create_perusmaksurekisteri_kohteet,
     find_kohde_by_address,
-    find_kohde_by_kiinteisto,
     find_kohde_by_prt,
     find_kohteet_by_prt,
     get_or_create_multiple_and_uninhabited_kohteet,
@@ -143,15 +142,17 @@ def insert_kuljetukset(
 
 
 def find_and_update_kohde(
-    session: "Session",
-    asiakas: "Asiakas",
+    session: Session,
+    asiakas: Asiakas,
     do_create: bool,
     do_update: bool,
-    prt_counts: Dict[str, int],
-    kitu_counts: Dict[str, int],
-    address_counts: Dict[str, int],
+    prt_counts: Dict[str, IntervalCounter],
+    kitu_counts: Dict[str, IntervalCounter],
+    address_counts: Dict[str, IntervalCounter],
 ) -> Union[Kohde, None]:
-
+    """
+    Find existing kohde for asiakas or create new one.
+    """
     kohde = None
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
     if ulkoinen_asiakastieto:
@@ -165,8 +166,7 @@ def find_and_update_kohde(
         print("Customer id not found. Searching for kohde by customer data...")
         if asiakas.rakennukset:
             kohde = find_kohde_by_prt(session, asiakas)
-        if not kohde and asiakas.kiinteistot:
-            kohde = find_kohde_by_kiinteisto(session, asiakas)
+        # Kiinteistötunnukseen perustuvat haut poistettu määrittelyn mukaisesti
         if (
             not kohde
             and asiakas.haltija.osoite.postinumero
@@ -285,12 +285,7 @@ def import_dvv_kohteet(
     else:
         print("No perusmaksu data")
 
-    # 3) Paritalokohteet
-    # paritalo_kohteet = get_or_create_paritalo_kohteet(session, poimintapvm, loppupvm)
-    # session.commit()
-    # print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
-
-    # 4) Muut kohteet
+    # 3) Muut kohteet
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, poimintapvm, loppupvm
     )
