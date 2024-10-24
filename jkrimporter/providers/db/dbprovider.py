@@ -143,7 +143,7 @@ def insert_kuljetukset(
 
 def find_and_update_kohde(
     session: Session,
-    asiakas: Asiakas,
+    asiakas: "Asiakas",
     do_create: bool,
     do_update: bool,
     prt_counts: Dict[str, IntervalCounter],
@@ -151,10 +151,12 @@ def find_and_update_kohde(
     address_counts: Dict[str, IntervalCounter],
 ) -> Union[Kohde, None]:
     """
-    Find existing kohde for asiakas or create new one.
+    Etsii olemassa olevan kohteen asiakkaalle tai luo uuden.
     """
     kohde = None
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
+    
+    # 1. Etsi kohde asiakasnumeron perusteella
     if ulkoinen_asiakastieto:
         print("Kohde found by customer id.")
         update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
@@ -163,27 +165,31 @@ def find_and_update_kohde(
         if do_update:
             update_kohde(kohde, asiakas)
     else:
+        # 2. Etsi kohde rakennustietojen perusteella
         print("Customer id not found. Searching for kohde by customer data...")
         if asiakas.rakennukset:
             kohde = find_kohde_by_prt(session, asiakas)
-        # Kiinteistötunnukseen perustuvat haut poistettu määrittelyn mukaisesti
+            
+        # 3. Etsi kohde osoitteen perusteella
         if (
             not kohde
             and asiakas.haltija.osoite.postinumero
             and asiakas.haltija.osoite.katunimi
         ):
             kohde = find_kohde_by_address(session, asiakas)
+            
         if kohde and do_update:
             update_kohde(kohde, asiakas)
         elif do_create:
-            # this creates kohde without buildings
             print("Kohde not found, creating new one...")
             kohde = create_new_kohde(session, asiakas)
+            
         if kohde:
             add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
         else:
             print("Could not find kohde.")
 
+    # 4. Jos kohde luotu ilman rakennuksia, etsi sopivat rakennukset
     if do_create and not kohde.rakennus_collection:
         print("New kohde created. Looking for buildings...")
         buildings = find_buildings_for_kohde(
@@ -191,7 +197,6 @@ def find_and_update_kohde(
         )
         if buildings:
             kohde.rakennus_collection = buildings
-
         elif not kohde.ehdokasrakennus_collection:
             building_candidates = find_building_candidates_for_kohde(session, asiakas)
             if building_candidates:

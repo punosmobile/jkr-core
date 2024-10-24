@@ -1033,14 +1033,17 @@ def set_old_kohde_loppupvm(session: "Session", kohde_id: int, loppupvm: "datetim
 def set_paatos_loppupvm_for_old_kohde(
     session: "Session", kohde_id: int, loppupvm: "datetime.date"
 ):
-    rakennus_ids = (
-        session.query(KohteenRakennukset.rakennus_id)
-        .filter(KohteenRakennukset.kohde_id == kohde_id)
-        .subquery()
+    """
+    Asettaa päätösten loppupäivämäärän vanhan kohteen päätöksille.
+    """
+    # Muunnetaan subquery explisiittiseksi select-lauseeksi
+    rakennus_ids = select(KohteenRakennukset.rakennus_id).where(
+        KohteenRakennukset.kohde_id == kohde_id
     )
+
     session.query(Viranomaispaatokset).filter(
         and_(
-            Viranomaispaatokset.rakennus_id.in_(rakennus_ids),
+            Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
             Viranomaispaatokset.alkupvm <= loppupvm
         )
     ).update({Viranomaispaatokset.loppupvm: loppupvm}, synchronize_session=False)
@@ -1050,51 +1053,52 @@ def set_paatos_loppupvm_for_old_kohde(
 def update_kompostori(
     session: "Session", old_kohde_id: int, loppupvm: "datetime.date", new_kohde_id: int
 ):
-    # Set loppupvm
-    kompostori_ids = (
-        session.query(KompostorinKohteet.kompostori_id)
-        .filter(KompostorinKohteet.kohde_id == old_kohde_id)
-        .subquery()
+    """
+    Päivittää kompostorien tiedot kohteen vaihtuessa.
+    """
+    # Haetaan vanhan kohteen kompostorit
+    kompostori_ids = select(KompostorinKohteet.kompostori_id).where(
+        KompostorinKohteet.kohde_id == old_kohde_id
     )
+
+    # Asetetaan loppupvm
     session.query(Kompostori).filter(
         and_(
-            Kompostori.id.in_(kompostori_ids),
+            Kompostori.id.in_(kompostori_ids.scalar_subquery()),
             Kompostori.alkupvm <= loppupvm
         )
     ).update({Kompostori.loppupvm: loppupvm}, synchronize_session=False)
 
-    # Move osapuoli to new kohde.
-    kompostori_id_by_date = (
-        session.query(Kompostori.id)
-        .filter(
-            and_(
-                Kompostori.id.in_(kompostori_ids),
-                Kompostori.alkupvm > loppupvm
-            )
+    # Haetaan kompostorit jotka jatkuvat loppupvm:n jälkeen
+    kompostori_id_by_date = select(Kompostori.id).where(
+        and_(
+            Kompostori.id.in_(kompostori_ids.scalar_subquery()),
+            Kompostori.alkupvm > loppupvm
         )
-        .subquery()
     )
 
-    kompostori_osapuoli_ids = (
-        session.query(Kompostori.osapuoli_id)
-        .filter(Kompostori.id.in_(kompostori_id_by_date))
-        .subquery()
+    # Haetaan kompostorien osapuolet
+    kompostori_osapuoli_ids = select(Kompostori.osapuoli_id).where(
+        Kompostori.id.in_(kompostori_id_by_date.scalar_subquery())
     )
+
+    # Päivitetään osapuolten kohde
     session.query(KohteenOsapuolet).filter(
         and_(
-            KohteenOsapuolet.osapuoli_id.in_(kompostori_osapuoli_ids),
+            KohteenOsapuolet.osapuoli_id.in_(kompostori_osapuoli_ids.scalar_subquery()),
             KohteenOsapuolet.kohde_id == old_kohde_id,
             KohteenOsapuolet.osapuolenrooli_id == 311
         )
     ).update({KohteenOsapuolet.kohde_id: new_kohde_id}, synchronize_session=False)
 
-    # Update KompostorinKohteet
+    # Päivitetään KompostorinKohteet
     session.query(KompostorinKohteet).filter(
         and_(
-            KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date),
+            KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date.scalar_subquery()),
             KompostorinKohteet.kohde_id == old_kohde_id,
         )
     ).update({KompostorinKohteet.kohde_id: new_kohde_id}, synchronize_session=False)
+    
     session.commit()
 
 
