@@ -760,95 +760,179 @@ def _cluster_rakennustiedot(
         cluster = None
     return clusters
 
+def update_old_kohde_data(
+    session: "Session", 
+    old_kohde_id: int,
+    new_kohde_id: int,
+    new_kohde_alkupvm: datetime.date
+):
+    """
+    Päivittää vanhan kohteen tiedot kerralla yhden transaktion sisällä.
+    """
+    loppupvm = new_kohde_alkupvm - timedelta(days=1)
+    
+    # Päivitä kohteen loppupvm
+    session.execute(
+        update(Kohde)
+        .where(Kohde.id == old_kohde_id)
+        .values(loppupvm=loppupvm),
+        execution_options={"synchronize_session": False}
+    )
+
+    # Siirrä sopimukset ja kuljetukset
+    session.execute(
+        update(Sopimus)
+        .where(Sopimus.kohde_id == old_kohde_id)
+        .where(Sopimus.loppupvm >= new_kohde_alkupvm)
+        .values(kohde_id=new_kohde_id),
+        execution_options={"synchronize_session": False}
+    )
+    
+    session.execute(
+        update(Kuljetus)
+        .where(Kuljetus.kohde_id == old_kohde_id)
+        .where(Kuljetus.loppupvm >= new_kohde_alkupvm)
+        .values(kohde_id=new_kohde_id),
+        execution_options={"synchronize_session": False}
+    )
+
+    # Päivitä päätösten loppupvm
+    rakennus_ids = select(KohteenRakennukset.rakennus_id).where(
+        KohteenRakennukset.kohde_id == old_kohde_id
+    )
+
+    session.execute(
+        update(Viranomaispaatokset)
+        .where(
+            Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
+            Viranomaispaatokset.alkupvm <= loppupvm
+        )
+        .values(loppupvm=loppupvm),
+        execution_options={"synchronize_session": False}
+    )
+
+    # Päivitä kompostorien tiedot
+    kompostori_ids = select(KompostorinKohteet.kompostori_id).where(
+        KompostorinKohteet.kohde_id == old_kohde_id
+    )
+
+    session.execute(
+        update(Kompostori)
+        .where(
+            Kompostori.id.in_(kompostori_ids.scalar_subquery()),
+            Kompostori.alkupvm <= loppupvm
+        )
+        .values(loppupvm=loppupvm),
+        execution_options={"synchronize_session": False}
+    )
+
+    # Päivitä kompostorien osapuolet ja kohteet
+    kompostori_id_by_date = select(Kompostori.id).where(
+        and_(
+            Kompostori.id.in_(kompostori_ids.scalar_subquery()),
+            Kompostori.alkupvm > loppupvm
+        )
+    )
+
+    kompostori_osapuoli_ids = select(Kompostori.osapuoli_id).where(
+        Kompostori.id.in_(kompostori_id_by_date.scalar_subquery())
+    )
+
+    session.execute(
+        update(KohteenOsapuolet)
+        .where(
+            KohteenOsapuolet.osapuoli_id.in_(kompostori_osapuoli_ids.scalar_subquery()),
+            KohteenOsapuolet.kohde_id == old_kohde_id,
+            KohteenOsapuolet.osapuolenrooli_id == 311
+        )
+        .values(kohde_id=new_kohde_id),
+        execution_options={"synchronize_session": False}
+    )
+
+    session.execute(
+        update(KompostorinKohteet)
+        .where(
+            KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date.scalar_subquery()),
+            KompostorinKohteet.kohde_id == old_kohde_id
+        )
+        .values(kohde_id=new_kohde_id),
+        execution_options={"synchronize_session": False}
+    )
+
+    # Tee kaikki muutokset kerralla
+    session.commit()
 
 def _add_auxiliary_buildings(
     dvv_rakennustiedot: Dict[int, Rakennustiedot],
     building_sets: List[Set[Rakennustiedot]]
 ) -> List[Set[Rakennustiedot]]:
     """
-    Optimoitu versio apurakennusten lisäämisestä edistymisen seurannalla.
+    Lisää piha- ja apurakennukset päärakennusten muodostamiin rakennusryhmiin.
     """
     logger = logging.getLogger(__name__)
-    logger.info("\nValmistellaan apurakennusten lisäämistä...")
-    
-    # Luo lookup-taulut
+    logger.info("\nLisätään apurakennukset rakennusryhmiin...")
+
+    # Luo lookup vain lähekkäisille rakennuksille
     nearby_buildings = create_nearby_buildings_lookup(dvv_rakennustiedot)
-    logger.info(f"Löydettiin {sum(len(v) for v in nearby_buildings.values())} lähellä olevaa rakennusparia")
-    
-    # Rakenna muut lookup-taulut
-    owner_lookup = defaultdict(set)
-    address_lookup = defaultdict(set)
-    
-    for rakennus_id, (rakennus, _, omistajat, osoitteet) in dvv_rakennustiedot.items():
-        for omistaja in omistajat:
-            owner_lookup[omistaja.osapuoli_id].add(rakennus_id)
-        for osoite in osoitteet:
-            address_key = (osoite.katu_id, osoite.osoitenumero)
-            address_lookup[address_key].add(rakennus_id)
     
     sets_to_return = []
     progress = BatchProgressTracker(len(building_sets), "Apurakennusten lisäys")
-    
+
+    def is_auxiliary_building(rakennus: Rakennus) -> bool:
+        return rakennus.rakennuksenkayttotarkoitus in (
+            codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.TALOUSRAKENNUS],
+            codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA]
+        )
+
     for building_set in building_sets:
         set_to_return = building_set.copy()
         main_building_ids = {tiedot[0].id for tiedot in building_set}
         
-        # Kerää päärakennusten tiedot
-        main_building_owners = set()
-        main_building_addresses = set()
+        # Kerää päärakennusten omistajat ja osoitteet suoraan building_setistä
+        main_building_owners = {
+            owner.osapuoli_id 
+            for building in building_set
+            for owner in building[2]
+        }
         
-        for building_data in building_set:
-            main_building_owners.update(owner.osapuoli_id for owner in building_data[2])
-            main_building_addresses.update(
-                (address.katu_id, address.osoitenumero) 
-                for address in building_data[3]
-            )
+        main_addresses = {
+            (address.katu_id, address.osoitenumero)
+            for building in building_set
+            for address in building[3]
+        }
 
-        # Kerää potentiaaliset apurakennukset
-        potential_auxiliary_buildings = set()
+        # Tarkista vain lähellä olevat rakennukset
+        aux_candidates = set()
         for main_id in main_building_ids:
-            potential_auxiliary_buildings.update(nearby_buildings[main_id])
-        
-        logger.debug(
-            f"Käsitellään rakennusryhmä {main_building_ids}, "
-            f"löydetty {len(potential_auxiliary_buildings)} potentiaalista apurakennusta"
-        )
-            
-        # Käsittele potentiaaliset apurakennukset
-        aux_added = 0
-        for aux_id in potential_auxiliary_buildings:
+            if main_id in nearby_buildings:
+                aux_candidates.update(nearby_buildings[main_id])
+
+        for aux_id in aux_candidates:
             if aux_id in main_building_ids:
                 continue
-                
-            aux_building_data = dvv_rakennustiedot[aux_id]
+
+            aux_data = dvv_rakennustiedot[aux_id]
+            aux_building = aux_data[0]
             
-            if _is_significant_building(aux_building_data):
+            # Nopeampi tarkistus ensin
+            if not is_auxiliary_building(aux_building):
                 continue
-                
-            aux_owner_ids = {owner.osapuoli_id for owner in aux_building_data[2]}
+
+            # Tarkista osoite ja omistajuus vain jos on apurakennus
+            aux_owners = {owner.osapuoli_id for owner in aux_data[2]}
             aux_addresses = {
-                (address.katu_id, address.osoitenumero) 
-                for address in aux_building_data[3]
+                (address.katu_id, address.osoitenumero)
+                for address in aux_data[3]
             }
-            
-            # Tarkista kriteerit ja lisää sopivat apurakennukset
-            if _is_sauna(aux_building_data[0]):
-                if not aux_owner_ids or (aux_owner_ids & main_building_owners):
-                    set_to_return.add(aux_building_data)
-                    aux_added += 1
-                    continue
-                    
-            if (bool(aux_addresses & main_building_addresses) and
-                (not aux_owner_ids or (aux_owner_ids & main_building_owners))):
-                set_to_return.add(aux_building_data)
-                aux_added += 1
-                
-        if aux_added > 0:
-            logger.debug(f"Lisätty {aux_added} apurakennusta")
-                
+
+            # Lisää rakennus jos kriteerit täyttyvät
+            if ((not aux_owners or (aux_owners & main_building_owners)) and
+                (aux_addresses & main_addresses)):
+                set_to_return.add(aux_data)
+
         sets_to_return.append(set_to_return)
         progress.update()
-        
+
     progress.done()
     return sets_to_return
 
@@ -1223,23 +1307,12 @@ def update_or_create_kohde_from_buildings(
         )
         if new_kohde and poimintapvm:
             if 'old_kohde' in locals() and old_kohde:
-                print(
-                    f"Löytyi päättyvä kohde {old_kohde.id}, asetetaan loppupäivämäärä."
-                )
-                set_old_kohde_loppupvm(
-                    session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
-                )
-                move_sopimukset_and_kuljetukset_to_new_kohde(
-                    session, new_kohde.alkupvm, old_kohde.id, new_kohde.id
-                )
-                set_paatos_loppupvm_for_old_kohde(
-                    session, old_kohde.id, new_kohde.alkupvm - timedelta(days=1)
-                )
-                update_kompostori(
+                print(f"Löytyi päättyvä kohde {old_kohde.id}, asetetaan loppupäivämäärä.")
+                update_old_kohde_data(
                     session,
                     old_kohde.id,
-                    new_kohde.alkupvm - timedelta(days=1),
-                    new_kohde.id
+                    new_kohde.id, 
+                    new_kohde.alkupvm
                 )
         return new_kohde
 
