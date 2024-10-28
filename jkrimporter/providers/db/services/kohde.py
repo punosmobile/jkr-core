@@ -719,7 +719,7 @@ def _cluster_rakennustiedot(
 ) -> "List[Set[Rakennustiedot]]":
     """
     Klusteroi rakennukset kun KAIKKI kriteerit täyttyvät:
-    1. Sama omistaja JA asukas
+    1. Sama omistaja TAI asukas
     2. Sama osoite
     3. Etäisyys alle raja-arvon
     """
@@ -732,10 +732,10 @@ def _cluster_rakennustiedot(
         matches = {
             building for building in rakennustiedot_to_cluster
             if (
-                # 1. Sama omistaja JA asukas
-                _match_ownership_and_residents(current_building, building) and
+                # 1. Sama omistaja TAI asukas  
+                _match_ownership_or_residents(current_building, building) or
                 # 2. Sama osoite
-                _match_addresses(current_building[3], building[3]) and
+                _match_addresses(current_building[3], building[3]) or
                 # 3. Etäisyys alle rajan
                 minimum_distance_of_buildings(
                     [current_building[0], building[0]]
@@ -750,88 +750,95 @@ def _cluster_rakennustiedot(
     return clusters
 
 
-def _match_ownership_and_residents(
-    building1: Rakennustiedot,
-    building2: Rakennustiedot
+def _match_ownership_or_residents(
+    building1: "Rakennustiedot",
+    building2: "Rakennustiedot" 
 ) -> bool:
     """
-    Tarkistaa että rakennuksilla on sama omistaja JA asukas
+    Tarkistaa, onko rakennuksilla sama omistaja TAI asukas.
+    Aiempi versio vaati molemmat.
     """
     owners1 = {owner.osapuoli_id for owner in building1[2]}
-    owners2 = {owner.osapuoli_id for owner in building2[2]}
+    owners2 = {owner.osapuoli_id for owner in building2[2]} 
     residents1 = {res.osapuoli_id for res in building1[1]}
     residents2 = {res.osapuoli_id for res in building2[1]}
+    
+    # Palauta True jos joko omistajissa TAI asukkaissa on yhteinen
+    return bool(
+        (owners1 and owners2 and (owners1 & owners2)) or
+        (residents1 and residents2 and (residents1 & residents2))
+    )
 
-    return (owners1 == owners2 and owners1) and (residents1 == residents2 and residents1)
 
-
-def update_old_kohde_data(
-    session: "Session", 
-    old_kohde_id: int,
-    new_kohde_id: int,
-    new_kohde_alkupvm: datetime.date
-):
+def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm):
     """
-    Päivittää vanhan kohteen tiedot kerralla yhden transaktion sisällä.
+    Päivittää kaikki vanhan kohteen tiedot kerralla yhtenä transaktiona:
+    - Asettaa vanhan kohteen loppupvm 
+    - Siirtää sopimukset ja kuljetukset
+    - Päivittää viranomaispäätökset
+    - Päivittää kompostorit
     """
+    # Aseta loppupvm = uuden kohteen alkupvm - 1 päivä
     loppupvm = new_kohde_alkupvm - timedelta(days=1)
     
-    # Päivitä kohteen loppupvm
+    # 1. Päivitä kohteen loppupvm
     session.execute(
         update(Kohde)
         .where(Kohde.id == old_kohde_id)
-        .values(loppupvm=loppupvm),
-        execution_options={"synchronize_session": False}
+        .values(loppupvm=loppupvm)
     )
 
-    # Siirrä sopimukset ja kuljetukset
+    # 2. Siirrä sopimukset ja kuljetukset uudelle kohteelle
+    # Sopimukset joiden loppupvm >= uuden kohteen alkupvm
     session.execute(
         update(Sopimus)
         .where(Sopimus.kohde_id == old_kohde_id)
         .where(Sopimus.loppupvm >= new_kohde_alkupvm)
-        .values(kohde_id=new_kohde_id),
-        execution_options={"synchronize_session": False}
+        .values(kohde_id=new_kohde_id)
     )
     
+    # Kuljetukset joiden loppupvm >= uuden kohteen alkupvm 
     session.execute(
         update(Kuljetus)
         .where(Kuljetus.kohde_id == old_kohde_id)
         .where(Kuljetus.loppupvm >= new_kohde_alkupvm)
-        .values(kohde_id=new_kohde_id),
-        execution_options={"synchronize_session": False}
+        .values(kohde_id=new_kohde_id)
     )
 
-    # Päivitä päätösten loppupvm
+    # 3. Päivitä viranomaispäätösten loppupvm
+    # Hae vanhan kohteen rakennusten id:t
     rakennus_ids = select(KohteenRakennukset.rakennus_id).where(
         KohteenRakennukset.kohde_id == old_kohde_id
     )
 
+    # Aseta loppupvm päätöksille jotka alkaneet <= vanhan kohteen loppupvm
     session.execute(
         update(Viranomaispaatokset)
         .where(
             Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
             Viranomaispaatokset.alkupvm <= loppupvm
         )
-        .values(loppupvm=loppupvm),
-        execution_options={"synchronize_session": False}
+        .values(loppupvm=loppupvm)
     )
 
-    # Päivitä kompostorien tiedot
+    # 4. Päivitä kompostorien tiedot
+    # Hae vanhan kohteen kompostorien id:t
     kompostori_ids = select(KompostorinKohteet.kompostori_id).where(
         KompostorinKohteet.kohde_id == old_kohde_id
     )
 
+    # Aseta loppupvm kompostoreille jotka alkaneet <= vanhan kohteen loppupvm
     session.execute(
         update(Kompostori)
         .where(
             Kompostori.id.in_(kompostori_ids.scalar_subquery()),
             Kompostori.alkupvm <= loppupvm
         )
-        .values(loppupvm=loppupvm),
-        execution_options={"synchronize_session": False}
+        .values(loppupvm=loppupvm)
     )
 
-    # Päivitä kompostorien osapuolet ja kohteet
+    # 5. Siirrä jatkuvat kompostorit uudelle kohteelle
+    # Hae kompostorit jotka jatkuvat loppupvm:n jälkeen
     kompostori_id_by_date = select(Kompostori.id).where(
         and_(
             Kompostori.id.in_(kompostori_ids.scalar_subquery()),
@@ -839,32 +846,33 @@ def update_old_kohde_data(
         )
     )
 
+    # Hae kompostorien osapuolten id:t
     kompostori_osapuoli_ids = select(Kompostori.osapuoli_id).where(
         Kompostori.id.in_(kompostori_id_by_date.scalar_subquery())
     )
 
+    # Päivitä osapuolten tiedot uudelle kohteelle
     session.execute(
         update(KohteenOsapuolet)
         .where(
             KohteenOsapuolet.osapuoli_id.in_(kompostori_osapuoli_ids.scalar_subquery()),
             KohteenOsapuolet.kohde_id == old_kohde_id,
-            KohteenOsapuolet.osapuolenrooli_id == 311
+            KohteenOsapuolet.osapuolenrooli_id == 311  # Kompostoinnin yhteyshenkilö
         )
-        .values(kohde_id=new_kohde_id),
-        execution_options={"synchronize_session": False}
+        .values(kohde_id=new_kohde_id)
     )
 
+    # Päivitä kompostorien kohdeviittaukset
     session.execute(
         update(KompostorinKohteet)
         .where(
             KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date.scalar_subquery()),
             KompostorinKohteet.kohde_id == old_kohde_id
         )
-        .values(kohde_id=new_kohde_id),
-        execution_options={"synchronize_session": False}
+        .values(kohde_id=new_kohde_id)
     )
 
-    # Tee kaikki muutokset kerralla
+    # Kaikki muutokset tehdään yhdessä transaktiossa
     session.commit()
 
 def _add_auxiliary_buildings(
@@ -972,24 +980,32 @@ def create_new_kohde(session: "Session", asiakas: "Asiakas"):
     return kohde
 
 
-def parse_alkupvm_for_kohde(
-    session: "Session",
-    rakennus_ids: "List[int]",
-    old_kohde_alkupvm: "datetime.date",
-    poimintapvm: "Optional[datetime.date]",
-):
+def parse_alkupvm_for_kohde(session, rakennus_ids, old_kohde_alkupvm, poimintapvm):
+    """
+    Määrittää uuden kohteen alkupvm:n seuraavasti:
+    1. Jos rakennuksilla ei ole omistaja/asukas muutoksia -> poimintapvm
+    2. Jos muutoksia, käytetään uusinta muutosta:
+       - omistajan muutos
+       - vanhimman asukkaan muutos
+       - vanha kohteen alkupvm
+    """
+    # Hae viimeisin omistajamuutos
     latest_omistaja_change = (
         session.query(sqlalchemyFunc.max(RakennuksenOmistajat.omistuksen_alkupvm))
         .filter(RakennuksenOmistajat.rakennus_id.in_(rakennus_ids))
         .scalar()
     )
+    
+    # Hae viimeisin asukas muutos  
     latest_vanhin_change = session.query(
         sqlalchemyFunc.max(RakennuksenVanhimmat.alkupvm)
     ).filter(RakennuksenVanhimmat.rakennus_id.in_(rakennus_ids)).scalar()
 
+    # Jos ei muutoksia, käytä poimintapvm
     if latest_omistaja_change is None and latest_vanhin_change is None:
         return poimintapvm
 
+    # Määritä viimeisin muutospäivä
     latest_change = old_kohde_alkupvm
     if latest_omistaja_change is None and latest_vanhin_change is not None:
         latest_change = latest_vanhin_change
@@ -998,6 +1014,8 @@ def parse_alkupvm_for_kohde(
     else:
         latest_change = max(latest_omistaja_change, latest_vanhin_change)
 
+    # Jos muutoksia vanhan kohteen alkupvm:n jälkeen, käytä muutospvm
+    # Muuten käytä poimintapvm
     if latest_change > old_kohde_alkupvm:
         return latest_change
     else:
