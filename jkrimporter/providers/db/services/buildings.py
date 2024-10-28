@@ -67,7 +67,7 @@ def create_nearby_buildings_lookup(
     dvv_rakennustiedot: Dict[int, "Rakennustiedot"]
 ) -> Dict[int, Set[int]]:
     """
-    Luo hakutaulukko lähekkäisistä rakennuksista hyödyntäen materializoitua näkymää.
+    Luo hakutaulukko lähekkäisistä rakennuksista hyödyntäen materialisoitua näkymää.
     
     Args:
         dvv_rakennustiedot: Sanakirja rakennustiedoista joille etsitään lähellä olevia rakennuksia
@@ -112,7 +112,7 @@ def create_nearby_buildings_lookup(
 
 def refresh_nearby_buildings_materialized_view() -> None:
     """
-    Päivitä materializoitu näkymä nearby_buildings.
+    Päivitä materialisoitu näkymä nearby_buildings.
     Tätä tulee kutsua kun rakennusten sijaintitiedot muuttuvat.
     """
     with Session(engine) as session:

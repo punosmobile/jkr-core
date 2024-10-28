@@ -772,7 +772,7 @@ def _match_ownership_or_residents(
 
 def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm):
     """
-    Päivittää kaikki vanhan kohteen tiedot kerralla yhtenä transaktiona:
+    Päivittää vanhan kohteen tiedot kerralla yhtenä transaktiona:
     - Asettaa vanhan kohteen loppupvm 
     - Siirtää sopimukset ja kuljetukset
     - Päivittää viranomaispäätökset
@@ -782,28 +782,34 @@ def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm
     loppupvm = new_kohde_alkupvm - timedelta(days=1)
     
     # 1. Päivitä kohteen loppupvm
-    session.execute(
+    stmt = (
         update(Kohde)
         .where(Kohde.id == old_kohde_id)
         .values(loppupvm=loppupvm)
+        .execution_options(synchronize_session=False)
     )
+    session.execute(stmt)
 
     # 2. Siirrä sopimukset ja kuljetukset uudelle kohteelle
     # Sopimukset joiden loppupvm >= uuden kohteen alkupvm
-    session.execute(
+    stmt = (
         update(Sopimus)
         .where(Sopimus.kohde_id == old_kohde_id)
         .where(Sopimus.loppupvm >= new_kohde_alkupvm)
         .values(kohde_id=new_kohde_id)
+        .execution_options(synchronize_session=False)
     )
+    session.execute(stmt)
     
     # Kuljetukset joiden loppupvm >= uuden kohteen alkupvm 
-    session.execute(
+    stmt = (
         update(Kuljetus)
         .where(Kuljetus.kohde_id == old_kohde_id)
         .where(Kuljetus.loppupvm >= new_kohde_alkupvm)
         .values(kohde_id=new_kohde_id)
+        .execution_options(synchronize_session=False)
     )
+    session.execute(stmt)
 
     # 3. Päivitä viranomaispäätösten loppupvm
     # Hae vanhan kohteen rakennusten id:t
@@ -812,14 +818,16 @@ def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm
     )
 
     # Aseta loppupvm päätöksille jotka alkaneet <= vanhan kohteen loppupvm
-    session.execute(
+    stmt = (
         update(Viranomaispaatokset)
         .where(
             Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
             Viranomaispaatokset.alkupvm <= loppupvm
         )
         .values(loppupvm=loppupvm)
+        .execution_options(synchronize_session=False)
     )
+    session.execute(stmt)
 
     # 4. Päivitä kompostorien tiedot
     # Hae vanhan kohteen kompostorien id:t
@@ -828,52 +836,40 @@ def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm
     )
 
     # Aseta loppupvm kompostoreille jotka alkaneet <= vanhan kohteen loppupvm
-    session.execute(
+    stmt = (
         update(Kompostori)
         .where(
             Kompostori.id.in_(kompostori_ids.scalar_subquery()),
             Kompostori.alkupvm <= loppupvm
         )
         .values(loppupvm=loppupvm)
+        .execution_options(synchronize_session=False)
     )
+    session.execute(stmt)
 
     # 5. Siirrä jatkuvat kompostorit uudelle kohteelle
     # Hae kompostorit jotka jatkuvat loppupvm:n jälkeen
-    kompostori_id_by_date = select(Kompostori.id).where(
+    jatkuvat_kompostorit = select(Kompostori.id).where(
         and_(
             Kompostori.id.in_(kompostori_ids.scalar_subquery()),
             Kompostori.alkupvm > loppupvm
         )
     )
 
-    # Hae kompostorien osapuolten id:t
-    kompostori_osapuoli_ids = select(Kompostori.osapuoli_id).where(
-        Kompostori.id.in_(kompostori_id_by_date.scalar_subquery())
-    )
-
-    # Päivitä osapuolten tiedot uudelle kohteelle
-    session.execute(
-        update(KohteenOsapuolet)
-        .where(
-            KohteenOsapuolet.osapuoli_id.in_(kompostori_osapuoli_ids.scalar_subquery()),
-            KohteenOsapuolet.kohde_id == old_kohde_id,
-            KohteenOsapuolet.osapuolenrooli_id == 311  # Kompostoinnin yhteyshenkilö
-        )
-        .values(kohde_id=new_kohde_id)
-    )
-
-    # Päivitä kompostorien kohdeviittaukset
-    session.execute(
+    stmt = (
         update(KompostorinKohteet)
         .where(
-            KompostorinKohteet.kompostori_id.in_(kompostori_id_by_date.scalar_subquery()),
+            KompostorinKohteet.kompostori_id.in_(jatkuvat_kompostorit.scalar_subquery()),
             KompostorinKohteet.kohde_id == old_kohde_id
         )
         .values(kohde_id=new_kohde_id)
+        .execution_options(synchronize_session=False)
     )
+    session.execute(stmt)
 
     # Kaikki muutokset tehdään yhdessä transaktiossa
     session.commit()
+
 
 def _add_auxiliary_buildings(
     dvv_rakennustiedot: Dict[int, Rakennustiedot],
