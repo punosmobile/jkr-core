@@ -733,9 +733,9 @@ def _cluster_rakennustiedot(
             building for building in rakennustiedot_to_cluster
             if (
                 # 1. Sama omistaja TAI asukas  
-                _match_ownership_or_residents(current_building, building) or
+                (_match_ownership_or_residents(current_building, building) or
                 # 2. Sama osoite
-                _match_addresses(current_building[3], building[3]) or
+                _match_addresses(current_building[3], building[3])) and
                 # 3. Etäisyys alle rajan
                 minimum_distance_of_buildings(
                     [current_building[0], building[0]]
@@ -1781,85 +1781,139 @@ def create_perusmaksurekisteri_kohteet(
     session: Session,
     perusmaksutiedosto: Path,
     poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date] 
+    loppupvm: Optional[datetime.date]
 ) -> List[Kohde]:
     """
-    Luo kohteet perusmaksurekisterin perusteella.
-    Vain määritellyt talotyypit huomioidaan.
+    Luo kohteet perusmaksurekisterin perusteella. Yhdistää samaan kohteeseen rakennukset,
+    joilla on sama asiakasnumero perusmaksurekisterissä ja jotka ovat määriteltyjä talotyyppejä.
+    
+    Tarkistaa ensisijaisesti Rakennusluokitus 2018 mukaiset luokat:
+    - 0210: Rivitalot
+    - 0220: Ketjutalot
+    - 0320: Luhtitalot
+    - 0390: Muut asuinkerrostalot
+    
+    Jos 2018 luokka puuttuu, käytetään vanhempaa luokitusta:
+    - 021: Rivitalot
+    - 022: Ketjutalot
+    - 032: Luhtitalot
+    - 039: Muut asuinkerrostalot
+
+    Lisäksi kohteeseen yhdistetään saunat ja piharakennukset, jos:
+    - Sama omistaja/asukas kuin jollain ryhmän rakennuksista
+    - Sama osoite kuin jollain ryhmän rakennuksista  
+    - Sijainti max 300m päässä ryhmän rakennuksista
+
+    Args:
+        session: Tietokantaistunto
+        perusmaksutiedosto: Polku perusmaksurekisterin Excel-tiedostoon
+        poimintapvm: Uusien kohteiden alkupäivämäärä
+        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupvm)
+
+    Returns:
+        List[Kohde]: Lista luoduista kohteista
+
+    Raises:
+        FileNotFoundError: Jos perusmaksutiedostoa ei löydy
+        openpyxl.utils.exceptions.InvalidFileException: Jos tiedosto ei ole validi Excel
     """
     logger = logging.getLogger(__name__)
     logger.info("\nLuodaan perusmaksurekisterin kohteet...")
-    
-    # Hae ensin kaikki DVV rakennustiedot
+
+    # Hae DVV:n rakennustiedot rakennuksista joilla ei vielä ole kohdetta
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
         session, poimintapvm, loppupvm
     )
     logger.info(f"Löydettiin {len(dvv_rakennustiedot)} rakennusta ilman kohdetta")
-    
-    # Luo lookup PRT -> Rakennustiedot
+
+    # Luo lookup PRT -> Rakennustiedot jatkojalostusta varten
     dvv_rakennustiedot_by_prt = {
         tiedot[0].prt: tiedot 
-        for tiedot in dvv_rakennustiedot.values() 
-        if tiedot[0].prt  # Skip if PRT is None
+        for tiedot in dvv_rakennustiedot.values()
+        if tiedot[0].prt  # Ohita jos PRT puuttuu
+    }
+
+    # Määrittele sallitut rakennustyypit
+    # Rakennusluokka 2018 mukaiset luokat
+    ALLOWED_TYPES_2018 = {
+        '0210',  # Rivitalot
+        '0220',  # Ketjutalot
+        '0320',  # Luhtitalot
+        '0390'   # Muut asuinkerrostalot
     }
     
-    ALLOWED_TYPES = {
+    # Vanhat luokat (käytetään jos 2018 luokka puuttuu)
+    ALLOWED_TYPES_OLD = {
         '021',  # Rivitalot
         '022',  # Ketjutalot
         '032',  # Luhtitalot
         '039'   # Muut asuinkerrostalot
     }
-    
+
+    # Ryhmittele rakennukset asiakasnumeron mukaan
     buildings_to_combine = defaultdict(lambda: {"prt": set()})
+    
+    # Avaa perusmaksurekisteri
+    logger.info("Avataan perusmaksurekisteri...")
     perusmaksut = load_workbook(filename=perusmaksutiedosto)
     sheet = perusmaksut["Tietopyyntö asiakasrekisteristä"]
-    
+
+    # Käsittele rivit ja kerää sallitut rakennukset
     logger.info("Käsitellään perusmaksurekisterin rivit...")
     rows_processed = 0
     buildings_found = 0
-    
-    # Kerää vain sallitut rakennustyypit
+
     for index, row in enumerate(sheet.values):
-        if index == 0:  # Skip header
+        if index == 0:  # Ohita otsikkorivi
             continue
-            
+        
         rows_processed += 1
         asiakasnumero = str(row[2])
         prt = str(row[3])
-        
+
         # Hae rakennus ja tarkista tyyppi
         rakennus = session.query(Rakennus).filter(
             Rakennus.prt == prt
         ).first()
-        
+
         if not rakennus:
             continue
-            
-        if rakennus.rakennuksenkayttotarkoitus in ALLOWED_TYPES:
+
+        # Tarkista ensisijaisesti rakennusluokka 2018
+        if rakennus.rakennusluokka_2018 in ALLOWED_TYPES_2018:
             buildings_to_combine[asiakasnumero]["prt"].add(prt)
             buildings_found += 1
-    
-    logger.info(f"Käsitelty {rows_processed:,} riviä, löydetty {buildings_found:,} sopivaa rakennusta")
-    
-    # Luo kohteet sallituille rakennuksille
+        # Jos 2018 luokka puuttuu, tarkista vanha luokitus
+        elif (rakennus.rakennusluokka_2018 is None and 
+              rakennus.rakennuksenkayttotarkoitus_koodi in ALLOWED_TYPES_OLD):
+            buildings_to_combine[asiakasnumero]["prt"].add(prt)
+            buildings_found += 1
+
+    logger.info(f"Käsitelty {rows_processed:,} riviä")
+    logger.info(f"Löydetty {buildings_found:,} yhdistettävää rakennusta")
+
+    # Muodosta rakennusryhmät samalla asiakasnumerolla olevista
     building_sets = []
     valid_sets = 0
-    
-    logger.info("Muodostetaan rakennusryhmät...")
+
+    logger.info("\nMuodostetaan rakennusryhmät...")
     for asiakasnumero, data in buildings_to_combine.items():
         building_set = set()
+        
+        # Kerää rakennukset ryhmään
         for prt in data["prt"]:
             if prt in dvv_rakennustiedot_by_prt:
                 rakennustiedot = dvv_rakennustiedot_by_prt[prt]
                 building_set.add(rakennustiedot)
-                
+
+        # Lisää vain jos ryhmässä on rakennuksia
         if building_set:
             building_sets.append(building_set)
             valid_sets += 1
-            
+
     logger.info(f"Muodostettu {valid_sets:,} rakennusryhmää")
-    
-    # Create owners_by_rakennus_id lookup for get_or_create_kohteet_from_rakennustiedot
+
+    # Luo omistaja- ja asukastiedot lookupeja varten
     owners_by_rakennus_id = defaultdict(set)
     rakennus_owners = session.execute(
         select(RakennuksenOmistajat.rakennus_id, Osapuoli).join(
@@ -1868,8 +1922,7 @@ def create_perusmaksurekisteri_kohteet(
     ).all()
     for (rakennus_id, owner) in rakennus_owners:
         owners_by_rakennus_id[rakennus_id].add(owner)
-    
-    # Create inhabitants_by_rakennus_id lookup
+
     inhabitants_by_rakennus_id = defaultdict(set)
     rakennus_inhabitants = session.execute(
         select(RakennuksenVanhimmat.rakennus_id, Osapuoli).join(
@@ -1878,9 +1931,9 @@ def create_perusmaksurekisteri_kohteet(
     ).all()
     for (rakennus_id, inhabitant) in rakennus_inhabitants:
         inhabitants_by_rakennus_id[rakennus_id].add(inhabitant)
-            
-    logger.info("Luodaan kohteet...")
-    # Luo kohteet ja aseta loppupäivämäärä 2100
+
+    # Luo kohteet ja lisää apurakennukset
+    logger.info("\nLuodaan kohteet ja lisätään apurakennukset...")
     kohteet = get_or_create_kohteet_from_rakennustiedot(
         session,
         dvv_rakennustiedot,
@@ -1888,8 +1941,8 @@ def create_perusmaksurekisteri_kohteet(
         owners_by_rakennus_id,
         inhabitants_by_rakennus_id,
         poimintapvm,
-        datetime.date(2100, 1, 1)
+        loppupvm
     )
-    
-    logger.info(f"Luotu {len(kohteet):,} kohdetta perusmaksurekisterin perusteella")
+
+    logger.info(f"\nLuotu {len(kohteet):,} kohdetta perusmaksurekisterin perusteella")
     return kohteet
