@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import datetime
 import re
 import logging
@@ -9,7 +10,7 @@ from typing import TypeVar, DefaultDict, Set, List, Dict,TYPE_CHECKING,NamedTupl
 
 from openpyxl import load_workbook
 from psycopg2.extras import DateRange
-from sqlalchemy import and_, exists, or_, select, update, case, delete, func
+from sqlalchemy import and_, exists, or_, select, update, case, delete, func, text
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlalchemy.orm import Session
@@ -68,6 +69,16 @@ if TYPE_CHECKING:
         lisarakennukset: FrozenSet[KohteenRakennukset]
         asukkaat: FrozenSet[KohteenOsapuolet]
         omistajat: FrozenSet[KohteenOsapuolet]
+
+@dataclass
+class BuildingInfo:
+    """Apurakennuksen tiedot"""
+    id: int
+    prt: str
+    owner_ids: Set[int]
+    address_ids: Set[tuple]  # (katu_id, osoitenumero)
+    is_auxiliary: bool
+
 
 class BatchProgressTracker(Generic[T]):
     """
@@ -897,6 +908,142 @@ def is_auxiliary_building(rakennus: Rakennus) -> bool:
     )
 
 
+def add_auxiliary_buildings_materialized(
+    dvv_rakennustiedot: Dict[int, "Rakennustiedot"],
+    building_sets: List[Set["Rakennustiedot"]],
+    session: Session 
+) -> List[Set["Rakennustiedot"]]:
+    """
+    Lisää apurakennukset (saunat, piharakennukset) päärakennusten ryhmiin hyödyntäen
+    materialisoitua nearby_buildings näkymää.
+
+    Apurakennus lisätään ryhmään jos KAIKKI seuraavat ehdot täyttyvät:
+    1. On tyypiltään apurakennus (sauna tai piharakennus)
+    2. Sama omistaja tai asukas kuin jollain ryhmän rakennuksista
+    3. Sama osoite kuin jollain ryhmän rakennuksista
+    4. Löytyy nearby_buildings näkymästä (eli on max 300m päässä)
+
+    Args:
+        dvv_rakennustiedot: Sanakirja rakennustiedoista rakennuksen id:n mukaan
+        building_sets: Lista rakennusryhmistä, joihin apurakennuksia etsitään
+        session: Tietokantaistunto
+
+    Returns:
+        Lista päivitetyistä rakennusryhmistä joihin on lisätty kriteerit täyttävät
+        apurakennukset
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"\nEtsitään apurakennuksia {len(building_sets)} rakennusryhmälle...")
+    
+    start_time = dt.now()
+
+    # Kerää kaikki päärakennusten ID:t
+    main_building_ids = {
+        rakennustiedot[0].id 
+        for building_set in building_sets
+        for rakennustiedot in building_set
+    }
+
+    # Hae potentiaaliset apurakennukset käyttäen materialisoitua näkymää
+    nearby_query = text("""
+        SELECT DISTINCT r.id, r.prt, 
+               ro.osapuoli_id as owner_id,
+               o.katu_id, o.osoitenumero
+        FROM jkr.nearby_buildings nb
+        JOIN jkr.rakennus r ON 
+            (r.id = nb.rakennus1_id OR r.id = nb.rakennus2_id)
+        LEFT JOIN jkr.rakennuksen_omistajat ro ON r.id = ro.rakennus_id
+        LEFT JOIN jkr.osoite o ON r.id = o.rakennus_id
+        WHERE 
+            -- Toinen rakennuksista on päärakennus
+            ((nb.rakennus1_id = ANY(:main_ids) AND nb.rakennus2_id != ANY(:main_ids))
+             OR 
+             (nb.rakennus2_id = ANY(:main_ids) AND nb.rakennus1_id != ANY(:main_ids)))
+            -- On apurakennus (2018 luokitus tai vanha)
+            AND (
+                r.rakennusluokka_2018 IN ('1910', '1911')
+                OR (
+                    r.rakennusluokka_2018 IS NULL 
+                    AND r.rakennuksenkayttotarkoitus_koodi IN ('941', '931')
+                )
+            )
+    """)
+
+    # Suorita kysely
+    results = session.execute(
+        nearby_query,
+        {"main_ids": list(main_building_ids)}
+    ).all()
+
+    # Kokoa apurakennusten tiedot
+    potential_auxiliary_buildings = {}
+    for row in results:
+        if row.id not in dvv_rakennustiedot:
+            continue
+            
+        aux_tiedot = dvv_rakennustiedot[row.id]
+        if row.id not in potential_auxiliary_buildings:
+            potential_auxiliary_buildings[row.id] = aux_tiedot
+
+    # Lisää sopivat apurakennukset ryhmiin
+    updated_sets = []
+    aux_added = 0
+    
+    for building_set in building_sets:
+        updated_set = building_set.copy()
+        
+        # Kerää ryhmän omistajat ja osoitteet
+        main_owner_ids = {
+            osapuoli.id
+            for rakennustiedot in building_set
+            for omistaja in rakennustiedot[2]  # [2] on omistajat
+            for osapuoli in [omistaja.osapuoli]
+        }
+        
+        main_address_ids = {
+            (osoite.katu_id, osoite.osoitenumero)
+            for rakennustiedot in building_set
+            for osoite in rakennustiedot[3]  # [3] on osoitteet
+        }
+
+        # Käy läpi potentiaaliset apurakennukset
+        for aux_id, aux_tiedot in potential_auxiliary_buildings.items():
+            # Kerää apurakennuksen omistajat ja osoitteet
+            aux_owner_ids = {
+                osapuoli.id
+                for omistaja in aux_tiedot[2]
+                for osapuoli in [omistaja.osapuoli]
+            }
+            
+            aux_address_ids = {
+                (osoite.katu_id, osoite.osoitenumero)
+                for osoite in aux_tiedot[3]
+            }
+
+            # Tarkista kriteerit:
+            # 1. Omistajuus
+            has_matching_owner = (
+                not aux_owner_ids or  # Jos ei omistajia, hyväksytään
+                bool(aux_owner_ids & main_owner_ids)  # Tai jos yhteinen omistaja
+            )
+            
+            # 2. Osoite - vaaditaan aina yhteinen osoite
+            has_matching_address = bool(aux_address_ids & main_address_ids)
+
+            # Jos kriteerit täyttyvät, lisää apurakennus ryhmään
+            if has_matching_owner and has_matching_address:
+                updated_set.add(aux_tiedot)
+                aux_added += 1
+
+        updated_sets.append(updated_set)
+
+    elapsed = dt.now() - start_time
+    logger.info(
+        f"Lisätty {aux_added} apurakennusta {len(building_sets)} rakennusryhmään, "
+        f"aikaa kului {elapsed.total_seconds():.2f}s"
+    )
+    return updated_sets
+
 def _add_auxiliary_buildings(
     dvv_rakennustiedot: Dict[int, Rakennustiedot],
     building_sets: List[Set[Rakennustiedot]]
@@ -1372,19 +1519,37 @@ def update_or_create_kohde_from_buildings(
 
 def get_or_create_kohteet_from_rakennustiedot(
     session: Session,
-    dvv_rakennustiedot: Dict[int, Rakennustiedot],
-    building_sets: List[Set[Rakennustiedot]],
-    owners_by_rakennus_id: DefaultDict[int, Set[Osapuoli]],
-    inhabitants_by_rakennus_id: DefaultDict[int, Set[Osapuoli]],
+    dvv_rakennustiedot: Dict[int, "Rakennustiedot"],
+    building_sets: List[Set["Rakennustiedot"]],
+    owners_by_rakennus_id: Dict[int, Set["Osapuoli"]],
+    inhabitants_by_rakennus_id: Dict[int, Set["Osapuoli"]],
     poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date],
-):
+    loppupvm: Optional[datetime.date]
+) -> List[Kohde]:
     """
-    Luo erilliset kohteet jokaiselle building_sets listassa olevalle rakennusryhmälle 
-    ja lisää apurakennukset kuhunkin kohteeseen.
+    Luo kohteet rakennusryhmien perusteella ja lisää niihin apurakennukset.
+    
+    Args:
+        session: Tietokantaistunto
+        dvv_rakennustiedot: Sanakirja rakennustiedoista
+        building_sets: Lista rakennusryhmistä
+        owners_by_rakennus_id: Sanakirja rakennusten omistajista
+        inhabitants_by_rakennus_id: Sanakirja rakennusten asukkaista
+        poimintapvm: Uusien kohteiden alkupäivämäärä
+        loppupvm: Uusien kohteiden loppupäivämäärä
+
+    Returns:
+        Lista luoduista kohteista
     """
+    logger = logging.getLogger(__name__)
+    logger.info("\nLuodaan kohteet rakennusryhmille...")
+
     # Lisää apurakennukset kuhunkin rakennusryhmään
-    building_sets = _add_auxiliary_buildings(dvv_rakennustiedot, building_sets)
+    building_sets = add_auxiliary_buildings_materialized(
+        dvv_rakennustiedot,
+        building_sets,
+        session  # Välitetään session-parametri
+    )
     
     kohteet = []
     for building_set in building_sets:
@@ -1411,6 +1576,8 @@ def get_or_create_kohteet_from_rakennustiedot(
             loppupvm,
         )
         kohteet.append(kohde)
+        
+    logger.info(f"Luotu {len(kohteet)} kohdetta")
     return kohteet
 
 
