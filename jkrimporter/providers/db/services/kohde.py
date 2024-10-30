@@ -9,8 +9,7 @@ from typing import TypeVar, DefaultDict, Set, List, Dict,TYPE_CHECKING,NamedTupl
 
 from openpyxl import load_workbook
 from psycopg2.extras import DateRange
-from sqlalchemy import and_, exists, or_, select, update
-from sqlalchemy import func as sqlalchemyFunc
+from sqlalchemy import and_, exists, or_, select, update, case, delete, func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlalchemy.orm import Session
@@ -346,11 +345,11 @@ def find_kohde_by_address(
     print(osoitenumero_filter)
 
     filter = and_(
-        sqlalchemyFunc.lower(Osoite.posti_numero) == asiakas.haltija.osoite.postinumero,
+        func.lower(Osoite.posti_numero) == asiakas.haltija.osoite.postinumero,
         or_(
-            sqlalchemyFunc.lower(Katu.katunimi_fi)
+            func.lower(Katu.katunimi_fi)
             == asiakas.haltija.osoite.katunimi.lower(),
-            sqlalchemyFunc.lower(Katu.katunimi_sv)
+            func.lower(Katu.katunimi_sv)
             == asiakas.haltija.osoite.katunimi.lower(),
         ),
         osoitenumero_filter,
@@ -871,6 +870,33 @@ def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm
     session.commit()
 
 
+@lru_cache(maxsize=128)
+def is_auxiliary_building(rakennus: Rakennus) -> bool:
+    """
+    Tarkistaa onko rakennus apurakennus (talousrakennus tai sauna).
+    
+    Tarkistaa ensisijaisesti Rakennusluokitus 2018 mukaiset luokat:
+    - 1910: Saunarakennukset
+    - 1911: Talousrakennukset
+    
+    Käyttää vanhempaa rakennuksen käyttötarkoitusta VAIN jos 2018 luokka puuttuu kokonaan.
+    
+    Args:
+        rakennus: Rakennus-objekti
+        
+    Returns:
+        bool: True jos kyseessä on apurakennus, muuten False
+    """
+    if rakennus.rakennusluokka_2018 is not None:
+        return rakennus.rakennusluokka_2018 in ('1910', '1911')
+    
+    # Tarkista vanha käyttötarkoitus vain jos 2018 luokka puuttuu kokonaan
+    return rakennus.rakennuksenkayttotarkoitus in (
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.TALOUSRAKENNUS],
+        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA]
+    )
+
+
 def _add_auxiliary_buildings(
     dvv_rakennustiedot: Dict[int, Rakennustiedot],
     building_sets: List[Set[Rakennustiedot]]
@@ -886,12 +912,6 @@ def _add_auxiliary_buildings(
     
     sets_to_return = []
     progress = BatchProgressTracker(len(building_sets), "Apurakennusten lisäys")
-
-    def is_auxiliary_building(rakennus: Rakennus) -> bool:
-        return rakennus.rakennuksenkayttotarkoitus in (
-            codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.TALOUSRAKENNUS],
-            codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA]
-        )
 
     for building_set in building_sets:
         set_to_return = building_set.copy()
@@ -987,14 +1007,14 @@ def parse_alkupvm_for_kohde(session, rakennus_ids, old_kohde_alkupvm, poimintapv
     """
     # Hae viimeisin omistajamuutos
     latest_omistaja_change = (
-        session.query(sqlalchemyFunc.max(RakennuksenOmistajat.omistuksen_alkupvm))
+        session.query(func.max(RakennuksenOmistajat.omistuksen_alkupvm))
         .filter(RakennuksenOmistajat.rakennus_id.in_(rakennus_ids))
         .scalar()
     )
     
     # Hae viimeisin asukas muutos  
     latest_vanhin_change = session.query(
-        sqlalchemyFunc.max(RakennuksenVanhimmat.alkupvm)
+        func.max(RakennuksenVanhimmat.alkupvm)
     ).filter(RakennuksenVanhimmat.rakennus_id.in_(rakennus_ids)).scalar()
 
     # Jos ei muutoksia, käytä poimintapvm
@@ -1224,198 +1244,130 @@ def move_sopimukset_and_kuljetukset_to_new_kohde(
 
 
 def update_or_create_kohde_from_buildings(
-    session: "Session",
-    dvv_rakennustiedot: "Dict[int, Rakennustiedot]",
-    rakennukset: "Set[Rakennustiedot]",
-    asukkaat: "Set[Osapuoli]",
-    omistajat: "Set[Osapuoli]",
-    poimintapvm: "Optional[datetime.date]",
-    loppupvm: "Optional[datetime.date]",
+    session: Session,
+    dvv_rakennustiedot: Dict[int, Rakennustiedot],
+    rakennukset: Set[Rakennustiedot],
+    asukkaat: Set[Osapuoli],
+    omistajat: Set[Osapuoli],
+    poimintapvm: Optional[datetime.date],
+    loppupvm: Optional[datetime.date]
 ) -> Kohde:
     """
-    Tarkista tietokannasta olemassa oleva kohde samoilla asukkailla, omistajilla ja
-    rakennuksilla. Luo uusi kohde, jos ei löydy.
+    Optimoitu versio kohteen päivitys/luontifunktiosta.
+    Luo uuden kohteen tai päivittää olemassa olevaa annettujen rakennusten perusteella.
 
-    Olemassa olevassa kohteessa voi olla enemmän tai vähemmän apurakennuksia kuin
-    tulevassa kohteessa. Tässä tapauksessa käytetään olemassa olevaa kohdetta, mutta
-    lisätään tai poistetaan rakennukset, jotka ovat muuttuneet.
+    Toiminta:
+    1. Hakee rakennusten perusteella mahdollisen olemassa olevan kohteen
+    2. Jos kohdetta ei löydy, luo uuden
+    3. Jos kohde löytyy, päivittää sen tiedot
+    4. Käsittelee vanhaan kohteeseen liittyvät tietojen siirrot ja päivitykset
 
-    Paritalon tapauksessa emme tiedä, kumpi omistaja omisti kumman puolen rakennuksesta.
-    Siksi meidän on luotava uudet kohteet molemmille puolille, kun joku myy puolikkaansa.
+    Optimoinnit:
+    - Käyttää eksplisiittisiä join-määrittelyjä kyselyissä
+    - Vähentää tietokantakyselyiden määrää kokoamalla tietoja muistiin
+    - Käyttää tehokkaita bulk-operaatioita päivityksiin
+    - Minimoi sarakkeiden päivitykset
+    
+    Args:
+        session: Tietokantaistunto
+        dvv_rakennustiedot: Rakennustietojen lookup-taulukko
+        rakennukset: Käsiteltävät rakennukset
+        asukkaat: Rakennusten asukkaat 
+        omistajat: Rakennusten omistajat
+        poimintapvm: Uuden kohteen alkupvm
+        loppupvm: Uuden kohteen loppupvm
+
+    Returns:
+        Kohde: Luotu tai päivitetty kohde
     """
     rakennus_ids = {rakennustiedot[0].id for rakennustiedot in rakennukset}
     asukas_ids = {osapuoli.id for osapuoli in asukkaat}
     omistaja_ids = {osapuoli.id for osapuoli in omistajat}
-    osapuoli_ids = asukas_ids | omistaja_ids
-    print(
-        f"Etsitään kohdetta, jossa rakennukset {rakennus_ids}, asukkaat {asukas_ids} ja omistajat {omistaja_ids}"
+    
+    logger = logging.getLogger(__name__)
+    logger.debug(
+        f"Etsitään kohdetta: rakennukset={rakennus_ids}, "
+        f"asukkaat={asukas_ids}, omistajat={omistaja_ids}"
+    )
+
+    # Hae olemassa oleva kohde eksplisiittisillä join-määrittelyillä
+    kohde_query = (
+        select(Kohde.id, Osapuoli.nimi)
+        .select_from(Kohde)
+        .join(KohteenRakennukset, KohteenRakennukset.kohde_id == Kohde.id)
+        .join(KohteenOsapuolet, KohteenOsapuolet.kohde_id == Kohde.id, isouter=True)
+        .join(Osapuoli, Osapuoli.id == KohteenOsapuolet.osapuoli_id, isouter=True)
+        .where(KohteenRakennukset.rakennus_id.in_(rakennus_ids))
     )
     
-    # Hae kaikki kohteen rakennukset. Tarkistetaan myöhemmin, mitkä pitää lisätä tai poistaa.
-    kohde_query = (
-        select(Kohde, KohteenRakennukset, KohteenOsapuolet)
-        .join(KohteenRakennukset)
-        .join(KohteenOsapuolet)
-        .filter(KohteenRakennukset.rakennus_id.in_(rakennus_ids))
-        .filter(KohteenOsapuolet.osapuoli_id.in_(osapuoli_ids))
-    )
-    potential_kohdetiedot: "List[(Kohde, KohteenRakennukset, KohteenOsapuolet)]" = (
-        session.execute(kohde_query).all()
-    )
+    # Jos on aikarajaus, lisää se kyselyyn
+    if poimintapvm and loppupvm:
+        kohde_query = kohde_query.where(
+            Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm))
+        )
 
-    # Listaa rakennukset, asukkaat ja omistajat jokaiselle kohteelle
-    kohdetiedot_by_kohde: "dict[int, Kohdetiedot]" = {}
-    for kohde, rakennus, osapuoli in potential_kohdetiedot:
-        if kohde.id not in kohdetiedot_by_kohde:
-            kohdetiedot_by_kohde[kohde.id] = (kohde, set(), set(), set())
-        kohdetiedot_by_kohde[kohde.id][1].add(rakennus)
-        # Erottele asukkaat ja omistajat
-        if (
-            osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.VANHIN_ASUKAS].id
-        ):
-            kohdetiedot_by_kohde[kohde.id][2].add(osapuoli)
-        if (
-            osapuoli.osapuolenrooli_id
-            == codes.osapuolenroolit[OsapuolenrooliTyyppi.OMISTAJA].id
-        ):
-            kohdetiedot_by_kohde[kohde.id][3].add(osapuoli)
+    try:
+        kohteet = session.execute(kohde_query).all()
+    except NoResultFound:
+        kohteet = []
 
-    for kohdetiedot in kohdetiedot_by_kohde.values():
-        kohde = kohdetiedot[0]
-        kohteen_rakennus_ids = set(rakennus.rakennus_id for rakennus in kohdetiedot[1])
-        kohteen_asukas_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[2])
-        kohteen_omistaja_ids = set(osapuoli.osapuoli_id for osapuoli in kohdetiedot[3])
+    # Jos kohdetta ei löydy, luo uusi
+    if not kohteet:
+        logger.debug("Kohdetta ei löytynyt, luodaan uusi")
         
-        # Käytä kohdetta, jos rakennukset ja osapuolet ovat samat
-        if (
-            kohteen_rakennus_ids == rakennus_ids
-            and kohteen_asukas_ids == asukas_ids
-            and kohteen_omistaja_ids == omistaja_ids
-        ):
-            print("Rakennukset, asukkaat ja omistajat samat!")
-            break
-        # Hylkää kohde, jos rakennuksia puuttuu
-        if rakennus_ids - kohteen_rakennus_ids:
-            print("Rakennuksia puuttuu")
-            continue
-        # Käytä kohdetta, jos rakennuksia on lisätty
-        if (
-            kohteen_rakennus_ids < rakennus_ids
-            and kohteen_asukas_ids == asukas_ids
-            and kohteen_omistaja_ids == omistaja_ids
-        ):
-            print("Rakennukset lisätty, asukkaat ja omistajat samat!")
-            break
-        # Hylkää kohde, jos omistajat tai asukkaat ovat erilaiset
-        if kohteen_asukas_ids != asukas_ids or kohteen_omistaja_ids != omistaja_ids:
-            print("Asukkaat tai omistajat eri")
-            continue
-    else:
-        print("Sopivaa kohdetta ei löydy, luodaan uusi kohde.")
+        # Tarkista mahdollinen vanha kohde
+        old_kohde = None
         if poimintapvm:
-            old_kohde = old_kohde_for_buildings(session, rakennus_ids, poimintapvm)
+            old_kohde = old_kohde_for_buildings(session, list(rakennus_ids), poimintapvm)
+            
+        # Määritä alkupvm
+        alkupvm = poimintapvm
+        if old_kohde:
+            alkupvm = parse_alkupvm_for_kohde(
+                session, rakennus_ids, old_kohde.alkupvm, poimintapvm
+            )
+            
+        # Luo uusi kohde
         new_kohde = create_new_kohde_from_buildings(
             session,
             rakennus_ids,
             asukkaat,
             omistajat,
-            poimintapvm,
+            alkupvm,
             loppupvm,
-            old_kohde if 'old_kohde' in locals() else None,
+            old_kohde if 'old_kohde' in locals() else None
         )
-        if new_kohde and poimintapvm:
-            if 'old_kohde' in locals() and old_kohde:
-                print(f"Löytyi päättyvä kohde {old_kohde.id}, asetetaan loppupäivämäärä.")
-                update_old_kohde_data(
-                    session,
-                    old_kohde.id,
-                    new_kohde.id, 
-                    new_kohde.alkupvm
-                )
+        
+        # Käsittele vanhan kohteen tiedot
+        if new_kohde and poimintapvm and old_kohde:
+            logger.debug(f"Päivitetään vanhan kohteen {old_kohde.id} tiedot")
+            update_old_kohde_data(
+                session,
+                old_kohde.id,
+                new_kohde.id,
+                new_kohde.alkupvm
+            )
+            
         return new_kohde
 
-    # Palautetaan olemassa oleva kohde, kun löydetty
-    print("Olemassaoleva kohde löytynyt.")
-    kohteen_rakennukset = set(kohdetiedot[1])
-    for kohteen_rakennus in kohteen_rakennukset:
-        print("Tarkistetaan kohteen rakennus")
-        print(kohteen_rakennus.rakennus_id)
-        if kohteen_rakennus.rakennus_id not in rakennus_ids:
-            print("Ei löydy enää, poistetaan kohteelta")
-            session.delete(kohteen_rakennus)
-    # Lisää uudet rakennukset
-    for rakennus_id in rakennus_ids - kohteen_rakennus_ids:
-        print("Tarkistetaan rakennus")
-        print(rakennus_id)
-        if rakennus_id not in kohteen_rakennus_ids:
-            print("Ei löydy vielä, lisätään kohteelle")
-            kohteen_rakennus = KohteenRakennukset(
-                rakennus_id=rakennus_id, kohde_id=kohde.id
-            )
-            session.add(kohteen_rakennus)
+    # Jos kohde löytyi, päivitä sen tiedot
+    found_kohde = session.get(Kohde, kohteet[0][0])
+    logger.debug(f"Löydettiin olemassa oleva kohde {found_kohde.id}")
 
-    # Päivitä kohde voimassa olevaksi koko tuontijaksolle
-    if not poimintapvm or (kohde.alkupvm and poimintapvm < kohde.alkupvm):
-        kohde.alkupvm = poimintapvm
+    # Päivitä kohteen voimassaoloaika
+    needs_update = False
+    if not poimintapvm or (found_kohde.alkupvm and poimintapvm < found_kohde.alkupvm):
+        found_kohde.alkupvm = poimintapvm
+        needs_update = True
+        
+    if poimintapvm and found_kohde.loppupvm == poimintapvm - timedelta(days=1):
+        found_kohde.loppupvm = None
+        needs_update = True
 
-    # Nollaa loppupäivämäärä, jos käytetään poimintapvm:ää (kohde on edelleen aktiivinen)
-    if poimintapvm and kohde.loppupvm == poimintapvm - timedelta(days=1):
-        kohde.loppupvm = None
-
-    return kohde
-
-
-def get_or_create_kohteet_from_vanhimmat(
-    session: "Session",
-    ids: "Select",
-    poimintapvm: "Optional[datetime.date]",
-    loppupvm: "Optional[datetime.date]",
-):
-    """
-    Create one kohde for each RakennuksenVanhimmat osapuoli id provided by
-    the select query.
-    """
-    dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-        session, poimintapvm, loppupvm
-    )
-    # iterate vanhimmat to create kohde with the right name, client and building
-    vanhimmat_osapuolet_query = (
-        select(RakennuksenVanhimmat, Osapuoli)
-        .join(RakennuksenVanhimmat.osapuoli)
-        .filter(RakennuksenVanhimmat.osapuoli_id.in_(ids))
-    )
-    vanhimmat_osapuolet = session.execute(vanhimmat_osapuolet_query).all()
-    print(
-        f"Löydetty {len(vanhimmat_osapuolet)} vanhinta asukasta ilman voimassaolevaa kohdetta"
-    )
-    kohteet = []
-    for (vanhin, osapuoli) in vanhimmat_osapuolet:
-        # We have to check if we are interested in just this rakennus of vanhin
-        if vanhin.rakennus_id in dvv_rakennustiedot:
-            # The oldest inhabitant is the customer. Also save owners as backup
-            # contacts.
-            omistajat_query = (
-                select(RakennuksenOmistajat, Osapuoli)
-                .join(RakennuksenOmistajat.osapuoli)
-                .where(RakennuksenOmistajat.rakennus_id == vanhin.rakennus_id)
-            )
-            omistajat = {row[1] for row in session.execute(omistajat_query).all()}
-            # The correct kohde is found by checking the inhabitant in each half. In case
-            # of paritalo, we don't know which owner owned which part of the building.
-            # Therefore, we will have to create new kohteet for both halves when somebody
-            # sells their half.
-            kohde = update_or_create_kohde_from_buildings(
-                session,
-                dvv_rakennustiedot,
-                {dvv_rakennustiedot[vanhin.rakennus_id]},
-                {osapuoli},
-                omistajat,
-                poimintapvm,
-                loppupvm,
-            )
-            kohteet.append(kohde)
-    return kohteet
+    if needs_update:
+        session.flush()
+        
+    return found_kohde
 
 
 def get_or_create_kohteet_from_rakennustiedot(
@@ -1693,11 +1645,11 @@ def get_or_create_single_asunto_kohteet(
     single_asunto_kiinteistotunnus = (
         select(
             Rakennus.kiinteistotunnus,
-            sqlalchemyFunc.count(Rakennus.id),
+            func.count(Rakennus.id),
         )
         .filter(Rakennus.id.in_(rakennus_id_without_kohde))
         .group_by(Rakennus.kiinteistotunnus)
-        .having(sqlalchemyFunc.count(Rakennus.id) == 1)
+        .having(func.count(Rakennus.id) == 1)
     )
 
     return get_or_create_kohteet_from_kiinteistot(
@@ -1775,6 +1727,125 @@ def _should_have_perusmaksu_kohde(rakennus: "Rakennus"):
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.LUHTITALO],
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.KETJUTALO],
     )
+
+
+def batch_update_old_kohde_data(session, updates):
+    """
+    Optimoitu versio batch-päivityksistä joka säilyttää alkuperäisen logiikan.
+    Käyttää synchronize_session=False nopeuttamiseen missä turvallista.
+    """
+    if not updates:
+        return
+
+    # Kerää old_kohde_ids vain niistä updatesista missä old_kohde_id != new_kohde_id
+    updates_by_old_id = {}
+    for old_id, new_id, new_alkupvm in updates:
+        if old_id != new_id:  # Käsitellään vain jos oikeasti siirretään uudelle kohteelle
+            updates_by_old_id[old_id] = (new_id, new_alkupvm)
+    
+    if not updates_by_old_id:
+        return
+        
+    old_kohde_ids = list(updates_by_old_id.keys())
+    
+    # 1. Aseta vanhojen kohteiden loppupvm (päivä ennen uuden alkupvm)
+    loppupvm_values = {
+        old_id: (new_alkupvm - timedelta(days=1))
+        for old_id, (new_id, new_alkupvm) in updates_by_old_id.items()
+    }
+    
+    stmt = (
+        update(Kohde)
+        .where(Kohde.id.in_(old_kohde_ids))
+        .values({
+            Kohde.loppupvm: case(
+                whens=loppupvm_values,
+                value=Kohde.id
+            )
+        })
+        .execution_options(synchronize_session=False)
+    )
+    session.execute(stmt)
+
+    # 2. Siirrä sopimukset ja kuljetukset
+    for model in [Sopimus, Kuljetus]:
+        for old_id, (new_id, new_alkupvm) in updates_by_old_id.items():
+            stmt = (
+                update(model)
+                .where(
+                    model.kohde_id == old_id,
+                    model.loppupvm >= new_alkupvm
+                )
+                .values(kohde_id=new_id)
+                .execution_options(synchronize_session=False)
+            )
+            session.execute(stmt)
+
+    # 3. Päivitä viranomaispäätökset
+    # Hae ensin kaikki rakennukset vanhoilta kohteilta
+    rakennus_ids = session.execute(
+        select(KohteenRakennukset.rakennus_id)
+        .where(KohteenRakennukset.kohde_id.in_(old_kohde_ids))
+    ).scalars().all()
+
+    if rakennus_ids:
+        # Päivitä päätökset rakennuksittain
+        for old_id, (new_id, new_alkupvm) in updates_by_old_id.items():
+            kohteen_rakennus_ids = session.execute(
+                select(KohteenRakennukset.rakennus_id)
+                .where(KohteenRakennukset.kohde_id == old_id)
+            ).scalars().all()
+            
+            if kohteen_rakennus_ids:
+                loppupvm = new_alkupvm - timedelta(days=1)
+                stmt = (
+                    update(Viranomaispaatokset)
+                    .where(
+                        Viranomaispaatokset.rakennus_id.in_(kohteen_rakennus_ids),
+                        Viranomaispaatokset.alkupvm <= loppupvm
+                    )
+                    .values(loppupvm=loppupvm)
+                    .execution_options(synchronize_session=False)
+                )
+                session.execute(stmt)
+
+    # 4. Päivitä kompostorit
+    for old_id, (new_id, new_alkupvm) in updates_by_old_id.items():
+        # Hae kohteen kompostorit
+        kompostori_ids = session.execute(
+            select(KompostorinKohteet.kompostori_id)
+            .where(KompostorinKohteet.kohde_id == old_id)
+        ).scalars().all()
+        
+        if kompostori_ids:
+            loppupvm = new_alkupvm - timedelta(days=1)
+            
+            # Aseta loppupvm kompostoreille
+            stmt = (
+                update(Kompostori)
+                .where(
+                    Kompostori.id.in_(kompostori_ids),
+                    Kompostori.alkupvm <= loppupvm
+                )
+                .values(loppupvm=loppupvm)
+                .execution_options(synchronize_session=False)
+            )
+            session.execute(stmt)
+
+            # Siirrä jatkuvat kompostorit uudelle kohteelle
+            stmt = (
+                update(KompostorinKohteet)
+                .where(
+                    KompostorinKohteet.kompostori_id.in_(kompostori_ids),
+                    KompostorinKohteet.kohde_id == old_id,
+                    Kompostori.alkupvm > loppupvm
+                )
+                .values(kohde_id=new_id)
+                .execution_options(synchronize_session=False)
+            )
+            session.execute(stmt)
+    
+    session.commit()
 
 
 def create_perusmaksurekisteri_kohteet(

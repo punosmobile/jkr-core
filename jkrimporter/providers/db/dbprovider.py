@@ -282,11 +282,13 @@ def import_dvv_kohteet(
         perusmaksutiedosto: Polku perusmaksurekisterin Excel-tiedostoon
     """
     logger = logging.getLogger(__name__)
+    print("Aloitetaan DVV-kohteiden luonti...")
     logger.info("\nAloitetaan DVV-kohteiden luonti...")
 
     # Aseta loppupäivämäärä olemassa oleville kohteille ilman loppupäivää
     if poimintapvm is not None:
         previous_pvm = poimintapvm - timedelta(days=1)
+        print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         
         add_date_query = text(
@@ -294,6 +296,7 @@ def import_dvv_kohteet(
         )
         session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
         session.commit()
+        print("Loppupäivämäärät asetettu")
         logger.info("Loppupäivämäärät asetettu")
 
     # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)  
@@ -304,10 +307,14 @@ def import_dvv_kohteet(
                 session, perusmaksutiedosto, poimintapvm, loppupvm
             )
             session.commit()
+            print(
+                f"Luotu {len(perusmaksukohteet)} kohdetta perusmaksurekisterin perusteella"
+            )
             logger.info(
                 f"Luotu {len(perusmaksukohteet)} kohdetta perusmaksurekisterin perusteella"
             )
         except Exception as e:
+            print(f"Virhe perusmaksurekisterin käsittelyssä: {str(e)}")
             logger.error(f"Virhe perusmaksurekisterin käsittelyssä: {str(e)}")
             raise
     else:
@@ -335,6 +342,7 @@ def import_dvv_kohteet(
         len(single_asunto_kohteet) + 
         len(multiple_and_uninhabited_kohteet)
     )
+    print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
     logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 
 

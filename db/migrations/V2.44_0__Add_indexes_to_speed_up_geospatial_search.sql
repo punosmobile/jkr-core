@@ -10,6 +10,9 @@ ON jkr.rakennuksen_omistajat (osapuoli_id);
 CREATE INDEX IF NOT EXISTS idx_rakennus_osoite 
 ON jkr.osoite (rakennus_id, katu_id, osoitenumero);
 
+CREATE INDEX idx_kohteen_rakennukset_rakennus_id ON jkr.kohteen_rakennukset(rakennus_id);
+CREATE INDEX idx_kohteen_osapuolet_osapuoli_rooli ON jkr.kohteen_osapuolet(osapuoli_id, osapuolenrooli_id);
+
 -- Käytetään oikeaa sarakenimeä rakennuksenkayttotarkoitus_koodi
 CREATE INDEX IF NOT EXISTS idx_rakennuksenkayttotarkoitus 
 ON jkr.rakennus (rakennuksenkayttotarkoitus_koodi);
