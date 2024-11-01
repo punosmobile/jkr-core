@@ -933,6 +933,7 @@ def add_auxiliary_buildings_materialized(
         apurakennukset
     """
     logger = logging.getLogger(__name__)
+    print(f"Etsitään apurakennuksia {len(building_sets)} rakennusryhmälle...")
     logger.info(f"\nEtsitään apurakennuksia {len(building_sets)} rakennusryhmälle...")
     
     start_time = dt.now()
@@ -1038,6 +1039,10 @@ def add_auxiliary_buildings_materialized(
         updated_sets.append(updated_set)
 
     elapsed = dt.now() - start_time
+    print(
+        f"Lisätty {aux_added} apurakennusta {len(building_sets)} rakennusryhmään, "
+        f"aikaa kului {elapsed.total_seconds():.2f}s"
+    )
     logger.info(
         f"Lisätty {aux_added} apurakennusta {len(building_sets)} rakennusryhmään, "
         f"aikaa kului {elapsed.total_seconds():.2f}s"
@@ -1432,6 +1437,10 @@ def update_or_create_kohde_from_buildings(
     omistaja_ids = {osapuoli.id for osapuoli in omistajat}
     
     logger = logging.getLogger(__name__)
+    print(
+        f"Etsitään kohdetta: rakennukset={rakennus_ids}, "
+        f"asukkaat={asukas_ids}, omistajat={omistaja_ids}"
+    )
     logger.debug(
         f"Etsitään kohdetta: rakennukset={rakennus_ids}, "
         f"asukkaat={asukas_ids}, omistajat={omistaja_ids}"
@@ -1460,6 +1469,7 @@ def update_or_create_kohde_from_buildings(
 
     # Jos kohdetta ei löydy, luo uusi
     if not kohteet:
+        print("Kohdetta ei löytynyt, luodaan uusi")
         logger.debug("Kohdetta ei löytynyt, luodaan uusi")
         
         # Tarkista mahdollinen vanha kohde
@@ -1542,6 +1552,7 @@ def get_or_create_kohteet_from_rakennustiedot(
         Lista luoduista kohteista
     """
     logger = logging.getLogger(__name__)
+    print("Luodaan kohteet rakennusryhmille...")
     logger.info("\nLuodaan kohteet rakennusryhmille...")
 
     # Lisää apurakennukset kuhunkin rakennusryhmään
