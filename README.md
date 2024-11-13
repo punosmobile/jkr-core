@@ -28,7 +28,7 @@ Now import script can be started
 The development environment uses [Poetry](https://python-poetry.org/). Install it before anything.
 
 ```bash
-$ git clone https://github.com/punosmobile/jkr-core.git
+$ git clone https://github.com/GispoCoding/jkr-core.git
 $ cd jkr-core
 
 $ poetry install
@@ -49,6 +49,17 @@ $ nano .env
 ```bash
 docker-compose --env-file "${env:APPDATA}/jkr/.env" up db -d
 docker-compose --env-file "${env:APPDATA}/jkr/.env" up flyway
+```
+
+Optionally Scripts can be runned in container.
+First build image
+```bash
+docker build -t jkr-core-runner:latest -f Dockerfile .
+```
+
+Start container
+```bash
+docker compose --env-file ".env" -f dev.docker-compose.yml run jkr-core-runner
 ```
 
 ## Handling database model changes

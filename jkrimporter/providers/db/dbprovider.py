@@ -292,7 +292,11 @@ def import_dvv_kohteet(
         logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         
         add_date_query = text(
-            "UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL"
+            """
+            UPDATE jkr.kohde 
+            SET loppupvm = :loppu_pvm 
+            WHERE loppupvm IS NULL OR loppupvm > :loppu_pvm
+            """
         )
         session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
         session.commit()
