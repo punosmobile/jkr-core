@@ -46,6 +46,7 @@ env
 # dotenv
 .env*
 !.env.template
+.testenv
 
 # ide
 /.idea/
