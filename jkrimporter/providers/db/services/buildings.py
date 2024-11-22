@@ -209,22 +209,14 @@ def find_buildings_for_kohde(
             else:
                 counts["asoy - väärä omistaja"] += 1
 
-    # 3. Tarkista osoitteen perusteella
-    print("trying to find by address")
+    # 3. Tarkista osoitteen perusteella 
     rakennukset = _find_by_address(session, asiakas.haltija)
     if rakennukset:
-        print("found some")
-        print([rakennus.id for rakennus in rakennukset])
-        counts["osoitteella löytyi"] += 1
         omistajat = set()
         for rakennus in rakennukset:
             omistajat.add(
-                frozenset(omistaja.osapuoli_id for omistaja in rakennus.omistajat)
+                frozenset(omistaja.osapuoli_id for omistaja in rakennus.rakennuksen_omistajat)
             )
-        print("has omistajat")
-        print(omistajat)
-        omistajat = set(filter(lambda osapuolet: osapuolet, omistajat))
-        print(omistajat)
         
         # Tarkista rakennusten etäisyys ja pinta-ala
         if len(rakennukset) > 1:
@@ -234,8 +226,7 @@ def find_buildings_for_kohde(
                 return rakennukset
         else:
             return rakennukset
-    
-    print("couldnt find")
+
     return []
 
 
