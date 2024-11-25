@@ -8,14 +8,11 @@ export USER=$JKR_USER
 export PGPASSWORD=$JKR_PASSWORD
 export APPDATA=/usr/local/bin/dotenv
 
-<<<<<<< HEAD
 
 # Tarkista että tiedontuottaja on olemassa
 jkr tiedontuottaja list | grep -q "LSJ" || \
 jkr tiedontuottaja add LSJ "Lahden Seudun Jätehuolto"
 
-=======
->>>>>>> bf4faedd67e7bee30942f77641f9e6a7e3ed417f
 # (Vaihe 1) Taajamarajaukset
 sh import_taajama.sh 2020-01-01
 
@@ -40,14 +37,6 @@ ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=$HOST port=$PORT dbname=$DB_
 echo "Muunnetaan jkr-muotoon..."
 psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date="20220128" -f import_dvv.sql
 
-<<<<<<< HEAD
-=======
-
-# (Vaihe 3) Luodaan kohteet perusmaksuaineistosta
-echo "Luetaan Perusmaksuaineisto..."
-jkr create_dvv_kohteet 28.1.2022 ../data/Perusmaksuaineisto.xlsx
-
->>>>>>> bf4faedd67e7bee30942f77641f9e6a7e3ed417f
 # (Vaihe 4) Päivitetään huoneistomäärä
 echo "Luetaan huoneistomäärät..."
 ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" -nln huoneistomaara ../data/Huoneistomäärät_2022.xlsx "Huoneistolkm"
@@ -61,14 +50,11 @@ psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update_huoneisto
 echo "Tuodaan Hapa-aineisto..."
 export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2022.csv'
 
-<<<<<<< HEAD
 # (Vaihe 3) Luodaan kohteet perusmaksuaineistosta
 echo "Luetaan Perusmaksuaineisto..."
 jkr create_dvv_kohteet 28.1.2022 ../data/Perusmaksuaineisto.xlsx
 
 
-=======
->>>>>>> bf4faedd67e7bee30942f77641f9e6a7e3ed417f
 # Tarkista että CSV-tiedosto on olemassa
 if [ ! -f "$CSV_FILE_PATH" ]; then
     echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy"
@@ -76,11 +62,7 @@ if [ ! -f "$CSV_FILE_PATH" ]; then
 fi
 
 # Tuo data tietokantaan
-<<<<<<< HEAD
 psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c "\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');"
-=======
-psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c "\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}.utf8' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');"
->>>>>>> bf4faedd67e7bee30942f77641f9e6a7e3ed417f
 
 # Tarkista tuonnin tulos
 if [ $? -eq 0 ]; then
