@@ -43,7 +43,7 @@ Install docker and docker-compose (version >= 1.28.0)
 Copy .env.template to %APPDATA%/jkr/.env and change parameters
 
 ```bash
-$ cp .env.template .env
+$ cp .env.template .env.local
 
 # Edit the .env file
 $ nano .env
@@ -72,6 +72,42 @@ Start script-runner container
 ```bash
  docker-compose -f dev.docker-compose.yml --env-file ".env.local" run jkr-core-runner
 ```
+
+Scripts are working when data folder has structure:
+data
+├───DVV
+├───Ilmoitus-\_ja_päätöstiedot
+│ ├───Päätös-\_ja_ilmoitustiedot_2022
+│ │ ├───Q1
+│ │ ├───Q2
+│ │ ├───Q3
+│ │ └───Q4
+│ ├───Päätös-\_ja_ilmoitustiedot_2023
+│ │ ├───Q1
+│ │ ├───Q2
+│ │ ├───Q3
+│ │ └───Q4
+│ └───Päätös-\_ja_ilmoitustiedot_2024
+│ ├───Q1
+│ ├───Q2
+│ └───Q3
+├───Kuljetustiedot
+│ ├───Kuljetustiedot_2022
+│ │ ├───Q1
+│ │ ├───Q2
+│ │ ├───Q3
+│ │ └───Q4
+│ ├───Kuljetustiedot_2023
+│ │ ├───Q1
+│ │ ├───Q2
+│ │ ├───Q3
+│ │ └───Q4
+│ └───Kuljetustiedot_2024
+│ ├───Q1
+│ ├───Q2
+│ └───Q3
+├───posti
+└───Taajama-alueet_karttarajaukset
 
 ## Handling database model changes
 
