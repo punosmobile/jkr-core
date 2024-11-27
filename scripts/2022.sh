@@ -197,4 +197,14 @@ log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-
         "logs/tietovirrat/2022_$quarter/ilmoitukset.log" \
         "Q4 ilmoitusten tuonti"
 
-log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2022/$quarter/Komposto
+log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2022/$quarter/Kompostoinnin_lopettaminen_2022$quarter.xlsx" \
+        "logs/tietovirrat/2022_$quarter/lopetusilmoitukset.log" \
+        "Q4 lopetusilmoitusten tuonti"
+
+log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.10.2022 31.12.2022" \
+        "logs/tietovirrat/2022_$quarter/kuljetukset.log" \
+        "Q4 kuljetustietojen tuonti"
+
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2022-12-31');\"" \
+        "logs/tietovirrat/2022_$quarter/velvoitteet.log" \
+        "Q4 velvoitteiden tallennus"

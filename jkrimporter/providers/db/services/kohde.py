@@ -2250,24 +2250,12 @@ def get_or_create_single_asunto_kohteet(
 
 def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=None) -> KohdeTyyppi:
     """
-    Määrittää kohteen tyypin rakennuksen tietojen perusteella huomioiden 
-    erilliskeräysalueet ja ensisijaisuussäännöt.
-    
-    Args:
-        session: Tietokantaistunto
-        rakennus: Rakennus jonka perusteella tyyppi määritetään
-        keraysalueet: Valinnainen dictionary jossa rakennuksen aluetiedot
-            {
-                'biojate': bool,  # Onko biojätteen erilliskeräysalueella  
-                'hyotyjate': bool # Onko hyötyjätteiden erilliskeräysalueella
-            }
-    Returns:
-        KohdeTyyppi: Kohteen tyyppi määrittelyn mukaisesti
+    Määrittää kohteen tyypin rakennuksen tietojen perusteella huomioiden erilliskeräysalueet 
+    ja ensisijaisuussäännöt.
     """
     # Tarkista onko rakennus hapa-kohde
     hapa_query = select(HapaAineisto).where(
         HapaAineisto.rakennus_id_tunnus == rakennus.prt,
-        # Ei käytetä rakennuksen alkupvm:ää koska sitä ei ole
         HapaAineisto.voimassa.overlaps(
             DateRange(datetime.date.today(), datetime.date.today())
         )
@@ -2291,14 +2279,15 @@ def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=Non
             is_asuinkiinteisto = True
             
     # Jos ei 2018 luokkaa, tarkista vanha luokitus        
-    elif (rakennus.rakennuksenkayttotarkoitus and
-          '011' <= rakennus.rakennuksenkayttotarkoitus <= '041'):
-        is_asuinkiinteisto = True
+    elif rakennus.rakennuksenkayttotarkoitus_koodi:  # Muutettu tähän koodi-kenttä
+        koodi = rakennus.rakennuksenkayttotarkoitus_koodi
+        if '011' <= koodi <= '041':  # Verrataan koodeja
+            is_asuinkiinteisto = True
 
     # Tarkista muut asuinkiinteistön kriteerit    
     elif (rakennus.huoneistomaara > 0 or 
           hasattr(rakennus, 'asukkaat') and bool(rakennus.asukkaat) or
-          rakennus.rakennuksenkayttotarkoitus == '1910'):  # Sauna
+          rakennus.rakennuksenkayttotarkoitus == codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA]):
         is_asuinkiinteisto = True
         
     if is_asuinkiinteisto:
