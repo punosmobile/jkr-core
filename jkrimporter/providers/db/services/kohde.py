@@ -2252,6 +2252,17 @@ def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=Non
     """
     Määrittää kohteen tyypin rakennuksen tietojen perusteella huomioiden erilliskeräysalueet 
     ja ensisijaisuussäännöt.
+    
+    Args:
+        session: Tietokantaistunto
+        rakennus: Rakennus jonka perusteella tyyppi määritetään
+        keraysalueet: Valinnainen dictionary keräysaluetiedoilla
+            {
+                'biojate': bool, # Onko biojätteen erilliskeräysalueella 
+                'hyotyjate': bool # Onko hyötyjätteiden erilliskeräysalueella
+            }
+    Returns:
+        KohdeTyyppi: Määritetty kohdetyyppi
     """
     try:
         # Tarkista onko rakennus hapa-kohde
@@ -2264,29 +2275,22 @@ def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=Non
         
         hapa = session.execute(hapa_query).scalar_one_or_none()
         
-        if hapa:
-            if hapa.kohdetyyppi and hapa.kohdetyyppi.lower() == 'biohapa':
-                if not keraysalueet or not keraysalueet.get('biojate'):
-                    return KohdeTyyppi.BIOHAPA
-            else:
-                return KohdeTyyppi.HAPA
-
         # Tarkista onko asuinkiinteistö
         is_asuinkiinteisto = False
         
-        # Tarkista Rakennusluokka 2018
+        # 1. Tarkista Rakennusluokka 2018
         if rakennus.rakennusluokka_2018:
             if (rakennus.rakennusluokka_2018 >= '0110' and 
                 rakennus.rakennusluokka_2018 <= '0211'):
                 is_asuinkiinteisto = True
                 
-        # Jos ei 2018 luokkaa, tarkista vanha luokitus
+        # 2. Jos ei 2018 luokkaa, tarkista vanha luokitus
         elif rakennus.rakennuksenkayttotarkoitus_koodi:
             koodi = str(rakennus.rakennuksenkayttotarkoitus_koodi)
             if koodi.isdigit() and '011' <= koodi <= '041':
                 is_asuinkiinteisto = True
                 
-        # Tarkista muut asuinkiinteistön kriteerit
+        # 3. Tarkista muut asuinkiinteistön kriteerit
         elif ((hasattr(rakennus, 'huoneistomaara') and rakennus.huoneistomaara > 0) or
               (hasattr(rakennus, 'asukkaat') and bool(rakennus.asukkaat)) or
               (hasattr(rakennus, 'rakennuksenkayttotarkoitus') and
@@ -2294,18 +2298,29 @@ def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=Non
                codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA])):
             is_asuinkiinteisto = True
             
+        # Sovella ensisijaisuussääntöjä
         if is_asuinkiinteisto:
-            if (keraysalueet and 
-                (keraysalueet.get('biojate') or
-                 (keraysalueet.get('hyotyjate') and 
-                  hasattr(rakennus, 'huoneistomaara') and
-                  rakennus.huoneistomaara >= 5))):
+            if keraysalueet and (
+                keraysalueet.get('biojate') or
+                (keraysalueet.get('hyotyjate') and 
+                 hasattr(rakennus, 'huoneistomaara') and
+                 rakennus.huoneistomaara >= 5)
+            ):
                 return KohdeTyyppi.ASUINKIINTEISTO
                 
+            # Jos biojätealueen ulkopuolella ja on biohapa
             if hapa and hapa.kohdetyyppi and hapa.kohdetyyppi.lower() == 'biohapa':
-                return KohdeTyyppi.BIOHAPA
-                
+                if not (keraysalueet and keraysalueet.get('biojate')):
+                    return KohdeTyyppi.BIOHAPA
+                    
+            # Muuten säilytetään asuinkiinteistönä
             return KohdeTyyppi.ASUINKIINTEISTO
+            
+        # Jos ei ole asuinkiinteistö, HAPA-tyypit mahdollisia
+        if hapa and hapa.kohdetyyppi:
+            if hapa.kohdetyyppi.lower() == 'biohapa':
+                return KohdeTyyppi.BIOHAPA
+            return KohdeTyyppi.HAPA
             
         return KohdeTyyppi.MUU
 
@@ -2313,6 +2328,7 @@ def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=Non
         logger = logging.getLogger(__name__)
         logger.error(f"Virhe kohdetyypin määrityksessä rakennukselle {rakennus.prt}: {str(e)}")
         return KohdeTyyppi.MUU
+
 
 def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> Kohde:
     """
