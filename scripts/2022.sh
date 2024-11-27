@@ -11,6 +11,7 @@ mkdir -p logs/tietovirrat/2022_Q2
 mkdir -p logs/tietovirrat/2022_Q3
 mkdir -p logs/tietovirrat/2022_Q4
 
+find ../data -type f -iname "kohdentumat*" -exec rm {} \;
 
 # Arkistoi vanhat lokit jos niitä on
 if [ -n "$(ls -A logs 2>/dev/null)" ]; then
@@ -33,7 +34,8 @@ log_exec() {
     local cmd="$1"
     local log_file="$2"
     local desc="$3"
-    
+    echo "=== $desc ==="
+    echo "Aloitusaika: $(date)"
     echo "=== $desc ===" > "$log_file"
     echo "Suoritetaan: $cmd" >> "$log_file"
     echo "Aloitusaika: $(date)" >> "$log_file"
@@ -44,6 +46,9 @@ log_exec() {
     echo "===================" >> "$log_file"
     echo "Lopetusaika: $(date)" >> "$log_file"
     echo "Suoritus valmis" >> "$log_file"
+    echo "Lopetusaika: $(date)"
+    echo "Suoritus valmis"
+    echo "==================="
 }
 
 echo "Aloitetaan tietojen tuonti..."

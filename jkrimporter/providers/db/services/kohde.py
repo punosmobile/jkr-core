@@ -2253,55 +2253,109 @@ def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=Non
     Määrittää kohteen tyypin rakennuksen tietojen perusteella huomioiden erilliskeräysalueet 
     ja ensisijaisuussäännöt.
     """
-    # Tarkista onko rakennus hapa-kohde
-    hapa_query = select(HapaAineisto).where(
-        HapaAineisto.rakennus_id_tunnus == rakennus.prt,
-        HapaAineisto.voimassa.overlaps(
-            DateRange(datetime.date.today(), datetime.date.today())
+    try:
+        # Tarkista onko rakennus hapa-kohde
+        hapa_query = select(HapaAineisto).where(
+            HapaAineisto.rakennus_id_tunnus == rakennus.prt,
+            HapaAineisto.voimassa.overlaps(
+                DateRange(datetime.date.today(), datetime.date.today())
+            )
         )
-    )
-    
-    hapa = session.execute(hapa_query).scalar_one_or_none()
-    
-    if hapa:
-        if hapa.kohdetyyppi.lower() == 'biohapa':
-            if not keraysalueet or not keraysalueet.get('biojate'):
-                return KohdeTyyppi.BIOHAPA
-        else:
-            return KohdeTyyppi.HAPA
+        
+        hapa = session.execute(hapa_query).scalar_one_or_none()
+        
+        if hapa:
+            if hapa.kohdetyyppi and hapa.kohdetyyppi.lower() == 'biohapa':
+                if not keraysalueet or not keraysalueet.get('biojate'):
+                    return KohdeTyyppi.BIOHAPA
+            else:
+                return KohdeTyyppi.HAPA
 
-    # Tarkista onko asuinkiinteistö
-    is_asuinkiinteisto = False
-    
-    # Tarkista Rakennusluokka 2018
-    if rakennus.rakennusluokka_2018:
-        if '0110' <= rakennus.rakennusluokka_2018 <= '0211':
+        # Tarkista onko asuinkiinteistö
+        is_asuinkiinteisto = False
+        
+        # Tarkista Rakennusluokka 2018
+        if rakennus.rakennusluokka_2018:
+            if (rakennus.rakennusluokka_2018 >= '0110' and 
+                rakennus.rakennusluokka_2018 <= '0211'):
+                is_asuinkiinteisto = True
+                
+        # Jos ei 2018 luokkaa, tarkista vanha luokitus
+        elif rakennus.rakennuksenkayttotarkoitus_koodi:
+            koodi = str(rakennus.rakennuksenkayttotarkoitus_koodi)
+            if koodi.isdigit() and '011' <= koodi <= '041':
+                is_asuinkiinteisto = True
+                
+        # Tarkista muut asuinkiinteistön kriteerit
+        elif ((hasattr(rakennus, 'huoneistomaara') and rakennus.huoneistomaara > 0) or
+              (hasattr(rakennus, 'asukkaat') and bool(rakennus.asukkaat)) or
+              (hasattr(rakennus, 'rakennuksenkayttotarkoitus') and
+               rakennus.rakennuksenkayttotarkoitus == 
+               codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA])):
             is_asuinkiinteisto = True
             
-    # Jos ei 2018 luokkaa, tarkista vanha luokitus        
-    elif rakennus.rakennuksenkayttotarkoitus_koodi:  # Muutettu tähän koodi-kenttä
-        koodi = rakennus.rakennuksenkayttotarkoitus_koodi
-        if '011' <= koodi <= '041':  # Verrataan koodeja
-            is_asuinkiinteisto = True
-
-    # Tarkista muut asuinkiinteistön kriteerit    
-    elif (rakennus.huoneistomaara > 0 or 
-          hasattr(rakennus, 'asukkaat') and bool(rakennus.asukkaat) or
-          rakennus.rakennuksenkayttotarkoitus == codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA]):
-        is_asuinkiinteisto = True
-        
-    if is_asuinkiinteisto:
-        if (keraysalueet and 
-            (keraysalueet.get('biojate') or
-             (keraysalueet.get('hyotyjate') and rakennus.huoneistomaara >= 5))):
+        if is_asuinkiinteisto:
+            if (keraysalueet and 
+                (keraysalueet.get('biojate') or
+                 (keraysalueet.get('hyotyjate') and 
+                  hasattr(rakennus, 'huoneistomaara') and
+                  rakennus.huoneistomaara >= 5))):
+                return KohdeTyyppi.ASUINKIINTEISTO
+                
+            if hapa and hapa.kohdetyyppi and hapa.kohdetyyppi.lower() == 'biohapa':
+                return KohdeTyyppi.BIOHAPA
+                
             return KohdeTyyppi.ASUINKIINTEISTO
             
-        if hapa and hapa.kohdetyyppi.lower() == 'biohapa':
-            return KohdeTyyppi.BIOHAPA
-            
-        return KohdeTyyppi.ASUINKIINTEISTO
-        
-    return KohdeTyyppi.MUU
+        return KohdeTyyppi.MUU
+
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Virhe kohdetyypin määrityksessä rakennukselle {rakennus.prt}: {str(e)}")
+        return KohdeTyyppi.MUU
+
+def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> Kohde:
+    """
+    Luo uusi kohde asiakkaan tietojen perusteella.
+    """
+    try:
+        if is_aluekerays(asiakas):
+            kohdetyyppi = KohdeTyyppi.ALUEKERAYS
+        else:
+            # Tarkista rakennusten perusteella
+            kohdetyyppi = KohdeTyyppi.MUU
+            try:
+                for prt in asiakas.rakennukset:
+                    rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
+                    if rakennus:
+                        building_type = determine_kohdetyyppi(session, rakennus, keraysalueet)
+                        if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA):
+                            kohdetyyppi = building_type
+                            break
+            except Exception as e:
+                logger = logging.getLogger(__name__)
+                logger.error(f"Virhe rakennusten tyypin määrityksessä: {str(e)}")
+                # Jatketaan oletustyypillä MUU
+
+        kohde = Kohde(
+            nimi=form_display_name(asiakas.haltija),
+            kohdetyyppi=codes.kohdetyypit[kohdetyyppi],
+            alkupvm=asiakas.voimassa.lower,
+            loppupvm=asiakas.voimassa.upper,
+        )
+
+        return kohde
+
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Virhe kohteen luonnissa: {str(e)}")
+        # Luodaan minimitiedoilla oleva kohde ettei prosessi kaadu
+        return Kohde(
+            nimi="Tuntematon",
+            kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.MUU],
+            alkupvm=asiakas.voimassa.lower,
+            loppupvm=asiakas.voimassa.upper
+        )
 
 
 def get_or_create_multiple_and_uninhabited_kohteet(
