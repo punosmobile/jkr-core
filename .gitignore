@@ -62,6 +62,7 @@ wb-xlate*
 # jkr
 /data
 /dump
+/scripts/logs
 muistiot/
 pjh-virheelliset-osoitteet.csv
 *.qgs~
