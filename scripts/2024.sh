@@ -21,12 +21,28 @@ if [ -n "$(ls -A logs 2>/dev/null)" ]; then
     rm -f logs/*/*.log logs/*.log
 fi
 
+# Aseta ympäristömuuttujat
 export HOST=$JKR_DB_HOST
 export PORT=$JKR_DB_PORT
 export DB_NAME=$JKR_DB
 export USER=$JKR_USER
 export PGPASSWORD=$JKR_PASSWORD
 export APPDATA=/usr/local/bin/dotenv
+export HOOK_URL=$HOOK_URL
+
+# Funktio edistymistä varten
+status() {
+    local message="$1"
+    
+    # Tarkista onko HOOK_URL määritelty
+    if [ -n "${HOOK_URL}" ]; then
+        echo "Lähetetään webhook: $message"
+        curl -s -X POST \
+             -H "Content-Type: application/json" \
+             -d "{\"message\": \"${message}\"}" \
+             "${HOOK_URL}" || echo "Webhook lähetys epäonnistui"
+    fi
+}
 
 # Funktio lokitusta varten
 log_exec() {
@@ -34,6 +50,7 @@ log_exec() {
     local log_file="$2"
     local desc="$3"
     echo "=== $desc ==="
+    status "=== $desc - Aloitettu ==="
     echo "Aloitusaika: $(date)"
     echo "=== $desc ===" > "$log_file"
     echo "Suoritetaan: $cmd" >> "$log_file"
@@ -48,6 +65,7 @@ log_exec() {
     echo "Lopetusaika: $(date)"
     echo "Suoritus valmis"
     echo "==================="
+    status "=== $desc - Lopetettu ==="
 }
 
 echo "Tuodaan DVV 2024 aineisto..."
@@ -121,7 +139,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2024_$quarter/lopetusilmoitukset.log" \
         "Q1 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.1.2024 31.3.2024" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.1.2024 31.3.2024" \
         "logs/tietovirrat/2024_$quarter/kuljetukset.log" \
         "Q1 kuljetustietojen tuonti"
 
@@ -143,7 +161,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2024_$quarter/lopetusilmoitukset.log" \
         "Q2 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.4.2024 30.6.2024" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.4.2024 30.6.2024" \
         "logs/tietovirrat/2024_$quarter/kuljetukset.log" \
         "Q2 kuljetustietojen tuonti"
 
@@ -165,7 +183,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2024_$quarter/lopetusilmoitukset.log" \
         "Q3 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.7.2024 30.9.2024" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.7.2024 30.9.2024" \
         "logs/tietovirrat/2024_$quarter/kuljetukset.log" \
         "Q3 kuljetustietojen tuonti"
 
@@ -187,7 +205,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2024_$quarter/lopetusilmoitukset.log" \
         "Q4 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.10.2024 31.12.2024" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.10.2024 31.12.2024" \
         "logs/tietovirrat/2024_$quarter/kuljetukset.log" \
         "Q4 kuljetustietojen tuonti"
 

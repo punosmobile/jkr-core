@@ -98,6 +98,7 @@ services:
       - JKR_PASSWORD=${JKR_PASSWORD}
       - JKR_DB_PORT=5432
       - APPDATA=/usr/local/bin/dotenv
+      - HOOK_URL=${HOOK_URL}
     networks:
       - default
     command: bash -c "cd /app && poetry install && cd /app/scripts && exec /bin/bash"

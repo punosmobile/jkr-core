@@ -28,6 +28,21 @@ export DB_NAME=$JKR_DB
 export USER=$JKR_USER
 export PGPASSWORD=$JKR_PASSWORD
 export APPDATA=/usr/local/bin/dotenv
+export HOOK_URL=$HOOK_URL
+
+# Funktio edistymistä varten
+status() {
+    local message="$1"
+    
+    # Tarkista onko HOOK_URL määritelty
+    if [ -n "${HOOK_URL}" ]; then
+        echo "Lähetetään webhook: $message"
+        curl -s -X POST \
+             -H "Content-Type: application/json" \
+             -d "{\"message\": \"${message}\"}" \
+             "${HOOK_URL}" || echo "Webhook lähetys epäonnistui"
+    fi
+}
 
 # Funktio lokitusta varten
 log_exec() {
@@ -35,6 +50,7 @@ log_exec() {
     local log_file="$2"
     local desc="$3"
     echo "=== $desc ==="
+    status "=== $desc - Aloitettu ==="
     echo "Aloitusaika: $(date)"
     echo "=== $desc ===" > "$log_file"
     echo "Suoritetaan: $cmd" >> "$log_file"
@@ -49,6 +65,7 @@ log_exec() {
     echo "Lopetusaika: $(date)"
     echo "Suoritus valmis"
     echo "==================="
+    status "=== $desc - Lopetettu ==="
 }
 
 echo "Aloitetaan tietojen tuonti..."
@@ -139,7 +156,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2022_$quarter/lopetusilmoitukset.log" \
         "Q1 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.1.2022 31.3.2022" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.1.2022 31.3.2022" \
         "logs/tietovirrat/2022_$quarter/kuljetukset.log" \
         "Q1 kuljetustietojen tuonti"
 
@@ -161,7 +178,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2022_$quarter/lopetusilmoitukset.log" \
         "Q2 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.4.2022 30.6.2022" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.4.2022 30.6.2022" \
         "logs/tietovirrat/2022_$quarter/kuljetukset.log" \
         "Q2 kuljetustietojen tuonti"
 
@@ -183,7 +200,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2022_$quarter/lopetusilmoitukset.log" \
         "Q3 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.7.2022 30.9.2022" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.7.2022 30.9.2022" \
         "logs/tietovirrat/2022_$quarter/kuljetukset.log" \
         "Q3 kuljetustietojen tuonti"
 
@@ -205,7 +222,7 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
         "logs/tietovirrat/2022_$quarter/lopetusilmoitukset.log" \
         "Q4 lopetusilmoitusten tuonti"
 
-log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.10.2022 31.12.2022" \
+log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.10.2022 31.12.2022" \
         "logs/tietovirrat/2022_$quarter/kuljetukset.log" \
         "Q4 kuljetustietojen tuonti"
 
