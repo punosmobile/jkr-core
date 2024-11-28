@@ -89,7 +89,6 @@ export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2024.csv'
 
 if [ ! -f "$CSV_FILE_PATH" ]; then
     echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
-    exit 1
 fi
 
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
@@ -193,4 +192,5 @@ log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2024/$qua
         "Q4 kuljetustietojen tuonti"
 
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2024-12-31');\"" \
-        "logs/t
+        "logs/tietovirrat/2022_$quarter/velvoitteet.log" \
+        "Q4 velvoitteiden tallennus"

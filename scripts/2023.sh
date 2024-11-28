@@ -193,4 +193,5 @@ log_exec "jkr import --luo_uudet ../data/Kuljetustiedot/Kuljetustiedot_2023/$qua
         "Q4 kuljetustietojen tuonti"
 
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2023-12-31');\"" \
-        "logs/t
+        "logs/tietovirrat/2022_$quarter/velvoitteet.log" \
+        "Q4 velvoitteiden tallennus"
