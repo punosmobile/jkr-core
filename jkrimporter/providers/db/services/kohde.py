@@ -251,8 +251,9 @@ def find_kohteet_by_prt(
         print(f"Kompostoija: {kompostoija_info}")
         query = (
             select(Kohde.id, Osapuoli.nimi)
-            .join(Kohde.rakennus_collection)
-            .join(KohteenOsapuolet, isouter=True)
+            .join(KohteenRakennukset)  # Change from rakennus_collection
+            .join(Rakennus)  # Explicit join
+            .join(KohteenOsapuolet, isouter=True) 
             .join(Osapuoli, isouter=True)
             .join(Osoite, isouter=True)
             .where(
@@ -372,195 +373,216 @@ def find_kohde_by_address(
 
 
 def _find_kohde_by_ilmoitustiedot(
-        session: "Session",
-        filter,
-        ilmoitus: "LopetusIlmoitus"
-) -> "Union[Kohde, None]":
-    print(f"LopetusIlmoitus.nimi: {ilmoitus.nimi}")
+    session: "Session",
+    filter,  # SQLAlchemy filter condition rakennuksille
+    ilmoitus: "LopetusIlmoitus"
+) -> "Optional[Kohde]":
+    """
+    Etsii kohteen lopetusilmoituksen perusteella. Tarkistaa rakennukset sekä 
+    vastuuhenkilön tiedot luotettavan kohdennuksen varmistamiseksi.
+
+    Toimintaperiaate:
+    1. Hakee kohteet annetuilla rakennuksilla (PRT)
+    2. Tarkistaa voimassaoloajan (lopetusilmoituksen päivämäärä)
+    3. Validoi osapuolitiedot vastuuhenkilön kanssa
+
+    Args:
+        session: Tietokantaistunto
+        filter: SQLAlchemy filter condition rakennuksille
+        ilmoitus: LopetusIlmoitus-objekti
+
+    Returns:
+        Kohde jos luotettava kohdennus löytyy, muuten None
+
+    Huomioita:
+        - Lopetusilmoitus koskee aina tiettyä päivämäärää
+        - Kohteen tulee olla voimassa lopetusilmoituksen päivänä
+        - Osapuolitietojen täytyy täsmätä luotettavasti
+    """
+    print(f"Etsitään kohdetta lopetusilmoitukselle: {ilmoitus.nimi}")
+    
+    # Hae kohteet joilla on annetut rakennukset
     query = (
         select(Kohde.id, Osapuoli.nimi)
-        .join(Kohde.rakennus_collection)
-        .join(KohteenOsapuolet, isouter=True)
+        .join(KohteenRakennukset)
+        .join(Rakennus)
+        .join(KohteenOsapuolet, isouter=True)  # Left join osapuoliin
         .join(Osapuoli, isouter=True)
-        .join(Osoite, isouter=True)
         .where(
-            Kohde.voimassaolo.overlaps(
-                DateRange(
-                    ilmoitus.Vastausaika
-                )
-            ),
+            # Rakennukset täsmäävät (PRT)
             filter,
+            # Voimassaoloaika täsmää lopetusilmoituksen päivämäärään
+            Kohde.voimassaolo.overlaps(
+                DateRange(ilmoitus.Vastausaika)
+            )
         )
         .distinct()
     )
-    print(query)
-
+    
     try:
         kohteet = session.execute(query).all()
     except NoResultFound:
+        print("Ei löytynyt kohdetta annetuilla rakennuksilla")
         return None
-    print(kohteet)
+    except Exception as e:
+        print(f"Virhe kohteen haussa: {str(e)}")
+        return None
 
+    print(f"Löytyi {len(kohteet)} kohde-ehdokasta")
+
+    # Jos kohteita löytyi, ryhmittele osapuolet kohteittain
     names_by_kohde_id = defaultdict(set)
-    for kohde_id, db_osapuoli_name in kohteet:
-        names_by_kohde_id[kohde_id].add(db_osapuoli_name)
-    if len(names_by_kohde_id) > 1:
-        print(
-            "Found multiple kohteet with the same address. Checking owners/inhabitants..."
-        )
+    for kohde_id, osapuoli_nimi in kohteet:
+        names_by_kohde_id[kohde_id].add(osapuoli_nimi)
+
+    if len(names_by_kohde_id) > 0:
+        # Standardoi vastuuhenkilön nimi
         vastuuhenkilo_nimi = clean_asoy_name(ilmoitus.nimi)
 
-        for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
-            for db_osapuoli_name in db_osapuoli_names:
-                if db_osapuoli_name is not None:
-                    db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                    print(vastuuhenkilo_nimi)
-                    print(db_osapuoli_name)
-                    if (
-                        match_name(vastuuhenkilo_nimi, db_osapuoli_name)
-                    ):
-                        print(f"{db_osapuoli_name} match")
-                        kohde = session.get(Kohde, kohde_id)
-                        print("returning kohde")
-                        return kohde
-    elif len(names_by_kohde_id) == 1:
-        return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
+        print("Löytyi useita kohteita. Tarkistetaan osapuolitiedot...")
 
+        # Käy läpi kohteet
+        for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
+            # Käsittele kohteen osapuolet
+            for db_osapuoli_name in db_osapuoli_names:
+                if not db_osapuoli_name:
+                    continue
+                    
+                db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                
+                print(f"Verrataan: '{vastuuhenkilo_nimi}' vs '{db_osapuoli_name}'")
+
+                # Tarkista täsmääkö vastuuhenkilö
+                if match_name(vastuuhenkilo_nimi, db_osapuoli_name):
+                    print(f"Löydettiin täsmäävä kohde id={kohde_id}")
+                    return session.get(Kohde, kohde_id)
+
+    # Ei löytynyt luotettavaa kohdennusta
+    print("Ei löytynyt luotettavasti täsmäävää kohdetta")
     return None
 
 
 def _find_kohde_by_asiakastiedot(
-    session: "Session",
-    filter,
+    session: "Session", 
+    filter,  # SQLAlchemy filter condition rakennuksille
     asiakas: "Union[Asiakas, JkrIlmoitukset]"
-) -> "Union[Kohde, None]":
-    if isinstance(asiakas, JkrIlmoitukset):
-        query = (
-            select(Kohde.id, Osapuoli.nimi)
-            .join(Kohde.rakennus_collection)
-            .join(KohteenOsapuolet, isouter=True)
-            .join(Osapuoli, isouter=True)
-            .join(Osoite, isouter=True)
-            .where(
-                Kohde.voimassaolo.overlaps(
-                    DateRange(
-                        asiakas.voimassa.lower or datetime.date.min,
-                        asiakas.voimassa.upper or datetime.date.max,
-                    )
-                ),
-                filter,
+) -> "Optional[Kohde]":
+    """
+    Etsii kohteen rakennustietojen ja asiakastietojen perusteella. Varmistaa luotettavan 
+    kohdentumisen tarkistamalla sekä rakennukset että asiakastietojen yhteydet.
+
+    Toimintaperiaate:
+    1. Hakee kohteet joilla on annetut rakennukset (PRT/osoite filter)
+    2. Tarkistaa kohteiden voimassaoloajan päällekkäisyyden asiakkaan kanssa
+    3. Validoi löydettyjen kohteiden osapuolitiedot asiakastietojen kanssa
+    4. Varmistaa että kaikki asiakastiedot täsmäävät riittävällä tarkkuudella
+
+    Args:
+        session: Tietokantaistunto
+        filter: SQLAlchemy filter condition rakennuksille (esim. PRT tai osoite)
+        asiakas: Asiakas tai JkrIlmoitukset -objekti sisältäen henkilö- ja osoitetiedot
+
+    Returns:
+        Kohde jos luotettava kohdennus löytyy, muuten None
+
+    Huomioita:
+        - Asunto-osakeyhtiöille vaaditaan tarkka nimitäsmäys
+        - Yksityishenkilöille sallitaan osittainen nimitäsmäys 
+        - Osoitetietojen täytyy täsmätä tarkasti jos ne ovat saatavilla
+        - Jos osapuolitietoja ei löydy, kohdennusta ei tehdä
+    """
+    print(f"Etsitään kohdetta filterillä: {filter}")
+
+    # Hae kohteet joilla on annetut rakennukset 
+    query = (
+        select(Kohde.id, Osapuoli.nimi)
+        .join(KohteenRakennukset)
+        .join(Rakennus)
+        .join(KohteenOsapuolet, isouter=True)  # Left join osapuoliin
+        .join(Osapuoli, isouter=True)
+        .where(
+            # Rakennukset täsmäävät (PRT/osoite)
+            filter,
+            # Voimassaoloaika päällekkäin
+            Kohde.voimassaolo.overlaps(
+                DateRange(
+                    asiakas.voimassa.lower or datetime.date.min,
+                    asiakas.voimassa.upper or datetime.date.max,
+                )
             )
-            .distinct()
         )
-        print(query)
+        .distinct()
+    )
 
-        try:
-            kohteet = session.execute(query).all()
-        except NoResultFound:
-            return None
-        print(kohteet)
-
-        names_by_kohde_id = defaultdict(set)
-        for kohde_id, db_osapuoli_name in kohteet:
-            names_by_kohde_id[kohde_id].add(db_osapuoli_name)
-        if len(names_by_kohde_id) > 1:
-            print(
-                "Found multiple kohteet with the same address. Checking owners/inhabitants..."
-            )
-            vastuuhenkilo_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
-            kompostoija_nimet = [
-                clean_asoy_name(kompostoija.nimi)
-                for kompostoija in asiakas.kompostoijat
-            ]
-
-            for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
-                for db_osapuoli_name in db_osapuoli_names:
-                    if db_osapuoli_name is not None:
-                        db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                        print(vastuuhenkilo_nimi)
-                        print(db_osapuoli_name)
-                        if any(
-                            match_name(vastuuhenkilo_nimi, db_osapuoli_name) or
-                            match_name(kompostoija_nimi, db_osapuoli_name)
-                            for kompostoija_nimi in kompostoija_nimet
-                        ):
-                            print(f"{db_osapuoli_name} match")
-                            kohde = session.get(Kohde, kohde_id)
-                            print("returning kohde")
-                            return kohde
-        elif len(names_by_kohde_id) == 1:
-            return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
-
+    try:
+        # Hae kohde-ehdokkaat
+        kohteet = session.execute(query).all()
+    except NoResultFound:
+        print("Ei löytynyt kohdetta annetuilla kriteereillä")
+        return None
+    except Exception as e:
+        print(f"Virhe kohteen haussa: {e}")
         return None
 
-    # The same kohde may be client at multiple urakoitsijat and have multiple customer
-    # ids. Do *not* filter by missing/existing customer id.
-    elif isinstance(asiakas, Asiakas):
-        query = (
-            select(Kohde.id, Osapuoli.nimi)
-            .join(Kohde.rakennus_collection)
-            .join(KohteenOsapuolet, isouter=True)
-            .join(Osapuoli, isouter=True)
-            .join(Osoite, isouter=True)
-            .join(Katu, isouter=True)
-            .where(
-                Kohde.voimassaolo.overlaps(
-                    DateRange(
-                        asiakas.voimassa.lower or datetime.date.min,
-                        asiakas.voimassa.upper or datetime.date.max,
-                    )
-                ),
-                # Any yhteystieto will do. The bill might not always go
-                # to the oldest person. It might be the owner.
-                # KohteenOsapuolet.osapuolenrooli
-                # == codes.osapuolenroolit[OsapuolenrooliTyyppi.ASIAKAS],
-                filter,
-            )
-            .distinct()
-        )
-        print(query)
+    print(f"Löytyi {len(kohteet)} kohde-ehdokasta")
 
-        try:
-            kohteet = session.execute(query).all()
-        except NoResultFound:
-            return None
-        print(kohteet)
-
+    # Jos kohteita löytyi, ryhmittele osapuolet kohteittain
+    if kohteet:
+        # Ryhmittele osapuolet kohteen mukaan {kohde_id: {osapuolten nimet}}
         names_by_kohde_id = defaultdict(set)
-        for kohde_id, db_osapuoli_name in kohteet:
-            names_by_kohde_id[kohde_id].add(db_osapuoli_name)
-        if len(names_by_kohde_id) > 1:
-            # The address has multiple kohteet for the same date period.
-            # We may have
-            # 1) multiple perusmaksut for the same building (not paritalo),
-            # 2) paritalo,
-            # 3) multiple buildings in the same address (not paritalo),
-            # 4) multiple people moving in or out of the building in the same time period.
-            # Since we have no customer id here, we just have to check if the name is
-            # actually an osapuoli of an existing kohde or not. If not, we will return
-            # None and create a new kohde later. If an osapuoli exists, the new kohde may
-            # have been created from a kuljetus already.
-            print(
-                "Found multiple kohteet with the same address. Checking owners/inhabitants..."
-            )
-            haltija_nimi = clean_asoy_name(asiakas.haltija.nimi)
-            yhteystieto_nimi = clean_asoy_name(asiakas.yhteyshenkilo.nimi)
-            for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
-                for db_osapuoli_name in db_osapuoli_names:
-                    if db_osapuoli_name is not None:
-                        db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                        print(haltija_nimi)
-                        print(db_osapuoli_name)
-                        if match_name(haltija_nimi, db_osapuoli_name) or match_name(
-                            yhteystieto_nimi, db_osapuoli_name
-                        ):
-                            print(f"{db_osapuoli_name} match")
-                            kohde = session.get(Kohde, kohde_id)
-                            print("returning kohde")
-                            return kohde
-        elif len(names_by_kohde_id) == 1:
-            return session.get(Kohde, next(iter(names_by_kohde_id.keys())))
+        for kohde_id, osapuoli_nimi in kohteet:
+            if osapuoli_nimi:  # Huomioi vain löytyneet osapuolet
+                names_by_kohde_id[kohde_id].add(osapuoli_nimi)
 
+        # Käsittele jokainen kohde erikseen
+        for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
+            kohde_loydetty = False
+
+            # Standardoi ja puhdista asiakkaan nimi
+            if isinstance(asiakas, JkrIlmoitukset):
+                asiakas_nimi = clean_asoy_name(asiakas.vastuuhenkilo.nimi)
+                kompostoija_nimet = [
+                    clean_asoy_name(k.nimi) for k in asiakas.kompostoijat
+                ]
+            else:  # Asiakas
+                asiakas_nimi = clean_asoy_name(asiakas.haltija.nimi)
+                if asiakas.yhteyshenkilo:
+                    yhteyshenkilo_nimi = clean_asoy_name(
+                        asiakas.yhteyshenkilo.nimi
+                    )
+                else:
+                    yhteyshenkilo_nimi = None
+
+            # Käy läpi kohteen osapuolet
+            for db_osapuoli_name in db_osapuoli_names:
+                if not db_osapuoli_name:
+                    continue
+                    
+                db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
+                
+                # Tarkista täsmääkö jokin asiakas/vastuuhenkilö/kompostoija
+                if isinstance(asiakas, JkrIlmoitukset):
+                    # JkrIlmoitukset: tarkista vastuuhenkilö ja kompostoijat
+                    if (match_name(asiakas_nimi, db_osapuoli_name) or
+                        any(match_name(k_nimi, db_osapuoli_name) 
+                            for k_nimi in kompostoija_nimet)):
+                        kohde_loydetty = True
+                        break
+                else:
+                    # Asiakas: tarkista haltija ja yhteyshenkilö
+                    if (match_name(asiakas_nimi, db_osapuoli_name) or
+                        (yhteyshenkilo_nimi and 
+                         match_name(yhteyshenkilo_nimi, db_osapuoli_name))):
+                        kohde_loydetty = True
+                        break
+
+            # Jos kohteelta löytyi täsmäävä osapuoli, palauta se
+            if kohde_loydetty:
+                print(f"Löydettiin täsmäävä kohde id={kohde_id}")
+                return session.get(Kohde, kohde_id)
+
+    # Ei löytynyt luotettavaa kohdennusta
+    print("Ei löytynyt luotettavasti täsmäävää kohdetta")
     return None
 
 

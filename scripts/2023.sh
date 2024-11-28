@@ -91,6 +91,12 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"202301
         "logs/import_dvv_muunnos.log" \
         "DVV-tietojen muunnos JKR-muotoon"
 
+# Luodaan kohteet
+echo "Luodaan kohteet..."
+log_exec "jkr create_dvv_kohteet 28.1.2023" \
+        "logs/kohteet/perusmaksu_kohteet.log" \
+        "Kohteiden luonti"
+
 # Päivitetään huoneistomäärät
 echo "Tuodaan huoneistomäärät..."
 log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2023.xlsx \"Huoneistolkm\"" \
@@ -113,11 +119,6 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineis
         "logs/hapa_import.log" \
         "HAPA-aineiston tuonti"
 
-# Luodaan kohteet perusmaksuaineistosta
-echo "Luodaan kohteet..."
-log_exec "jkr create_dvv_kohteet 28.1.2023" \
-        "logs/kohteet/perusmaksu_kohteet.log" \
-        "Kohteiden luonti"
 
 # Päivitetään velvoitteet
 echo "Ajetaan velvoitepäivitys..."
@@ -210,5 +211,5 @@ log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2023/$quarter LSJ 1.1
         "Q4 kuljetustietojen tuonti"
 
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2023-12-31');\"" \
-        "logs/tietovirrat/2022_$quarter/velvoitteet.log" \
+        "logs/tietovirrat/2023_$quarter/velvoitteet.log" \
         "Q4 velvoitteiden tallennus"

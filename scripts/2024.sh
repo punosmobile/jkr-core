@@ -91,6 +91,12 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"202401
         "logs/import_dvv_muunnos.log" \
         "DVV-tietojen muunnos JKR-muotoon"
 
+# Luodaan kohteet
+echo "Luodaan kohteet..."
+log_exec "jkr create_dvv_kohteet 28.1.2024" \
+        "logs/kohteet/perusmaksu_kohteet.log" \
+        "Kohteiden luonti"
+
 # Päivitetään huoneistomäärät
 echo "Tuodaan huoneistomäärät..."
 log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2024.xlsx \"Huoneistolkm\"" \
@@ -112,12 +118,6 @@ fi
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
         "logs/hapa_import.log" \
         "HAPA-aineiston tuonti"
-
-# Luodaan kohteet perusmaksuaineistosta
-echo "Luodaan kohteet..."
-log_exec "jkr create_dvv_kohteet 28.1.2024" \
-        "logs/kohteet/perusmaksu_kohteet.log" \
-        "Kohteiden luonti"
 
 # Päivitetään velvoitteet
 echo "Ajetaan velvoitepäivitys..."
