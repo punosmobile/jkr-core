@@ -1,7 +1,7 @@
 -- V2.48.0__Add_hapa_trigger_and_functions.sql
 
 -- Funktio joka tarkistaa onko kohde biojätteen erilliskeräysalueella
-CREATE OR REPLACE FUNCTION jkr.is_kohde_biojate_erilliskeraysalueella(kohde_id integer) 
+CREATE OR REPLACE FUNCTION jkr.is_kohde_biojate_erilliskeraysalueella(kohde_id_param integer) 
 RETURNS boolean AS $$
 BEGIN
     RETURN EXISTS (
@@ -10,7 +10,7 @@ BEGIN
         JOIN jkr.kohteen_rakennukset kr ON kr.kohde_id = k.id
         JOIN jkr.rakennus r ON r.id = kr.rakennus_id
         JOIN jkr.taajama t ON ST_Contains(t.geom, r.geom)
-        WHERE k.id = kohde_id 
+        WHERE k.id = kohde_id_param
         AND t.vaesto_lkm >= 10000
     );
 END;
