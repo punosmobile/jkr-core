@@ -91,6 +91,28 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"202401
         "logs/import_dvv_muunnos.log" \
         "DVV-tietojen muunnos JKR-muotoon"
 
+# Päivitetään huoneistomäärät
+echo "Tuodaan huoneistomäärät..."
+log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2024.xlsx \"Huoneistolkm\"" \
+        "logs/huoneistomaara_tuonti.log" \
+        "Huoneistomäärien tuonti"
+
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f update_huoneistomaara.sql" \
+        "logs/huoneistomaara_paivitys.log" \
+        "Huoneistomäärien päivitys"
+
+# Tuodaan HAPA-aineisto
+echo "Tuodaan HAPA-aineisto 2024..."
+export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2024.csv'
+
+if [ ! -f "$CSV_FILE_PATH" ]; then
+    echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
+fi
+
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
+        "logs/hapa_import.log" \
+        "HAPA-aineiston tuonti"
+
 # Luodaan kohteet
 echo "Luodaan kohteet..."
 log_exec "jkr create_dvv_kohteet 28.1.2024" \
