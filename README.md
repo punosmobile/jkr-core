@@ -34,7 +34,9 @@ $ git clone https://github.com/punosmobile/jkr-core.git
 $ cd jkr-core
 
 $ poetry install
-```
+
+# Set up Git hooks to prevent committing sensitive data
+$ git config core.hooksPath .hooks
 
 ### Db env
 
@@ -232,3 +234,7 @@ The postal code data (`/tests/data/test_data_import`) is real data downloaded fr
 ## Naming development branches
 
 Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}-{description}`. For example, `"Lahti-99-kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
+
+### Git Hooks
+
+This project uses Git hooks to prevent accidentally committing sensitive data. The pre-commit hook checks for patterns like API keys, passwords, and other sensitive information. If you need to commit a file that contains sensitive data (e.g., test configurations), add the file path to `.allowCommit` file.
