@@ -162,16 +162,20 @@ BEGIN
             END AS keskeytys,
             MAX(CASE WHEN vp.tapahtumalaji_koodi = 'ERILLISKERAYKSESTA_POIKKEAMINEN' AND vp.voimassaolo && tarkistusjakso AND vp.paatostulos_koodi = '1' THEN vp.loppupvm END) AS erilliskerayksesta_poikkeaminen_voimassa,
             MAX(CASE WHEN vp.tapahtumalaji_koodi = 'ERILLISKERAYKSESTA_POIKKEAMINEN' AND vp.voimassaolo && tarkistusjakso AND vp.paatostulos_koodi = '1' THEN vp.paatosnumero END) AS erilliskerayksesta_poikkeaminen
-        FROM
-            rakennukset r
-        LEFT JOIN
-            jkr.viranomaispaatokset AS vp ON vp.rakennus_id = r.rakennus_id
-        WHERE
-            (vp.tapahtumalaji_koodi = 'PERUSMAKSU' AND vp.voimassaolo && tarkistusjakso AND vp.paatostulos_koodi = '1')
-            OR (vp.tapahtumalaji_koodi = 'TYHJENNYSVALI' AND vp.voimassaolo && tarkistusjakso AND vp.paatostulos_koodi = '1')
-            OR (vp.tapahtumalaji_koodi = 'AKP' AND vp.voimassaolo && tarkistusjakso AND vp.paatostulos_koodi = '1')
-            OR (vp.tapahtumalaji_koodi = 'KESKEYTTAMINEN' AND vp.voimassaolo && tarkistusjakso AND vp.paatostulos_koodi = '1')
-            OR (vp.tapahtumalaji_koodi = 'ERILLISKERAYKSESTA_POIKKEAMINEN' AND vp.voimassaolo && tarkistusjakso AND vp.paatostulos_koodi = '1')
+        FROM (
+            SELECT DISTINCT ON (vp.rakennus_id, vp.tapahtumalaji_koodi)
+                vp.rakennus_id,
+                vp.tapahtumalaji_koodi,
+                vp.voimassaolo,
+                vp.loppupvm,
+                vp.paatosnumero
+            FROM jkr.viranomaispaatokset vp
+            WHERE
+                vp.tapahtumalaji_koodi IN ('PERUSMAKSU', 'TYHJENNYSVALI', 'AKP', 'KESKEYTTAMINEN', 'ERILLISKERAYKSESTA_POIKKEAMINEN')
+                AND vp.voimassaolo && tarkistusjakso
+            ORDER BY vp.rakennus_id, vp.tapahtumalaji_koodi, vp.loppupvm DESC
+        ) vp
+        JOIN rakennukset r ON vp.rakennus_id = r.rakennus_id
         GROUP BY
             r.kohde_id
     ),
@@ -389,22 +393,18 @@ DECLARE
     selected_tallennuspvm DATE;
 BEGIN
     SELECT 
-        vs.tallennuspvm
+        MAX(vs.tallennuspvm)
     INTO 
         selected_tallennuspvm
     FROM 
         jkr.velvoite_status vs
     WHERE 
-        vs.jakso && tarkistusjakso
-    ORDER BY 
-        vs.tallennuspvm DESC
-    LIMIT 1;
-
+        vs.jakso && tarkistusjakso;
     RETURN QUERY
     WITH velvoiteyhteenveto_data AS (
         SELECT
             v.kohde_id,
-            vs.jakso,
+            vs.tallennuspvm,
             vvm.kuvaus
         FROM
             jkr.velvoiteyhteenveto v
@@ -416,13 +416,11 @@ BEGIN
             v.kohde_id = ANY(kohde_ids)
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
-        ORDER BY
-            vs.jakso DESC
     ),
     velvoite_data AS (
         SELECT
             v.kohde_id,
-            vs.jakso,
+            vs.tallennuspvm,
             vm.kuvaus,
             vm.selite
         FROM
@@ -435,8 +433,6 @@ BEGIN
             v.kohde_id = ANY(kohde_ids)
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
-        ORDER BY
-            vs.jakso DESC
     ),
     aggregated_velvoite AS (
         SELECT

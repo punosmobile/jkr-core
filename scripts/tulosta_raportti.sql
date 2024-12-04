@@ -1,4 +1,4 @@
-\set copy_command '\\copy tmp_report_result TO ' :'csv_path' ' WITH CSV HEADER'
+\set copy_command '\\copy tmp_report_result TO ' :'csv_path' ' WITH CSV HEADER FORCE QUOTE * ENCODING ''UTF8'''
 
 CREATE TEMP TABLE tmp_report_result(
     Kohde_id INTEGER,
