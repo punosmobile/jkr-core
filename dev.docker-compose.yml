@@ -1,0 +1,142 @@
+version: "3.9"
+
+volumes:
+  postgis-data:
+    driver: local
+  postgis-data-test:
+    driver: local
+
+services:
+  db:
+    image: jkr/postgis
+    build:
+      context: ./docker/postgis
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    volumes:
+      - postgis-data:/var/lib/postgresql/data
+      - ./docker/postgis/init_db:/docker-entrypoint-initdb.d
+      - ./docker/postgis/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./docker/postgis/logs:/var/log/postgresql
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JKR_DB=${JKR_DB}
+      - JKR_USER=${JKR_USER}
+      - JKR_PASSWORD=${JKR_PASSWORD}
+    ports:
+      - ${JKR_DB_PORT}:5432
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  db_test:
+    image: jkr/postgis
+    container_name: jkr_test_database
+    build:
+      context: ./docker/postgis/test
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    volumes:
+      - postgis-data-test:/var/lib/postgresql/data
+      - ./docker/postgis/test/init_test_db:/docker-entrypoint-initdb.d
+      - ./docker/postgis/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./docker/postgis/test/logs:/var/log/postgresql
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JKR_TEST_DB=${JKR_TEST_DB}
+      - JKR_USER=${JKR_USER}
+      - JKR_PASSWORD=${JKR_TEST_PASSWORD}
+      - PGPORT=5433
+    ports:
+      - ${JKR_TEST_DB_PORT}:5433
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  flyway:
+    image: flyway/flyway
+    depends_on:
+      - db
+    profiles: [ "migration" ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - FLYWAY_USER=${JKR_USER}
+      - FLYWAY_PASSWORD=${JKR_PASSWORD}
+      - FLYWAY_URL=jdbc:postgresql://db/${JKR_DB}
+    volumes:
+      - ./db/migrations:/flyway/sql
+      - ./db/flyway.conf:/flyway/conf/flyway.conf
+    command: migrate
+
+  flyway_test:
+    image: flyway/flyway
+    depends_on:
+      - db_test
+    profiles: [ "migration" ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - FLYWAY_USER=${JKR_USER}
+      - FLYWAY_PASSWORD=${JKR_TEST_PASSWORD}
+      - FLYWAY_URL=jdbc:postgresql://db_test:5433/${JKR_TEST_DB}
+    volumes:
+      - ./db/migrations:/flyway/sql
+      - ./db/flyway.conf:/flyway/conf/flyway.conf
+    command: migrate
+
+  tbls:
+    image: k1low/tbls:latest
+    depends_on:
+      - db
+    profiles: [ "dev" ]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    volumes:
+      - ./docs/db:/work/db
+      - ./db/.tbls.yml:/work/.tbls.yml
+    command: doc --rm-dist -c /work/.tbls.yml postgres://${JKR_USER}:${JKR_PASSWORD}@db:5432/${JKR_DB}?sslmode=disable /work/db
+
+  jkr-core-runner:
+    build: .
+    container_name: jkr-core-runner
+    depends_on:
+      - db
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    volumes:
+      - .:/app
+    environment:
+      - JKR_DB_HOST=db
+      - JKR_DB=${JKR_DB}
+      - JKR_USER=${JKR_USER}
+      - JKR_PASSWORD=${JKR_PASSWORD}
+      - JKR_DB_PORT=5432
+      - APPDATA=/usr/local/bin/dotenv
+      - HOOK_URL=${HOOK_URL}
+    networks:
+      - default
+    command: bash -c "cd /app && poetry install && cd /app/scripts && exec /bin/bash"

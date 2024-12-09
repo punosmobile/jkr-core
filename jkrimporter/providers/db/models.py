@@ -1,21 +1,19 @@
 import warnings
 
 from geoalchemy2 import Geometry  # noqa: F401, must be imported for Geometry reflect
-from sqlalchemy import Column, ForeignKey, Integer, Table
-from sqlalchemy.ext.automap import automap_base, generate_relationship
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy import Column, ForeignKey, Integer, String, Table
+from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import relationship
 
 from jkrimporter.providers.db.database import engine
 
 Base = automap_base()
-
 
 def name_for_scalar(base, local_cls, referred_cls, constraint):
     """Returns a property name for the many side of a one-to-many relationship
 
     This is needed to make double relationships between tables to work
     """
-
     if local_cls.__name__ == "sopimus" and referred_cls.__name__ == "kohde":
         if constraint.name == "kohde_fk":
             scalar_name = "kohde"
@@ -25,7 +23,6 @@ def name_for_scalar(base, local_cls, referred_cls, constraint):
             return scalar_name
 
     return referred_cls.__name__.lower()
-
 
 def name_for_collection(base, local_cls, referred_cls, constraint):
     """Returns a property name for the one side of a one-to-many relationship
@@ -59,37 +56,13 @@ def name_for_collection(base, local_cls, referred_cls, constraint):
             collection_name = "ehdokaskohde_collection"
     return collection_name
 
-
-# def generate_relationship(
-#     base, direction, return_fn, attrname, local_cls, referred_cls, **kw
-# ):
-#     if local_cls.__name__.lower() == "rakennus":
-#         print(
-#             direction,
-#             return_fn,
-#             attrname,
-#             local_cls.__name__,
-#             referred_cls.__name__,
-#             kw,
-#         )
-#         print("")
-#     if return_fn is backref:
-#         return return_fn(attrname, **kw)
-#     elif return_fn is relationship:
-#         return return_fn(referred_cls, **kw)
-#     else:
-#         raise TypeError("Unknown relationship function: %s" % return_fn)
-
-
 # Define any association tables that need to be directly insertable.
 # Sqlalchemy only generates them automatically if they have extra columns.
-
 class KohteenRakennukset(Base):
     __tablename__ = "kohteen_rakennukset"
     __table_args__ = {"schema": "jkr"}
     rakennus_id = Column(ForeignKey("jkr.rakennus.id"), primary_key=True)
     kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
-
 
 class KompostorinKohteet(Base):
     __tablename__ = "kompostorin_kohteet"
@@ -97,25 +70,52 @@ class KompostorinKohteet(Base):
     kompostori_id = Column(ForeignKey("jkr.kompostori.id"), primary_key=True)
     kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
 
+# Määritellään Rakennus-luokka ennen automap_base valmistelua
+# jotta voidaan lisätä uusi kenttä
+class Rakennus(Base):
+    __tablename__ = 'rakennus'
+    __table_args__ = {'schema': 'jkr'}
 
-# Rest of the tables can be defined automatically
+# class HapaAineisto(Base):
+#     __tablename__ = "hapa_aineisto"
+#     __table_args__ = {"schema": "jkr"}
+
+#     id = Column(Integer, primary_key=True)
+#     rakennus_id_tunnus = Column(String(50))     # PRT tunnus
+#     kohde_tunnus = Column(String(50))           # Esim. "098"
+#     sijaintikunta = Column(String(100))         # Esim. "001"
+#     asiakasnro = Column(String(50))             # Esim. "03-0009352-00"
+#     rakennus_id_tunnus2 = Column(String(50))    # Toistuva Rakennus-ID
+#     katunimi_fi = Column(String(100))           # Esim. "Aikkalantie"
+#     talon_numero = Column(String(20))           # Esim. "205"
+#     postinumero = Column(String(5))             # Esim. "15880"
+#     postitoimipaikka_fi = Column(String(100))   # Esim. "Hollola"
+#     kohdetyyppi = Column(String(10))            # "hapa" tai "biohapa"
+#     tuonti_pvm = Column(DateTime(timezone=True))
+#     voimassa = Column(DateRange, nullable=False)
+
+# # Lisätään HapaAineisto __all__ listaan
+# __all__ = [
+#     # ... olemassa olevat ...
+#     "HapaAineisto",
+# ]
+
+
+# Reflect database with warnings filtered
 with warnings.catch_warnings():
     warnings.filterwarnings(
         "ignore",
         message="Skipped unsupported reflection of expression-based index idx_osoite_lower_katu_fi",
     )
-    # warnings.simplefilter("ignore", category=sa_exc.SAWarning)
-
     Base.prepare(
         engine,
         name_for_scalar_relationship=name_for_scalar,
         name_for_collection_relationship=name_for_collection,
-        # generate_relationship=generate_relationship,
         reflect=True,
         reflection_options={"schema": "jkr"},
     )
 
-
+# Get references to all tables through the generated Base classes
 AKPPoistoSyy = Base.classes.akppoistosyy
 Jatetyyppi = Base.classes.jatetyyppi
 Jatteenkuljetusalue = Base.classes.jatteenkuljetusalue
@@ -125,6 +125,7 @@ Keraysvalinetyyppi = Base.classes.keraysvalinetyyppi
 Keskeytys = Base.classes.keskeytys
 Kiinteisto = Base.classes.kiinteisto
 Kohde = Base.classes.kohde
+HapaAineisto = Base.classes.hapa_aineisto
 Kohdetyyppi = Base.classes.kohdetyyppi
 KohteenOsapuolet = Base.classes.kohteen_osapuolet
 Kompostori = Base.classes.kompostori
@@ -139,9 +140,9 @@ Pohjavesialue = Base.classes.pohjavesialue
 Posti = Base.classes.posti
 Rakennuksenkayttotarkoitus = Base.classes.rakennuksenkayttotarkoitus
 Rakennuksenolotila = Base.classes.rakennuksenolotila
-RakennuksenOmistajat = Base.classes.rakennuksen_omistajat  # has extra fields
-RakennuksenVanhimmat = Base.classes.rakennuksen_vanhimmat  # has extra fields
-Rakennus = Base.classes.rakennus
+RakennuksenOmistajat = Base.classes.rakennuksen_omistajat
+RakennuksenVanhimmat = Base.classes.rakennuksen_vanhimmat
+# Rakennus already defined above
 Sopimus = Base.classes.sopimus
 SopimusTyyppi = Base.classes.sopimustyyppi
 Taajama = Base.classes.taajama
@@ -153,53 +154,13 @@ Velvoite = Base.classes.velvoite
 Velvoitemalli = Base.classes.velvoitemalli
 Viranomaispaatokset = Base.classes.viranomaispaatokset
 
-
-# Add associations to association tables with extra fields.
-# Vanhimmat:
-Rakennus.vanhimmat = relationship(RakennuksenVanhimmat, back_populates="rakennus")
-RakennuksenVanhimmat.rakennus = relationship(Rakennus, back_populates="vanhimmat")
-Osapuoli.kotirakennukset = relationship(RakennuksenVanhimmat, back_populates="osapuoli")
-RakennuksenVanhimmat.osapuoli = relationship(Osapuoli, back_populates="kotirakennukset")
-
-# Omistajat:
-Rakennus.omistajat = relationship(RakennuksenOmistajat, back_populates="rakennus")
-RakennuksenOmistajat.rakennus = relationship(Rakennus, back_populates="omistajat")
-Osapuoli.omistetut_rakennukset = relationship(
-    RakennuksenOmistajat, back_populates="osapuoli"
-)
-RakennuksenOmistajat.osapuoli = relationship(
-    Osapuoli, back_populates="omistetut_rakennukset"
-)
-
-if __name__ == "__main__":
-    ...
-    """
-    from sqlalchemy import func as sqlalchemyFunc
-    from sqlalchemy import select
-
-    print("Sopimus:", [field for field in dir(Sopimus) if not field.startswith("_")])
-    print("Kohde:", [field for field in dir(Kohde) if not field.startswith("_")])
-    print("Rakennus:", [field for field in dir(Rakennus) if not field.startswith("_")])
-
-    from sqlalchemy.orm import Session
-
-    with Session(engine) as session:
-        s = select(Rakennus).limit(1)
-        r = session.execute(s).scalar_one()
-        print(r.kohde_collection)
-
-        k = session.get(Kohde, 9038)
-
-        print(f"sopimukset: {k.sopimus_collection}")
-        for s in k.sopimus_collection:
-            print(dir(s))
-        print(f"kimpat: {k.kimppasopimus_collection}")
-    """
+# Let SQLAlchemy handle all relationships through reflection
+# Remove redundant relationship definitions that were causing warnings
 
 __all__ = [
     "AKPPoistoSyy",
     "Jatetyyppi",
-    "Jatteenkuljetusalue",
+    "Jatteenkuljetusalue", 
     "Katu",
     "Keraysvaline",
     "Keskeytys",
@@ -208,10 +169,11 @@ __all__ = [
     "Kohdetyyppi",
     "KohteenOsapuolet",
     "KohteenRakennukset",
+    "KompostorinKohteet",
     "Kuljetus",
     "Kunta",
     "Osapuolenlaji",
-    "Osapuoli",
+    "Osapuoli", 
     "Osapuolenrooli",
     "Osoite",
     "Paatostulos",
@@ -220,9 +182,10 @@ __all__ = [
     "Rakennuksenkayttotarkoitus",
     "Rakennuksenolotila",
     "RakennuksenOmistajat",
-    "RakennuksenVanhimmat",
+    "RakennuksenVanhimmat", 
     "Rakennus",
     "Sopimus",
+    "SopimusTyyppi",
     "Taajama",
     "Tapahtumalaji",
     "Tiedontuottaja",

@@ -1,9 +1,10 @@
 #!/bin/bash
 
-export HOST=localhost
-export PORT=5435
-export DB_NAME=jkr
-export USER=jkr_admin
+export HOST=db
+export PORT=$JKR_DB_PORT
+export DB_NAME=$JKR_DB
+export USER=$JKR_USER
+export PGPASSWORD=$JKR_PASSWORD
 # Määritä salasana %APPDATA%\postgresql\pgpass.conf tiedostossa
 
 # Kunnat ja postinumerot

@@ -39,6 +39,7 @@ htmlcov/
 env
 /*venv/
 .python-version
+.vscode
 
 # Rope project settings
 .ropeproject
@@ -60,8 +61,12 @@ wb-xlate*
 
 # jkr
 /data
+/dump
+/scripts/logs
 muistiot/
 pjh-virheelliset-osoitteet.csv
 *.qgs~
 jkrconfig
 pg_service.conf
+.aider*
+.env
