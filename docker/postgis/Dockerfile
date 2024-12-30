@@ -1,4 +1,4 @@
-FROM postgres:12-bullseye
+FROM postgres:16-bullseye
 
 ENV POSTGIS_MAJOR 3
 
