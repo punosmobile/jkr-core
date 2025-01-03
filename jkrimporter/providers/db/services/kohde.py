@@ -356,18 +356,6 @@ def find_kohde_by_address(
         osoitenumero_filter = Osoite.osoitenumero.in_(osoitenumerot)
     print(osoitenumero_filter)
 
-    filter = and_(
-        func.lower(Osoite.posti_numero) == asiakas.haltija.osoite.postinumero,
-        or_(
-            func.lower(Katu.katunimi_fi)
-            == asiakas.haltija.osoite.katunimi.lower(),
-            func.lower(Katu.katunimi_sv)
-            == asiakas.haltija.osoite.katunimi.lower(),
-        ),
-        osoitenumero_filter,
-    )
-    print(filter)
-
 def _find_kohde_by_ilmoitustiedot(
     session: "Session",
     filter,
@@ -875,7 +863,7 @@ def _cluster_rakennustiedot(
                     prts = sorted([r[0].prt for r in cluster])
                     f.write(f"PRTt: {prts}\n")
                 
-    return clusters
+        return clusters
 
 def _match_ownership_or_residents(
     building1: "Rakennustiedot",
@@ -1167,7 +1155,7 @@ def add_auxiliary_buildings_materialized(
     return updated_sets
 
 def _add_auxiliary_buildings(
-    dvv_rakennustiedot: Dict[int, Rakennustiedot],
+    dvv_rakennustiedot: Dict[int, Rakennus],
     building_sets: List[Set[Rakennustiedot]]
 ) -> List[Set[Rakennustiedot]]:
     """
@@ -1301,13 +1289,18 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
     else:
         # Tarkista rakennusten perusteella
         kohdetyyppi = KohdeTyyppi.MUU
-        for prt in asiakas.rakennukset:
-            rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
-            if rakennus:
-                building_type = determine_kohdetyyppi(session, rakennus, keraysalueet)
-                if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA):
-                    kohdetyyppi = building_type
-                    break
+        try:
+            for prt in asiakas.rakennukset:
+                rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
+                if rakennus:
+                    building_type = determine_kohdetyyppi(session, rakennus, keraysalueet)
+                    if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA):
+                        kohdetyyppi = building_type
+                        break
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Virhe rakennusten tyypin määrityksessä: {str(e)}")
+            # Jatketaan oletustyypillä MUU
 
     kohde = Kohde(
         nimi=form_display_name(asiakas.haltija),
@@ -1637,8 +1630,8 @@ def update_or_create_kohde_from_buildings(
         rakennukset: Käsiteltävät rakennukset
         asukkaat: Rakennusten asukkaat 
         omistajat: Rakennusten omistajat
-        poimintapvm: Uuden kohteen alkupvm
-        loppupvm: Uuden kohteen loppupvm
+        poimintapvm: Uuden kohteen alkupäivämäärä
+        loppupvm: Uuden kohteen loppupäivämäärä
 
     Returns:
         Kohde: Luotu tai päivitetty kohde
@@ -1854,7 +1847,7 @@ def get_or_create_kohteet_from_kiinteistot(
         session: Tietokantaistunto
         kiinteistotunnukset: Select-kysely joka palauttaa kiinteistötunnukset
         poimintapvm: Uusien kohteiden alkupäivämäärä
-        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupäivää)
+        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupvm)
 
     Returns:
         Lista luoduista kohteista
@@ -1895,8 +1888,9 @@ def get_or_create_kohteet_from_kiinteistot(
 
         # Hae omistajatiedot ja muodosta lookup-taulut
         rakennus_owners = session.execute(
-            select(RakennuksenOmistajat.rakennus_id, Osapuoli)
-            .join(Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id)
+            select(RakennuksenOmistajat.rakennus_id, Osapuoli).join(
+                Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id
+            )
         ).all()
         
         owners_by_rakennus_id = defaultdict(set)  # rakennus_id -> {omistajat}
@@ -1907,8 +1901,9 @@ def get_or_create_kohteet_from_kiinteistot(
 
         # Hae asukastiedot ja muodosta lookup-taulu
         rakennus_inhabitants = session.execute(
-            select(RakennuksenVanhimmat.rakennus_id, Osapuoli)
-            .join(Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id)
+            select(RakennuksenVanhimmat.rakennus_id, Osapuoli).join(
+                Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id
+            )
         ).all()
         
         inhabitants_by_rakennus_id = defaultdict(set)  # rakennus_id -> {asukkaat}
@@ -2130,8 +2125,8 @@ def get_or_create_single_asunto_kohteet(
 
     Jos kiinteistöllä on useita asuttuja rakennuksia, sitä ei tuoda tässä.
     """
-    print(" ")
-    print("----- LUODAAN YHDEN ASUNNON KOHTEET -----")
+    logger = logging.getLogger(__name__)
+    logger.info("\n----- LUODAAN YHDEN ASUNNON KOHTEET -----")
 
     # Älä tuo rakennuksia, joilla on jo olemassa olevia kohteita
     if loppupvm is None:
@@ -2149,12 +2144,29 @@ def get_or_create_single_asunto_kohteet(
             .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
         )
 
+    # Määrittele sallitut rakennustyypit
+    ALLOWED_TYPES_2018 = {
+        '0111',  # Yhden asunnon talot
+        '0110'   # Paritalot
+    }
+    
+    ALLOWED_TYPES_OLD = {
+        '011',  # Yhden asunnon talot
+        '012'   # Kahden asunnon talot
+    }
+
+    # Hae rakennukset joilla ei ole kohdetta
     rakennus_id_without_kohde = (
         select(Rakennus.id)
         .filter(
             or_(
-                Rakennus.rakennuksenkayttotarkoitus == codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.YKSITTAISTALO],
-                Rakennus.rakennuksenkayttotarkoitus == codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.PARITALO]
+                # Tarkista ensisijaisesti 2018 luokitus
+                Rakennus.rakennusluokka_2018.in_(ALLOWED_TYPES_2018),
+                # Jos 2018 luokka puuttuu, käytä vanhaa luokitusta
+                and_(
+                    Rakennus.rakennusluokka_2018.is_(None),
+                    Rakennus.rakennuksenkayttotarkoitus_koodi.in_(ALLOWED_TYPES_OLD)
+                )
             )
         )
         .filter(~Rakennus.id.in_(rakennus_id_with_current_kohde))
@@ -2167,6 +2179,7 @@ def get_or_create_single_asunto_kohteet(
         )
     )
 
+    # Hae kiinteistöt joilla on vain yksi rakennus
     single_asunto_kiinteistotunnus = (
         select(
             Rakennus.kiinteistotunnus,
@@ -2183,9 +2196,16 @@ def get_or_create_single_asunto_kohteet(
 
 def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=None) -> KohdeTyyppi:
     """
-    Määrittää kohteen tyypin rakennuksen tietojen perusteella huomioiden erilliskeräysalueet 
-    ja ensisijaisuussäännöt.
-    
+    Määrittää kohteen tyypin rakennuksen tietojen perusteella seuraavassa järjestyksessä:
+    1. BIOHAPA: Jos rakennus on BIOHAPA-kohde JA EI ole biojätteen erilliskeräysalueella
+    2. HAPA: Jos rakennus on HAPA-kohde JA EI ole asuinkiinteistö
+    3. ASUINKIINTEISTO: Jos täyttää jonkin seuraavista:
+       - Rakennusluokka 0110-0211
+       - Käyttötarkoitus 011-041
+       - Huoneistomäärä > 0
+       - On asukas
+    4. MUU: Kaikki muut rakennukset
+
     Args:
         session: Tietokantaistunto
         rakennus: Rakennus jonka perusteella tyyppi määritetään
@@ -2208,54 +2228,48 @@ def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=Non
         
         hapa = session.execute(hapa_query).scalar_one_or_none()
         
-        # Tarkista onko asuinkiinteistö
+        # Määritä onko asuinkiinteistö määritelmän mukaisessa järjestyksessä
         is_asuinkiinteisto = False
         
-        # 1. Tarkista Rakennusluokka 2018
+        # 1. Rakennusluokka 0110-0211
         if rakennus.rakennusluokka_2018:
-            if (rakennus.rakennusluokka_2018 >= '0110' and 
-                rakennus.rakennusluokka_2018 <= '0211'):
+            luokka = rakennus.rakennusluokka_2018
+            if (luokka >= '0110' and luokka <= '0211'):
                 is_asuinkiinteisto = True
                 
-        # 2. Jos ei 2018 luokkaa, tarkista vanha luokitus
-        elif rakennus.rakennuksenkayttotarkoitus_koodi:
+        # 2. Jos ei täsmää, tarkista käyttötarkoitus 011-041
+        if not is_asuinkiinteisto and rakennus.rakennuksenkayttotarkoitus_koodi:
             koodi = str(rakennus.rakennuksenkayttotarkoitus_koodi)
-            if koodi.isdigit() and '011' <= koodi <= '041':
-                is_asuinkiinteisto = True
+            if koodi.isdigit():
+                koodi_num = int(koodi)
+                if 11 <= koodi_num <= 41:
+                    is_asuinkiinteisto = True
                 
-        # 3. Tarkista muut asuinkiinteistön kriteerit
-        elif ((hasattr(rakennus, 'huoneistomaara') and rakennus.huoneistomaara > 0) or
-              (hasattr(rakennus, 'asukkaat') and bool(rakennus.asukkaat)) or
-              (hasattr(rakennus, 'rakennuksenkayttotarkoitus') and
-               rakennus.rakennuksenkayttotarkoitus == 
-               codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA])):
+        # 3. Jos ei täsmää, tarkista huoneistomäärä > 0
+        if not is_asuinkiinteisto and rakennus.huoneistomaara is not None and rakennus.huoneistomaara > 0:
             is_asuinkiinteisto = True
             
-        # Sovella ensisijaisuussääntöjä
-        if is_asuinkiinteisto:
-            if keraysalueet and (
-                keraysalueet.get('biojate') or
-                (keraysalueet.get('hyotyjate') and 
-                 hasattr(rakennus, 'huoneistomaara') and
-                 rakennus.huoneistomaara >= 5)
-            ):
-                return KohdeTyyppi.ASUINKIINTEISTO
-                
-            # Jos biojätealueen ulkopuolella ja on biohapa
-            if hapa and hapa.kohdetyyppi and hapa.kohdetyyppi.lower() == 'biohapa':
-                if not (keraysalueet and keraysalueet.get('biojate')):
-                    return KohdeTyyppi.BIOHAPA
-                    
-            # Muuten säilytetään asuinkiinteistönä
-            return KohdeTyyppi.ASUINKIINTEISTO
+        # 4. Jos ei täsmää, tarkista onko asukkaita
+        if not is_asuinkiinteisto:
+            asukas_query = select(RakennuksenVanhimmat).where(
+                RakennuksenVanhimmat.rakennus_id == rakennus.id
+            )
+            has_asukas = session.execute(asukas_query).first() is not None
+            if has_asukas:
+                is_asuinkiinteisto = True
             
-        # Jos ei ole asuinkiinteistö, HAPA-tyypit mahdollisia
+        # HAPA/BIOHAPA käsittely
         if hapa and hapa.kohdetyyppi:
             if hapa.kohdetyyppi.lower() == 'biohapa':
-                return KohdeTyyppi.BIOHAPA
-            return KohdeTyyppi.HAPA
+                # BIOHAPA vain jos EI ole biojätteen erilliskeräysalueella
+                if not (keraysalueet and keraysalueet.get('biojate', False)):
+                    return KohdeTyyppi.BIOHAPA
+            elif hapa.kohdetyyppi.lower() == 'hapa' and not is_asuinkiinteisto:
+                # HAPA vain jos EI ole asuinkiinteistö
+                return KohdeTyyppi.HAPA
             
-        return KohdeTyyppi.MUU
+        # Palauta asuinkiinteistö tai muu
+        return KohdeTyyppi.ASUINKIINTEISTO if is_asuinkiinteisto else KohdeTyyppi.MUU
 
     except Exception as e:
         logger = logging.getLogger(__name__)
@@ -2317,8 +2331,8 @@ def get_or_create_multiple_and_uninhabited_kohteet(
     määritellylle aikavälille. Tämä funktio käsittelee jäljellä olevat rakennukset,
     mukaan lukien useita rakennuksia sisältävät kiinteistöt ja asumattomat rakennukset.
     """
-    print(" ")
-    print("----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
+    logger = logging.getLogger(__name__)
+    logger.info("\n----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
 
     rakennus_id_with_current_kohde = (
         select(Rakennus.id)
@@ -2412,7 +2426,7 @@ def batch_update_old_kohde_data(session, updates):
             session.execute(stmt)
 
     # 3. Päivitä viranomaispäätökset
-    # Hae ensin kaikki rakennukset vanhoilta kohteilta
+    # Hae kaikki rakennukset vanhoilta kohteilta
     rakennus_ids = session.execute(
         select(KohteenRakennukset.rakennus_id)
         .where(KohteenRakennukset.kohde_id.in_(old_kohde_ids))
@@ -2486,21 +2500,20 @@ def create_perusmaksurekisteri_kohteet(
 ) -> List[Kohde]:
     """
     Luo kohteet perusmaksurekisterin perusteella. Yhdistää samaan kohteeseen rakennukset,
-    joilla on sama asiakasnumero perusmaksurekisterissä ja jotka ovat määriteltyjä talotyyppejä.
-    
+    joilla on sama asiakasnumero perusmaksurekisterissä ja jotka ovat kerrostaloja,
+    rivitaloja, luhtitaloja tai ketjutaloja.
+
     Tarkistaa ensisijaisesti Rakennusluokitus 2018 mukaiset luokat:
-    - 0110: Paritalot
+    - 0320: Kerrostalot (ml. luhtitalot)
+    - 0390: Muut kerrostalot
     - 0210: Rivitalot
     - 0220: Ketjutalot
-    - 0320: Luhtitalot
-    - 0390: Muut asuinkerrostalot
-    
+
     Jos 2018 luokka puuttuu, käytetään vanhempaa luokitusta:
-    - 012: Kahden asunnon talot
+    - 032: Kerrostalot (ml. luhtitalot)
+    - 039: Muut kerrostalot
     - 021: Rivitalot
     - 022: Ketjutalot
-    - 032: Luhtitalot
-    - 039: Muut asuinkerrostalot
 
     Lisäksi kohteeseen yhdistetään saunat ja piharakennukset, jos:
     - Sama omistaja/asukas kuin jollain ryhmän rakennuksista
@@ -2536,23 +2549,21 @@ def create_perusmaksurekisteri_kohteet(
         if tiedot[0].prt  # Ohita jos PRT puuttuu
     }
 
-    # Määrittele sallitut rakennustyypit
+    # Määrittele sallitut rakennustyypit määritelmän mukaisesti
     # Rakennusluokka 2018 mukaiset luokat
     ALLOWED_TYPES_2018 = {
-        '0110',  # Paritalot
+        '0320',  # Kerrostalot (ml. luhtitalot)
+        '0390',  # Muut kerrostalot
         '0210',  # Rivitalot
-        '0220',  # Ketjutalot
-        '0320',  # Luhtitalot
-        '0390'   # Muut asuinkerrostalot
+        '0220'   # Ketjutalot
     }
     
     # Vanhat luokat (käytetään jos 2018 luokka puuttuu)
     ALLOWED_TYPES_OLD = {
-        '012',  # Paritalot
+        '032',  # Kerrostalot (ml. luhtitalot)
+        '039',  # Muut kerrostalot
         '021',  # Rivitalot
-        '022',  # Ketjutalot
-        '032',  # Luhtitalot
-        '039'   # Muut asuinkerrostalot
+        '022'   # Ketjutalot
     }
 
     # Ryhmittele rakennukset asiakasnumeron mukaan
@@ -2646,7 +2657,7 @@ def create_perusmaksurekisteri_kohteet(
         owners_by_rakennus_id,
         inhabitants_by_rakennus_id,
         poimintapvm,
-        loppupvm
+        loppupvm,
     )
 
     logger.info(f"\nLuotu {len(kohteet):,} kohdetta perusmaksurekisterin perusteella")

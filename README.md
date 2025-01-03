@@ -29,7 +29,7 @@ Now import script can be started
 
 The development environment uses [Poetry](https://python-poetry.org/). Install it before anything.
 
-```bash
+````bash
 $ git clone https://github.com/punosmobile/jkr-core.git
 $ cd jkr-core
 
@@ -66,13 +66,13 @@ docker-compose -f dev.docker-compose.yml --env-file ".env.local" up flyway
 Optionally Scripts can be runned in container. First build image
 
 ```bash
-docker build -t jkr-core-runner:latest -f Dockerfile
+docker build --pull --rm -f "Dockerfile" -t jkr-core-runner:latest "."
 ```
 
 Start script-runner container
 
 ```bash
- docker-compose -f dev.docker-compose.yml --env-file ".env.local" run jkr-core-runner
+docker-compose -f dev.docker-compose.yml --env-file ".env.local" run jkr-core-runner
 ```
 
 Scripts are working when data folder has structure:
@@ -168,21 +168,21 @@ port=5435
 dbname=ymparisto_db
 ```
 
-2. Create a QGIS-profile for each environment (Development, Testing, Production). Name the profiles for example `jkr-dev`, `jkr-test`, `jkr-prod`. A new QGIS window will open. Use that  
+2. Create a QGIS-profile for each environment (Development, Testing, Production). Name the profiles for example `jkr-dev`, `jkr-test`, `jkr-prod`. A new QGIS window will open. Use that
    ![schreenshot of new profile menu](docs/img/qgis-new-profile.png)
-3. In QGIS settings add a `PGSERVICEFILE` environment variable and fill the file path of corresponding service file as a value.  
-   ![screenshot of menu location](docs/img/qgis-settings.png)  
+3. In QGIS settings add a `PGSERVICEFILE` environment variable and fill the file path of corresponding service file as a value.
+   ![screenshot of menu location](docs/img/qgis-settings.png)
    ![screenshot of the setting dialog](docs/img/qgis-pgservicefile-environment-variable.png)
 4. Restart QGIS to make the environment variable to take effect.
-5. Create a authentication key to QGIS which ID is `jkruser`.  
+5. Create a authentication key to QGIS which ID is `jkruser`.
    ![screenshot of the authentication dialog](docs/img/qgis-authentication.png)
-6. Create a new PostgreSQL connection  
-   ![screenshot of the new connection menu](docs/img/qgis-new-connection.png)  
+6. Create a new PostgreSQL connection
+   ![screenshot of the new connection menu](docs/img/qgis-new-connection.png)
    ![screenshot of the new connection dialog](docs/img/qgis-create-connection.png)
-7. Open the QGIS project from the jkr-qgis-projektit -schema.  
+7. Open the QGIS project from the jkr-qgis-projektit -schema.
    ![screenshot of the qgis projects schema](docs/img/qgis-open-project.png)
 
-> **Development**  
+> **Development**
 > For development use the [QGIS-project](qgis/jkr.qgs) can be used.
 
 ## Using jkr single command importer
@@ -238,3 +238,4 @@ Because this repository is developed mostly in customer specific projects the la
 ### Git Hooks
 
 This project uses Git hooks to prevent accidentally committing sensitive data. The pre-commit hook checks for patterns like API keys, passwords, and other sensitive information. If you need to commit a file that contains sensitive data (e.g., test configurations), add the file path to `.allowCommit` file.
+````
