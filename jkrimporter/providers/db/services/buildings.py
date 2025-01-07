@@ -1,4 +1,3 @@
-
 import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, List, Set, Union
@@ -339,7 +338,7 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto") -> List[Rakennu
    
    Osoitehaussa huomioidaan:
    - Katuosoite (katunimi_fi ja katunimi_sv)
-   - Osoitenumero (huomioiden myös mahdolliset kirjaimet)
+   - Osoitenumero (vain ensimmäinen numero, ei kirjaimia tai lisänumeroita)
    - Postinumero
    
    Args:
@@ -354,26 +353,10 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto") -> List[Rakennu
    except AttributeError:
        return []
 
-   # Osoitenumeron käsittely
-   if haltija.osoite.osoitenumero and "-" in haltija.osoite.osoitenumero:
-       osoitenumerot = haltija.osoite.osoitenumero.split("-", maxsplit=1)
-   else:
-       osoitenumerot = [haltija.osoite.osoitenumero]
-
-   # Huoneistotunnuksen käsittely mahdollisena osoitenumeron osana
-   potential_osoitenumero_suffix = (
-       haltija.osoite.huoneistotunnus.lower() 
-       if haltija.osoite.huoneistotunnus 
-       else ""
-   )
-
-   if potential_osoitenumero_suffix:
-       osoitenumero_condition = and_(
-           Osoite.osoitenumero.ilike(haltija.osoite.osoitenumero + "%"),
-           Osoite.osoitenumero.ilike("%" + potential_osoitenumero_suffix),
-       )
-   else:
-       osoitenumero_condition = Osoite.osoitenumero.in_(osoitenumerot)
+   # Haetaan osoitteen perusnumero
+   base_number = _extract_base_number(haltija.osoite.osoitenumero)
+   if not base_number:
+       return []
 
    statement = (
        select(Rakennus)
@@ -385,12 +368,35 @@ def _find_by_address(session: "Session", haltija: "Yhteystieto") -> List[Rakennu
                sqlalchemyFunc.lower(Katu.katunimi_fi) == katunimi_lower,
                sqlalchemyFunc.lower(Katu.katunimi_sv) == katunimi_lower,
            ),
-           osoitenumero_condition,
+           # Käytetään LIKE-operaattoria jotta löydetään kaikki saman perusnumeron osoitteet
+           Osoite.osoitenumero.ilike(f"{base_number}%"),
        )
        .distinct()
    )
 
    return session.execute(statement).scalars().all()
+
+
+def _extract_base_number(osoitenumero: str) -> str:
+    """
+    Palauttaa osoitenumerosta vain ensimmäisen numerosarjan.
+    Esim:
+    - '14a' -> '14'
+    - '14 a 1' -> '14'
+    - '14-16' -> '14'
+    - '14 b 2' -> '14'
+    """
+    if not osoitenumero:
+        return ""
+    
+    # Poistetaan väliviivalla alkavat osat
+    if "-" in osoitenumero:
+        osoitenumero = osoitenumero.split("-")[0]
+        
+    # Etsitään ensimmäinen numerosarja
+    import re
+    match = re.search(r'\d+', osoitenumero)
+    return match.group() if match else ""
 
 
 def _find_by_prt(session: "Session", prt_list: List[Rakennustunnus]) -> List[Rakennus]:
