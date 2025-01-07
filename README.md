@@ -29,7 +29,7 @@ Now import script can be started
 
 The development environment uses [Poetry](https://python-poetry.org/). Install it before anything.
 
-````bash
+```bash
 $ git clone https://github.com/punosmobile/jkr-core.git
 $ cd jkr-core
 
@@ -238,4 +238,4 @@ Because this repository is developed mostly in customer specific projects the la
 ### Git Hooks
 
 This project uses Git hooks to prevent accidentally committing sensitive data. The pre-commit hook checks for patterns like API keys, passwords, and other sensitive information. If you need to commit a file that contains sensitive data (e.g., test configurations), add the file path to `.allowCommit` file.
-````
+```
