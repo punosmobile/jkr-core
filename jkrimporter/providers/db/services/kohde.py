@@ -2533,6 +2533,9 @@ def create_perusmaksurekisteri_kohteet(
         FileNotFoundError: Jos perusmaksutiedostoa ei löydy
         openpyxl.utils.exceptions.InvalidFileException: Jos tiedosto ei ole validi Excel
     """
+    if loppupvm is None:
+        loppupvm = date(2100,1,1)
+    
     logger = logging.getLogger(__name__)
     logger.info("\nLuodaan perusmaksurekisterin kohteet...")
 
