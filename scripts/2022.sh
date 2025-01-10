@@ -3,6 +3,11 @@
 # Määritä aikaleima
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
+rm -rf logs
+rm jkr.log
+rm cluster_debug.log
+rm kiinteisto_debug.log
+
 # Luo logs-hakemisto jos ei ole olemassa
 mkdir -p logs/arkisto
 mkdir -p logs/kohteet
