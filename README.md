@@ -37,10 +37,11 @@ $ poetry install
 
 # Set up Git hooks to prevent committing sensitive data
 $ git config core.hooksPath .hooks
+```
 
 ### Db env
 
-Install docker and docker-compose (version >= 1.28.0)
+Install docker and docker-compose
 
 Copy .env.template to %APPDATA%/jkr/.env and change parameters
 
@@ -48,29 +49,39 @@ Copy .env.template to %APPDATA%/jkr/.env and change parameters
 $ cp .env.template .env.local
 
 # Edit the .env file
-$ nano .env
+$ nano .env.local
 ```
 
-Start database
-
+**Linux users only:** Before starting the database, you need to set up log directories and permissions:
 ```bash
-docker-compose -f dev.docker-compose.yml --env-file ".env.local" up db -d
+# 1. Create required log directories
+sudo mkdir -p ./docker/postgis/logs
+sudo mkdir -p ./docker/postgis/test/logs
+
+# 2. Set PostgreSQL user permissions for log directories
+sudo chown -R 999:999 ./docker/postgis/logs
+sudo chown -R 999:999 ./docker/postgis/test/logs
+sudo chmod 777 ./docker/postgis/logs
+sudo chmod 777 ./docker/postgis/test/logs
+```
+
+
+Start database
+```bash
+docker-compose -f dev.docker-compose.yml --env-file ".env.local" up -d db
 ```
 
 Run migrations
-
 ```bash
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" up flyway
 ```
 
 Optionally Scripts can be runned in container. First build image
-
 ```bash
 docker build --pull --rm -f "Dockerfile" -t jkr-core-runner:latest "."
 ```
 
 Start script-runner container
-
 ```bash
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" run jkr-core-runner
 ```
@@ -233,9 +244,8 @@ The postal code data (`/tests/data/test_data_import`) is real data downloaded fr
 
 ## Naming development branches
 
-Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}-{description}`. For example, `"Lahti-99-kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
+Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}/{description}`. For example, `"Lahti-99/kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
 
 ### Git Hooks
 
 This project uses Git hooks to prevent accidentally committing sensitive data. The pre-commit hook checks for patterns like API keys, passwords, and other sensitive information. If you need to commit a file that contains sensitive data (e.g., test configurations), add the file path to `.allowCommit` file.
-```
