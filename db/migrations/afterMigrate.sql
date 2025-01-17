@@ -22,3 +22,6 @@ GRANT USAGE ON SCHEMA jkr_osoite TO jkr_viewer;
 GRANT SELECT ON ALL TABLES IN SCHEMA jkr_osoite TO jkr_viewer;
 GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA jkr_osoite TO jkr_editor;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA jkr_osoite TO jkr_editor;
+
+-- jkr_qgis_projektit schema
+GRANT USAGE ON SCHEMA jkr_qgis_projektit TO jkr_editor;

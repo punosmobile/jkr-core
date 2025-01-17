@@ -282,7 +282,9 @@ def import_dvv_kohteet(
             """
             UPDATE jkr.kohde 
             SET loppupvm = :loppu_pvm 
-            WHERE loppupvm IS NULL OR loppupvm > :loppu_pvm
+            WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
+            AND alkupvm < :loppu_pvm
+            AND loppupvm != '2100-01-01'  -- Älä päivitä perusmaksurekisterin kohteita
             """
         )
         session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})

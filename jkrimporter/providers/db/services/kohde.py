@@ -7,7 +7,7 @@ from datetime import date, datetime as dt
 from datetime import timedelta
 from functools import lru_cache
 from typing import TypeVar, DefaultDict, Set, List, Dict,TYPE_CHECKING,NamedTuple, FrozenSet, Optional, Generic, Iterable, Callable
-from ..models import Kohde, HapaAineisto  # Lisätään puuttuvat importit
+from ..models import Kohde  # Lisätään puuttuvat importit
 
 from openpyxl import load_workbook
 from psycopg2.extras import DateRange
@@ -37,6 +37,7 @@ from ..models import (
     Sopimus,
     UlkoinenAsiakastieto,
     Viranomaispaatokset,
+    HapaAineisto,
 )
 from ..utils import clean_asoy_name, form_display_name, is_asoy, is_company, is_yhteiso
 from .buildings import DISTANCE_LIMIT, create_nearby_buildings_lookup, minimum_distance_of_buildings
@@ -198,10 +199,6 @@ def match_name(first: str, second: str) -> bool:
     return first_parts.issubset(second_parts) or second_parts.issubset(first_parts)
 
 
-def is_aluekerays(asiakas: "Asiakas") -> bool:
-    return "aluejätepiste" in asiakas.haltija.nimi.lower()
-
-
 def get_ulkoinen_asiakastieto(
     session: "Session", ulkoinen_tunnus: "Tunnus"
 ) -> "Union[UlkoinenAsiakastieto, None]":
@@ -220,8 +217,33 @@ def update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas: "Asiakas"):
         ulkoinen_asiakastieto.ulkoinen_asiakastieto = asiakas.ulkoinen_asiakastieto
 
 
+def add_ulkoinen_asiakastieto_for_kohde(
+    session: Session, kohde: Kohde, asiakas: Asiakas
+):
+    """
+    Lisää ulkoisen asiakastiedon kohteelle.
+
+    Args:
+        session: Tietokantaistunto
+        kohde: Kohde jolle asiakastieto lisätään
+        asiakas: Asiakas jonka tiedot lisätään
+
+    Returns:
+        UlkoinenAsiakastieto: Luotu asiakastieto-objekti
+    """
+    asiakastieto = UlkoinenAsiakastieto(
+        tiedontuottaja_tunnus=asiakas.asiakasnumero.jarjestelma,
+        ulkoinen_id=asiakas.asiakasnumero.tunnus,
+        ulkoinen_asiakastieto=asiakas.ulkoinen_asiakastieto,
+        kohde=kohde,
+    )
+
+    session.add(asiakastieto)
+    return asiakastieto
+
+
 def find_kohde_by_prt(
-    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus]"
+    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Union[Kohde, None]":
     if isinstance(asiakas, JkrIlmoitukset):
         return _find_kohde_by_asiakastiedot(
@@ -230,10 +252,6 @@ def find_kohde_by_prt(
     elif isinstance(asiakas, Asiakas):
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
-        )
-    elif isinstance(asiakas, LopetusIlmoitus):
-        return _find_kohde_by_ilmoitustiedot(
-            session, Rakennus.prt.in_(asiakas.prt), asiakas
         )
     else:
         raise ValueError("Invalid asiakas type")
@@ -356,18 +374,6 @@ def find_kohde_by_address(
         osoitenumero_filter = Osoite.osoitenumero.in_(osoitenumerot)
     print(osoitenumero_filter)
 
-    filter = and_(
-        func.lower(Osoite.posti_numero) == asiakas.haltija.osoite.postinumero,
-        or_(
-            func.lower(Katu.katunimi_fi)
-            == asiakas.haltija.osoite.katunimi.lower(),
-            func.lower(Katu.katunimi_sv)
-            == asiakas.haltija.osoite.katunimi.lower(),
-        ),
-        osoitenumero_filter,
-    )
-    print(filter)
-
 def _find_kohde_by_ilmoitustiedot(
     session: "Session",
     filter,
@@ -421,6 +427,7 @@ def _find_kohde_by_ilmoitustiedot(
                 return session.get(Kohde, kohde_id)
 
     return None
+
 
 
 def _find_kohde_by_asiakastiedot(
@@ -523,7 +530,7 @@ def get_kohde_by_asiakasnumero(
     return kohde
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=100)
 def get_or_create_pseudokohde(session: "Session", nimi: str, kohdetyyppi) -> Kohde:
     kohdetyyppi = codes.kohdetyypit[kohdetyyppi]
     query = select(Kohde).where(Kohde.nimi == nimi, Kohde.kohdetyyppi == kohdetyyppi)
@@ -534,13 +541,6 @@ def get_or_create_pseudokohde(session: "Session", nimi: str, kohdetyyppi) -> Koh
         session.add(kohde)
 
     return kohde
-
-
-def get_kohde_by_address(
-    session: "Session", asiakas: "Asiakas"
-) -> "Union[Kohde, None]":
-    ...
-
 
 
 def get_dvv_rakennustiedot_without_kohde(
@@ -637,7 +637,6 @@ def _is_significant_building(rakennustiedot: "Rakennustiedot") -> bool:
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.MUU_PIENTALO],
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.RIVITALO],
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.LUHTITALO],
-        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.KETJUTALO],
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.KERROSTALO],
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.VAPAA_AJANASUNTO],
         codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.MUU_ASUNTOLA],
@@ -693,189 +692,74 @@ def _is_significant_building(rakennustiedot: "Rakennustiedot") -> bool:
 
 #     return clusters
 
-def _cluster_rakennustiedot_fulllog(
-    rakennustiedot_to_cluster: "Set[Rakennustiedot]",
-    distance_limit: int,
-    existing_cluster: "Optional[Set[Rakennustiedot]]" = None
-) -> "List[Set[Rakennustiedot]]":
-    """
-    Klusteroi rakennukset kun KAIKKI kriteerit täyttyvät:
-    1. Sama omistaja TAI asukas
-    2. Sama osoite
-    3. Etäisyys alle raja-arvon
-    """
-    with open('cluster_debug.log', 'a', encoding='utf-8') as f:
-        f.write(f"\nAloitetaan klusterointi {len(rakennustiedot_to_cluster)} rakennukselle\n")
-        clusters = []
-        
-        while rakennustiedot_to_cluster:
-            current_building = rakennustiedot_to_cluster.pop()
-            cluster = {current_building}
-            f.write(f"\nUusi klusteri, aloitetaan rakennuksesta {current_building[0].prt}\n")
-            
-            # Kerää samaan klusteriin kuuluvat rakennukset
-            matches = set()
-            for building in rakennustiedot_to_cluster:
-                f.write(f"\nTarkistetaan rakennus {building[0].prt}:\n")
-                
-                # Tarkista omistajat/asukkaat
-                owners1 = {owner.osapuoli_id for owner in current_building[2]}
-                owners2 = {owner.osapuoli_id for owner in building[2]}
-                residents1 = {res.osapuoli_id for res in current_building[1]}
-                residents2 = {res.osapuoli_id for res in building[1]}
-                
-                f.write(f"Omistajat 1 ({current_building[0].prt}): {owners1}\n")
-                f.write(f"Omistajat 2 ({building[0].prt}): {owners2}\n")
-                f.write(f"Asukkaat 1 ({current_building[0].prt}): {residents1}\n")
-                f.write(f"Asukkaat 2 ({building[0].prt}): {residents2}\n")
-                
-                owners_match = bool(owners1 and owners2 and (owners1 & owners2))
-                residents_match = bool(residents1 and residents2 and (residents1 & residents2))
-                f.write(f"- Omistajat täsmäävät: {owners_match}\n")
-                f.write(f"- Asukkaat täsmäävät: {residents_match}\n")
-                
-                # Tarkista osoitteet
-                addresses_match = _match_addresses(current_building[3], building[3])
-                f.write(f"- Osoitteet täsmäävät: {addresses_match}\n")
-                
-                # Tarkista etäisyys
-                distance = minimum_distance_of_buildings([current_building[0], building[0]])
-                f.write(f"- Etäisyys: {distance}m\n")
-                
-                # Yhdistämisen ehdot
-                match_criteria = (owners_match or residents_match or addresses_match)
-                distance_ok = distance < distance_limit
-                
-                f.write(f"- Yhdistämiskriteerit täyttyvät: {match_criteria}\n")
-                f.write(f"- Etäisyys OK: {distance_ok}\n")
-                
-                if match_criteria and distance_ok:
-                    matches.add(building)
-                    f.write(f"=> Lisätään klusteriin!\n")
-                else:
-                    f.write(f"=> Ei lisätä klusteriin.\n")
-            
-            f.write(f"\nLöytyi {len(matches)} rakennusta klusteriin\n")
-            
-            cluster.update(matches)
-            rakennustiedot_to_cluster -= matches
-            clusters.append(cluster)
-            
-            f.write(f"Klusteri valmis, sisältää {len(cluster)} rakennusta:\n")
-            for r in cluster:
-                f.write(f"- {r[0].prt}\n")
-
-        f.write(f"\nKlusterointi valmis. Muodostui {len(clusters)} klusteria.\n")
-        for i, cluster in enumerate(clusters, 1):
-            f.write(f"\nKlusteri {i}:\n")
-            for r in cluster:
-                f.write(f"- {r[0].prt}\n")
-                
-        return clusters
 
 def _cluster_rakennustiedot(
     rakennustiedot_to_cluster: "Set[Rakennustiedot]",
     distance_limit: int,
     existing_cluster: "Optional[Set[Rakennustiedot]]" = None
 ) -> "List[Set[Rakennustiedot]]":
-    # PRTt joiden klusterointia seurataan
-    log_prt_in = ('103074869S', '103074870T', '103074871U', '103074872V', 
-                  '103074873W', '103074874X', '103074875Y', '1030748760', 
-                  '1030748771', '1030748782')
-    
+    """
+    Klusteroi rakennukset seuraavien ehtojen perusteella:
+    - Etäisyys toisistaan max 300m JA
+    - Samat omistajat/asukkaat JA
+    - Sama osoite
+    """
     clusters = []
+    # Aloita klusteri ensimmäisestä rakennuksesta (tai olemassaolevasta klusterista)
+    cluster = existing_cluster.copy() if existing_cluster else None
     
-    with open('cluster_debug.log', 'a', encoding='utf-8') as f:
-        tracked_buildings = any(r[0].prt in log_prt_in for r in rakennustiedot_to_cluster)
-        log_all = not log_prt_in
-        
-        if tracked_buildings or log_all:
-            f.write("\n" + "="*80 + "\n")
-            f.write(f"{datetime.datetime.now()}: Aloitetaan klusterointi {len(rakennustiedot_to_cluster)} rakennukselle\n")
-            f.write("Rakennukset alussa:\n")
-            for r in rakennustiedot_to_cluster:
-                f.write(f"- {r[0].prt}\n")
+    while rakennustiedot_to_cluster:
+        if not cluster:
+            cluster = set([rakennustiedot_to_cluster.pop()])
 
-        while rakennustiedot_to_cluster:
-            current_building = rakennustiedot_to_cluster.pop()
-            cluster = {current_building}
-            
-            should_log = (log_all or 
-                         current_building[0].prt in log_prt_in or
-                         any(r[0].prt in log_prt_in for r in rakennustiedot_to_cluster))
-            
-            if should_log:
-                f.write(f"\nUusi klusteri, aloitetaan rakennuksesta {current_building[0].prt}\n")
-                f.write("Jäljellä olevat rakennukset:\n")
-                for r in rakennustiedot_to_cluster:
-                    f.write(f"- {r[0].prt}\n")
-            
-            matches = set()
-            for building in rakennustiedot_to_cluster:
-                # Kerää omistaja- ja asukastiedot ENNEN ehtolausetta
-                owners1 = {owner.osapuoli_id for owner in current_building[2]}
-                owners2 = {owner.osapuoli_id for owner in building[2]}
-                residents1 = {res.osapuoli_id for res in current_building[1]}
-                residents2 = {res.osapuoli_id for res in building[1]}
-                
-                should_log_match = (log_all or 
-                                  current_building[0].prt in log_prt_in or 
-                                  building[0].prt in log_prt_in)
-                
-                if should_log_match:
-                    f.write(f"\nTarkistetaan rakennus {building[0].prt}:\n")
-                    f.write(f"Omistajat 1 ({current_building[0].prt}): {owners1}\n")
-                    f.write(f"Omistajat 2 ({building[0].prt}): {owners2}\n")
-                    f.write(f"Asukkaat 1 ({current_building[0].prt}): {residents1}\n")
-                    f.write(f"Asukkaat 2 ({building[0].prt}): {residents2}\n")
-                
-                owners_match = bool(owners1 and owners2 and (owners1 & owners2))
-                residents_match = bool(residents1 and residents2 and (residents1 & residents2))
-                addresses_match = _match_addresses(current_building[3], building[3])
-                distance = minimum_distance_of_buildings([current_building[0], building[0]])
-                
-                if should_log_match:
-                    f.write(f"- Omistajat täsmäävät: {owners_match}\n")
-                    f.write(f"- Asukkaat täsmäävät: {residents_match}\n")
-                    f.write(f"- Osoitteet täsmäävät: {addresses_match}\n")
-                    f.write(f"- Etäisyys: {distance}m\n")
-                
-                match_criteria = (owners_match or residents_match or addresses_match)
-                distance_ok = distance < distance_limit
-                
-                if should_log_match:
-                    f.write(f"- Yhdistämiskriteerit täyttyvät: {match_criteria}\n")
-                    f.write(f"- Etäisyys OK: {distance_ok}\n")
-                
-                if match_criteria and distance_ok:
-                    matches.add(building)
-                    if should_log_match:
-                        f.write(f"=> Lisätään klusteriin!\n")
-                elif should_log_match:
-                    f.write(f"=> Ei lisätä klusteriin.\n")
-            
-            if should_log:
-                f.write(f"\nLöytyi {len(matches)} rakennusta klusteriin\n")
-            
-            cluster.update(matches)
-            rakennustiedot_to_cluster -= matches
-            clusters.append(cluster)
-            
-            if should_log:
-                f.write(f"Klusteri valmis, sisältää {len(cluster)} rakennusta:\n")
-                for r in cluster:
-                    f.write(f"- {r[0].prt}\n")
+        other_rakennustiedot_to_cluster = rakennustiedot_to_cluster.copy()
+        while other_rakennustiedot_to_cluster:
+            found_match = False
+            for other_rakennustiedot in other_rakennustiedot_to_cluster:
+                # Tarkista etäisyys
+                if minimum_distance_of_buildings(
+                    [rakennustiedot[0] for rakennustiedot in cluster]
+                    + [other_rakennustiedot[0]]
+                ) >= distance_limit:
+                    continue
 
-        if tracked_buildings or log_all:
-            f.write("\nKaikki klusterit muodostettu:\n")
-            for i, cluster in enumerate(clusters, 1):
-                has_tracked = any(r[0].prt in log_prt_in for r in cluster)
-                if has_tracked or log_all:
-                    f.write(f"\nKlusteri {i}:\n")
-                    prts = sorted([r[0].prt for r in cluster])
-                    f.write(f"PRTt: {prts}\n")
-                
+                # Tarkista omistajat/asukkaat
+                match_found = False
+                for cluster_building in cluster:
+                    if _match_ownership_or_residents(cluster_building, other_rakennustiedot):
+                        match_found = True
+                        break
+                if not match_found:
+                    continue
+
+                # Tarkista osoite
+                match_found = False
+                for cluster_building in cluster:
+                    if _match_addresses(cluster_building[3], other_rakennustiedot[3]):
+                        match_found = True
+                        break
+                if not match_found:
+                    continue
+
+                # Kaikki ehdot täyttyvät, lisää rakennus klusteriin
+                cluster.add(other_rakennustiedot)
+                found_match = True
+                break
+
+            if not found_match:
+                # Klusteri on valmis! Muita sopivia rakennuksia ei löytynyt.
+                break
+
+            # Poista löydetty rakennus käsiteltävistä ja jatka silmukkaa
+            other_rakennustiedot_to_cluster.remove(other_rakennustiedot)
+
+        # Klusteri on valmis! Poista klusteroidut rakennukset ja aloita silmukka alusta
+        clusters.append(cluster)
+        rakennustiedot_to_cluster -= cluster
+        cluster = None
+
     return clusters
+
 
 def _match_ownership_or_residents(
     building1: "Rakennustiedot",
@@ -895,6 +779,72 @@ def _match_ownership_or_residents(
         (owners1 and owners2 and (owners1 & owners2)) or
         (residents1 and residents2 and (residents1 & residents2))
     )
+
+
+def _normalize_address(address: "Osoite") -> str:
+    """
+    Normalisoi osoitteen vertailua varten.
+    Palauttaa osoitteen muodossa 'kadunnimi numero' ilman kirjaimia tai muita lisäosia.
+    Esim. 'Leninpolku 1 a 5' -> 'leninpolku 1'
+
+    Args:
+        address: Osoite-objekti
+
+    Returns:
+        str: Normalisoitu osoite
+    """
+    # Tarkista että osoitteella on katu ja numero
+    if not address.katu or not address.osoitenumero:
+        return ""
+
+    # Poista välilyönnit alusta ja lopusta, muuta pieniksi kirjaimiksi
+    katunimi = address.katu.katunimi_fi.strip().lower() if address.katu.katunimi_fi else ""
+    
+    # Ota numerosta vain ensimmäinen numero (ennen kirjainta tai välilyöntiä)
+    import re
+    numero_match = re.match(r'^\d+', address.osoitenumero.strip())
+    numero = numero_match.group(0) if numero_match else ""
+
+    return f"{katunimi} {numero}"
+
+def _match_addresses(addresses1: "FrozenSet[Osoite]", addresses2: "FrozenSet[Osoite]") -> bool:
+    """
+    Tarkistaa onko osoitteilla yhtäläisyyksiä.
+    Vertailee osoitteita vain kadunnimen ja numeron perusteella, jättäen huomiotta
+    kirjaimet ja muut lisäosat.
+
+    Esimerkiksi seuraavat osoitteet tulkitaan samoiksi:
+    - Leninpolku 1
+    - Leninpolku 1 a
+    - Leninpolku 1a
+    - Leninpolku 1b
+    - Leninpolku 1 c 5
+
+    Args:
+        addresses1: Ensimmäisen rakennuksen osoitteet
+        addresses2: Toisen rakennuksen osoitteet
+
+    Returns:
+        bool: True jos osoitteilla on yhtäläisyyksiä, muuten False
+    """
+    # Jos jommalla kummalla ei ole osoitteita, ei voida verrata
+    if not addresses1 or not addresses2:
+        return False
+
+    # Normalisoi osoitteet vertailua varten
+    normalized1 = {_normalize_address(addr) for addr in addresses1}
+    normalized2 = {_normalize_address(addr) for addr in addresses2}
+
+    # Poista tyhjät osoitteet
+    normalized1 = {addr for addr in normalized1 if addr}
+    normalized2 = {addr for addr in normalized2 if addr}
+
+    # Jos jommalla kummalla ei ole valideja osoitteita, ei voida verrata
+    if not normalized1 or not normalized2:
+        return False
+
+    # Tarkista onko yhteisiä normalisoituja osoitteita
+    return bool(normalized1.intersection(normalized2))
 
 
 def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm):
@@ -974,7 +924,7 @@ def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm
     )
     session.execute(stmt)
 
-    # 5. Siirrä jatkuvat kompostorit uudelle kohteelle
+    # Siirrä jatkuvat kompostorit uudelle kohteelle
     # Hae kompostorit jotka jatkuvat loppupvm:n jälkeen
     jatkuvat_kompostorit = select(Kompostori.id).where(
         and_(
@@ -998,288 +948,83 @@ def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm
     session.commit()
 
 
-@lru_cache(maxsize=128)
-def is_auxiliary_building(rakennus: Rakennus) -> bool:
+def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "Optional[Set[Osapuoli]]" = None) -> KohdeTyyppi:
     """
-    Tarkistaa onko rakennus apurakennus (talousrakennus tai sauna).
-    
-    Tarkistaa ensisijaisesti Rakennusluokitus 2018 mukaiset luokat:
-    - 1910: Saunarakennukset
-    - 1911: Talousrakennukset
-    
-    Käyttää vanhempaa rakennuksen käyttötarkoitusta VAIN jos 2018 luokka puuttuu kokonaan.
-    
-    Args:
-        rakennus: Rakennus-objekti
-        
-    Returns:
-        bool: True jos kyseessä on apurakennus, muuten False
-    """
-    if rakennus.rakennusluokka_2018 is not None:
-        return rakennus.rakennusluokka_2018 in ('1910', '1911')
-    
-    # Tarkista vanha käyttötarkoitus vain jos 2018 luokka puuttuu kokonaan
-    return rakennus.rakennuksenkayttotarkoitus in (
-        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.TALOUSRAKENNUS],
-        codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA]
-    )
-
-
-def add_auxiliary_buildings_materialized(
-    dvv_rakennustiedot: Dict[int, "Rakennustiedot"],
-    building_sets: List[Set["Rakennustiedot"]],
-    session: Session 
-) -> List[Set["Rakennustiedot"]]:
-    """
-    Lisää apurakennukset (saunat, piharakennukset) päärakennusten ryhmiin hyödyntäen
-    materialisoitua nearby_buildings näkymää.
-
-    Apurakennus lisätään ryhmään jos KAIKKI seuraavat ehdot täyttyvät:
-    1. On tyypiltään apurakennus (sauna tai piharakennus)
-    2. Sama omistaja tai asukas kuin jollain ryhmän rakennuksista
-    3. Sama osoite kuin jollain ryhmän rakennuksista
-    4. Löytyy nearby_buildings näkymästä (eli on max 300m päässä)
+    Määrittää kohteen tyypin rakennuksen tietojen perusteella.
+    Logiikka:
+    1. Tarkista HAPA/BIOHAPA status
+    2. Tarkista onko asuinkiinteistö seuraavassa järjestyksessä:
+       1. Rakennusluokka 2018 (0110-0211)
+       2. Vanha rakennusluokka (011-041)
+       3. Huoneistomaara > 0
+       4. Asukkaat olemassa
+    3. Jos mikään ehto ei täyty -> MUU
 
     Args:
-        dvv_rakennustiedot: Sanakirja rakennustiedoista rakennuksen id:n mukaan
-        building_sets: Lista rakennusryhmistä, joihin apurakennuksia etsitään
         session: Tietokantaistunto
+        rakennus: Rakennus-objekti
+        asukkaat: Lista asukkaista (optional)
 
+    Huom: HAPA/BIOHAPA tyypit määritellään myös tietokannassa triggerillä
+    (katso V2.48.0__Add_hapa_trigger_and_functions.sql)
+    """
+    # 1. Tarkista HAPA/BIOHAPA status
+    hapa_aineisto = get_hapa_aineisto(session)
+    if rakennus.prt in hapa_aineisto:
+        kohdetyyppi = hapa_aineisto[rakennus.prt].lower()
+        if kohdetyyppi == 'hapa':
+            return KohdeTyyppi.HAPA
+        elif kohdetyyppi == 'biohapa':
+            return KohdeTyyppi.BIOHAPA
+
+    # 2. Tarkista rakennusluokka 2018
+    if rakennus.rakennusluokka_2018 is not None:
+        try:
+            luokka = int(rakennus.rakennusluokka_2018)
+            if 110 <= luokka <= 211:
+                return KohdeTyyppi.ASUINKIINTEISTO
+        except (ValueError, TypeError):
+            pass
+
+    # 3. Jos ei rakennusluokkaa 2018, tarkista käyttötarkoitus
+    try:
+        kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus)
+        if 11 <= kayttotarkoitus <= 41:
+            return KohdeTyyppi.ASUINKIINTEISTO
+    except (ValueError, TypeError):
+        pass
+
+    # 4. Tarkista huoneistomäärä
+    if rakennus.huoneistomaara is not None and rakennus.huoneistomaara > 0:
+        return KohdeTyyppi.ASUINKIINTEISTO
+
+    # 5. Tarkista asukkaat
+    if asukkaat and len(asukkaat) > 0:
+        return KohdeTyyppi.ASUINKIINTEISTO
+
+    # 6. Jos mikään ehto ei täyttynyt, kyseessä on muu kohde
+    return KohdeTyyppi.MUU
+
+@lru_cache(maxsize=1)  # Vain yksi cache entry koko aineistolle
+def get_hapa_aineisto(session: "Session") -> Dict[str, str]:
+    """
+    Hakee HAPA-aineiston tiedot muistiin.
+    
+    Args:
+        session: Tietokantaistunto
+    
     Returns:
-        Lista päivitetyistä rakennusryhmistä joihin on lisätty kriteerit täyttävät
-        apurakennukset
+        Dict[str, str]: Sanakirja, jossa avaimena rakennus_id_tunnus ja arvona kohdetyyppi
     """
-    logger = logging.getLogger(__name__)
-    print(f"Etsitään apurakennuksia {len(building_sets)} rakennusryhmälle...")
-    logger.info(f"\nEtsitään apurakennuksia {len(building_sets)} rakennusryhmälle...")
+    # Haetaan koko aineisto muistiin
+    query = select(HapaAineisto.rakennus_id_tunnus, HapaAineisto.kohdetyyppi)
     
-    start_time = dt.now()
-
-    # Kerää kaikki päärakennusten ID:t
-    main_building_ids = {
-        rakennustiedot[0].id 
-        for building_set in building_sets
-        for rakennustiedot in building_set
-    }
-
-    # Hae potentiaaliset apurakennukset käyttäen materialisoitua näkymää
-    nearby_query = text("""
-        SELECT DISTINCT r.id, r.prt, 
-               ro.osapuoli_id as owner_id,
-               o.katu_id, o.osoitenumero
-        FROM jkr.nearby_buildings nb
-        JOIN jkr.rakennus r ON 
-            (r.id = nb.rakennus1_id OR r.id = nb.rakennus2_id)
-        LEFT JOIN jkr.rakennuksen_omistajat ro ON r.id = ro.rakennus_id
-        LEFT JOIN jkr.osoite o ON r.id = o.rakennus_id
-        WHERE 
-            -- Toinen rakennuksista on päärakennus
-            ((nb.rakennus1_id = ANY(:main_ids) AND nb.rakennus2_id != ANY(:main_ids))
-             OR 
-             (nb.rakennus2_id = ANY(:main_ids) AND nb.rakennus1_id != ANY(:main_ids)))
-            -- On apurakennus (2018 luokitus tai vanha)
-            AND (
-                r.rakennusluokka_2018 IN ('1910', '1911')
-                OR (
-                    r.rakennusluokka_2018 IS NULL 
-                    AND r.rakennuksenkayttotarkoitus_koodi IN ('941', '931')
-                )
-            )
-    """)
-
-    # Suorita kysely
-    results = session.execute(
-        nearby_query,
-        {"main_ids": list(main_building_ids)}
-    ).all()
-
-    # Kokoa apurakennusten tiedot
-    potential_auxiliary_buildings = {}
-    for row in results:
-        if row.id not in dvv_rakennustiedot:
-            continue
-            
-        aux_tiedot = dvv_rakennustiedot[row.id]
-        if row.id not in potential_auxiliary_buildings:
-            potential_auxiliary_buildings[row.id] = aux_tiedot
-
-    # Lisää sopivat apurakennukset ryhmiin
-    updated_sets = []
-    aux_added = 0
-    
-    for building_set in building_sets:
-        updated_set = building_set.copy()
-        
-        # Kerää ryhmän omistajat ja osoitteet
-        main_owner_ids = {
-            osapuoli.id
-            for rakennustiedot in building_set
-            for omistaja in rakennustiedot[2]  # [2] on omistajat
-            for osapuoli in [omistaja.osapuoli]
-        }
-        
-        main_address_ids = {
-            (osoite.katu_id, osoite.osoitenumero)
-            for rakennustiedot in building_set
-            for osoite in rakennustiedot[3]  # [3] on osoitteet
-        }
-
-        # Käy läpi potentiaaliset apurakennukset
-        for aux_id, aux_tiedot in potential_auxiliary_buildings.items():
-            # Kerää apurakennuksen omistajat ja osoitteet
-            aux_owner_ids = {
-                osapuoli.id
-                for omistaja in aux_tiedot[2]
-                for osapuoli in [omistaja.osapuoli]
-            }
-            
-            aux_address_ids = {
-                (osoite.katu_id, osoite.osoitenumero)
-                for osoite in aux_tiedot[3]
-            }
-
-            # Tarkista kriteerit:
-            # 1. Omistajuus
-            has_matching_owner = (
-                not aux_owner_ids or  # Jos ei omistajia, hyväksytään
-                bool(aux_owner_ids & main_owner_ids)  # Tai jos yhteinen omistaja
-            )
-            
-            # 2. Osoite - vaaditaan aina yhteinen osoite
-            has_matching_address = bool(aux_address_ids & main_address_ids)
-
-            # Jos kriteerit täyttyvät, lisää apurakennus ryhmään
-            if has_matching_owner and has_matching_address:
-                updated_set.add(aux_tiedot)
-                aux_added += 1
-
-        updated_sets.append(updated_set)
-
-    elapsed = dt.now() - start_time
-    print(
-        f"Lisätty {aux_added} apurakennusta {len(building_sets)} rakennusryhmään, "
-        f"aikaa kului {elapsed.total_seconds():.2f}s"
-    )
-    logger.info(
-        f"Lisätty {aux_added} apurakennusta {len(building_sets)} rakennusryhmään, "
-        f"aikaa kului {elapsed.total_seconds():.2f}s"
-    )
-    return updated_sets
-
-def _add_auxiliary_buildings(
-    dvv_rakennustiedot: Dict[int, Rakennustiedot],
-    building_sets: List[Set[Rakennustiedot]]
-) -> List[Set[Rakennustiedot]]:
-    """
-    Lisää piha- ja apurakennukset päärakennusten muodostamiin rakennusryhmiin.
-    """
-    logger = logging.getLogger(__name__)
-    logger.info("\nLisätään apurakennukset rakennusryhmiin...")
-
-    # Luo lookup vain lähekkäisille rakennuksille
-    nearby_buildings = create_nearby_buildings_lookup(dvv_rakennustiedot)
-    
-    sets_to_return = []
-    progress = BatchProgressTracker(len(building_sets), "Apurakennusten lisäys")
-
-    for building_set in building_sets:
-        set_to_return = building_set.copy()
-        main_building_ids = {tiedot[0].id for tiedot in building_set}
-        
-        # Kerää päärakennusten omistajat ja osoitteet suoraan building_setistä
-        main_building_owners = {
-            owner.osapuoli_id 
-            for building in building_set
-            for owner in building[2]
-        }
-        
-        main_addresses = {
-            (address.katu_id, address.osoitenumero)
-            for building in building_set
-            for address in building[3]
-        }
-
-        # Tarkista vain lähellä olevat rakennukset
-        aux_candidates = set()
-        for main_id in main_building_ids:
-            if main_id in nearby_buildings:
-                aux_candidates.update(nearby_buildings[main_id])
-
-        for aux_id in aux_candidates:
-            if aux_id in main_building_ids:
-                continue
-
-            aux_data = dvv_rakennustiedot[aux_id]
-            aux_building = aux_data[0]
-            
-            # Nopeampi tarkistus ensin
-            if not is_auxiliary_building(aux_building):
-                continue
-
-            # Tarkista osoite ja omistajuus vain jos on apurakennus
-            aux_owners = {owner.osapuoli_id for owner in aux_data[2]}
-            aux_addresses = {
-                (address.katu_id, address.osoitenumero)
-                for address in aux_data[3]
-            }
-
-            # Lisää rakennus jos kriteerit täyttyvät
-            if ((not aux_owners or (aux_owners & main_building_owners)) and
-                (aux_addresses & main_addresses)):
-                set_to_return.add(aux_data)
-
-        sets_to_return.append(set_to_return)
-        progress.update()
-
-    progress.done()
-    return sets_to_return
-
-
-def add_ulkoinen_asiakastieto_for_kohde(
-    session: "Session", kohde: Kohde, asiakas: "Asiakas"
-):
-    asiakastieto = UlkoinenAsiakastieto(
-        tiedontuottaja_tunnus=asiakas.asiakasnumero.jarjestelma,
-        ulkoinen_id=asiakas.asiakasnumero.tunnus,
-        ulkoinen_asiakastieto=asiakas.ulkoinen_asiakastieto,
-        kohde=kohde,
-    )
-
-    session.add(asiakastieto)
-
-    return asiakastieto
-
-
-def create_new_kohde_yritelm(session: "Session", asiakas: "Asiakas"):
-    """
-    Luo uusi kohde asiakkaan tietojen perusteella.
-    Kohdetyyppi määräytyy:
-    - ALUEKERAYS jos kyseessä on aluekeräyspiste
-    - ASUINKIINTEISTO tai MUU rakennustietojen perusteella
-    """
-    if is_aluekerays(asiakas):
-        kohdetyyppi = KohdeTyyppi.ALUEKERAYS
-    else:
-        # Tarkista rakennusten perusteella
-        kohdetyyppi = KohdeTyyppi.MUU
-        for prt in asiakas.rakennukset:
-            rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
-            if rakennus:
-                building_type = determine_kohdetyyppi(rakennus)
-                if building_type == KohdeTyyppi.ASUINKIINTEISTO:
-                    kohdetyyppi = KohdeTyyppi.ASUINKIINTEISTO
-                    break
-
-    kohde_display_name = form_display_name(asiakas.haltija)
-    kohde = Kohde(
-        nimi=kohde_display_name,
-        kohdetyyppi=codes.kohdetyypit[kohdetyyppi],
-        alkupvm=asiakas.voimassa.lower,
-        loppupvm=asiakas.voimassa.upper,
-    )
-
-    return kohde
-
+    try:
+        results = session.execute(query).all()
+        return {row[0]: row[1] for row in results if row[0] is not None}
+    except Exception as e:
+        print(f"Virhe HAPA-aineiston haussa: {str(e)}")
+        return {}
 
 def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> Kohde:
     """
@@ -1296,18 +1041,21 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
     Returns:
         Kohde: Luotu kohdeobjekti
     """
-    if is_aluekerays(asiakas):
-        kohdetyyppi = KohdeTyyppi.ALUEKERAYS
-    else:
-        # Tarkista rakennusten perusteella
-        kohdetyyppi = KohdeTyyppi.MUU
+
+    # Tarkista rakennusten perusteella
+    kohdetyyppi = KohdeTyyppi.MUU
+    try:
         for prt in asiakas.rakennukset:
             rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
             if rakennus:
-                building_type = determine_kohdetyyppi(session, rakennus, keraysalueet)
-                if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA):
+                building_type = determine_kohdetyyppi(session, rakennus, None)
+                if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA, KohdeTyyppi.HAPA, KohdeTyyppi.MUU):
                     kohdetyyppi = building_type
                     break
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Virhe rakennusten tyypin määrityksessä: {str(e)}")
+        # Jatketaan oletustyypillä MUU
 
     kohde = Kohde(
         nimi=form_display_name(asiakas.haltija),
@@ -1319,56 +1067,14 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
     return kohde
 
 
-def parse_alkupvm_for_kohde(session, rakennus_ids, old_kohde_alkupvm, poimintapvm):
-    """
-    Määrittää uuden kohteen alkupvm:n seuraavasti:
-    1. Jos rakennuksilla ei ole omistaja/asukas muutoksia -> poimintapvm
-    2. Jos muutoksia, käytetään uusinta muutosta:
-       - omistajan muutos
-       - vanhimman asukkaan muutos
-       - vanha kohteen alkupvm
-    """
-    # Hae viimeisin omistajamuutos
-    latest_omistaja_change = (
-        session.query(func.max(RakennuksenOmistajat.omistuksen_alkupvm))
-        .filter(RakennuksenOmistajat.rakennus_id.in_(rakennus_ids))
-        .scalar()
-    )
-    
-    # Hae viimeisin asukas muutos  
-    latest_vanhin_change = session.query(
-        func.max(RakennuksenVanhimmat.alkupvm)
-    ).filter(RakennuksenVanhimmat.rakennus_id.in_(rakennus_ids)).scalar()
-
-    # Jos ei muutoksia, käytä poimintapvm
-    if latest_omistaja_change is None and latest_vanhin_change is None:
-        return poimintapvm
-
-    # Määritä viimeisin muutospäivä
-    latest_change = old_kohde_alkupvm
-    if latest_omistaja_change is None and latest_vanhin_change is not None:
-        latest_change = latest_vanhin_change
-    elif latest_vanhin_change is None and latest_omistaja_change is not None:
-        latest_change = latest_omistaja_change
-    else:
-        latest_change = max(latest_omistaja_change, latest_vanhin_change)
-
-    # Jos muutoksia vanhan kohteen alkupvm:n jälkeen, käytä muutospvm
-    # Muuten käytä poimintapvm
-    if latest_change > old_kohde_alkupvm:
-        return latest_change
-    else:
-        return poimintapvm
-
-
 def create_new_kohde_from_buildings(
-    session: "Session",
-    rakennus_ids: "List[int]",
-    asukkaat: "Set[Osapuoli]",
-    omistajat: "Set[Osapuoli]",
-    poimintapvm: "Optional[datetime.date]",
-    loppupvm: "Optional[datetime.date]",
-    old_kohde: "Optional[Kohde]",
+    session: Session,
+    rakennus_ids: List[int],
+    asukkaat: Set[Osapuoli],
+    omistajat: Set[Osapuoli],
+    poimintapvm: Optional[datetime.date],
+    loppupvm: Optional[datetime.date],
+    old_kohde: Optional[Kohde],
 ):
     """
     Luo uuden kohteen annettujen rakennusten perusteella ja yhdistää niihin liittyvät tiedot.
@@ -1392,10 +1098,10 @@ def create_new_kohde_from_buildings(
     Args:
         session: Tietokantaistunto
         rakennus_ids: Lista rakennusten ID-tunnisteista
-        asukkaat: Joukko asukkaiden Osapuoli-objekteja
-        omistajat: Joukko omistajien Osapuoli-objekteja 
-        poimintapvm: Kohteen alkupäivämäärä (oletus)
-        loppupvm: Kohteen loppupäivämäärä (vapaaehtoinen)
+        asukkaat: Rakennusten asukkaat 
+        omistajat: Rakennusten omistajat
+        poimintapvm: Uuden kohteen alkupäivämäärä
+        loppupvm: Uuden kohteen loppupäivämäärä
         old_kohde: Vanha kohde, jos kyseessä on päivitys (vapaaehtoinen)
 
     Returns:
@@ -1407,6 +1113,9 @@ def create_new_kohde_from_buildings(
         - Omistajatiedot tallennetaan aina, jotta kohde voidaan tunnistaa myöhemmissä tuonneissa
         - Muutokset tallennetaan session.flush()-komennolla, mutta ei commitoida
     """
+    # Alustetaan asiakas None:ksi
+    asiakas = None
+    
     if omistajat:
         # prefer companies over private owners when naming combined objects
         asoy_asiakkaat = {osapuoli for osapuoli in omistajat if is_asoy(osapuoli.nimi)}
@@ -1424,13 +1133,8 @@ def create_new_kohde_from_buildings(
             asiakas = min(yhteiso_asiakkaat, key=lambda x: x.nimi)
         elif asukkaat:
             asiakas = min(asukkaat, key=lambda x: x.nimi)
-        else:
-            asiakas = min(omistajat, key=lambda x: x.nimi)
-    else:
-        if asukkaat:
-            asiakas = min(asukkaat, key=lambda x: x.nimi)
-        else:
-            asiakas = None
+    elif asukkaat:  # Jos ei omistajia mutta on asukkaita
+        asiakas = min(asukkaat, key=lambda x: x.nimi)
             
     if asiakas:
         kohde_display_name = form_display_name(
@@ -1454,9 +1158,19 @@ def create_new_kohde_from_buildings(
     if loppupvm is None:
         loppupvm = date(2100, 12, 31)
         
+    # Määritä kohdetyyppi rakennusten perusteella
+    kohdetyyppi = KohdeTyyppi.MUU  # Oletuksena MUU
+    for rakennus_id in rakennus_ids:
+        rakennus = session.query(Rakennus).filter(Rakennus.id == rakennus_id).first()
+        if rakennus:
+            building_type = determine_kohdetyyppi(session, rakennus, None)
+            if building_type == KohdeTyyppi.ASUINKIINTEISTO:
+                kohdetyyppi = KohdeTyyppi.ASUINKIINTEISTO
+                break
+        
     kohde = Kohde(
         nimi=kohde_display_name,
-        kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.KIINTEISTO],
+        kohdetyyppi=codes.kohdetyypit[kohdetyyppi],
         alkupvm=alkupvm,
         loppupvm=loppupvm,
     )
@@ -1493,7 +1207,7 @@ def create_new_kohde_from_buildings(
 
 
 def old_kohde_for_buildings(
-    session: "Session", rakennus_ids: "List[int]", poimintapvm: "datetime.date"
+    session: Session, rakennus_ids: List[int], poimintapvm: datetime.date
 ):
     kohde_query = (
         select(Kohde)
@@ -1507,7 +1221,7 @@ def old_kohde_for_buildings(
     return old_kohde_id
 
 
-def set_old_kohde_loppupvm(session: "Session", kohde_id: int, loppupvm: "datetime.date"):
+def set_old_kohde_loppupvm(session: Session, kohde_id: int, loppupvm: datetime.date):
     session.execute(
         update(Kohde)
         .where(Kohde.id == kohde_id)
@@ -1517,7 +1231,7 @@ def set_old_kohde_loppupvm(session: "Session", kohde_id: int, loppupvm: "datetim
 
 
 def set_paatos_loppupvm_for_old_kohde(
-    session: "Session", kohde_id: int, loppupvm: "datetime.date"
+    session: Session, kohde_id: int, loppupvm: datetime.date
 ):
     """
     Asettaa päätösten loppupäivämäärän vanhan kohteen päätöksille.
@@ -1537,7 +1251,7 @@ def set_paatos_loppupvm_for_old_kohde(
 
 
 def update_kompostori(
-    session: "Session", old_kohde_id: int, loppupvm: "datetime.date", new_kohde_id: int
+    session: Session, old_kohde_id: int, loppupvm: datetime.date, new_kohde_id: int
 ):
     """
     Päivittää kompostorien tiedot kohteen vaihtuessa.
@@ -1589,7 +1303,7 @@ def update_kompostori(
 
 
 def move_sopimukset_and_kuljetukset_to_new_kohde(
-    session: "Session", alkupvm: "datetime.date", old_kohde_id: int, new_kohde_id: int
+    session: Session, alkupvm: datetime.date, old_kohde_id: int, new_kohde_id: int
 ):
     session.execute(
         update(Sopimus)
@@ -1621,7 +1335,7 @@ def update_or_create_kohde_from_buildings(
 
     Toiminta:
     1. Hakee rakennusten perusteella mahdollisen olemassa olevan kohteen
-    2. Jos kohdetta ei löydy, luo uuden
+    2. Jos kohdetta ei löydy, luo uusi
     3. Jos kohde löytyy, päivittää sen tiedot
     4. Käsittelee vanhaan kohteeseen liittyvät tietojen siirrot ja päivitykset
 
@@ -1637,8 +1351,8 @@ def update_or_create_kohde_from_buildings(
         rakennukset: Käsiteltävät rakennukset
         asukkaat: Rakennusten asukkaat 
         omistajat: Rakennusten omistajat
-        poimintapvm: Uuden kohteen alkupvm
-        loppupvm: Uuden kohteen loppupvm
+        poimintapvm: Uuden kohteen alkupäivämäärä
+        loppupvm: Uuden kohteen loppupäivämäärä
 
     Returns:
         Kohde: Luotu tai päivitetty kohde
@@ -1738,108 +1452,41 @@ def update_or_create_kohde_from_buildings(
     return found_kohde
 
 
-def get_or_create_kohteet_from_rakennustiedot(
-    session: Session,
-    dvv_rakennustiedot: Dict[int, "Rakennustiedot"],
-    building_sets: List[Set["Rakennustiedot"]],
-    owners_by_rakennus_id: Dict[int, Set["Osapuoli"]],
-    inhabitants_by_rakennus_id: Dict[int, Set["Osapuoli"]],
-    poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date]
-) -> List[Kohde]:
-    """
-    Luo kohteet rakennusryhmien perusteella ja lisää niihin apurakennukset.
-    
-    Args:
-        session: Tietokantaistunto
-        dvv_rakennustiedot: Sanakirja rakennustiedoista
-        building_sets: Lista rakennusryhmistä
-        owners_by_rakennus_id: Sanakirja rakennusten omistajista
-        inhabitants_by_rakennus_id: Sanakirja rakennusten asukkaista
-        poimintapvm: Uusien kohteiden alkupäivämäärä
-        loppupvm: Uusien kohteiden loppupäivämäärä
-
-    Returns:
-        Lista luoduista kohteista
-    """
-    logger = logging.getLogger(__name__)
-    print("Luodaan kohteet rakennusryhmille...")
-    logger.info("\nLuodaan kohteet rakennusryhmille...")
-
-    # Lisää apurakennukset kuhunkin rakennusryhmään
-    building_sets = add_auxiliary_buildings_materialized(
-        dvv_rakennustiedot,
-        building_sets,
-        session  # Välitetään session-parametri
+def get_kohde_by_asiakasnumero(
+    session: "Session", tunnus: "Tunnus"
+) -> "Union[Kohde, None]":
+    query = (
+        select(Kohde)
+        .join(UlkoinenAsiakastieto)
+        .where(
+            UlkoinenAsiakastieto.tiedontuottaja_tunnus == tunnus.jarjestelma,
+            UlkoinenAsiakastieto.ulkoinen_id == tunnus.tunnus,
+        )
     )
-    
-    kohteet = []
-    for building_set in building_sets:
-        owners = set().union(
-            *[
-                owners_by_rakennus_id[rakennustiedot[0].id]
-                for rakennustiedot in building_set
-            ]
-        )
-        inhabitants = set().union(
-            *[
-                inhabitants_by_rakennus_id[rakennustiedot[0].id]
-                for rakennustiedot in building_set
-            ]
-        )
+    try:
+        kohde = session.execute(query).scalar_one()
+    except NoResultFound:
+        kohde = None
 
-        kohde = update_or_create_kohde_from_buildings(
-            session,
-            dvv_rakennustiedot,
-            building_set,
-            inhabitants,
-            owners,
-            poimintapvm,
-            loppupvm,
-        )
-        kohteet.append(kohde)
-        
-    logger.info(f"Luotu {len(kohteet)} kohdetta")
-    return kohteet
-
-
-def _match_address(first: "Osoite", second: "Osoite"):
-    """
-    Determines whether two buildings are at the same address. Osoite is
-    the many to many table between Rakennus and Katu.
-    """
-    return first.katu_id == second.katu_id and first.osoitenumero == second.osoitenumero
-
-
-def _match_addresses(first: "Set[Osoite]", second: "Set[Osoite]"):
-    """
-    Determines whether address sets contain any common addresses.
-    """
-    for osoite in first:
-        for address in second:
-            if _match_address(osoite, address):
-                print("Yhteinen osoite löytyi.")
-                return True
-    print("Ei yhteistä osoitetta.")
-    return False
+    return kohde
 
 
 def get_or_create_kohteet_from_kiinteistot(
-    session: "Session",
+    session: Session,
     kiinteistotunnukset: "Select", 
     poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List[Kohde]":
     """
     Luo vähintään yksi kohde jokaisesta kiinteistötunnuksesta, jonka select-kysely palauttaa,
-    jos kiinteistotunnuksella on rakennuksia ilman olemassa olevaa kohdetta annetulle aikajaksolle.
+    jos kiinteistotunnuksella on rakennuksia ilman olemassa olevaa kohdetta annetulle aikavälille.
 
     Prosessi:
     1. Erotellaan kiinteistöjen rakennukset klustereihin etäisyyden perusteella
        - Jotkin kiinteistöt voivat sisältää kaukana toisistaan olevia rakennuksia
        - Osoitteet voivat olla virheellisiä, joten erottelu tehdään etäisyyden perusteella
     
-    2. Käsitellään samassa klusterissa olevat rakennukset:
+    2. Käsittele samassa klusterissa olevat rakennukset:
        - Jos kaikki rakennukset ovat saman asunto-osakeyhtiön omistamia, luodaan yksi kohde
        - Muuten käsitellään omistajittain:
          * Ensimmäinen kohde sisältää eniten rakennuksia omistavan omistajan rakennukset
@@ -1854,7 +1501,7 @@ def get_or_create_kohteet_from_kiinteistot(
         session: Tietokantaistunto
         kiinteistotunnukset: Select-kysely joka palauttaa kiinteistötunnukset
         poimintapvm: Uusien kohteiden alkupäivämäärä
-        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupäivää)
+        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupvm)
 
     Returns:
         Lista luoduista kohteista
@@ -1866,9 +1513,20 @@ def get_or_create_kohteet_from_kiinteistot(
 
     # Seurattavat PRT-tunnukset lokitusta varten
     log_prt_in = (
-        '103074869S', '103074870T', '103074871U', '103074872V',
-        '103074873W', '103074874X', '103074875Y', '1030748760',
-        '1030748771', '1030748782'
+'103084763X',
+'103084764Y',
+'1030847650',
+'1030847661',
+'1030847672',
+'1030847683',
+'1030847694',
+'1030847395',
+'1030847406',
+'103074894K',
+'103074895L',
+'103084760U',
+'103084762W',
+'103084761V'
     )
 
     with open('kiinteisto_debug.log', 'a', encoding='utf-8') as f:
@@ -1895,8 +1553,9 @@ def get_or_create_kohteet_from_kiinteistot(
 
         # Hae omistajatiedot ja muodosta lookup-taulut
         rakennus_owners = session.execute(
-            select(RakennuksenOmistajat.rakennus_id, Osapuoli)
-            .join(Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id)
+            select(RakennuksenOmistajat.rakennus_id, Osapuoli).join(
+                Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id
+            )
         ).all()
         
         owners_by_rakennus_id = defaultdict(set)  # rakennus_id -> {omistajat}
@@ -1907,8 +1566,9 @@ def get_or_create_kohteet_from_kiinteistot(
 
         # Hae asukastiedot ja muodosta lookup-taulu
         rakennus_inhabitants = session.execute(
-            select(RakennuksenVanhimmat.rakennus_id, Osapuoli)
-            .join(Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id)
+            select(RakennuksenVanhimmat.rakennus_id, Osapuoli).join(
+                Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id
+            )
         ).all()
         
         inhabitants_by_rakennus_id = defaultdict(set)  # rakennus_id -> {asukkaat}
@@ -2013,7 +1673,7 @@ def get_or_create_kohteet_from_kiinteistot(
                         )
                         buildings_to_process = remaining_ids & owner_buildings
                         
-                        # Tarkista onko omistaja asoy
+                        # Tarkista omistaja asoy
                         owner = next(
                             owner for owner in owners_by_rakennus_id[next(iter(owner_buildings))]
                             if owner.id == owner_id
@@ -2090,10 +1750,9 @@ def get_or_create_kohteet_from_kiinteistot(
         if any(any(r[0].prt in log_prt_in for r in bs) for bs in building_sets):
             f.write("\nLopulliset rakennusryhmät:\n")
             for i, building_set in enumerate(building_sets, 1):
-                if any(r[0].prt in log_prt_in for r in building_set):
-                    f.write(f"\nRyhmä {i}:\n")
-                    for r in building_set:
-                        f.write(f"- {r[0].prt}\n")
+                f.write(f"\nRyhmä {i}:\n")
+                for r in building_set:
+                    f.write(f"- {r[0].prt}\n")
 
         # Luo kohteet rakennusryhmien perusteella
         kohteet = get_or_create_kohteet_from_rakennustiedot(
@@ -2120,7 +1779,7 @@ def get_or_create_kohteet_from_kiinteistot(
         return kohteet
 
 def get_or_create_single_asunto_kohteet(
-    session: "Session",
+    session: Session,
     poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List[Kohde]":
@@ -2130,8 +1789,8 @@ def get_or_create_single_asunto_kohteet(
 
     Jos kiinteistöllä on useita asuttuja rakennuksia, sitä ei tuoda tässä.
     """
-    print(" ")
-    print("----- LUODAAN YHDEN ASUNNON KOHTEET -----")
+    logger = logging.getLogger(__name__)
+    logger.info("\n----- LUODAAN YHDEN ASUNNON KOHTEET -----")
 
     # Älä tuo rakennuksia, joilla on jo olemassa olevia kohteita
     if loppupvm is None:
@@ -2149,12 +1808,29 @@ def get_or_create_single_asunto_kohteet(
             .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
         )
 
+    # Määrittele sallitut rakennustyypit
+    ALLOWED_TYPES_2018 = {
+        '0111',  # Yhden asunnon talot
+        '0110'   # Paritalot
+    }
+    
+    ALLOWED_TYPES_OLD = {
+        '011',  # Yhden asunnon talot
+        '012'   # Kahden asunnon talot
+    }
+
+    # Hae rakennukset joilla ei ole kohdetta
     rakennus_id_without_kohde = (
         select(Rakennus.id)
         .filter(
             or_(
-                Rakennus.rakennuksenkayttotarkoitus == codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.YKSITTAISTALO],
-                Rakennus.rakennuksenkayttotarkoitus == codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.PARITALO]
+                # Tarkista ensisijaisesti 2018 luokitus
+                Rakennus.rakennusluokka_2018.in_(ALLOWED_TYPES_2018),
+                # Jos 2018 luokka puuttuu, käytä vanhaa luokitusta
+                and_(
+                    Rakennus.rakennusluokka_2018.is_(None),
+                    Rakennus.rakennuksenkayttotarkoitus_koodi.in_(ALLOWED_TYPES_OLD)
+                )
             )
         )
         .filter(~Rakennus.id.in_(rakennus_id_with_current_kohde))
@@ -2167,6 +1843,7 @@ def get_or_create_single_asunto_kohteet(
         )
     )
 
+    # Hae kiinteistöt joilla on vain yksi rakennus
     single_asunto_kiinteistotunnus = (
         select(
             Rakennus.kiinteistotunnus,
@@ -2181,134 +1858,9 @@ def get_or_create_single_asunto_kohteet(
         session, single_asunto_kiinteistotunnus, poimintapvm, loppupvm
     )
 
-def determine_kohdetyyppi(session: Session, rakennus: Rakennus, keraysalueet=None) -> KohdeTyyppi:
-    """
-    Määrittää kohteen tyypin rakennuksen tietojen perusteella huomioiden erilliskeräysalueet 
-    ja ensisijaisuussäännöt.
-    
-    Args:
-        session: Tietokantaistunto
-        rakennus: Rakennus jonka perusteella tyyppi määritetään
-        keraysalueet: Valinnainen dictionary keräysaluetiedoilla
-            {
-                'biojate': bool, # Onko biojätteen erilliskeräysalueella 
-                'hyotyjate': bool # Onko hyötyjätteiden erilliskeräysalueella
-            }
-    Returns:
-        KohdeTyyppi: Määritetty kohdetyyppi
-    """
-    try:
-        # Tarkista onko rakennus hapa-kohde
-        hapa_query = select(HapaAineisto).where(
-            HapaAineisto.rakennus_id_tunnus == rakennus.prt,
-            HapaAineisto.voimassa.overlaps(
-                DateRange(datetime.date.today(), datetime.date.today())
-            )
-        )
-        
-        hapa = session.execute(hapa_query).scalar_one_or_none()
-        
-        # Tarkista onko asuinkiinteistö
-        is_asuinkiinteisto = False
-        
-        # 1. Tarkista Rakennusluokka 2018
-        if rakennus.rakennusluokka_2018:
-            if (rakennus.rakennusluokka_2018 >= '0110' and 
-                rakennus.rakennusluokka_2018 <= '0211'):
-                is_asuinkiinteisto = True
-                
-        # 2. Jos ei 2018 luokkaa, tarkista vanha luokitus
-        elif rakennus.rakennuksenkayttotarkoitus_koodi:
-            koodi = str(rakennus.rakennuksenkayttotarkoitus_koodi)
-            if koodi.isdigit() and '011' <= koodi <= '041':
-                is_asuinkiinteisto = True
-                
-        # 3. Tarkista muut asuinkiinteistön kriteerit
-        elif ((hasattr(rakennus, 'huoneistomaara') and rakennus.huoneistomaara > 0) or
-              (hasattr(rakennus, 'asukkaat') and bool(rakennus.asukkaat)) or
-              (hasattr(rakennus, 'rakennuksenkayttotarkoitus') and
-               rakennus.rakennuksenkayttotarkoitus == 
-               codes.rakennuksenkayttotarkoitukset[RakennuksenKayttotarkoitusTyyppi.SAUNA])):
-            is_asuinkiinteisto = True
-            
-        # Sovella ensisijaisuussääntöjä
-        if is_asuinkiinteisto:
-            if keraysalueet and (
-                keraysalueet.get('biojate') or
-                (keraysalueet.get('hyotyjate') and 
-                 hasattr(rakennus, 'huoneistomaara') and
-                 rakennus.huoneistomaara >= 5)
-            ):
-                return KohdeTyyppi.ASUINKIINTEISTO
-                
-            # Jos biojätealueen ulkopuolella ja on biohapa
-            if hapa and hapa.kohdetyyppi and hapa.kohdetyyppi.lower() == 'biohapa':
-                if not (keraysalueet and keraysalueet.get('biojate')):
-                    return KohdeTyyppi.BIOHAPA
-                    
-            # Muuten säilytetään asuinkiinteistönä
-            return KohdeTyyppi.ASUINKIINTEISTO
-            
-        # Jos ei ole asuinkiinteistö, HAPA-tyypit mahdollisia
-        if hapa and hapa.kohdetyyppi:
-            if hapa.kohdetyyppi.lower() == 'biohapa':
-                return KohdeTyyppi.BIOHAPA
-            return KohdeTyyppi.HAPA
-            
-        return KohdeTyyppi.MUU
-
-    except Exception as e:
-        logger = logging.getLogger(__name__)
-        logger.error(f"Virhe kohdetyypin määrityksessä rakennukselle {rakennus.prt}: {str(e)}")
-        return KohdeTyyppi.MUU
-
-
-def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> Kohde:
-    """
-    Luo uusi kohde asiakkaan tietojen perusteella.
-    """
-    try:
-        if is_aluekerays(asiakas):
-            kohdetyyppi = KohdeTyyppi.ALUEKERAYS
-        else:
-            # Tarkista rakennusten perusteella
-            kohdetyyppi = KohdeTyyppi.MUU
-            try:
-                for prt in asiakas.rakennukset:
-                    rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
-                    if rakennus:
-                        building_type = determine_kohdetyyppi(session, rakennus, keraysalueet)
-                        if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA):
-                            kohdetyyppi = building_type
-                            break
-            except Exception as e:
-                logger = logging.getLogger(__name__)
-                logger.error(f"Virhe rakennusten tyypin määrityksessä: {str(e)}")
-                # Jatketaan oletustyypillä MUU
-
-        kohde = Kohde(
-            nimi=form_display_name(asiakas.haltija),
-            kohdetyyppi=codes.kohdetyypit[kohdetyyppi],
-            alkupvm=asiakas.voimassa.lower,
-            loppupvm=asiakas.voimassa.upper,
-        )
-
-        return kohde
-
-    except Exception as e:
-        logger = logging.getLogger(__name__)
-        logger.error(f"Virhe kohteen luonnissa: {str(e)}")
-        # Luodaan minimitiedoilla oleva kohde ettei prosessi kaadu
-        return Kohde(
-            nimi="Tuntematon",
-            kohdetyyppi=codes.kohdetyypit[KohdeTyyppi.MUU],
-            alkupvm=asiakas.voimassa.lower,
-            loppupvm=asiakas.voimassa.upper
-        )
-
 
 def get_or_create_multiple_and_uninhabited_kohteet(
-    session: "Session",
+    session: Session,
     poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List[Kohde]":
@@ -2317,8 +1869,8 @@ def get_or_create_multiple_and_uninhabited_kohteet(
     määritellylle aikavälille. Tämä funktio käsittelee jäljellä olevat rakennukset,
     mukaan lukien useita rakennuksia sisältävät kiinteistöt ja asumattomat rakennukset.
     """
-    print(" ")
-    print("----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
+    logger = logging.getLogger(__name__)
+    logger.info("\n----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
 
     rakennus_id_with_current_kohde = (
         select(Rakennus.id)
@@ -2412,7 +1964,7 @@ def batch_update_old_kohde_data(session, updates):
             session.execute(stmt)
 
     # 3. Päivitä viranomaispäätökset
-    # Hae ensin kaikki rakennukset vanhoilta kohteilta
+    # Hae kaikki rakennukset vanhoilta kohteilta
     rakennus_ids = session.execute(
         select(KohteenRakennukset.rakennus_id)
         .where(KohteenRakennukset.kohde_id.in_(old_kohde_ids))
@@ -2442,38 +1994,34 @@ def batch_update_old_kohde_data(session, updates):
     # 4. Päivitä kompostorit
     for old_id, (new_id, new_alkupvm) in updates_by_old_id.items():
         # Hae kohteen kompostorit
-        kompostori_ids = session.execute(
-            select(KompostorinKohteet.kompostori_id)
-            .where(KompostorinKohteet.kohde_id == old_id)
-        ).scalars().all()
-        
-        if kompostori_ids:
-            loppupvm = new_alkupvm - timedelta(days=1)
-            
-            # Aseta loppupvm kompostoreille
-            stmt = (
-                update(Kompostori)
-                .where(
-                    Kompostori.id.in_(kompostori_ids),
-                    Kompostori.alkupvm <= loppupvm
-                )
-                .values(loppupvm=loppupvm)
-                .execution_options(synchronize_session=False)
-            )
-            session.execute(stmt)
+        kompostori_ids = select(KompostorinKohteet.kompostori_id).where(
+            KompostorinKohteet.kohde_id == old_id
+        )
 
-            # Siirrä jatkuvat kompostorit uudelle kohteelle
-            stmt = (
-                update(KompostorinKohteet)
-                .where(
-                    KompostorinKohteet.kompostori_id.in_(kompostori_ids),
-                    KompostorinKohteet.kohde_id == old_id,
-                    Kompostori.alkupvm > loppupvm
-                )
-                .values(kohde_id=new_id)
-                .execution_options(synchronize_session=False)
+        # Aseta loppupvm kompostoreille
+        stmt = (
+            update(Kompostori)
+            .where(
+                Kompostori.id.in_(kompostori_ids.scalar_subquery()),
+                Kompostori.alkupvm <= loppupvm
             )
-            session.execute(stmt)
+            .values(loppupvm=loppupvm)
+            .execution_options(synchronize_session=False)
+        )
+        session.execute(stmt)
+
+        # Siirrä jatkuvat kompostorit uudelle kohteelle
+        stmt = (
+            update(KompostorinKohteet)
+            .where(
+                KompostorinKohteet.kompostori_id.in_(kompostori_ids.scalar_subquery()),
+                KompostorinKohteet.kohde_id == old_id,
+                Kompostori.alkupvm > loppupvm
+            )
+            .values(kohde_id=new_id)
+            .execution_options(synchronize_session=False)
+        )
+        session.execute(stmt)
     
     session.commit()
 
@@ -2482,39 +2030,19 @@ def create_perusmaksurekisteri_kohteet(
     session: Session,
     perusmaksutiedosto: Path,
     poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date]
+    loppupvm: Optional[datetime.date] = None,
 ) -> List[Kohde]:
     """
-    Luo kohteet perusmaksurekisterin perusteella. Yhdistää samaan kohteeseen rakennukset,
-    joilla on sama asiakasnumero perusmaksurekisterissä ja jotka ovat määriteltyjä talotyyppejä.
+    Luo kohteet perusmaksurekisterin tietojen perusteella.
     
-    Tarkistaa ensisijaisesti Rakennusluokitus 2018 mukaiset luokat:
-    - 0110: Paritalot
-    - 0210: Rivitalot
-    - 0220: Ketjutalot
-    - 0320: Luhtitalot
-    - 0390: Muut asuinkerrostalot
-    
-    Jos 2018 luokka puuttuu, käytetään vanhempaa luokitusta:
-    - 012: Kahden asunnon talot
-    - 021: Rivitalot
-    - 022: Ketjutalot
-    - 032: Luhtitalot
-    - 039: Muut asuinkerrostalot
-
-    Lisäksi kohteeseen yhdistetään saunat ja piharakennukset, jos:
-    - Sama omistaja/asukas kuin jollain ryhmän rakennuksista
-    - Sama osoite kuin jollain ryhmän rakennuksista  
-    - Sijainti max 300m päässä ryhmän rakennuksista
-
     Args:
         session: Tietokantaistunto
         perusmaksutiedosto: Polku perusmaksurekisterin Excel-tiedostoon
         poimintapvm: Uusien kohteiden alkupäivämäärä
-        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupvm)
-
+        loppupvm: Uusien kohteiden loppupäivämäärä (ei käytetä, käytetään aina 2100-01-01)
+        
     Returns:
-        List[Kohde]: Lista luoduista kohteista
+        Lista luoduista kohteista
 
     Raises:
         FileNotFoundError: Jos perusmaksutiedostoa ei löydy
@@ -2536,34 +2064,22 @@ def create_perusmaksurekisteri_kohteet(
         if tiedot[0].prt  # Ohita jos PRT puuttuu
     }
 
-    # Määrittele sallitut rakennustyypit
-    # Rakennusluokka 2018 mukaiset luokat
-    ALLOWED_TYPES_2018 = {
-        '0110',  # Paritalot
-        '0210',  # Rivitalot
-        '0220',  # Ketjutalot
-        '0320',  # Luhtitalot
-        '0390'   # Muut asuinkerrostalot
-    }
-    
-    # Vanhat luokat (käytetään jos 2018 luokka puuttuu)
-    ALLOWED_TYPES_OLD = {
-        '012',  # Paritalot
-        '021',  # Rivitalot
-        '022',  # Ketjutalot
-        '032',  # Luhtitalot
-        '039'   # Muut asuinkerrostalot
-    }
-
     # Ryhmittele rakennukset asiakasnumeron mukaan
     buildings_to_combine = defaultdict(lambda: {"prt": set()})
     
     # Avaa perusmaksurekisteri
     logger.info("Avataan perusmaksurekisteri...")
     perusmaksut = load_workbook(filename=perusmaksutiedosto)
-    sheet = perusmaksut["Tietopyyntö asiakasrekisteristä"]
+    
+    # Käytä ensimmäistä sheetiä jos "Tietopyyntö asiakasrekisteristä" ei löydy
+    sheet_name = "Tietopyyntö asiakasrekisteristä"
+    if sheet_name not in perusmaksut.sheetnames:
+        sheet_name = perusmaksut.sheetnames[0]
+        logger.info(f"Käytetään sheet-nimeä: {sheet_name}")
+    
+    sheet = perusmaksut[sheet_name]
 
-    # Käsittele rivit ja kerää sallitut rakennukset
+    # Käsittele rivit ja kerää rakennukset asiakasnumeron mukaan
     logger.info("Käsitellään perusmaksurekisterin rivit...")
     rows_processed = 0
     buildings_found = 0
@@ -2574,9 +2090,9 @@ def create_perusmaksurekisteri_kohteet(
         
         rows_processed += 1
         asiakasnumero = str(row[2])
-        prt = str(row[3])
+        prt = str(row[0])
 
-        # Hae rakennus ja tarkista tyyppi
+        # Hae rakennus
         rakennus = session.query(Rakennus).filter(
             Rakennus.prt == prt
         ).first()
@@ -2584,15 +2100,9 @@ def create_perusmaksurekisteri_kohteet(
         if not rakennus:
             continue
 
-        # Tarkista ensisijaisesti rakennusluokka 2018
-        if rakennus.rakennusluokka_2018 in ALLOWED_TYPES_2018:
-            buildings_to_combine[asiakasnumero]["prt"].add(prt)
-            buildings_found += 1
-        # Jos 2018 luokka puuttuu, tarkista vanha luokitus
-        elif (rakennus.rakennusluokka_2018 is None and 
-              rakennus.rakennuksenkayttotarkoitus_koodi in ALLOWED_TYPES_OLD):
-            buildings_to_combine[asiakasnumero]["prt"].add(prt)
-            buildings_found += 1
+        # Lisää rakennus asiakasnumeron mukaiseen ryhmään
+        buildings_to_combine[asiakasnumero]["prt"].add(prt)
+        buildings_found += 1
 
     logger.info(f"Käsitelty {rows_processed:,} riviä")
     logger.info(f"Löydetty {buildings_found:,} yhdistettävää rakennusta")
@@ -2637,8 +2147,8 @@ def create_perusmaksurekisteri_kohteet(
     for (rakennus_id, inhabitant) in rakennus_inhabitants:
         inhabitants_by_rakennus_id[rakennus_id].add(inhabitant)
 
-    # Luo kohteet ja lisää apurakennukset
-    logger.info("\nLuodaan kohteet ja lisätään apurakennukset...")
+    # Luo kohteet
+    logger.info("\nLuodaan kohteet...")
     kohteet = get_or_create_kohteet_from_rakennustiedot(
         session,
         dvv_rakennustiedot,
@@ -2646,8 +2156,61 @@ def create_perusmaksurekisteri_kohteet(
         owners_by_rakennus_id,
         inhabitants_by_rakennus_id,
         poimintapvm,
-        loppupvm
+        datetime.date(2100, 1, 1),  # Käytetään kiinteää loppupäivämäärää
     )
 
     logger.info(f"\nLuotu {len(kohteet):,} kohdetta perusmaksurekisterin perusteella")
+    return kohteet
+
+
+def get_or_create_kohteet_from_rakennustiedot(
+    session: Session,
+    dvv_rakennustiedot: Dict[int, Rakennustiedot],
+    building_sets: List[Set[Rakennustiedot]],
+    owners_by_rakennus_id: Dict[int, Set[Osapuoli]],
+    inhabitants_by_rakennus_id: Dict[int, Set[Osapuoli]],
+    poimintapvm: Optional[datetime.date],
+    loppupvm: Optional[datetime.date]
+) -> List[Kohde]:
+    """
+    Luo kohteet rakennusryhmien perusteella.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"\nLuodaan kohteet {len(building_sets)} rakennusryhmälle...")
+    
+    kohteet = []
+
+    for i, building_set in enumerate(building_sets, 1):
+        # Kerää rakennusten ID:t
+        rakennus_ids = [tiedot[0].id for tiedot in building_set]
+        
+        # Kerää omistajat ja asukkaat
+        asukkaat = set()
+        omistajat = set()
+        
+        for rakennus_id in rakennus_ids:
+            if rakennus_id in owners_by_rakennus_id:
+                omistajat.update(owners_by_rakennus_id[rakennus_id])
+            if rakennus_id in inhabitants_by_rakennus_id:
+                asukkaat.update(inhabitants_by_rakennus_id[rakennus_id])
+        
+        # Luo tai päivitä kohde
+        kohde = update_or_create_kohde_from_buildings(
+            session,
+            dvv_rakennustiedot,
+            building_set,
+            asukkaat,
+            omistajat,
+            poimintapvm,
+            loppupvm
+        )
+        
+        if kohde:
+            kohteet.append(kohde)
+        
+        # Näytä edistyminen joka 100. kohteen jälkeen
+        if i % 100 == 0:
+            logger.info(f"Käsitelty {i}/{len(building_sets)} rakennusryhmää...")
+
+    logger.info(f"Käsitelty kaikki {len(building_sets)} rakennusryhmää.")
     return kohteet

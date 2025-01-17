@@ -37,10 +37,11 @@ $ poetry install
 
 # Set up Git hooks to prevent committing sensitive data
 $ git config core.hooksPath .hooks
+```
 
 ### Db env
 
-Install docker and docker-compose (version >= 1.28.0)
+Install docker and docker-compose
 
 Copy .env.template to %APPDATA%/jkr/.env and change parameters
 
@@ -48,31 +49,41 @@ Copy .env.template to %APPDATA%/jkr/.env and change parameters
 $ cp .env.template .env.local
 
 # Edit the .env file
-$ nano .env
+$ nano .env.local
 ```
 
-Start database
-
+**Linux users only:** Before starting the database, you need to set up log directories and permissions:
 ```bash
-docker-compose -f dev.docker-compose.yml --env-file ".env.local" up db -d
+# 1. Create required log directories
+sudo mkdir -p ./docker/postgis/logs
+sudo mkdir -p ./docker/postgis/test/logs
+
+# 2. Set PostgreSQL user permissions for log directories
+sudo chown -R 999:999 ./docker/postgis/logs
+sudo chown -R 999:999 ./docker/postgis/test/logs
+sudo chmod 777 ./docker/postgis/logs
+sudo chmod 777 ./docker/postgis/test/logs
+```
+
+
+Start database
+```bash
+docker-compose -f dev.docker-compose.yml --env-file ".env.local" up -d db
 ```
 
 Run migrations
-
 ```bash
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" up flyway
 ```
 
 Optionally Scripts can be runned in container. First build image
-
 ```bash
-docker build -t jkr-core-runner:latest -f Dockerfile
+docker build --pull --rm -f "Dockerfile" -t jkr-core-runner:latest "."
 ```
 
 Start script-runner container
-
 ```bash
- docker-compose -f dev.docker-compose.yml --env-file ".env.local" run jkr-core-runner
+docker-compose -f dev.docker-compose.yml --env-file ".env.local" run jkr-core-runner
 ```
 
 Scripts are working when data folder has structure:
@@ -168,21 +179,21 @@ port=5435
 dbname=ymparisto_db
 ```
 
-2. Create a QGIS-profile for each environment (Development, Testing, Production). Name the profiles for example `jkr-dev`, `jkr-test`, `jkr-prod`. A new QGIS window will open. Use that  
+2. Create a QGIS-profile for each environment (Development, Testing, Production). Name the profiles for example `jkr-dev`, `jkr-test`, `jkr-prod`. A new QGIS window will open. Use that
    ![schreenshot of new profile menu](docs/img/qgis-new-profile.png)
-3. In QGIS settings add a `PGSERVICEFILE` environment variable and fill the file path of corresponding service file as a value.  
-   ![screenshot of menu location](docs/img/qgis-settings.png)  
+3. In QGIS settings add a `PGSERVICEFILE` environment variable and fill the file path of corresponding service file as a value.
+   ![screenshot of menu location](docs/img/qgis-settings.png)
    ![screenshot of the setting dialog](docs/img/qgis-pgservicefile-environment-variable.png)
 4. Restart QGIS to make the environment variable to take effect.
-5. Create a authentication key to QGIS which ID is `jkruser`.  
+5. Create a authentication key to QGIS which ID is `jkruser`.
    ![screenshot of the authentication dialog](docs/img/qgis-authentication.png)
-6. Create a new PostgreSQL connection  
-   ![screenshot of the new connection menu](docs/img/qgis-new-connection.png)  
+6. Create a new PostgreSQL connection
+   ![screenshot of the new connection menu](docs/img/qgis-new-connection.png)
    ![screenshot of the new connection dialog](docs/img/qgis-create-connection.png)
-7. Open the QGIS project from the jkr-qgis-projektit -schema.  
+7. Open the QGIS project from the jkr-qgis-projektit -schema.
    ![screenshot of the qgis projects schema](docs/img/qgis-open-project.png)
 
-> **Development**  
+> **Development**
 > For development use the [QGIS-project](qgis/jkr.qgs) can be used.
 
 ## Using jkr single command importer
@@ -233,7 +244,7 @@ The postal code data (`/tests/data/test_data_import`) is real data downloaded fr
 
 ## Naming development branches
 
-Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}-{description}`. For example, `"Lahti-99-kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
+Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}/{description}`. For example, `"Lahti-99/kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
 
 ### Git Hooks
 

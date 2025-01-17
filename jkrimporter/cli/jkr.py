@@ -5,9 +5,15 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+import pandas as pd
+from sqlalchemy import text
+from sqlalchemy.orm import declarative_base, scoped_session
+from sqlalchemy.orm.session import sessionmaker
+import openpyxl
+from openpyxl.utils import get_column_letter
 
 from jkrimporter import __version__
-from jkrimporter.providers.db.dbprovider import DbProvider
+from jkrimporter.providers.db.dbprovider import DbProvider, engine
 from jkrimporter.providers.db.services.tiedontuottaja import (
     get_tiedontuottaja,
     insert_tiedontuottaja,
@@ -217,6 +223,84 @@ def import_lopetusilmoitukset(
     db.write_lopetusilmoitukset(lopetusilmoitus_data, siirtotiedosto)
 
     print("VALMIS!")
+
+
+@app.command("raportti")
+def raportti(
+    output_path: Path = typer.Argument(..., help="Excel-raportin tallennuspolku (.xlsx)"),
+    tarkastelupvm: str = typer.Argument(..., help="Tarkastelupäivämäärä (YYYY-MM-DD tai DD.MM.YYYY)"),
+    kunta: str = typer.Argument(None, help="Kunnan nimi (esim. 'Lahti'). Käytä 0 jos ei rajausta."),
+    huoneistomaara: int = typer.Argument(0, help="Huoneistomäärä (4 = neljä tai vähemmän, 5 = viisi tai enemmän, 0 = ei rajausta)"),
+    taajama: int = typer.Argument(0, help="Taajama (0 = ei rajausta, 1 = yli 10000, 2 = yli 200)"),
+):
+    """
+    Luo Excel-raportin kohteista annetuilla hakuehdoilla.
+    """
+    try:
+        tarkastelupvm_date = parse_date_string(tarkastelupvm)
+        
+        # Convert "0" to None for kunta
+        kunta_filter = None if kunta == "0" else kunta
+        
+        # Create SQLAlchemy session
+        Session = scoped_session(sessionmaker(bind=engine))
+        with Session() as session:
+            # Execute report query
+            result = session.execute(
+                text("SELECT * FROM jkr.print_report(:tarkastelupvm, :kunta, :huoneistomaara, :taajama_10000, :taajama_200)"),
+                {
+                    "tarkastelupvm": tarkastelupvm_date,
+                    "kunta": kunta_filter,
+                    "huoneistomaara": huoneistomaara,
+                    "taajama_10000": taajama in (1, 2),  # is_taajama_yli_10000
+                    "taajama_200": taajama == 2,  # is_taajama_yli_200
+                }
+            )
+            
+            # Get column names
+            columns = result.keys()
+            
+            # Fetch all results
+            results = result.fetchall()
+            
+            # Create DataFrame
+            df = pd.DataFrame(results, columns=columns)
+            
+            # Save to Excel
+            df.to_excel(output_path, index=False, engine='openpyxl')
+            
+            # Open the workbook to adjust column widths
+            wb = openpyxl.load_workbook(output_path)
+            ws = wb.active
+            
+            # Adjust column widths based on content
+            for column in ws.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                
+                # Find the maximum length of content in each column
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                
+                # Set width with a small padding
+                adjusted_width = max_length + 2
+                ws.column_dimensions[column_letter].width = adjusted_width
+            
+            # Save the workbook with adjusted column widths
+            wb.save(output_path)
+            
+            typer.echo(f"Raportti luotu onnistuneesti: {output_path}")
+            
+    except ValueError as e:
+        typer.echo(f"Virhe raportin luonnissa: {str(e)}", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        typer.echo(f"Virhe raportin luonnissa: {str(e)}", err=True)
+        raise typer.Exit(1)
 
 
 @provider_app.command("add", help="Lisää uusi tiedontuottaja järjestelmään.")

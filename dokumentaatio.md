@@ -7,10 +7,18 @@
    2. [Tietokannat ja tietomalli](#22-tietokannat-ja-tietomalli)
 3. [Kohteiden luonti ja päivittäminen DVV-aineistosta](#3-kohteiden-luonti-ja-päivittäminen-dvv-aineistosta)
    1. [DVV-aineiston lisääminen ja päivittäminen](#31-dvv-aineiston-lisääminen-ja-päivittäminen)
-   2. [Kohteiden luonti](#32-kohteiden-luonti)
-   3. [Kohteiden nimeäminen](#33-kohteiden-nimeäminen)
-   4. [DVV-aineistosta muodostettavat osapuolen roolit](#34-dvv-aineistosta-muodostettavat-osapuolen-roolit)
+   2. [Perusmaksukohteiden luonti](#32-perusmaksukohteiden-luonti)
+   3. [Kohteiden luonti](#33-kohteiden-luonti)
+   4. [Kohteiden nimeäminen](#34-kohteiden-nimeäminen)
+   5. [DVV-aineistosta muodostettavat osapuolen roolit](#35-dvv-aineistosta-muodostettavat-osapuolen-roolit)
+   6. [Huoneistomäärän päivitys](#36-huoneistomäärän-päivitys)
+   7. [HAPA-aineiston tuonti](#37-hapa-aineiston-tuonti)
 4. [Kuljetustiedot](#4-kuljetustiedot)
+   1. [Kuljetustietojen tuonti](#41-kuljetustietojen-tuonti)
+   2. [Jätelaji- ja sopimusluokat](#42-jäte-ja-sopimusluokat)
+   3. [Keräysvälineet ja tyhjennykset](#43-keräysvälineet-ja-tyhjennykset)
+   4. [Keskeytykset](#44-keskeytykset)
+   5. [Velvoitteiden ja tietojen kvartaalipäivitys](#45-velvoitteiden-ja-tietojen-kvartaalipäivitys)
 5. [Viranomaispäätökset](#5-viranomaispäätökset)
 6. [Kompostointi-ilmoitukset](#6-kompostointi-ilmoitukset)
 7. [Velvoitteet ja velvoitetarkistukset](#7-velvoitteet-ja-velvoitetarkistukset)
@@ -67,301 +75,257 @@ Tietomallista on olemassa oheinen kuva, joka löytyy GitHubista sekä Teamsin Do
 
 Tässä kappaleessa kuvaillaan Lahden kaupungin jätehuoltoviranomaisen kanssa yhteistyössä laaditun Digi- ja Väestöviraston tuottaman DVV-pohja-aineiston lisäämisen ja päivittämisen, sekä kohteiden luomisen sekä kohteiden tietojen päivittämisen prosessin.
 
-Kohteiden luontivaiheessa vaadittavat aineistot ovat:
-- DVV-aineisto, jossa mukana rakennus-, omistaja- ja asukastiedot
-- Postinumeroaineisto (vain ensimmäisellä kerralla)
-- Lahden jätehuoltoviranomaisen tuottama perusmaksurekisteriaineisto (vain ensimmäisellä kerralla)
-
-Kohteiden päivittämiseen tarvittava aineisto:
-- DVV-aineiston päivitysversio
-
-Kohteiden luomisen ja päivittämisen skriptien ajo suoritetaan järjestyksessä:
-
-1. Tuodaan postinumeroaineisto ajamalla `import_posti.bat`
-
-2. Ajetaan `import_dvv.bat` ensimmäisen dvv-aineiston lisäämiseksi. Syötetään parametrina poimintapäivä muodossa P.K.VVVV (esim. 1.1.2022)
-
-3. Ajetaan `jkr create_dvv_kohteet` kohteiden kohteiden luomiseksi. Parametreinä annetaan dvv-aineiston poimintapäivämäärä muodossa P.K.VVVV (esim. 1.1.2022) sekä tiedostopolku perusmaksurekisteriin.
-
-Päivitettäessä kohteet ajetaan skriptit:
-
-1. Ajetaan `import_dvv.bat` dvv-aineistopäivityksen tekemiseksi. Parametrina annetaan uuden aineiston poimintapäivämäärä muodossa P.K.VVVV (esim. 1.1.2023)
-
-2. Ajetaan `jkr create_dvv_kohteet` kohteiden päivittämiseksi, ja mahdollisten uusien kohteiden luomiseksi. Parametrina päivittäessä annetaan vain dvv-aineiston poimintapäivämäärä muodossa P.K.VVVV (esim. 1.1.2023).
-
-Kummatkin näistä voidaan suorittaa yhdellä komennolla käyttäen `jkr_importer`-työkalua, tai suorittamalla skriptit yksi kerrallaan.
-
-Säännöt on toteutettu avoimena sql- ja python-koodina. Koodit löytyvät osoitteista:
-- DVV-aineiston tuonti: [import_dvv.sql](https://github.com/punosmobile/jkr-core/blob/b362b94435b59f1dec6701c9d168a5bcdbfac15f/scripts/import_dvv.sql)
-- Kohteiden luonti: [dbprovider.py](https://github.com/punosmobile/jkr-core/blob/d3398447228284aeff9b171e4bac33e5d755364c/jkrimporter/providers/db/dbprovider.py)
-
 ### 3.1 DVV-aineiston lisääminen ja päivittäminen
 
-1. Asetetaan syötetty DVV-aineiston poimintapäivämäärä muuttujaksi. Tätä arvoa käytetään myöhemmin loppupäivämäärien asettamisessa.
+DVV-aineiston käsittely tapahtuu seuraavassa järjestyksessä:
 
-2. Luodaan funktiot omistajien, vanhimpien ja rakennusten loppupäivämäärien asettamiseksi. Lisäksi luodaan y-tunnuksellisten ja henkilötunnuksellisten osapuolien päivitysfunktiot.
+1. Taajamarajaukset
+   ```bash
+   sh import_taajama.sh 2020-01-01
+   ```
 
-3. Asetetaan `jkr_koodistot.tiedontuottaja`-tauluun tieto 'dvv'.
+2. Kunnat ja postinumerot
+   ```bash
+   psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql
+   ```
 
-4. Lisätään rakennukset `jkr_rakennuksiin`. Jos tietokannasta löytyy jo rakennus samalla prt:llä, rakennuksen tiedot päivitetään. Kaikille dvv-ainteistosta löytyville rakennuksille lisätään myös väliaikainen `found_in_dvv = 'true'`, jonka avulla saadaan helposti eroteltua rakennukset, jotka löytyvät uusimmasta dvv-aineistosta.
+3. DVV-aineiston tuonti
 
-5. Päivitetään rakennusten `kaytostapoisto_pvm` rakennuksille, joita ei enää löydy dvv-aineistosta ja joiden `kaytostapoisto_pvm` arvo on tyhjä. Arvoksi asetetaan syötetty poimintapäivämäärä.
+   DVV-aineiston tuontiin käytetään käyttöjärjestelmästä riippuen joko:
+   - Windows: `scripts/import_dvv.bat`
+   - Linux/Mac: `scripts/import_dvv.sh`
 
-6. Kadut lisätään `jkr_osoite.katu`-tauluun. Tauluun syötetään dvv-aineistosta osoitevälilehdeltä tiedot:
-   - kadunnimi suomeksi
-   - kadunnimi ruotsiksi
-   - sijainti_kunta
+   Huom: Tietokantayhteyden tiedot (HOST, PORT, DB_NAME, USER) määritellään skriptissä. Salasana tulee määritellä `%APPDATA%\postgresql\pgpass.conf` tiedostossa.
 
-   Kadut lisätään kahdessa osassa:
-   - Ensimmäiseksi lisätään kadut, joilta löytyy suomen- ja ruotsinkielinen nimi
-   - Toisessa osuudessa lisätään kadut, joilta löytyy vain suomen- tai ruotsinkielinen nimi
+### 3.2 Perusmaksukohteiden luonti
 
-   Jaon avulla varmistetaan, että katuja, joilla on molemmat tiedot ei ylikirjoiteta kaduilla joista puuttuu tietoa. Jokaiselle kunnalle lisätään myös "tyhjä katu", jolla ei ole suomen- tai ruotsinkielistä nimeä. Katuja ei päivitetä, vaan luodaan aina uusi katu (esim. jos kadun nimi on kirjoitettu eri tavalla, ei lähdetä arvaamaan mikä on oikein kirjoitettu). Uudet kadut lisätään aina tauluun, jos niitä ei ole siellä ennestään.
+Perusmaksukohteiden luonti tapahtuu ensimmäisenä ennen muiden kohteiden luontia. Prosessi etenee seuraavasti:
 
-7. Lisätään rakennusten osoitteet `jkr.osoite`-tauluun. Osoitenumeroksi valitaan dvv-aineistosta osoite-välilehdeltä `katu_numero`. `Katu_id` pyritään asettamaan ensin suomenkielisen kadunnimen + kuntakoodin perusteella, ja jos suomenkielistä nimeä ei ole, ruotsinkielisen kadunnimen + kuntakoodin perusteella. Jos molemmat kadunnimet ovat tyhjät, valitaan edellisessä kohdassa luotu tyhjä katu + kuntakoodi. Rakennukset valitaan dvv-aineiston rakennustunnuksen ja `jkr.rakennus`-taulun prt:n perusteella. `Posti_numero` valitaan dvv-aineiston posti_numero-kentän perusteella. Dvv-aineistossa 00000-postinumerolla olevat osoitteet ohjataan tyhjälle kadulle.
+1. Haetaan rakennukset, joilla ei ole voimassaolevaa kohdetta annetulle aikavälille
+2. Luetaan perusmaksurekisterin Excel-tiedosto, joka sisältää asiakasnumerot ja rakennusten PRT-tunnukset
+3. Ryhmitellään rakennukset asiakasnumeron perusteella
+4. Luodaan yksi kohde jokaiselle asiakasnumeroryhmälle, joka sisältää kaikki kyseisen asiakasnumeron rakennukset
+5. Kohteille asetetaan kiinteä loppupäivämäärä (31.12.2100)
 
-8. Rakennuksen omistajat lisätään `jkr.osapuoli`-tauluun kolmessa osassa. Jokaisessa osassa tiedot valitaan dvv-aineiston omistaja-välilehdeltä:
-   - Ensimmäisessä osassa lisätään tai päivitetään vain henkilötunnukselliset omistajat henkilötunnuksen perusteella niin, että omistaja-osapuolen tiedot päivittyvät jokaisessa hänen omistamassaan kohteessa
-   - Toisessa vaiheessa lisätään tai päivitetään y-tunnukselliset omistajat y-tunnuksen perusteella
-   - Kolmannessa vaiheessa lisätään henkilö- ja y-tunnuksettomat omistajat niiden nimen, katuosoitteen, postitoimipaikan, postinumeron, sekä rakennustunnuksen perusteella
+Kohteiden luonti suoritetaan komennolla:
+```bash
+jkr create_dvv_kohteet 28.1.2022 ../data/Perusmaksuaineisto.xlsx
+```
 
-DVV-päivityksen yhteydessä, ennen tiedon lisäämistä tauluun, tarkistetaan rakennuksista, ettei niistä jo löydy omistajaa samalla nimellä.
+### 3.3 Kohteiden luonti
 
-**Huomioitavaa!**
-Tapauksissa, joissa henkilö- ja y-tunnukseton omistaja omistaa useamman rakennuksen, luodaan jokaiselle rakennukselle oma osapuoli. Tämä johtuu siitä, että omistajaa ei voida yksilöidä henkilö- tai y-tunnuksen perusteella.
+Kohteiden luonti DVV-aineistosta tapahtuu seuraavasti:
 
-### 3.2 Kohteiden luonti
+1. Haetaan rakennukset, joilla ei ole voimassaolevaa kohdetta annetulle aikavälille
+2. Rakennukset ryhmitellään kiinteistötunnuksen perusteella
+3. Kiinteistön rakennukset jaetaan klustereihin seuraavien ehtojen perusteella:
+   - Etäisyys toisistaan max 300m JA
+   - Samat omistajat/asukkaat JA
+   - Sama osoite
 
-Järjestelmä luo kohteet DVV-aineistosta seuraavassa järjestyksessä:
+4. Klusteroidut rakennukset käsitellään seuraavasti:
+   - Jos kaikki rakennukset ovat saman asunto-osakeyhtiön omistamia, luodaan yksi kohde
+   - Muuten käsitellään omistajittain:
+     * Ensimmäinen kohde sisältää eniten rakennuksia omistavan omistajan rakennukset
+     * Toinen kohde sisältää toiseksi eniten rakennuksia omistavan rakennukset
+     * Prosessi jatkuu kunnes kaikilla rakennuksilla on kohde
+     * Ilman omistajaa olevat rakennukset saavat oman kohteensa
 
-1. **Perusmaksurekisterin kohteet**
-   - Rivitalot, kerrostalot ja muut useamman asunnon kohteet
-   - Yhdistää saman asiakasnumeron rakennukset samaan kohteeseen
-   - Huomioi seuraavat rakennustyypit (Rakennusluokitus 2018):
-     - 0110: Paritalot
-     - 0210: Rivitalot
-     - 0220: Ketjutalot
-     - 0320: Luhtitalot
-     - 0390: Muut asuinkerrostalot
-   - Jos 2018 luokitus puuttuu, käytetään vanhempaa luokitusta:
-     - 012: Kahden asunnon talot
-     - 021: Rivitalot
-     - 022: Ketjutalot
-     - 032: Luhtitalot
-     - 039: Muut asuinkerrostalot
+5. Saman omistajan rakennukset erotellaan osoitteen perusteella, paitsi jos kyseessä on asunto-osakeyhtiö
 
-2. **Yhden asunnon kohteet**
-   - Omakotitalot ja paritalot
-   - Luodaan kohde jokaiselle rakennukselle, jolla ei vielä ole kohdetta
-   - Yhdistää samaan kohteeseen vain yhden rakennuksen per kiinteistö
+### 3.4 Kohteiden nimeäminen
 
-3. **Muut kohteet**
-   - Kaikki jäljellä olevat rakennukset
-   - Useita rakennuksia sisältävät kiinteistöt
-   - Asumattomat rakennukset
-
-**Apurakennusten käsittely:**
-- Saunat ja piharakennukset liitetään päärakennusten kohteisiin jos:
-  - Sama omistaja/asukas kuin kohteen päärakennuksella
-  - Sama osoite kuin kohteen päärakennuksella
-  - Sijainti enintään 300m päässä kohteen päärakennuksista
-
-**Kohteen nimeäminen:**
-Kohteen nimi määräytyy seuraavassa prioriteettijärjestyksessä:
+Kohteen nimeäminen priorisoidaan seuraavassa järjestyksessä:
 1. Asunto-osakeyhtiön nimi
-2. Yrityksen nimi
+2. Yrityksen nimi 
 3. Yhteisön nimi
 4. Vanhimman asukkaan nimi
 5. Omistajan nimi
-6. Jos mikään edellisistä ei ole saatavilla, nimeksi asetetaan "Tuntematon"
 
-**Kohteen voimassaolo:**
-- Alkupäivämäärä määräytyy DVV-aineiston poimintapäivän mukaan
-- Jos kyseessä on vanhan kohteen päivitys, alkupäivämäärä määräytyy rakennusten historian perusteella
-- Loppupäivämäärä on oletuksena 31.12.2100, ellei toisin määritelty
+Jos mitään edellä mainituista ei löydy, kohde nimetään "Tuntematon".
 
-### 3.3 Kohteiden nimeäminen
+### 3.5 DVV-aineistosta muodostettavat osapuolen roolit
 
-Kohteen nimen muodostamisessa noudatetaan seuraavia tarkentavia sääntöjä:
+DVV-aineistosta luodaan seuraavat osapuolten roolit:
 
-1. **Usean omistajan tai asukkaan tapaukset**
-   - Jos kohteella on useampi omistaja tai useampi vanhin asukas, valitaan aakkosissa ensimmäinen
-   - Tämä ehkäisee kohteen nimen satunnaista vaihtumista, kun omistajissa/vanhimmissa ei ole tapahtunut todellista muutosta
+#### Omistajat ja asukkaat
+- OMISTAJA
+- VANHIN_ASUKAS
 
-2. **Nimen muodostamisen erityistapaukset**
-   - Perusmaksurekisterin kohteilla ei ole asukkaita osapuolena
-   - Luonnollisen henkilön tapauksessa käytetään vain sukunimeä
-   - Asunto-osakeyhtiöiden, yritysten ja yhteisöjen nimet tallennetaan kokonaisuudessaan
-
-3. **Nimen päivittyminen**
-   - Kohteen nimi päivittyy automaattisesti DVV-aineiston päivityksen yhteydessä
-   - Päivitys noudattaa samaa prioriteettijärjestystä kuin uuden kohteen luonti
-   - Jos kaikki nimenmuodostukseen tarvittavat tiedot puuttuvat, nimeksi asetetaan "Tuntematon"
-
-### 3.4 DVV-aineistosta muodostettavat osapuolen roolit
-
-DVV-aineistosta muodostetaan seuraavat osapuolen roolit:
-
-#### 1. VANHIN_ASUKAS
-- Lähde: DVV:n asukasaineisto
-- Muodostaminen: Kaikki rakennuksen asukkaat lisätään VANHIN_ASUKAS -roolilla
-- Käyttötarkoitus: Kohteen tunnistaminen ja nimeäminen
-- Huomioitavaa: Perusmaksurekisterin kohteilla ei ole asukkaita osapuolena
-
-#### 2. OMISTAJA
-- Lähde: DVV:n omistajatiedot
-- Muodostaminen: Kaikki rakennuksen omistajat lisätään OMISTAJA-roolilla
-- Käyttötarkoitus: 
-  - Kohteen tunnistaminen myöhemmissä tuonneissa
-  - Kohteen nimeäminen (jos ei asukkaita)
-- Erityistapaukset:
-  - Asunto-osakeyhtiöt
-  - Yritykset
-  - Yhteisöt
-  - Yksityishenkilöt
-
-#### 3. Jätehuollon roolit
-Kuljetustiedoista muodostuvat roolit:
-
-##### Kimppaisännät
-- SEKAJATE_KIMPPAISANTA
-- BIOJATE_KIMPPAISANTA
-- LASI_KIMPPAISANTA
-- KARTONKI_KIMPPAISANTA
-- METALLI_KIMPPAISANTA
-- MUOVI_KIMPPAISANTA
-
-##### Kimppaosakkaat
-- SEKAJATE_KIMPPAOSAKAS
-- BIOJATE_KIMPPAOSAKAS
-- LASI_KIMPPAOSAKAS
-- KARTONKI_KIMPPAOSAKAS
-- METALLI_KIMPPAOSAKAS
-- MUOVI_KIMPPAOSAKAS
-
-##### Tilaajat
+#### Jätehuollon tilaajat
 - SEKAJATE_TILAAJA
 - BIOJATE_TILAAJA
-- LASI_TILAAJA
-- KARTONKI_TILAAJA
-- METALLI_TILAAJA
 - MUOVI_TILAAJA
+- KARTONKI_TILAAJA
+- LASI_TILAAJA
+- METALLI_TILAAJA
+- MONILOKERO_TILAAJA
 - LIETE_TILAAJA
 
-#### 4. Muut roolit
-- KOMPOSTI_YHTEYSHENKILO: Kompostointi-ilmoituksen vastuuhenkilö
+#### Kimppaisännät
+- SEKAJATE_KIMPPAISANTA
+- BIOJATE_KIMPPAISANTA
+- MUOVI_KIMPPAISANTA
+- KARTONKI_KIMPPAISANTA
+- LASI_KIMPPAISANTA
+- METALLI_KIMPPAISANTA
 
-**Huomioitavaa rooleista:**
-- Sama osapuoli voi olla useassa roolissa (esim. sekä omistaja että asukas)
-- Roolit ovat kohdekohtaisia
-- Roolien voimassaolo määräytyy kohteen voimassaolon mukaan
-- Tiedontuottajan tunniste tallennetaan roolin yhteyteen
+#### Kimppaosakkaat
+- SEKAJATE_KIMPPAOSAKAS  
+- BIOJATE_KIMPPAOSAKAS
+- MUOVI_KIMPPAOSAKAS
+- KARTONKI_KIMPPAOSAKAS
+- LASI_KIMPPAOSAKAS
+- METALLI_KIMPPAOSAKAS
+
+#### Muut roolit
+- KOMPOSTI_YHTEYSHENKILO
+
+Osapuolten lajit:
+- ASOY (Asunto-oy tai asunto-osuuskunta)
+- JULKINEN (Valtio- tai kuntaenemmistöinen yritys)
+
+### 3.6 Huoneistomäärän päivitys
+
+Huoneistomäärän päivitys tapahtuu seuraavasti:
+
+1. Tuodaan huoneistomäärätiedot:
+   ```bash
+   ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" -nln huoneistomaara ../data/Huoneistomäärät_2022.xlsx "Huoneistolkm"
+   ```
+
+2. Päivitetään huoneistomäärät:
+   ```bash
+   psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update_huoneistomaara.sql
+   ```
+
+### 3.7 HAPA-aineiston tuonti
+
+HAPA-aineisto tuodaan seuraavalla komennolla:
+```bash
+psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c "\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '../data/Hapa-kohteet_aineisto_2022.csv' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');"
+```
 
 ## 4 Kuljetustiedot
 
-Tässä kappaleessa kuvaillaan kuljetustietojen lukeminen tietokantaan ja kohdentaminen kohteille.
-
 ### 4.1 Kuljetustietojen tuonti
 
-Kuljetustiedot tuodaan järjestelmään kvartaaleittain CSV-muodossa. Tuonti tapahtuu `jkr import` -komennolla, jolle annetaan seuraavat parametrit:
-- Tiedostopolku kuljetustietojen kansioon
-- Tiedontuottajan tunnus (esim. "LSJ")
-- Kvartaalin alkupäivämäärä (muodossa PP.KK.VVVV)
-- Kvartaalin loppupäivämäärä (muodossa PP.KK.VVVV)
+Kuljetustietojen tuonti tapahtuu seuraavasti:
 
-Esimerkki tuontikomennosta:
-```bash
-jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/Q1 LSJ 1.1.2024 31.3.2024
-```
+1. Kuljetustiedot tuodaan siirtotiedostosta, joka sisältää:
+   - Asiakasnumerot
+   - Sopimustiedot
+   - Tyhjennystapahtumat
+   - Toimituspaikat
+   - Keskeytykset
 
-#### 4.1.1 Pakolliset tiedot
+2. Jokaiselle asiakkaalle tallennetaan:
+   - Asiakasnumero
+   - Voimassaoloaika
+   - Haltijan tiedot
+   - Yhteyshenkilön tiedot
+   - Kiinteistötunnukset
+   - Rakennustunnukset
+   - Sopimukset
+   - Tyhjennystapahtumat
 
-Jokaisella CSV-tiedoston rivillä on oltava seuraavat pakolliset tiedot:
-- `UrakoitsijaId` - yksilöi kuljetusyrityksen
-- `Pvmalk` - kvartaalin alkupäivämäärä
-- `Pvmasti` - kvartaalin loppupäivämäärä
-- `tyyppiIdEWC` - jätelaji tai aluekeräyspiste/monilokero
-- `COUNT(kaynnit)` - käyntien lukumäärä (voi olla 0, mutta ei voi olla tyhjä)
+### 4.2 Jätelaji- ja sopimusluokat
 
-#### 4.1.2 Tietojen tallentaminen
+#### Jätelajit
+- Sekajäte
+- Biojäte
+- Lasi
+- Paperi
+- Kartonki
+- Muovi
+- Metalli
+- Liete (harmaa- ja mustaliete)
+- Pahvi
+- Energia
 
-Kuljetustiedot tallennetaan seuraaviin tietokannan tauluihin:
+#### Sopimustyypit
+- Tyhjennyssopimus
+- Kimppasopimus
+- Aluekeräyssopimus
+- Putkikeräyssopimus
 
-| Taulu | Kuvaus |
-|-------|---------|
-| jkr.kuljetus | Kuljetusten perustiedot (ajankohta, määrät) |
-| jkr.sopimus | Kuljetussopimukset |
-| jkr.keraysvaline | Keräysvälineiden tiedot |
-| jkr.tyhjennysvali | Tyhjennysvälit |
-| jkr.keskeytys | Keskeytysjaksot |
-| jkr.osapuoli | Tilaajat ja kimppaisännät |
-| jkr.ulkoinen_asiakastieto | Ulkoiset tunnisteet ja lisätiedot |
+### 4.3 Keräysvälineet ja tyhjennykset
 
-### 4.2 Kohdentaminen
+#### Keräysvälinetyypit
+- Pintakeräys
+- Syväkeräys
+- Sakokaivo
+- Umpikaivo
+- Rullakko
+- Säiliö
+- Pienpuhdistamo
+- Pikakontti
+- Nostokontti
+- Vaihtolava
+- Jätesäkki
+- Puristinsäiliö
+- Puristin
+- Vaihtolavasäiliö
+- Paali
+- Monilokero
 
-Kuljetustieto kohdennetaan kohteelle seuraavassa järjestyksessä:
+#### Tyhjennystapahtuman tiedot
+- Jätelaji
+- Alkupäivämäärä
+- Loppupäivämäärä
+- Tyhjennyskerrat
+- Tilavuus
+- Massa
 
-1. Tiedontuottajan tunnus ja ulkoinen asiakastunnus
-   - Ensisijainen kohdentamistapa
-   - Käyttää kenttiä `UrakoitsijaId` ja `UrakoitsijankohdeId`
+### 4.4 Keskeytykset
 
-2. Rakennustunnus (PRT)
-   - Toissijainen kohdentamistapa
-   - Käyttää kenttää `Rakennustunnus`
+Sopimuksille voidaan tallentaa keskeytyksiä, jotka sisältävät:
+- Alkupäivämäärä
+- Loppupäivämäärä
+- Selite
 
-3. Kiinteistötunnus
-   - Kolmassijainen kohdentamistapa
-   - Käyttää kenttää `Kiinteistotunnus`
+### 4.5 Velvoitteiden ja tietojen kvartaalipäivitys
 
-4. Osoite
-   - Viimesijainen kohdentamistapa
-   - Käyttää kenttiä `Kiinteistonkatuosoite` ja `Kiinteistonposti`
+Velvoitteiden ja tietojen päivitys tapahtuu kvartaaleittain seuraavassa järjestyksessä:
 
-**Huomioitavaa:**
-- Kuljetustiedoista ei muodosteta uusia kohteita
-- Jos kohdentamisessa ilmenee ongelmia (esim. rakennusta ei löydy), tallennetaan tieto kohdentamattomista ilmoituksista erilliseen tiedostoon.
+1. Päivitetään velvoitteet:
+   ```bash
+   # Tarkistaa ja päivittää millaisia velvoitteita kohteella on
+   psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c "SELECT jkr.update_velvoitteet();"
+   ```
 
-### 4.3 Sopimusten muodostaminen
+2. Tuodaan kvartaalin tiedot (esimerkki Q1 2022):
 
-Kuljetustiedoista muodostetaan uusi sopimus, kun:
-1. Kuljetus kohdentuu kohteelle
-2. Vastaavaa sopimusta ei ole olemassa
+   a) Päätösten tuonti:
+   ```bash
+   jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2022/Q1/Paatokset_2022Q1.xlsx
+   ```
 
-Vastaavaksi sopimukseksi katsotaan sopimus, jolla on:
-- Sama kohde
-- Sama tiedontuottaja
-- Sama sopimustyyppi
-- Sama jätetyyppi
-- Päällekkäinen voimassaoloaika
-- Kimppasopimusten osalta sama kimppaisäntä
+   b) Kompostointi-ilmoitusten tuonti:
+   ```bash
+   jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2022/Q1/Kompostointi-ilmoitus_2022Q1.xlsx
+   ```
 
-### 4.4 Kimpat
+   c) Kompostoinnin lopetusilmoitusten tuonti:
+   ```bash
+   jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2022/Q1/Kompostoinnin_lopettaminen_2022Q1.xlsx
+   ```
 
-Kuljetustieto käsitellään kimppaan kuuluvana, jos seuraavat kentät on täytetty:
-- `palveluKimppakohdeId` - kimpan tunniste
-- `KimpanNimi` - kimpan nimi
-- `Kimpankatuosoite` - kimpan osoite
-- `Kimpanposti` - kimpan postiosoite
+   d) Kuljetustietojen tuonti:
+   ```bash
+   jkr import ../data/Kuljetustiedot/Kuljetustiedot_2022/Q1 LSJ 1.1.2022 31.3.2022
+   ```
 
-Kimpan jäsenille luodaan omat sopimukset, jotka linkitetään kimppaisäntään.
+3. Tallennetaan kvartaalin velvoitestatukset:
+   ```bash
+   # Tallentaa velvoitteiden tilan kvartaalin lopussa
+   psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c "select jkr.tallenna_velvoite_status('2022-03-31');"
+   ```
 
-### 4.5 Jätetyypit
-
-Tuetut jätetyypit:
-- Biojäte (1)
-- Sekajäte (2)
-- Kartonki (3)
-- Lasi (4)
-- Liete (5)
-- Mustaliete (6)
-- Harmaaliete (7)
-- Metalli (8)
-- Muovi (9)
-- Pahvi (10)
-- Paperi (11)
-- Perusmaksu (12)
-- Energia (13)
-- Muu (99)
+Vastaavat komennot toistetaan muille kvartaaleille (Q2, Q3, Q4) päivämääriä muuttaen:
+- Q2: 1.4.2022 - 30.6.2022
+- Q3: 1.7.2022 - 30.9.2022
+- Q4: 1.10.2022 - 31.12.2022
 
 ## 5 Viranomaispäätökset
 

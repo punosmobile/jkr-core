@@ -213,6 +213,8 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_v
         "logs/tietovirrat/2024_$quarter/velvoitteet.log" \
         "Q3 velvoitteiden tallennus"
 
+exit 0
+
 # Q4 2024 tietojen tuonti
 quarter="Q4"
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \
