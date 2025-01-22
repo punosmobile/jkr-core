@@ -554,14 +554,26 @@ def get_dvv_rakennustiedot_without_kohde(
             select(Rakennus.id)
             .join(KohteenRakennukset)
             .join(Kohde)
-            .filter(poimintapvm < Kohde.loppupvm)
+            .filter(
+                and_(
+                    poimintapvm < Kohde.loppupvm,
+                    # Älä liitä rakennuksia perusmaksurekisterin kohteisiin
+                    Kohde.loppupvm != datetime.date(2100, 1, 1)
+                )
+            )
         )
     else:
         rakennus_id_with_current_kohde = (
             select(Rakennus.id)
             .join(KohteenRakennukset)
             .join(Kohde)
-            .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+            .filter(
+                and_(
+                    Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)),
+                    # Älä liitä rakennuksia perusmaksurekisterin kohteisiin
+                    Kohde.loppupvm != datetime.date(2100, 1, 1)
+                )
+            )
         )
     # Import *all* buildings, also those without inhabitants, owners and/or addresses
     rows = session.execute(
@@ -716,11 +728,9 @@ def _cluster_rakennustiedot(
         while other_rakennustiedot_to_cluster:
             found_match = False
             for other_rakennustiedot in other_rakennustiedot_to_cluster:
-                # Tarkista etäisyys
-                if minimum_distance_of_buildings(
-                    [rakennustiedot[0] for rakennustiedot in cluster]
-                    + [other_rakennustiedot[0]]
-                ) >= distance_limit:
+                # Tarkista etäisyys kaikkiin klusterin rakennuksiin
+                all_buildings = [rakennustiedot[0] for rakennustiedot in cluster] + [other_rakennustiedot[0]]
+                if minimum_distance_of_buildings(all_buildings) >= distance_limit:
                     continue
 
                 # Tarkista omistajat/asukkaat
@@ -1049,10 +1059,10 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None, asuk
         for prt in asiakas.rakennukset:
             rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
             if rakennus:
-                # Hae rakennuksen asukkaat
+                # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
                 asukkaat = set(session.query(Osapuoli)
-                    .join(RakennuksenOsapuolet)
-                    .filter(RakennuksenOsapuolet.rakennus_id == rakennus.id)
+                    .join(RakennuksenVanhimmat)
+                    .filter(RakennuksenVanhimmat.rakennus_id == rakennus.id)
                     .all())
                 
                 building_type = determine_kohdetyyppi(session, rakennus, asukkaat)
@@ -1138,9 +1148,14 @@ def create_new_kohde_from_buildings(
             asiakas = min(company_asiakkaat, key=lambda x: x.nimi)
         elif yhteiso_asiakkaat:
             asiakas = min(yhteiso_asiakkaat, key=lambda x: x.nimi)
-        elif asukkaat:
-            asiakas = min(asukkaat, key=lambda x: x.nimi)
+        else:
+            # Jos ei löydy yritystä/yhteisöä, käytetään ensimmäistä omistajaa
+            asiakas = min(omistajat, key=lambda x: x.nimi)
             
+    # Jos ei omistajaa, käytetään asukasta
+    if not asiakas and asukkaat:
+        asiakas = min(asukkaat, key=lambda x: x.nimi)
+
     if asiakas:
         kohde_display_name = form_display_name(
             Yhteystieto(

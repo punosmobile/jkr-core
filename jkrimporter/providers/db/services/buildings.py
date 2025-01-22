@@ -38,20 +38,20 @@ if TYPE_CHECKING:
 
 def minimum_distance_of_buildings(buildings: List[Rakennus]) -> float:
     """
-    Palauttaa lyhimmän etäisyyden rakennusten välillä.
+    Palauttaa pisimmän etäisyyden rakennusten välillä.
     """
     if len(buildings) < 2:
         return float('inf')
         
-    min_distance = float('inf')
+    max_distance = 0
     points = [to_shape(building.geom) for building in buildings if building.geom]
     
     for i, first_point in enumerate(points[:-1]):
         for second_point in points[i+1:]:
             distance = first_point.distance(second_point)
-            min_distance = min(min_distance, distance)
+            max_distance = max(max_distance, distance)
             
-    return min_distance
+    return max_distance
 
 
 def convex_hull_area_of_buildings(buildings):
