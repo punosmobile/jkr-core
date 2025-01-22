@@ -1026,7 +1026,7 @@ def get_hapa_aineisto(session: "Session") -> Dict[str, str]:
         print(f"Virhe HAPA-aineiston haussa: {str(e)}")
         return {}
 
-def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> Kohde:
+def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None, asukkaat: Optional[Set[Osapuoli]] = None) -> Kohde:
     """
     Luo uusi kohde asiakkaan tietojen perusteella.
     
@@ -1038,6 +1038,7 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
                 'biojate': bool,
                 'hyotyjate': bool 
             }
+        asukkaat: Valinnainen set asukkaista kohdetyypin määritystä varten
     Returns:
         Kohde: Luotu kohdeobjekti
     """
@@ -1048,7 +1049,13 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
         for prt in asiakas.rakennukset:
             rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
             if rakennus:
-                building_type = determine_kohdetyyppi(session, rakennus, None)
+                # Hae rakennuksen asukkaat
+                asukkaat = set(session.query(Osapuoli)
+                    .join(RakennuksenOsapuolet)
+                    .filter(RakennuksenOsapuolet.rakennus_id == rakennus.id)
+                    .all())
+                
+                building_type = determine_kohdetyyppi(session, rakennus, asukkaat)
                 if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA, KohdeTyyppi.HAPA, KohdeTyyppi.MUU):
                     kohdetyyppi = building_type
                     break
@@ -1133,8 +1140,6 @@ def create_new_kohde_from_buildings(
             asiakas = min(yhteiso_asiakkaat, key=lambda x: x.nimi)
         elif asukkaat:
             asiakas = min(asukkaat, key=lambda x: x.nimi)
-    elif asukkaat:  # Jos ei omistajia mutta on asukkaita
-        asiakas = min(asukkaat, key=lambda x: x.nimi)
             
     if asiakas:
         kohde_display_name = form_display_name(
@@ -1163,9 +1168,9 @@ def create_new_kohde_from_buildings(
     for rakennus_id in rakennus_ids:
         rakennus = session.query(Rakennus).filter(Rakennus.id == rakennus_id).first()
         if rakennus:
-            building_type = determine_kohdetyyppi(session, rakennus, None)
-            if building_type == KohdeTyyppi.ASUINKIINTEISTO:
-                kohdetyyppi = KohdeTyyppi.ASUINKIINTEISTO
+            building_type = determine_kohdetyyppi(session, rakennus, asukkaat)
+            if building_type in (KohdeTyyppi.ASUINKIINTEISTO, KohdeTyyppi.BIOHAPA, KohdeTyyppi.HAPA, KohdeTyyppi.MUU):
+                kohdetyyppi = building_type
                 break
         
     kohde = Kohde(
