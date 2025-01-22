@@ -40,7 +40,7 @@ from ..models import (
     HapaAineisto,
 )
 from ..utils import clean_asoy_name, form_display_name, is_asoy, is_company, is_yhteiso
-from .buildings import DISTANCE_LIMIT, create_nearby_buildings_lookup, minimum_distance_of_buildings
+from .buildings import DISTANCE_LIMIT, create_nearby_buildings_lookup, maximum_distance_of_buildings
 
 T = TypeVar('T')
 
@@ -730,7 +730,7 @@ def _cluster_rakennustiedot(
             for other_rakennustiedot in other_rakennustiedot_to_cluster:
                 # Tarkista etäisyys kaikkiin klusterin rakennuksiin
                 all_buildings = [rakennustiedot[0] for rakennustiedot in cluster] + [other_rakennustiedot[0]]
-                if minimum_distance_of_buildings(all_buildings) >= distance_limit:
+                if maximum_distance_of_buildings(all_buildings) >= distance_limit:
                     continue
 
                 # Tarkista omistajat/asukkaat

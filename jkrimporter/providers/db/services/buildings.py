@@ -36,9 +36,12 @@ if TYPE_CHECKING:
     from jkrimporter.model import Asiakas, Yhteystieto, JkrIlmoitukset, LopetusIlmoitus
 
 
-def minimum_distance_of_buildings(buildings: List[Rakennus]) -> float:
+def maximum_distance_of_buildings(buildings: List[Rakennus]) -> float:
     """
     Palauttaa pisimmän etäisyyden rakennusten välillä.
+    Tätä käytetään varmistamaan että kaikki rakennukset ovat DISTANCE_LIMIT (300m) 
+    etäisyydellä toisistaan, jotta ei synny "ketjutettuja" kohteita missä rakennukset 
+    voivat olla kaukana toisistaan.
     """
     if len(buildings) < 2:
         return float('inf')
@@ -231,9 +234,9 @@ def find_buildings_for_kohde(
         
         # Tarkista rakennusten etäisyys ja pinta-ala
         if len(rakennukset) > 1:
-            min_distance = minimum_distance_of_buildings(rakennukset)
+            maksimi_etaisyys = maximum_distance_of_buildings(rakennukset)
             area = convex_hull_area_of_buildings(rakennukset)
-            if min_distance <= DISTANCE_LIMIT and area < AREA_LIMIT:
+            if maksimi_etaisyys <= DISTANCE_LIMIT and area < AREA_LIMIT:
                 return rakennukset
         else:
             return rakennukset
