@@ -17,7 +17,7 @@ find ../data -type f -iname "kohdentumat*" -exec rm {} \;
 if [ -n "$(ls -A logs 2>/dev/null)" ]; then
     echo "Arkistoidaan vanhat lokit..."
     mkdir -p logs/arkisto
-    tar -czf logs/arkisto/logs_${TIMESTAMP}.tar.gz logs/
+    tar -czf logs/arkisto/logs_${TIMESTAMP}.tar.gz --exclude='logs/arkisto' logs/
     rm -f logs/*/*.log logs/*.log
 fi
 
@@ -93,7 +93,7 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"202301
 
 # Päivitetään huoneistomäärät
 echo "Tuodaan huoneistomäärät..."
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2023.xlsx \"Huoneistolkm\"" \
+log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2023.xlsx \"huoneistot 2023\"" \
         "logs/huoneistomaara_tuonti.log" \
         "Huoneistomäärien tuonti"
 

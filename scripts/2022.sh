@@ -22,7 +22,7 @@ find ../data -type f -iname "kohdentumat*" -exec rm {} \;
 if [ -n "$(ls -A logs 2>/dev/null)" ]; then
     echo "Arkistoidaan vanhat lokit..."
     mkdir -p logs/arkisto
-    tar -czf logs/arkisto/logs_${TIMESTAMP}.tar.gz logs/
+    tar -czf logs/arkisto/logs_${TIMESTAMP}.tar.gz --exclude='logs/arkisto' logs/
     rm -f logs/*/*.log logs/*.log
 fi
 
@@ -118,6 +118,7 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"202201
         "DVV-tietojen muunnos JKR-muotoon"
 
 # Vaihe 4: Huoneistomäärän päivitys
+
 log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2022.xlsx \"Huoneistolkm\"" \
         "logs/huoneistomaara_tuonti.log" \
         "Huoneistomäärien tuonti"
