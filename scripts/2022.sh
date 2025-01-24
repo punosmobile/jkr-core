@@ -126,30 +126,10 @@ log_exec "psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update
         "logs/huoneistomaara_paivitys.log" \
         "Huoneistomäärien päivitys"
 
-# Vaihe 5: HAPA-aineiston tuonti
-export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2022.csv'
-
-if [ ! -f "$CSV_FILE_PATH" ]; then
-    echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
-fi
-
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
-        "logs/hapa_import.log" \
-        "HAPA-aineiston tuonti"
-
-# Kohteiden luonti perusmaksuaineistosta
+# Vishe 4: Kohteiden luonti perusmaksuaineistosta
 log_exec "jkr create_dvv_kohteet 28.1.2022 ../data/Perusmaksuaineisto.xlsx" \
         "logs/kohteet/perusmaksu_kohteet.log" \
         "Kohteiden luonti perusmaksuaineistosta"
-
-# Vaihe 4: Huoneistomäärän päivitys
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2022.xlsx \"Huoneistolkm\"" \
-        "logs/huoneistomaara_tuonti.log" \
-        "Huoneistomäärien tuonti"
-
-log_exec "psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update_huoneistomaara.sql" \
-        "logs/huoneistomaara_paivitys.log" \
-        "Huoneistomäärien päivitys"
 
 # Vaihe 5: HAPA-aineiston tuonti
 export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2022.csv'
