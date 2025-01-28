@@ -41,19 +41,8 @@ BEGIN
     -- Päivitä kohteiden tyypit, joiden rakennukset ovat HAPA-aineistossa
     UPDATE jkr.kohde k
     SET kohdetyyppi_id = CASE 
-        -- Säilytä asuinkiinteistö jos:
-        -- - on biojätteen erilliskeräysalueella TAI
-        -- - on hyötyjätealueella ja vähintään 5 huoneistoa
-        WHEN k.kohdetyyppi_id = 7  -- asuinkiinteistö
-        AND (
-            jkr.is_kohde_biojate_erilliskeraysalueella(k.id)
-            OR (
-                jkr.is_kohde_biojate_erilliskeraysalueella(k.id)  -- hyötyjätealue sama kuin biojätealue
-                AND jkr.has_kohde_vahintaan_5_huoneistoa(k.id)
-            )
-        ) THEN 7  -- säilytä asuinkiinteistönä
-        
-        -- BIOHAPA vahvempi kuin asuinkiinteistö biojätealueen ulkopuolella
+
+        -- BIOHAPA
         WHEN EXISTS (
             SELECT 1 
             FROM jkr.kohteen_rakennukset kr
@@ -63,10 +52,9 @@ BEGIN
             AND ha.kohdetyyppi ILIKE 'biohapa'
             AND ha.voimassa && k.voimassaolo
         )
-        AND NOT jkr.is_kohde_biojate_erilliskeraysalueella(k.id)
         THEN 6  -- biohapa
         
-        -- HAPA vain jos ei ole asuinkiinteistö
+        -- HAPA
         WHEN EXISTS (
             SELECT 1
             FROM jkr.kohteen_rakennukset kr
@@ -76,7 +64,6 @@ BEGIN
             AND ha.kohdetyyppi ILIKE 'hapa'
             AND ha.voimassa && k.voimassaolo
         ) 
-        AND k.kohdetyyppi_id != 7  -- ei asuinkiinteistö
         THEN 5  -- hapa
         
         ELSE k.kohdetyyppi_id  -- säilytä nykyinen tyyppi
@@ -98,7 +85,7 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_update_kohde_type_from_hapa ON jkr.hapa_aineisto;
 
 CREATE TRIGGER trg_update_kohde_type_from_hapa
-    AFTER INSERT OR UPDATE OR DELETE ON jkr.hapa_aineisto
+    AFTER INSERT OR UPDATE ON jkr.hapa_aineisto
     FOR EACH STATEMENT
     EXECUTE FUNCTION jkr.update_kohde_type_from_hapa();
 
