@@ -231,7 +231,7 @@ def raportti(
     tarkastelupvm: str = typer.Argument(..., help="Tarkastelupäivämäärä (YYYY-MM-DD tai DD.MM.YYYY)"),
     kunta: str = typer.Argument(None, help="Kunnan nimi (esim. 'Lahti'). Käytä 0 jos ei rajausta."),
     huoneistomaara: int = typer.Argument(0, help="Huoneistomäärä (4 = neljä tai vähemmän, 5 = viisi tai enemmän, 0 = ei rajausta)"),
-    taajama: int = typer.Argument(0, help="Taajama (0 = ei rajausta, 1 = yli 10000, 2 = yli 200)"),
+    taajama: int = typer.Argument(None, help="Taajama (0 = ei rajausta, 1 = yli 10000, 2 = yli 200)"),
 ):
     """
     Luo Excel-raportin kohteista annetuilla hakuehdoilla.
@@ -241,21 +241,30 @@ def raportti(
         
         # Convert "0" to None for kunta
         kunta_filter = None if kunta == "0" else kunta
+
+        # Convert "0" to None for taajama
+        taajama_filter = None if taajama == "0" else taajama
+
+        taajama_10000_filter = None if taajama_filter == None else (None if taajama_filter not in (2,3, 10000) else (taajama_filter in (2,3, 10000)))
+        taajama_200_filter = None if taajama_filter == None else (None if taajama_filter not in (1,3, 200) else (taajama_filter in (1,3, 200)))
         
+        print(f"Haetaan raportille ehdoilla: tarkastelupvm={tarkastelupvm_date}, kunta={kunta_filter}, huoneistomaara={huoneistomaara}, taajama_10000={taajama_10000_filter}, taajama_200={taajama_200_filter}")
         # Create SQLAlchemy session
         Session = scoped_session(sessionmaker(bind=engine))
         with Session() as session:
             # Execute report query
+            
             result = session.execute(
                 text("SELECT * FROM jkr.print_report(:tarkastelupvm, :kunta, :huoneistomaara, :taajama_10000, :taajama_200)"),
                 {
                     "tarkastelupvm": tarkastelupvm_date,
                     "kunta": kunta_filter,
                     "huoneistomaara": huoneistomaara,
-                    "taajama_10000": taajama in (1, 2),  # is_taajama_yli_10000
-                    "taajama_200": taajama == 2,  # is_taajama_yli_200
+                    "taajama_10000": taajama_10000_filter,  # is_taajama_yli_10000
+                    "taajama_200": taajama_200_filter,  # is_taajama_yli_200
                 }
             )
+
             
             # Get column names
             columns = result.keys()
