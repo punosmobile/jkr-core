@@ -141,12 +141,12 @@ log_exec "psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update
         "logs/huoneistomaara_paivitys.log" \
         "Huoneistomäärien päivitys"
 
-# Vishe 4: Kohteiden luonti perusmaksuaineistosta
+# Vaihe 5: Kohteiden luonti perusmaksuaineistosta
 log_exec "jkr create_dvv_kohteet 28.1.2022 ../data/Perusmaksuaineisto.xlsx" \
         "logs/kohteet/perusmaksu_kohteet.log" \
         "Kohteiden luonti perusmaksuaineistosta"
 
-# Vaihe 5: HAPA-aineiston tuonti
+# Vaihe 6: HAPA-aineiston tuonti
 export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2022.csv'
 
 if [ ! -f "$CSV_FILE_PATH" ]; then
