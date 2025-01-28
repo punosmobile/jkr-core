@@ -2,6 +2,7 @@
 
 # Määritä aikaleima
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+START_TIME=$(date +%s)
 
 rm -rf logs
 rm jkr.log
@@ -51,26 +52,39 @@ status() {
 
 # Funktio lokitusta varten
 log_exec() {
-    local cmd="$1"
-    local log_file="$2"
-    local desc="$3"
-    echo "=== $desc ==="
-    status "=== $desc - Aloitettu ==="
-    echo "Aloitusaika: $(date)"
-    echo "=== $desc ===" > "$log_file"
-    echo "Suoritetaan: $cmd" >> "$log_file"
-    echo "Aloitusaika: $(date)" >> "$log_file"
-    echo "===================" >> "$log_file"
-    
-    eval "$cmd" >> "$log_file" 2>&1
-    
-    echo "===================" >> "$log_file"
-    echo "Lopetusaika: $(date)" >> "$log_file"
-    echo "Suoritus valmis" >> "$log_file"
-    echo "Lopetusaika: $(date)"
-    echo "Suoritus valmis"
-    echo "==================="
-    status "=== $desc - Lopetettu ==="
+   local cmd="$1"
+   local log_file="$2"
+   local desc="$3"
+   
+   # Aloitusaika
+   local STEP_START=$(date +%s)
+   
+   echo "=== $desc ==="
+   status "=== $desc - Aloitettu ==="
+   echo "Aloitusaika: $(date)"
+   echo "=== $desc ===" > "$log_file"
+   echo "Suoritetaan: $cmd" >> "$log_file"
+   echo "Aloitusaika: $(date)" >> "$log_file"
+   echo "===================" >> "$log_file"
+   
+   eval "$cmd" >> "$log_file" 2>&1
+   
+   # Lopetusaika ja keston laskeminen
+   local STEP_END=$(date +%s)
+   local DURATION=$((STEP_END - STEP_START))
+   local HOURS=$((DURATION / 3600))
+   local MINUTES=$(( (DURATION % 3600) / 60 ))
+   local SECONDS=$((DURATION % 60))
+   
+   echo "===================" >> "$log_file"
+   echo "Lopetusaika: $(date)" >> "$log_file"
+   echo "Suoritus valmis" >> "$log_file"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia" >> "$log_file"
+   echo "Lopetusaika: $(date)"
+   echo "Suoritus valmis"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
+   echo "==================="
+   status "=== $desc - Lopetettu (Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s) ==="
 }
 
 echo "Aloitetaan tietojen tuonti..."
@@ -235,3 +249,14 @@ log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2022/$quarter LSJ 1.1
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2022-12-31');\"" \
         "logs/tietovirrat/2022_$quarter/velvoitteet.log" \
         "Q4 velvoitteiden tallennus"
+
+# Lopetusaika ja keston laskeminen
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+# Muunna sekunnit helpommin luettavaan muotoon
+HOURS=$((DURATION / 3600))
+MINUTES=$(( (DURATION % 3600) / 60 ))
+SECONDS=$((DURATION % 60))
+
+echo "Skriptin suoritus kesti: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"

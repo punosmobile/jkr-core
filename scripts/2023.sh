@@ -2,6 +2,7 @@
 
 # Määritä aikaleima
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+START_TIME=$(date +%s)
 
 # Luo logs-hakemisto jos ei ole olemassa
 mkdir -p logs/arkisto
@@ -213,3 +214,14 @@ log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2023/$quarter LSJ 1.1
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2023-12-31');\"" \
         "logs/tietovirrat/2023_$quarter/velvoitteet.log" \
         "Q4 velvoitteiden tallennus"
+
+# Lopetusaika ja keston laskeminen
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+# Muunna sekunnit helpommin luettavaan muotoon
+HOURS=$((DURATION / 3600))
+MINUTES=$(( (DURATION % 3600) / 60 ))
+SECONDS=$((DURATION % 60))
+
+echo "Skriptin suoritus kesti: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"

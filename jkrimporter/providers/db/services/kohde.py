@@ -558,7 +558,7 @@ def get_dvv_rakennustiedot_without_kohde(
                 and_(
                     poimintapvm < Kohde.loppupvm,
                     # Älä liitä rakennuksia perusmaksurekisterin kohteisiin
-                    Kohde.loppupvm != datetime.date(2100, 1, 1)
+                    Kohde.perusmaksurekisterikohde.is_(False)
                 )
             )
         )
@@ -571,7 +571,7 @@ def get_dvv_rakennustiedot_without_kohde(
                 and_(
                     Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)),
                     # Älä liitä rakennuksia perusmaksurekisterin kohteisiin
-                    Kohde.loppupvm != datetime.date(2100, 1, 1)
+                    Kohde.perusmaksurekisterikohde.is_(False)
                 )
             )
         )
@@ -1145,6 +1145,7 @@ def create_new_kohde_from_buildings(
     poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date],
     old_kohde: Optional[Kohde],
+    perusmaksurekisterikohde: bool = False
 ):
     """
     Luo uuden kohteen annettujen rakennusten perusteella ja yhdistää niihin liittyvät tiedot.
@@ -1229,7 +1230,7 @@ def create_new_kohde_from_buildings(
         
     # Jos loppupvm ei ole määritelty, käytetään oletusarvoa
     if loppupvm is None:
-        loppupvm = date(2100, 12, 31)
+        loppupvm = date(2100, 1, 1)
         
     # Määritä kohdetyyppi rakennusten perusteella
     kohdetyyppi = KohdeTyyppi.MUU  # Oletuksena MUU
@@ -1252,6 +1253,7 @@ def create_new_kohde_from_buildings(
         kohdetyyppi=codes.kohdetyypit[kohdetyyppi],
         alkupvm=alkupvm,
         loppupvm=loppupvm,
+        perusmaksurekisterikohde=perusmaksurekisterikohde
     )
     session.add(kohde)
     # we need to get the id for the kohde from db
@@ -1406,7 +1408,8 @@ def update_or_create_kohde_from_buildings(
     asukkaat: Set[Osapuoli],
     omistajat: Set[Osapuoli],
     poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date]
+    loppupvm: Optional[datetime.date],
+    perusmaksurekisterikohde: bool = False
 ) -> Kohde:
     """
     Optimoitu versio kohteen päivitys/luontifunktiosta.
@@ -1432,6 +1435,7 @@ def update_or_create_kohde_from_buildings(
         omistajat: Rakennusten omistajat
         poimintapvm: Uuden kohteen alkupäivämäärä
         loppupvm: Uuden kohteen loppupäivämäärä
+        perusmaksurekisterikohde: Valinnainen parametri perusmaksurekisterikohteiden käsittelyyn
 
     Returns:
         Kohde: Luotu tai päivitetty kohde
@@ -1505,7 +1509,8 @@ def update_or_create_kohde_from_buildings(
             omistajat,
             alkupvm,
             loppupvm,
-            old_kohde if 'old_kohde' in locals() else None
+            old_kohde if 'old_kohde' in locals() else None,
+            perusmaksurekisterikohde=perusmaksurekisterikohde
         )
         
         # Käsittele vanhan kohteen tiedot
@@ -1569,7 +1574,7 @@ def update_or_create_kohde_from_buildings(
             needs_update = True
 
     if needs_update:
-        print(f"Päivitetty kohde: ID={found_kohde.id}, Nimi={found_kohde.nimi}, Tyyppi={found_kohde.kohdetyyppi}, Alkupvm={found_kohde.alkupvm}, Loppupvm={found_kohde.loppupvm}")
+        print(f"Päivitetty kohde: ID={found_kohde.id}, Alkupvm={found_kohde.alkupvm}, Loppupvm={found_kohde.loppupvm}")
         session.flush()
         
     return found_kohde
@@ -2297,6 +2302,7 @@ def create_perusmaksurekisteri_kohteet(
         inhabitants_by_rakennus_id,
         poimintapvm,
         datetime.date(2100, 1, 1),  # Käytetään kiinteää loppupäivämäärää
+        perusmaksurekisterikohde=True
     )
 
     logger.info(f"\nLuotu {len(kohteet):,} kohdetta perusmaksurekisterin perusteella")
@@ -2310,7 +2316,8 @@ def get_or_create_kohteet_from_rakennustiedot(
     owners_by_rakennus_id: Dict[int, Set[Osapuoli]],
     inhabitants_by_rakennus_id: Dict[int, Set[Osapuoli]],
     poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date]
+    loppupvm: Optional[datetime.date],
+    perusmaksurekisterikohde: bool = False
 ) -> List[Kohde]:
     """
     Luo kohteet rakennusryhmien perusteella.
@@ -2355,7 +2362,8 @@ def get_or_create_kohteet_from_rakennustiedot(
             asukkaat,
             omistajat,
             poimintapvm,
-            loppupvm
+            loppupvm,
+            perusmaksurekisterikohde=perusmaksurekisterikohde
         )
         
         if kohde:

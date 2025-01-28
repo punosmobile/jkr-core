@@ -2,6 +2,7 @@
 
 # Määritä aikaleima
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+START_TIME=$(date +%s)
 
 # Luo logs-hakemisto jos ei ole olemassa
 mkdir -p logs/arkisto
@@ -107,9 +108,20 @@ log_exec "jkr create_dvv_kohteet 28.1.2024" \
         "logs/kohteet/DVV_kohteet.log" \
         "Kohteiden luonti"
 
+# # Tuodaan HAPA-aineisto
+# echo "Tuodaan HAPA-aineisto 2024..."
+# export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2024.csv'
+
+# if [ ! -f "$CSV_FILE_PATH" ]; then
+#     echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
+# fi
+
+# log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
+#         "logs/hapa_import.log" \
+#         "HAPA-aineiston tuonti"
 # Tuodaan HAPA-aineisto
-echo "Tuodaan HAPA-aineisto 2024..."
-export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2024.csv'
+echo "Tuodaan HAPA-aineisto 2023..."
+export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2023.csv'
 
 if [ ! -f "$CSV_FILE_PATH" ]; then
     echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
@@ -118,7 +130,6 @@ fi
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
         "logs/hapa_import.log" \
         "HAPA-aineiston tuonti"
-
 
 # Päivitetään velvoitteet
 echo "Ajetaan velvoitepäivitys..."
@@ -215,3 +226,14 @@ log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.1
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2024-12-31');\"" \
         "logs/tietovirrat/2024_$quarter/velvoitteet.log" \
         "Q4 velvoitteiden tallennus"
+
+# Lopetusaika ja keston laskeminen
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+# Muunna sekunnit helpommin luettavaan muotoon
+HOURS=$((DURATION / 3600))
+MINUTES=$(( (DURATION % 3600) / 60 ))
+SECONDS=$((DURATION % 60))
+
+echo "Skriptin suoritus kesti: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
