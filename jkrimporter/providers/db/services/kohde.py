@@ -558,7 +558,7 @@ def get_dvv_rakennustiedot_without_kohde(
                 and_(
                     poimintapvm < Kohde.loppupvm,
                     # Älä liitä rakennuksia perusmaksurekisterin kohteisiin
-                    Kohde.perusmaksurekisterikohde.is_(False)
+                    Kohde.lukittu.is_(False)
                 )
             )
         )
@@ -571,7 +571,7 @@ def get_dvv_rakennustiedot_without_kohde(
                 and_(
                     Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)),
                     # Älä liitä rakennuksia perusmaksurekisterin kohteisiin
-                    Kohde.perusmaksurekisterikohde.is_(False)
+                    Kohde.lukittu.is_(False)
                 )
             )
         )
@@ -1145,7 +1145,7 @@ def create_new_kohde_from_buildings(
     poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date],
     old_kohde: Optional[Kohde],
-    perusmaksurekisterikohde: bool = False
+    lukittu: bool = False
 ):
     """
     Luo uuden kohteen annettujen rakennusten perusteella ja yhdistää niihin liittyvät tiedot.
@@ -1253,7 +1253,7 @@ def create_new_kohde_from_buildings(
         kohdetyyppi=codes.kohdetyypit[kohdetyyppi],
         alkupvm=alkupvm,
         loppupvm=loppupvm,
-        perusmaksurekisterikohde=perusmaksurekisterikohde
+        lukittu=lukittu
     )
     session.add(kohde)
     # we need to get the id for the kohde from db
@@ -1409,7 +1409,7 @@ def update_or_create_kohde_from_buildings(
     omistajat: Set[Osapuoli],
     poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date],
-    perusmaksurekisterikohde: bool = False
+    lukittu: bool = False
 ) -> Kohde:
     """
     Optimoitu versio kohteen päivitys/luontifunktiosta.
@@ -1435,7 +1435,7 @@ def update_or_create_kohde_from_buildings(
         omistajat: Rakennusten omistajat
         poimintapvm: Uuden kohteen alkupäivämäärä
         loppupvm: Uuden kohteen loppupäivämäärä
-        perusmaksurekisterikohde: Valinnainen parametri perusmaksurekisterikohteiden käsittelyyn
+        lukittu: Valinnainen parametri perusmaksurekisterikohteiden käsittelyyn
 
     Returns:
         Kohde: Luotu tai päivitetty kohde
@@ -1510,7 +1510,7 @@ def update_or_create_kohde_from_buildings(
             alkupvm,
             loppupvm,
             old_kohde if 'old_kohde' in locals() else None,
-            perusmaksurekisterikohde=perusmaksurekisterikohde
+            lukittu=lukittu
         )
         
         # Käsittele vanhan kohteen tiedot
@@ -2302,7 +2302,7 @@ def create_perusmaksurekisteri_kohteet(
         inhabitants_by_rakennus_id,
         poimintapvm,
         datetime.date(2100, 1, 1),  # Käytetään kiinteää loppupäivämäärää
-        perusmaksurekisterikohde=True
+        lukittu=True
     )
 
     logger.info(f"\nLuotu {len(kohteet):,} kohdetta perusmaksurekisterin perusteella")
@@ -2317,7 +2317,7 @@ def get_or_create_kohteet_from_rakennustiedot(
     inhabitants_by_rakennus_id: Dict[int, Set[Osapuoli]],
     poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date],
-    perusmaksurekisterikohde: bool = False
+    lukittu: bool = False
 ) -> List[Kohde]:
     """
     Luo kohteet rakennusryhmien perusteella.
@@ -2363,7 +2363,7 @@ def get_or_create_kohteet_from_rakennustiedot(
             omistajat,
             poimintapvm,
             loppupvm,
-            perusmaksurekisterikohde=perusmaksurekisterikohde
+            lukittu=lukittu
         )
         
         if kohde:
