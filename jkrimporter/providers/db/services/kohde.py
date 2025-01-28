@@ -996,7 +996,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
                 print(f"-> ASUINKIINTEISTO (rakennusluokka_2018: {luokka})")
                 return KohdeTyyppi.ASUINKIINTEISTO
         except (ValueError, TypeError):
-            print("- rakennusluokka_2018 ei ole validi numero")
+            print(f"- rakennusluokka_2018 ei ole validi numero: {rakennus.rakennusluokka_2018}")
             pass
 
     # 3. Jos ei rakennusluokkaa 2018, tarkista käyttötarkoitus
@@ -1026,7 +1026,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
         print(f"-> ASUINKIINTEISTO (asukkaat) {len(asukkaat)}")
         return KohdeTyyppi.ASUINKIINTEISTO
 
-    # 7. Jos mikainen ehto ei tietenäkin tyydy, kyseessä on muu kohde
+    # 7. Jos mikään ehto ei täyttynyt, kyseessä on muu kohde
     print(f"-> MUU (Asuinrakennuksen ehdot ei täyty) prt: {rakennus.prt}")
     print(f"- rakennusluokka_2018: {rakennus.rakennusluokka_2018}")
     print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None}")
