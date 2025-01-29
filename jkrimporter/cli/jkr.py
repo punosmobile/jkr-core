@@ -232,6 +232,7 @@ def raportti(
     kunta: str = typer.Argument(None, help="Kunnan nimi (esim. 'Lahti'). Käytä 0 jos ei rajausta."),
     huoneistomaara: int = typer.Argument(0, help="Huoneistomäärä (4 = neljä tai vähemmän, 5 = viisi tai enemmän, 0 = ei rajausta)"),
     taajama: int = typer.Argument(None, help="Taajama (0 = ei rajausta, 1 = yli 10000, 2 = yli 200)"),
+    kohde_tyyppi: int = typer.Argument(None, help="Kohdetyyppi 5 = hapa, 6 = biohapa, 7 = asuinkiinteistö, 8 = muu"),
 ):
     """
     Luo Excel-raportin kohteista annetuilla hakuehdoilla.
@@ -255,13 +256,14 @@ def raportti(
             # Execute report query
             
             result = session.execute(
-                text("SELECT * FROM jkr.print_report(:tarkastelupvm, :kunta, :huoneistomaara, :taajama_10000, :taajama_200)"),
+                text("SELECT * FROM jkr.print_report(:tarkastelupvm, :kunta, :huoneistomaara, :taajama_10000, :taajama_200, :kohde_tyyppi_id)"),
                 {
                     "tarkastelupvm": tarkastelupvm_date,
                     "kunta": kunta_filter,
                     "huoneistomaara": huoneistomaara,
                     "taajama_10000": taajama_10000_filter,  # is_taajama_yli_10000
                     "taajama_200": taajama_200_filter,  # is_taajama_yli_200
+                    "kohde_tyyppi_id": kohde_tyyppi
                 }
             )
 

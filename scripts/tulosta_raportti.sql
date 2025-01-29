@@ -7,6 +7,7 @@ CREATE TEMP TABLE tmp_report_result(
     Huoneistolukumäärä BIGINT,
     "Yli 10 000 taajama" TEXT,
     "200 asukkaan taajama" TEXT,
+    "kohdetyyppi" TEXT,
     "Komposti-ilmoituksen tekijan nimi" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
@@ -121,7 +122,8 @@ SELECT * FROM jkr.print_report(
     CASE WHEN :'municipality' = '*' THEN NULL ELSE :'municipality' END,
     :'count_apartments',
     CASE WHEN :'taajama_size' = 10000 THEN TRUE ELSE NULL END,
-    CASE WHEN :'taajama_size' = 200 THEN TRUE ELSE NULL END
+    CASE WHEN :'taajama_size' = 200 THEN TRUE ELSE NULL END,
+    :'kohde_tyyppi_id',
 );
 
 :copy_command

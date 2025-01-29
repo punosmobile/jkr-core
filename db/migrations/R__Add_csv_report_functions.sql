@@ -27,7 +27,8 @@ CREATE OR REPLACE FUNCTION jkr.filter_kohde_ids_for_report(
     kunta TEXT,
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
-    is_taajama_yli_200 BOOLEAN
+    is_taajama_yli_200 BOOLEAN,
+    kohde_tyyppi_id INTEGER -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other
 )
 RETURNS TABLE(id INTEGER) AS $$
 BEGIN
@@ -102,7 +103,8 @@ BEGIN
                 is_taajama_yli_200 = false
                 AND k.id NOT IN (SELECT kohde_ids_in_taajama FROM jkr.kohde_ids_in_taajama(200))
             )
-        );
+        ) 
+        AND kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -294,7 +296,8 @@ RETURNS TABLE(
     kunta TEXT,
     huoneistomaara BIGINT,
     taajama_yli_10000 TEXT,
-    taajama_yli_200 TEXT
+    taajama_yli_200 TEXT,
+    kohdetyyppi TEXT
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -366,8 +369,10 @@ BEGIN
                             kr.kohde_id = k.id AND kr.rakennus_id = r.id
                     )
             ) 
-        LIMIT 1)
+        LIMIT 1),
+        kt.selite as kohdetyyppi
     FROM jkr.kohde k
+    LEFT JOIN jkr_koodistot.kohdetyyppi kt ON k.kohdetyyppi_id = kt.id
     WHERE k.id = ANY(kohde_ids);
 END;
 $$ LANGUAGE plpgsql;
@@ -834,7 +839,8 @@ CREATE OR REPLACE FUNCTION jkr.print_report(
     kunta TEXT,
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
-    is_taajama_yli_200 BOOLEAN
+    is_taajama_yli_200 BOOLEAN,
+    kohde_tyyppi_id INTEGER
 )
 RETURNS TABLE(
     kohde_id INTEGER,
@@ -843,6 +849,7 @@ RETURNS TABLE(
     huoneistomaara_out BIGINT,
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
+    "kohdetyyppi" TEXT,
     "Komposti-ilmoituksen tekijän nimi" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
@@ -962,7 +969,8 @@ BEGIN
         kunta,
         huoneistomaara,
         is_taajama_yli_10000,
-        is_taajama_yli_200
+        is_taajama_yli_200,
+        kohde_tyyppi_id
     ) AS id;
 
     RETURN QUERY
@@ -973,6 +981,7 @@ BEGIN
         fil.huoneistomaara,
         fil.taajama_yli_10000,
         fil.taajama_yli_200,
+        fil.kohdetyyppi,
         koh."Komposti-ilmoituksen tekijän nimi",
         koh."Sekajätteen tilaajan nimi",
         koh."Sekajätteen tilaajan katuosoite",
