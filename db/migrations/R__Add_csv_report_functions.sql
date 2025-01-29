@@ -28,7 +28,7 @@ CREATE OR REPLACE FUNCTION jkr.filter_kohde_ids_for_report(
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
     is_taajama_yli_200 BOOLEAN,
-    kohde_tyyppi_id INTEGER -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other
+    kohde_tyyppi_id INTEGER -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other, null for everything
 )
 RETURNS TABLE(id INTEGER) AS $$
 BEGIN
