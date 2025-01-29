@@ -1,3 +1,4 @@
+---- V2.49.0__Add_lukittu_to_kohde.sql
 ALTER TABLE jkr.kohde
 ADD COLUMN lukittu boolean DEFAULT NULL;
 
