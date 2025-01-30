@@ -247,12 +247,12 @@ def raportti(
         taajama_filter = None if taajama == "0" else taajama
 
         # Convert "0" to None for kohdetyyppi
-        kohde_filter = None if kohde_tyyppi == "0" else kohde_tyyppi
+        kohde_filter = None if kohde_tyyppi == 0 else kohde_tyyppi
 
         taajama_10000_filter = None if taajama_filter == None else (None if taajama_filter not in (2,3, 10000) else (taajama_filter in (2,3, 10000)))
         taajama_200_filter = None if taajama_filter == None else (None if taajama_filter not in (1,3, 200) else (taajama_filter in (1,3, 200)))
         
-        print(f"Haetaan raportille ehdoilla: tarkastelupvm={tarkastelupvm_date}, kunta={kunta_filter}, huoneistomaara={huoneistomaara}, taajama_10000={taajama_10000_filter}, taajama_200={taajama_200_filter}")
+        print(f"Haetaan raportille ehdoilla: tarkastelupvm={tarkastelupvm_date}, kunta={kunta_filter}, huoneistomaara={huoneistomaara}, taajama_10000={taajama_10000_filter}, taajama_200={taajama_200_filter}, kohde_tyyppi={kohde_filter}")
         # Create SQLAlchemy session
         Session = scoped_session(sessionmaker(bind=engine))
         with Session() as session:
