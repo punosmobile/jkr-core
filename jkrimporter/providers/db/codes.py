@@ -48,6 +48,10 @@ class KohdeTyyppi(Enum):
     LAHIKERAYS = "lähikeräys"
     PUTKIKERAYS = "putkikeräys"
     KIINTEISTO = "kiinteistö"
+    HAPA = "hapa"
+    BIOHAPA = "biohapa"
+    ASUINKIINTEISTO = "asuinkiinteistö"
+    MUU = "muu"
 
 
 class OsapuolenlajiTyyppi(Enum):
@@ -111,8 +115,17 @@ class RakennuksenKayttotarkoitusTyyppi(Enum):
 
 
 class RakennuksenOlotilaTyyppi(Enum):
-    MUU = "muu (sauna, liiteri, kellotapuli, ym.)"
-    TYHJILLAAN = "tyhjillään (esim. myynnissä)"
+    VAKINAINEN_ASUMINEN = "01"
+    TOIMITILA = "02"
+    LOMA_ASUMINEN = "03"
+    TILAPAINEN_ASUMINEN = "04"
+    TYHJILLAAN = "05"
+    PURETTU_UUDISRAKENNUS = "06"
+    PURETTU_MUU = "07"
+    TUHOUTUNUT = "08"
+    HYLATTY = "09"
+    EI_TIETOA = "10"
+    MUU = "11"
 
 
 class KiinteatJatelajit(Enum):

@@ -1,5 +1,6 @@
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
+
 
 from ..database import engine
 from ..models import Tiedontuottaja
@@ -20,8 +21,17 @@ def insert_tiedontuottaja(tunnus: str, nimi: str):
 
 def get_tiedontuottaja(tunnus: str):
     with Session(engine) as session:
-        tiedontuottaja = session.get(Tiedontuottaja, tunnus)
+        # Käytetään func.lower case-insensitive hakuun
+        tiedontuottaja = session.execute(
+            select(Tiedontuottaja)
+            .where(func.lower(Tiedontuottaja.tunnus) == tunnus.lower())
+        ).scalar_one_or_none()
         return tiedontuottaja
+    
+# def get_tiedontuottaja(tunnus: str):
+#     with Session(engine) as session:
+#         tiedontuottaja = session.get(Tiedontuottaja, tunnus)
+#         return tiedontuottaja
 
 
 def remove_tiedontuottaja(tunnus: str):

@@ -54,11 +54,9 @@ from .services.kohde import (
     create_new_kohde,
     create_perusmaksurekisteri_kohteet,
     find_kohde_by_address,
-    find_kohde_by_kiinteisto,
     find_kohde_by_prt,
     find_kohteet_by_prt,
     get_or_create_multiple_and_uninhabited_kohteet,
-    get_or_create_paritalo_kohteet,
     get_or_create_single_asunto_kohteet,
     get_ulkoinen_asiakastieto,
     update_kohde,
@@ -143,49 +141,48 @@ def insert_kuljetukset(
             session.add(db_kuljetus)
 
 
-def find_and_update_kohde(
-    session: "Session",
-    asiakas: "Asiakas",
-    do_create: bool,
-    do_update: bool,
-    prt_counts: Dict[str, int],
-    kitu_counts: Dict[str, int],
-    address_counts: Dict[str, int],
-) -> Union[Kohde, None]:
-
+def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_counts, kitu_counts, address_counts):
+    """
+    Etsii olemassa olevan kohteen asiakkaalle tai luo uuden.
+    """
     kohde = None
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
+    
+    # 1. Etsi kohde asiakasnumeron perusteella
     if ulkoinen_asiakastieto:
         print("Kohde found by customer id.")
         update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
 
         kohde = ulkoinen_asiakastieto.kohde
-        if do_update:
+        if do_update_kohde:
             update_kohde(kohde, asiakas)
     else:
+        # 2. Etsi kohde rakennustietojen perusteella
         print("Customer id not found. Searching for kohde by customer data...")
         if asiakas.rakennukset:
             kohde = find_kohde_by_prt(session, asiakas)
-        if not kohde and asiakas.kiinteistot:
-            kohde = find_kohde_by_kiinteisto(session, asiakas)
+            
+        # 3. Etsi kohde osoitteen perusteella
         if (
             not kohde
             and asiakas.haltija.osoite.postinumero
             and asiakas.haltija.osoite.katunimi
         ):
             kohde = find_kohde_by_address(session, asiakas)
-        if kohde and do_update:
+            
+        if kohde and do_update_kohde:
             update_kohde(kohde, asiakas)
         elif do_create:
-            # this creates kohde without buildings
             print("Kohde not found, creating new one...")
             kohde = create_new_kohde(session, asiakas)
+            
         if kohde:
             add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
         else:
             print("Could not find kohde.")
 
-    if do_create and not kohde.rakennus_collection:
+    # 4. Jos kohde luotu ilman rakennuksia, etsi sopivat rakennukset
+    if do_create and kohde and not kohde.rakennus_collection:
         print("New kohde created. Looking for buildings...")
         buildings = find_buildings_for_kohde(
             session, asiakas, prt_counts, kitu_counts, address_counts
@@ -193,13 +190,7 @@ def find_and_update_kohde(
         if buildings:
             kohde.rakennus_collection = buildings
 
-        elif not kohde.ehdokasrakennus_collection:
-            building_candidates = find_building_candidates_for_kohde(session, asiakas)
-            if building_candidates:
-                kohde.ehdokasrakennus_collection = building_candidates
-
     return kohde
-
 
 def set_end_dates_to_kohteet(
     session: Session,
@@ -262,41 +253,98 @@ def import_dvv_kohteet(
     poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date] = None,
     perusmaksutiedosto: Optional[Path] = None,
-):
-    # Set end date for each kohde without end date. This will remain as an end
-    # date for non-active kohteet. The active kohteet will be updated below and
-    # the end date is cleared.
-    if poimintapvm is not None:
-        set_end_dates_to_kohteet(session, poimintapvm)
+) -> None:
+    """
+    Luo kohteet DVV rakennustiedoista määritysten mukaisessa järjestyksessä.
+    
+    Kohteiden luontijärjestys:
+    1. Perusmaksurekisterin kohteet (rivitalot, kerrostalot jne.)
+    2. Yhden asunnon kohteet (omakotitalot, paritalot)
+    3. Kaikki jäljellä olevat kohteet
+    
+    Args:
+        session: Tietokantaistunto
+        poimintapvm: Uusien kohteiden alkupäivämäärä ja vanhojen loppupäivämäärä-1
+        loppupvm: Uusien kohteiden loppupäivämäärä (None = ei loppupäivää)
+        perusmaksutiedosto: Polku perusmaksurekisterin Excel-tiedostoon
+    """
+    logger = logging.getLogger(__name__)
+    print("Aloitetaan DVV-kohteiden luonti...")
+    logger.info("\nAloitetaan DVV-kohteiden luonti...")
 
-    # 1) Yhden asunnon kohteet
+    # Aseta loppupäivämäärä olemassa oleville kohteille ilman loppupäivää
+    if poimintapvm is not None:
+        previous_pvm = poimintapvm - timedelta(days=1)
+        print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
+        logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
+        
+        # add_date_query = text(
+        #     """
+        #     UPDATE jkr.kohde 
+        #     SET loppupvm = :loppu_pvm 
+        #     WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
+        #     AND alkupvm < :loppu_pvm
+        #     AND loppupvm != '2100-01-01'  -- Älä päivitä perusmaksurekisterin kohteita
+        #     """
+        # )
+        add_date_query = text(
+            """
+            UPDATE jkr.kohde 
+            SET loppupvm = :loppu_pvm 
+            WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
+            AND alkupvm < :loppu_pvm
+            """
+        )
+        session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
+        session.commit()
+        print("Loppupäivämäärät asetettu")
+        logger.info("Loppupäivämäärät asetettu")
+
+    # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)  
+    if perusmaksutiedosto:
+        logger.info("\nLuodaan perusmaksurekisterin kohteet...")
+        try:
+            perusmaksukohteet = create_perusmaksurekisteri_kohteet(
+                session, perusmaksutiedosto, poimintapvm, loppupvm
+            )
+            session.commit()
+            print(
+                f"Luotu {len(perusmaksukohteet)} kohdetta perusmaksurekisterin perusteella"
+            )
+            logger.info(
+                f"Luotu {len(perusmaksukohteet)} kohdetta perusmaksurekisterin perusteella"
+            )
+        except Exception as e:
+            print(f"Virhe perusmaksurekisterin käsittelyssä: {str(e)}")
+            logger.error(f"Virhe perusmaksurekisterin käsittelyssä: {str(e)}")
+            raise
+    else:
+        logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
+
+    # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
+    logger.info("\nLuodaan yhden asunnon kohteet...")
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
-    print(f"Imported {len(single_asunto_kohteet)} single kohteet")
+    logger.info(f"Luotu {len(single_asunto_kohteet)} yhden asunnon kohdetta")
 
-    # 2) Perusmaksurekisterin kohteet
-    if perusmaksutiedosto:
-        perusmaksukohteet = create_perusmaksurekisteri_kohteet(
-            session, perusmaksutiedosto, poimintapvm, loppupvm
-        )
-        session.commit()
-        print(f"Imported {len(perusmaksukohteet)} kohteet with perusmaksu data")
-    else:
-        print("No perusmaksu data")
-
-    # 3) Paritalokohteet
-    paritalo_kohteet = get_or_create_paritalo_kohteet(session, poimintapvm, loppupvm)
-    session.commit()
-    print(f"Imported {len(paritalo_kohteet)} paritalokohteet")
-
-    # 4) Muut kohteet
+    # 3. Muut kohteet (kaikki loput rakennukset)
+    logger.info("\nLuodaan loput kohteet...")
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
-    print(f"Imported {len(multiple_and_uninhabited_kohteet)} remaining kohteet")
+    logger.info(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
+
+    # Yhteenveto
+    total_kohteet = (
+        (len(perusmaksukohteet) if 'perusmaksukohteet' in locals() else 0) +
+        len(single_asunto_kohteet) + 
+        len(multiple_and_uninhabited_kohteet)
+    )
+    print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
+    logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 
 
 class DbProvider:

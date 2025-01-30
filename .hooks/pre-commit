@@ -1,0 +1,44 @@
+#!/bin/sh
+
+# Määritellään kielletyt patternit
+FORBIDDEN_PATTERNS=(
+    "PRIVATE_KEY"
+    "API_SECRET"
+    "password="
+    "PASSWORD="
+    "apikey="
+)
+
+# Tarkista onko .allowCommit tiedosto olemassa
+if [ -f ".allowCommit" ]; then
+    ALLOWED_FILES=$(cat .allowCommit)
+else
+    ALLOWED_FILES=""
+fi
+
+# Haetaan muuttuneet tiedostot
+FILES=$(git diff --cached --name-only)
+
+# Käydään läpi jokainen muuttunut tiedosto
+for FILE in $FILES; do
+    # Ohita .hooks hakemiston tiedostot
+    if echo "$FILE" | grep -q "^\.hooks/"; then
+        continue
+    fi
+    
+    # Ohita tiedosto jos se on .allowCommit listalla
+    if echo "$ALLOWED_FILES" | grep -q "^$FILE$"; then
+        continue
+    fi
+    
+    # Tarkista jokainen kielletty pattern
+    for PATTERN in "${FORBIDDEN_PATTERNS[@]}"; do
+        if git diff --cached "$FILE" | grep -q "$PATTERN"; then
+            echo "VIRHE: Tiedosto $FILE sisältää kielletyn termin: $PATTERN"
+            echo "Jos haluat silti commitoida tämän tiedoston, lisää se .allowCommit tiedostoon"
+            exit 1
+        fi
+    done
+done
+
+exit 0

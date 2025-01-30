@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "jkr-core"
-version = "0.5.0"
+version = "0.6.0"
 description = ""
 authors = [
     "Lauri Kajan <lauri.kajan@gispo.fi>",
@@ -24,18 +24,19 @@ jkr = 'jkrimporter.cli.jkr:app'
 
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 GeoAlchemy2 = "^0.12.3"
 SQLAlchemy = "^1.4.40"
 psycopg2-binary = "^2.9.3"
 openpyxl = "^3.0.10"
 pyparsing = "^3.0.9"
 pydantic = "^1.9.2"
-shapely = "^1.8.2"
+shapely = "^2.0.2"
 typer = "^0.6.1"
 python-dotenv = "^0.20.0"
 addrparser = "^0.1.0"
 python-dateutil = "^2.8.2"
+pandas = "^2.1.4"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^5.0.4"

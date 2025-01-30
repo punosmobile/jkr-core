@@ -177,7 +177,7 @@ alter table jkr.rakennus add column found_in_dvv boolean;
 
 
 -- Insert buildings to jkr_rakennus
-insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi, found_in_dvv)
+insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi, rakennusluokka_2018, found_in_dvv)
 select 
     rakennustunnus as prt,
     "sijaintikiinteistön tunnus" as kiinteistotunnus,
@@ -189,6 +189,8 @@ päivä"::text, 'YYYYMMDD') else null end as kayttoonotto_pvm,
     to_date("käytössä_olotilanteen muutospäivä"::text, 'YYYYMMDD') as kaytossaolotilanteenmuutos_pvm,
     "käyttö_tarkoitus" as rakennuksenkayttotarkoitus_koodi,
     "käytös_säolo_tilanne" as rakennuksenolotila_koodi,
+    "rakennus_
+luokka" as rakennusluokka_2018,
     true as found_in_dvv
 from jkr_dvv.rakennus
 -- update all existing buildings
@@ -201,6 +203,7 @@ set
     kaytossaolotilanteenmuutos_pvm = excluded.kaytossaolotilanteenmuutos_pvm,
     rakennuksenkayttotarkoitus_koodi = excluded.rakennuksenkayttotarkoitus_koodi,
     rakennuksenolotila_koodi = excluded.rakennuksenolotila_koodi,
+    rakennusluokka_2018 = excluded.rakennusluokka_2018,
     found_in_dvv = true;
 
 
