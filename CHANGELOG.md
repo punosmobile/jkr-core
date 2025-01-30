@@ -14,7 +14,7 @@
 - Fixed property formation logic and validation
 - Enhanced type definition algorithms
 - Added comprehensive debug functions
-- Renamed `perusmaksurekisterikohde` to `lukittu` for clarity
+- Added `lukittu` field to kohde table to indicate if the kohde is locked
 - Enhanced address number matching for property formation
 - Improved basic fee registry data processing
 
