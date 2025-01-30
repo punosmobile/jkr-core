@@ -27,7 +27,8 @@ CREATE OR REPLACE FUNCTION jkr.filter_kohde_ids_for_report(
     kunta TEXT,
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
-    is_taajama_yli_200 BOOLEAN
+    is_taajama_yli_200 BOOLEAN,
+    kohde_tyyppi_id INTEGER -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other, null for everything
 )
 RETURNS TABLE(id INTEGER) AS $$
 BEGIN
@@ -102,7 +103,8 @@ BEGIN
                 is_taajama_yli_200 = false
                 AND k.id NOT IN (SELECT kohde_ids_in_taajama FROM jkr.kohde_ids_in_taajama(200))
             )
-        );
+        ) 
+        AND kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -294,7 +296,8 @@ RETURNS TABLE(
     kunta TEXT,
     huoneistomaara BIGINT,
     taajama_yli_10000 TEXT,
-    taajama_yli_200 TEXT
+    taajama_yli_200 TEXT,
+    kohdetyyppi TEXT
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -366,8 +369,10 @@ BEGIN
                             kr.kohde_id = k.id AND kr.rakennus_id = r.id
                     )
             ) 
-        LIMIT 1)
+        LIMIT 1),
+        kt.selite as kohdetyyppi
     FROM jkr.kohde k
+    LEFT JOIN jkr_koodistot.kohdetyyppi kt ON k.kohdetyyppi_id = kt.id
     WHERE k.id = ANY(kohde_ids);
 END;
 $$ LANGUAGE plpgsql;
@@ -476,8 +481,9 @@ CREATE OR REPLACE FUNCTION jkr.kohteiden_rakennustiedot(kohde_ids INTEGER[])
 RETURNS TABLE(
     Kohde_id INTEGER,
     "PRT 1" TEXT,
-    "Käyttötila 1" TEXT,
     "Käyttötarkoitus 1" TEXT,
+    "Käyttötila 1" TEXT,
+    "Rakennusluokka_2018 1" TEXT,
     Katuosoite TEXT,
     Postinumero TEXT,
     Postitoimipaikka TEXT,
@@ -487,51 +493,67 @@ RETURNS TABLE(
     "PRT 2" TEXT,
     "Käyttötila 2" TEXT,
     "Käyttötarkoitus 2" TEXT,
+    "Rakennusluokka_2018 2" TEXT,
     "PRT 3" TEXT,
     "Käyttötila 3" TEXT,
     "Käyttötarkoitus 3" TEXT,
+    "Rakennusluokka_2018 3" TEXT,
     "PRT 4" TEXT,
     "Käyttötila 4" TEXT,
     "Käyttötarkoitus 4" TEXT,
+    "Rakennusluokka_2018 4" TEXT,
     "PRT 5" TEXT,
     "Käyttötila 5" TEXT,
     "Käyttötarkoitus 5" TEXT,
+    "Rakennusluokka_2018 5" TEXT,
     "PRT 6" TEXT,
     "Käyttötila 6" TEXT,
     "Käyttötarkoitus 6" TEXT,
+    "Rakennusluokka_2018 6" TEXT,
     "PRT 7" TEXT,
     "Käyttötila 7" TEXT,
     "Käyttötarkoitus 7" TEXT,
+    "Rakennusluokka_2018 7" TEXT,
     "PRT 8" TEXT,
     "Käyttötila 8" TEXT,
     "Käyttötarkoitus 8" TEXT,
+    "Rakennusluokka_2018 8" TEXT,
     "PRT 9" TEXT,
     "Käyttötila 9" TEXT,
     "Käyttötarkoitus 9" TEXT,
+    "Rakennusluokka_2018 9" TEXT,
     "PRT 10" TEXT,
     "Käyttötila 10" TEXT,
     "Käyttötarkoitus 10" TEXT,
+    "Rakennusluokka_2018 10" TEXT,
     "PRT 11" TEXT,
     "Käyttötila 11" TEXT,
     "Käyttötarkoitus 11" TEXT,
+    "Rakennusluokka_2018 11" TEXT,
     "PRT 12" TEXT,
     "Käyttötila 12" TEXT,
     "Käyttötarkoitus 12" TEXT,
+    "Rakennusluokka_2018 12" TEXT,
     "PRT 13" TEXT,
     "Käyttötila 13" TEXT,
     "Käyttötarkoitus 13" TEXT,
+    "Rakennusluokka_2018 13" TEXT,
     "PRT 14" TEXT,
     "Käyttötila 14" TEXT,
     "Käyttötarkoitus 14" TEXT,
+    "Rakennusluokka_2018 14" TEXT,
     "PRT 15" TEXT,
     "Käyttötila 15" TEXT,
     "Käyttötarkoitus 15" TEXT,
+    "Rakennusluokka_2018 15" TEXT,
     "PRT 16" TEXT,
     "Käyttötila 16" TEXT,
     "Käyttötarkoitus 16" TEXT,
+    "Rakennusluokka_2018 16" TEXT,
     "PRT 17" TEXT,
     "Käyttötila 17" TEXT,
-    "Käyttötarkoitus 17" TEXT
+    "Käyttötarkoitus 17" TEXT,
+    "Rakennusluokka_2018 17" TEXT
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -540,6 +562,7 @@ BEGIN
             kr.kohde_id,
             r.id AS rakennus_id,
             r.prt::TEXT AS prt,
+            rl.selite AS rakennusluokka_2018,
             ro.selite::TEXT AS kayttotila,
             rt.selite::TEXT AS kayttotarkoitus,
             r.kiinteistotunnus::TEXT AS sijaintikiinteisto,
@@ -553,6 +576,8 @@ BEGIN
             jkr_koodistot.rakennuksenkayttotarkoitus rt ON r.rakennuksenkayttotarkoitus_koodi = rt.koodi
         LEFT JOIN
             jkr_koodistot.rakennuksenolotila ro ON r.rakennuksenolotila_koodi = ro.koodi
+        LEFT JOIN
+            jkr_koodistot.rakennusluokka_2018 rl ON r.rakennusluokka_2018 = rl.koodi
         WHERE
             kr.kohde_id = ANY(kohde_ids)
             AND (
@@ -593,6 +618,7 @@ BEGIN
         MAX(CASE WHEN rn = 1 THEN sr.prt END) AS "PRT 1",
         MAX(CASE WHEN rn = 1 THEN sr.kayttotila END) AS "Käyttötila 1",
         MAX(CASE WHEN rn = 1 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 1",
+        MAX(CASE WHEN rn = 1 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 1",
         fa.katuosoite,
         fa.postinumero,
         fa.postitoimipaikka,
@@ -602,51 +628,67 @@ BEGIN
         MAX(CASE WHEN rn = 2 THEN sr.prt END) AS "PRT 2",
         MAX(CASE WHEN rn = 2 THEN sr.kayttotila END) AS "Käyttötila 2",
         MAX(CASE WHEN rn = 2 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 2",
+        MAX(CASE WHEN rn = 2 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 2",
         MAX(CASE WHEN rn = 3 THEN sr.prt END) AS "PRT 3",
         MAX(CASE WHEN rn = 3 THEN sr.kayttotila END) AS "Käyttötila 3",
         MAX(CASE WHEN rn = 3 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 3",
+        MAX(CASE WHEN rn = 3 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 3",
         MAX(CASE WHEN rn = 4 THEN sr.prt END) AS "PRT 4",
         MAX(CASE WHEN rn = 4 THEN sr.kayttotila END) AS "Käyttötila 4",
         MAX(CASE WHEN rn = 4 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 4",
+        MAX(CASE WHEN rn = 4 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 4",
         MAX(CASE WHEN rn = 5 THEN sr.prt END) AS "PRT 5",
         MAX(CASE WHEN rn = 5 THEN sr.kayttotila END) AS "Käyttötila 5",
         MAX(CASE WHEN rn = 5 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 5",
+        MAX(CASE WHEN rn = 5 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 5",
         MAX(CASE WHEN rn = 6 THEN sr.prt END) AS "PRT 6",
         MAX(CASE WHEN rn = 6 THEN sr.kayttotila END) AS "Käyttötila 6",
         MAX(CASE WHEN rn = 6 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 6",
+        MAX(CASE WHEN rn = 6 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 6",
         MAX(CASE WHEN rn = 7 THEN sr.prt END) AS "PRT 7",
         MAX(CASE WHEN rn = 7 THEN sr.kayttotila END) AS "Käyttötila 7",
         MAX(CASE WHEN rn = 7 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 7",
+        MAX(CASE WHEN rn = 7 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 7",
         MAX(CASE WHEN rn = 8 THEN sr.prt END) AS "PRT 8",
         MAX(CASE WHEN rn = 8 THEN sr.kayttotila END) AS "Käyttötila 8",
         MAX(CASE WHEN rn = 8 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 8",
+        MAX(CASE WHEN rn = 8 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 8",
         MAX(CASE WHEN rn = 9 THEN sr.prt END) AS "PRT 9",
         MAX(CASE WHEN rn = 9 THEN sr.kayttotila END) AS "Käyttötila 9",
         MAX(CASE WHEN rn = 9 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 9",
+        MAX(CASE WHEN rn = 9 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 9",
         MAX(CASE WHEN rn = 10 THEN sr.prt END) AS "PRT 10",
         MAX(CASE WHEN rn = 10 THEN sr.kayttotila END) AS "Käyttötila 10",
         MAX(CASE WHEN rn = 10 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 10",
+        MAX(CASE WHEN rn = 10 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 10",
         MAX(CASE WHEN rn = 11 THEN sr.prt END) AS "PRT 11",
         MAX(CASE WHEN rn = 11 THEN sr.kayttotila END) AS "Käyttötila 11",
         MAX(CASE WHEN rn = 11 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 11",
+        MAX(CASE WHEN rn = 11 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 11",
         MAX(CASE WHEN rn = 12 THEN sr.prt END) AS "PRT 12",
         MAX(CASE WHEN rn = 12 THEN sr.kayttotila END) AS "Käyttötila 12",
         MAX(CASE WHEN rn = 12 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 12",
+        MAX(CASE WHEN rn = 12 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 12",
         MAX(CASE WHEN rn = 13 THEN sr.prt END) AS "PRT 13",
         MAX(CASE WHEN rn = 13 THEN sr.kayttotila END) AS "Käyttötila 13",
         MAX(CASE WHEN rn = 13 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 13",
+        MAX(CASE WHEN rn = 13 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 13",
         MAX(CASE WHEN rn = 14 THEN sr.prt END) AS "PRT 14",
         MAX(CASE WHEN rn = 14 THEN sr.kayttotila END) AS "Käyttötila 14",
         MAX(CASE WHEN rn = 14 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 14",
+        MAX(CASE WHEN rn = 14 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 14",
         MAX(CASE WHEN rn = 15 THEN sr.prt END) AS "PRT 15",
         MAX(CASE WHEN rn = 15 THEN sr.kayttotila END) AS "Käyttötila 15",
         MAX(CASE WHEN rn = 15 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 15",
+        MAX(CASE WHEN rn = 15 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 15",
         MAX(CASE WHEN rn = 16 THEN sr.prt END) AS "PRT 16",
         MAX(CASE WHEN rn = 16 THEN sr.kayttotila END) AS "Käyttötila 16",
         MAX(CASE WHEN rn = 16 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 16",
+        MAX(CASE WHEN rn = 16 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 16",
         MAX(CASE WHEN rn = 17 THEN sr.prt END) AS "PRT 17",
         MAX(CASE WHEN rn = 17 THEN sr.kayttotila END) AS "Käyttötila 17",
-        MAX(CASE WHEN rn = 17 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 17"
+        MAX(CASE WHEN rn = 17 THEN sr.kayttotarkoitus END) AS "Käyttötarkoitus 17",
+        MAX(CASE WHEN rn = 17 THEN sr.rakennusluokka_2018 END) AS "Rakennusluokka_2018 17"
     FROM ranked_rakennukset sr
     LEFT JOIN first_significant_address fa ON sr.kohde_id = fa.kohde_id
     GROUP BY sr.kohde_id, fa.katuosoite, fa.postinumero, fa.postitoimipaikka
@@ -834,7 +876,8 @@ CREATE OR REPLACE FUNCTION jkr.print_report(
     kunta TEXT,
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
-    is_taajama_yli_200 BOOLEAN
+    is_taajama_yli_200 BOOLEAN,
+    kohde_tyyppi_id INTEGER
 )
 RETURNS TABLE(
     kohde_id INTEGER,
@@ -843,6 +886,7 @@ RETURNS TABLE(
     huoneistomaara_out BIGINT,
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
+    "kohdetyyppi" TEXT,
     "Komposti-ilmoituksen tekijän nimi" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
@@ -895,6 +939,7 @@ RETURNS TABLE(
     "PRT 1" TEXT,
     "Käyttötila 1" TEXT,
     "Käyttötarkoitus 1" TEXT,
+    "Rakennusluokka_2018 1" TEXT,
     Katuosoite TEXT,
     Postinumero TEXT,
     Postitoimipaikka TEXT,
@@ -904,51 +949,67 @@ RETURNS TABLE(
     "PRT 2" TEXT,
     "Käyttötila 2" TEXT,
     "Käyttötarkoitus 2" TEXT,
+    "Rakennusluokka_2018 2" TEXT,
     "PRT 3" TEXT,
     "Käyttötila 3" TEXT,
     "Käyttötarkoitus 3" TEXT,
+    "Rakennusluokka_2018 3" TEXT,
     "PRT 4" TEXT,
     "Käyttötila 4" TEXT,
     "Käyttötarkoitus 4" TEXT,
+    "Rakennusluokka_2018 4" TEXT,
     "PRT 5" TEXT,
     "Käyttötila 5" TEXT,
     "Käyttötarkoitus 5" TEXT,
+    "Rakennusluokka_2018 5" TEXT,
     "PRT 6" TEXT,
     "Käyttötila 6" TEXT,
     "Käyttötarkoitus 6" TEXT,
+    "Rakennusluokka_2018 6" TEXT,
     "PRT 7" TEXT,
     "Käyttötila 7" TEXT,
     "Käyttötarkoitus 7" TEXT,
+    "Rakennusluokka_2018 7" TEXT,
     "PRT 8" TEXT,
     "Käyttötila 8" TEXT,
     "Käyttötarkoitus 8" TEXT,
+    "Rakennusluokka_2018 8" TEXT,
     "PRT 9" TEXT,
     "Käyttötila 9" TEXT,
     "Käyttötarkoitus 9" TEXT,
+    "Rakennusluokka_2018 9" TEXT,
     "PRT 10" TEXT,
     "Käyttötila 10" TEXT,
     "Käyttötarkoitus 10" TEXT,
+    "Rakennusluokka_2018 10" TEXT,
     "PRT 11" TEXT,
     "Käyttötila 11" TEXT,
     "Käyttötarkoitus 11" TEXT,
+    "Rakennusluokka_2018 11" TEXT,
     "PRT 12" TEXT,
     "Käyttötila 12" TEXT,
     "Käyttötarkoitus 12" TEXT,
+    "Rakennusluokka_2018 12" TEXT,
     "PRT 13" TEXT,
     "Käyttötila 13" TEXT,
     "Käyttötarkoitus 13" TEXT,
+    "Rakennusluokka_2018 13" TEXT,
     "PRT 14" TEXT,
     "Käyttötila 14" TEXT,
     "Käyttötarkoitus 14" TEXT,
+    "Rakennusluokka_2018 14" TEXT,
     "PRT 15" TEXT,
     "Käyttötila 15" TEXT,
     "Käyttötarkoitus 15" TEXT,
+    "Rakennusluokka_2018 15" TEXT,
     "PRT 16" TEXT,
     "Käyttötila 16" TEXT,
     "Käyttötarkoitus 16" TEXT,
+    "Rakennusluokka_2018 16" TEXT,
     "PRT 17" TEXT,
     "Käyttötila 17" TEXT,
-    "Käyttötarkoitus 17" TEXT  
+    "Käyttötarkoitus 17" TEXT,
+    "Rakennusluokka_2018 17" TEXT
 ) AS $$
 DECLARE
     kohde_ids INTEGER[];
@@ -962,7 +1023,8 @@ BEGIN
         kunta,
         huoneistomaara,
         is_taajama_yli_10000,
-        is_taajama_yli_200
+        is_taajama_yli_200,
+        kohde_tyyppi_id
     ) AS id;
 
     RETURN QUERY
@@ -973,6 +1035,7 @@ BEGIN
         fil.huoneistomaara,
         fil.taajama_yli_10000,
         fil.taajama_yli_200,
+        fil.kohdetyyppi,
         koh."Komposti-ilmoituksen tekijän nimi",
         koh."Sekajätteen tilaajan nimi",
         koh."Sekajätteen tilaajan katuosoite",
@@ -1025,6 +1088,7 @@ BEGIN
         rak."PRT 1",
         rak."Käyttötila 1",
         rak."Käyttötarkoitus 1",
+        rak."Rakennusluokka_2018 1",
         rak.Katuosoite,
         rak.Postinumero,
         rak.Postitoimipaikka,
@@ -1034,51 +1098,67 @@ BEGIN
         rak."PRT 2",
         rak."Käyttötila 2",
         rak."Käyttötarkoitus 2",
+        rak."Rakennusluokka_2018 2",
         rak."PRT 3",
         rak."Käyttötila 3",
         rak."Käyttötarkoitus 3",
+        rak."Rakennusluokka_2018 3",
         rak."PRT 4",
         rak."Käyttötila 4",
         rak."Käyttötarkoitus 4",
+        rak."Rakennusluokka_2018 4",
         rak."PRT 5",
         rak."Käyttötila 5",
         rak."Käyttötarkoitus 5",
+        rak."Rakennusluokka_2018 5",
         rak."PRT 6",
         rak."Käyttötila 6",
         rak."Käyttötarkoitus 6",
+        rak."Rakennusluokka_2018 6",
         rak."PRT 7",
         rak."Käyttötila 7",
         rak."Käyttötarkoitus 7",
+        rak."Rakennusluokka_2018 7",
         rak."PRT 8",
         rak."Käyttötila 8",
         rak."Käyttötarkoitus 8",
+        rak."Rakennusluokka_2018 8",
         rak."PRT 9",
         rak."Käyttötila 9",
         rak."Käyttötarkoitus 9",
+        rak."Rakennusluokka_2018 9",
         rak."PRT 10",
         rak."Käyttötila 10",
         rak."Käyttötarkoitus 10",
+        rak."Rakennusluokka_2018 10",
         rak."PRT 11",
         rak."Käyttötila 11",
         rak."Käyttötarkoitus 11",
+        rak."Rakennusluokka_2018 11",
         rak."PRT 12",
         rak."Käyttötila 12",
         rak."Käyttötarkoitus 12",
+        rak."Rakennusluokka_2018 12",
         rak."PRT 13",
         rak."Käyttötila 13",
         rak."Käyttötarkoitus 13",
+        rak."Rakennusluokka_2018 13",
         rak."PRT 14",
         rak."Käyttötila 14",
         rak."Käyttötarkoitus 14",
+        rak."Rakennusluokka_2018 14",
         rak."PRT 15",
         rak."Käyttötila 15",
         rak."Käyttötarkoitus 15",
+        rak."Rakennusluokka_2018 15",
         rak."PRT 16",
         rak."Käyttötila 16",
         rak."Käyttötarkoitus 16",
+        rak."Rakennusluokka_2018 16",
         rak."PRT 17",
         rak."Käyttötila 17",
-        rak."Käyttötarkoitus 17"
+        rak."Käyttötarkoitus 17",
+        rak."Rakennusluokka_2018 17"
     FROM jkr.get_report_filter(
         tarkastelupvm,
         kohde_ids
