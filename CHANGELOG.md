@@ -1,29 +1,28 @@
 # Changelog
 
-## Version 0.6.0
+All notable changes to this project will be documented in this file.
 
-### 🚀 Features
+## [0.6.0] - 2025-01-30
 
-#### Enhanced Reporting Capabilities
-- Implemented Building Classification 2018 (Rakennusluokka_2018)
-  - Added classification codes and mappings
-  - Integrated building classes into reporting system
-  - Added property type filtering with explanatory notes
+### Added
+- Building Classification 2018 (Rakennusluokka_2018)
+  - Classification codes and mappings
+  - Building classes integration into reporting system
+  - Property type filtering with explanatory notes
+- Comprehensive debug functions
+- Linux shell script equivalent of `startdev.ps1`
+- `lukittu` field to kohde table to indicate if the kohde is locked
 
-#### 🏗️ Property Type Handling Improvements
-- Fixed property formation logic and validation
-- Enhanced type definition algorithms
-- Added comprehensive debug functions
-- Added `lukittu` field to kohde table to indicate if the kohde is locked
-- Enhanced address number matching for property formation
-- Improved basic fee registry data processing
-
-### 🛠️ Development Environment
-- Added Linux shell script equivalent of `startdev.ps1`
-- Fixed PostgreSQL 16 compatibility issues with DevDB public schema privileges
+### Changed
+- Enhanced property type handling:
+  - Improved property formation logic and validation
+  - Enhanced type definition algorithms
+  - Enhanced address number matching
+  - Improved basic fee registry data processing
 - Upgraded code documentation for better maintainability
+- Fixed PostgreSQL 16 compatibility issues with DevDB public schema privileges
 
-### 📚 Documentation
+### Documentation
 - Updated README.md with new features and configurations
 - Added comprehensive code documentation
 - Improved debug message clarity
