@@ -196,6 +196,32 @@ dbname=ymparisto_db
 > **Development**
 > For development use the [QGIS-project](qgis/jkr.qgs) can be used.
 
+### Creating QGIS project migrations
+
+QGIS project migrations are stored in `db/migrations/qgis-projektit/` directory. To create a new migration file for a QGIS project:
+
+1. Make your changes to the QGIS project
+2. Save the project to the database
+3. Generate the migration SQL by running the following query in the database:
+
+```sql
+SELECT 
+    format(
+        'INSERT INTO jkr_qgis_projektit.qgis_projects VALUES (%L, %L, %L);',
+        name,
+        metadata::text,
+        content
+    )
+FROM jkr_qgis_projektit.qgis_projects 
+WHERE name = 'Jätteenkuljetusrekisteri [Master]';
+```
+
+4. Copy the query output to a new migration file in `db/migrations/qgis-projektit/` directory
+5. Name the file following the Flyway naming convention: `V<version>__<description>.sql`
+   - For example: `V3.00.0__Add_separate_layers_for_kohdetyypit.sql`
+
+The migration will be applied when running Flyway migrations.
+
 ## Using jkr single command importer
 
 In jkr-core/scripts/jkr_posti.sql, replace `<POSTI>` with the path to your posti file.
