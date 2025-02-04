@@ -563,7 +563,7 @@ def get_dvv_rakennustiedot_without_kohde(
 
    Returns:
        Dict[int, Rakennustiedot]: Sanakirja jossa avaimena rakennuksen id ja
-       arvona tuple (rakennus, vanhimmat, omistajat, osoitteet)
+       arvona tuple (rakennus, vanhimmat set, omistajat set, osoitteet set)
    """
    # Hae ensin rakennukset joilla ON aktiivinen kohde annetulla aikavälillä
    if loppupvm is None:
@@ -1663,14 +1663,19 @@ def get_or_create_kohteet_from_kiinteistot(
                         cluster_owners_buildings.items(),
                         key=lambda x: len(x[1])
                     )
-                    buildings_to_process = remaining_ids & owner_buildings
-                    
-                    # Tarkista omistaja asoy
-                    owner = next(
-                        owner for owner in owners_by_rakennus_id[next(iter(owner_buildings))]
-                        if owner.id == owner_id
-                    )
-                    is_owner_asoy = is_asoy(owner.nimi)
+                    if owner_buildings:  # Varmista että rakennuksia löytyy
+                        buildings_to_process = remaining_ids & owner_buildings
+                        
+                        # Tarkista omistaja asoy
+                        owner = next(
+                            (owner for owner in owners_by_rakennus_id[next(iter(owner_buildings))]
+                            if owner.id == owner_id),
+                            None  # Default arvo jos omistajaa ei löydy
+                        )
+                        is_owner_asoy = is_asoy(owner.nimi) if owner else False
+                    else:
+                        owner = None
+                        is_owner_asoy = False
                 else:
                     # Jos ei omistajia, käsittele kaikki jäljellä olevat
                     buildings_to_process = remaining_ids
