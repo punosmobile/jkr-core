@@ -1227,10 +1227,7 @@ def create_new_kohde_from_buildings(
         alkupvm = parse_alkupvm_for_kohde(
             session, rakennus_ids, old_kohde.alkupvm, poimintapvm
         )
-        
-    # Jos loppupvm ei ole määritelty, käytetään oletusarvoa
-    if loppupvm is None:
-        loppupvm = date(2100, 1, 1)
+
         
     # Määritä kohdetyyppi rakennusten perusteella
     kohdetyyppi = KohdeTyyppi.MUU  # Oletuksena MUU
@@ -2301,7 +2298,7 @@ def create_perusmaksurekisteri_kohteet(
         owners_by_rakennus_id,
         inhabitants_by_rakennus_id,
         poimintapvm,
-        datetime.date(2100, 1, 1),  # Käytetään kiinteää loppupäivämäärää
+        loppupvm,
         lukittu=True
     )
 
