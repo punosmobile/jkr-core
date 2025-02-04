@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import date, datetime as dt
 from datetime import timedelta
 from functools import lru_cache
-from typing import TypeVar, DefaultDict, Set, List, Dict,TYPE_CHECKING,NamedTuple, FrozenSet, Optional, Generic, Iterable, Callable
+from typing import TypeVar, DefaultDict, Set, List, Dict,TYPE_CHECKING,NamedTuple, FrozenSet, Optional, Generic, Iterable, Callable, Union
 from ..models import Kohde  # Lisätään puuttuvat importit
 
 from openpyxl import load_workbook
@@ -639,95 +639,24 @@ def get_dvv_rakennustiedot_without_kohde(
    return rakennustiedot_by_id
 
 
-def _cluster_rakennustiedot(
-    rakennustiedot_to_cluster: "Set[Rakennustiedot]",
-    distance_limit: int,
-    existing_cluster: "Optional[Set[Rakennustiedot]]" = None
-) -> "List[Set[Rakennustiedot]]":
-    """
-    Klusteroi rakennukset seuraavien ehtojen perusteella:
-    - Etäisyys toisistaan max 300m JA
-    - Samat omistajat/asukkaat JA
-    - Sama osoite
-    """
-    clusters = []
-    # Aloita klusteri ensimmäisestä rakennuksesta (tai olemassaolevasta klusterista)
-    cluster = existing_cluster.copy() if existing_cluster else None
-    
-    while rakennustiedot_to_cluster:
-        if not cluster:
-            cluster = set([rakennustiedot_to_cluster.pop()])
-
-        other_rakennustiedot_to_cluster = rakennustiedot_to_cluster.copy()
-        while other_rakennustiedot_to_cluster:
-            found_match = False
-            for other_rakennustiedot in other_rakennustiedot_to_cluster:
-                # Tarkista etäisyys kaikkiin klusterin rakennuksiin
-                all_buildings = [rakennustiedot[0] for rakennustiedot in cluster] + [other_rakennustiedot[0]]
-                if maximum_distance_of_buildings(all_buildings) >= distance_limit:
-                    continue
-
-                # Tarkista omistajat/asukkaat
-                match_found = False
-                for cluster_building in cluster:
-                    if _match_ownership_or_residents(cluster_building, other_rakennustiedot):
-                        match_found = True
-                        break
-                if not match_found:
-                    continue
-
-                # Tarkista osoite
-                match_found = False
-                for cluster_building in cluster:
-                    if _match_addresses(cluster_building[3], other_rakennustiedot[3]):
-                        match_found = True
-                        break
-                if not match_found:
-                    continue
-
-                # Kaikki ehdot täyttyvät, lisää rakennus klusteriin
-                cluster.add(other_rakennustiedot)
-                found_match = True
-                break
-
-            if not found_match:
-                # Klusteri on valmis! Muita sopivia rakennuksia ei löytynyt.
-                break
-
-            # Poista löydetty rakennus käsiteltävistä ja jatka silmukkaa
-            other_rakennustiedot_to_cluster.remove(other_rakennustiedot)
-
-        # Klusteri on valmis! Poista klusteroidut rakennukset ja aloita silmukka alusta
-        clusters.append(cluster)
-        rakennustiedot_to_cluster -= cluster
-        cluster = None
-
-    return clusters
-
-def _normalize_identifier(identifier: str) -> str:
-    """Normalisoi tunniste vertailua varten"""
-    if not identifier:
-        return ""
-    # Poista väliviivat ja välilyönnit
-    return identifier.replace('-', '').replace(' ', '').upper()
-
-def _get_identifiers(osapuolet: Set[Osapuoli]) -> Set[str]:
-    """Kerää osapuolten tunnisteet"""
+def _get_identifiers(osapuolet: Union[Set[Osapuoli], FrozenSet[RakennuksenOmistajat], FrozenSet[RakennuksenVanhimmat]]) -> Set[str]:
+    """Kerää osapuolten tunnisteet (id:t, y-tunnukset ja henkilötunnukset)"""
     identifiers = set()
     for osapuoli in osapuolet:
-        if osapuoli.osapuoli_id:
-            identifiers.add(str(osapuoli.osapuoli_id))
-        if osapuoli.ytunnus:
-            identifiers.add(_normalize_identifier(osapuoli.ytunnus))
-        if osapuoli.henkilotunnus:
-            identifiers.add(_normalize_identifier(osapuoli.henkilotunnus))
-    return identifiers
+        # Käsittele RakennuksenOmistajat ja RakennuksenVanhimmat
+        if hasattr(osapuoli, 'osapuoli'):
+            osapuoli = osapuoli.osapuoli
 
-def _match_kiinteistotunnus(building1: "Rakennustiedot", building2: "Rakennustiedot") -> bool:
-    """
-    Tarkistaa onko rakennuksilla sama kiinteistötunnus.
-    """
-    return building1[0].kiinteistotunnus == building2[0].kiinteistotunnus
+        # Kerää kaikki mahdolliset tunnisteet
+        if hasattr(osapuoli, 'osapuoli_id'):
+            identifiers.add(str(osapuoli.osapuoli_id))
+        if hasattr(osapuoli, 'id'):
+            identifiers.add(str(osapuoli.id))
+        if hasattr(osapuoli, 'ytunnus') and osapuoli.ytunnus:
+            identifiers.add(osapuoli.ytunnus)
+        if hasattr(osapuoli, 'henkilotunnus') and osapuoli.henkilotunnus:
+            identifiers.add(osapuoli.henkilotunnus)
+    return identifiers
 
 def _match_ownership_or_residents(
     building1: "Rakennustiedot",
@@ -747,6 +676,14 @@ def _match_ownership_or_residents(
     residents2 = _get_identifiers(building2[1])
     
     # Palauta True jos joko omistajissa TAI asukkaissa on yhteinen tunniste
+    # if bool(
+    #     (owners1 and owners2 and (owners1 & owners2)) or
+    #     (residents1 and residents2 and (residents1 & residents2))
+    # ):
+    #     print(f"{building1[0].prt} {building2[0].prt} Match by: {owners1} {owners2} {residents1} {residents2}")
+    # else:
+    #     print(f"{building1[0].prt} {building2[0].prt} No match by: {owners1} {owners2} {residents1} {residents2}")
+    
     return bool(
         (owners1 and owners2 and (owners1 & owners2)) or
         (residents1 and residents2 and (residents1 & residents2))
@@ -1433,6 +1370,16 @@ def update_or_create_kohde_from_buildings(
     try:
         kohteet = session.execute(kohde_query).all()
         print(f"Löydetty {len(kohteet)} kohdetta")
+        for kohde in kohteet:
+            print(f"- Kohde ID: {kohde[0]}, Nimi: {kohde[1]}")
+            # Hae kohteen rakennukset
+            rakennus_query = (
+                select(Rakennus.id, Rakennus.prt)
+                .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
+                .where(KohteenRakennukset.kohde_id == kohde[0])
+            )
+            rakennukset = session.execute(rakennus_query).all()
+            print(f"  Rakennukset: {[r[1] for r in rakennukset]}")
         logger.debug(f"Löydetty {len(kohteet)} kohdetta")
     except NoResultFound:
         kohteet = []
@@ -1608,272 +1555,197 @@ def get_or_create_kohteet_from_kiinteistot(
     """
     logger = logging.getLogger(__name__)
 
-    # Seurattavat PRT-tunnukset lokitusta varten
-    log_prt_in = (
-'103084763X',
-'103084764Y',
-'1030847650',
-'1030847661',
-'1030847672',
-'1030847683',
-'1030847694',
-'1030847395',
-'1030847406',
-'103074894K',
-'103074895L',
-'103084760U',
-'103084762W',
-'103084761V'
+    # Lataa kiinteistötunnukset ja logita määrä
+    kiinteistotunnukset = [
+        result[0] for result in session.execute(kiinteistotunnukset).all()
+    ]
+    logger.info(f"{len(kiinteistotunnukset)} tuotavaa kiinteistötunnusta löydetty")
+    print(f"{len(kiinteistotunnukset)} tuotavaa kiinteistötunnusta löydetty")
+    
+    # Hae DVV:n rakennustiedot ilman kohdetta ja logita määrä
+    dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
+        session, poimintapvm, loppupvm
     )
+    logger.info(
+        f"Löydetty {len(dvv_rakennustiedot)} DVV-rakennusta ilman voimassaolevaa kohdetta"
+    )
+    print(f"Löydetty {len(dvv_rakennustiedot)} DVV-rakennusta ilman voimassaolevaa kohdetta")
 
-    with open('kiinteisto_debug.log', 'a', encoding='utf-8') as f:
-        # Lataa kiinteistötunnukset ja logita määrä
-        kiinteistotunnukset = [
-            result[0] for result in session.execute(kiinteistotunnukset).all()
-        ]
-        logger.info(f"{len(kiinteistotunnukset)} tuotavaa kiinteistötunnusta löydetty")
-        
-        # Hae DVV:n rakennustiedot ilman kohdetta ja logita määrä
-        dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
-            session, poimintapvm, loppupvm
-        )
-        logger.info(
-            f"Löydetty {len(dvv_rakennustiedot)} DVV-rakennusta ilman voimassaolevaa kohdetta"
+    # Ryhmittele rakennustiedot kiinteistötunnuksittain
+    rakennustiedot_by_kiinteistotunnus = defaultdict(set)
+    for rakennus, vanhimmat, omistajat, osoitteet in dvv_rakennustiedot.values():
+        rakennustiedot_by_kiinteistotunnus[rakennus.kiinteistotunnus].add(
+            (rakennus, vanhimmat, omistajat, osoitteet)
         )
 
-        # Ryhmittele rakennustiedot kiinteistötunnuksittain
-        rakennustiedot_by_kiinteistotunnus = defaultdict(set)
-        for rakennus, vanhimmat, omistajat, osoitteet in dvv_rakennustiedot.values():
-            rakennustiedot_by_kiinteistotunnus[rakennus.kiinteistotunnus].add(
-                (rakennus, vanhimmat, omistajat, osoitteet)
-            )
+    # Hae omistajatiedot ja muodosta lookup-taulut
+    rakennus_owners = session.execute(
+        select(RakennuksenOmistajat.rakennus_id, Osapuoli).join(
+            Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id
+        )
+    ).all()
+    
+    owners_by_rakennus_id = defaultdict(set)  # rakennus_id -> {omistajat}
+    rakennus_ids_by_owner_id = defaultdict(set)  # omistaja.id -> {rakennus_id:t}
+    for (rakennus_id, owner) in rakennus_owners:
+        owners_by_rakennus_id[rakennus_id].add(owner)
+        rakennus_ids_by_owner_id[owner.id].add(rakennus_id)
 
-        # Hae omistajatiedot ja muodosta lookup-taulut
-        rakennus_owners = session.execute(
-            select(RakennuksenOmistajat.rakennus_id, Osapuoli).join(
-                Osapuoli, RakennuksenOmistajat.osapuoli_id == Osapuoli.id
-            )
-        ).all()
-        
-        owners_by_rakennus_id = defaultdict(set)  # rakennus_id -> {omistajat}
-        rakennus_ids_by_owner_id = defaultdict(set)  # omistaja.id -> {rakennus_id:t}
-        for (rakennus_id, owner) in rakennus_owners:
-            owners_by_rakennus_id[rakennus_id].add(owner)
-            rakennus_ids_by_owner_id[owner.id].add(rakennus_id)
+    rakennus_inhabitants = session.execute(
+        select(RakennuksenVanhimmat.rakennus_id, Osapuoli).join(
+            Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id
+        )
+    ).all()
+    
+    inhabitants_by_rakennus_id = defaultdict(set)  # rakennus_id -> {asukkaat}
+    for (rakennus_id, inhabitant) in rakennus_inhabitants:
+        inhabitants_by_rakennus_id[rakennus_id].add(inhabitant)
 
-        # Hae asukastiedot ja muodosta lookup-taulu
-        rakennus_inhabitants = session.execute(
-            select(RakennuksenVanhimmat.rakennus_id, Osapuoli).join(
-                Osapuoli, RakennuksenVanhimmat.osapuoli_id == Osapuoli.id
-            )
-        ).all()
-        
-        inhabitants_by_rakennus_id = defaultdict(set)  # rakennus_id -> {asukkaat}
-        for (rakennus_id, inhabitant) in rakennus_inhabitants:
-            inhabitants_by_rakennus_id[rakennus_id].add(inhabitant)
+    rakennus_addresses = session.execute(
+        select(Rakennus.id, Osoite)
+        .join(Osoite, Rakennus.id == Osoite.rakennus_id)
+    ).all()
+    
+    addresses_by_rakennus_id = defaultdict(set)  # rakennus_id -> {osoitteet}
+    for (rakennus_id, address) in rakennus_addresses:
+        addresses_by_rakennus_id[rakennus_id].add(address)
 
-        # Hae osoitetiedot ja muodosta lookup-taulu
-        rakennus_addresses = session.execute(
-            select(Rakennus.id, Osoite)
-            .join(Osoite, Rakennus.id == Osoite.rakennus_id)
-        ).all()
-        
-        addresses_by_rakennus_id = defaultdict(set)  # rakennus_id -> {osoitteet}
-        for (rakennus_id, address) in rakennus_addresses:
-            addresses_by_rakennus_id[rakennus_id].add(address)
+    # Lista muodostettavista rakennusryhmistä
+    building_sets: List[Set[Rakennustiedot]] = []
 
-        # Lista muodostettavista rakennusryhmistä
-        building_sets: List[Set[Rakennustiedot]] = []
+    # Käsittele kaikki kiinteistöt
+    for kiinteistotunnus in kiinteistotunnukset:
 
-        # Käsittele kaikki kiinteistöt
-        for kiinteistotunnus in kiinteistotunnukset:
-            # Tarkista onko seurattavia rakennuksia tällä kiinteistöllä
-            tracked_buildings = any(
-                r[0].prt in log_prt_in 
-                for r in rakennustiedot_by_kiinteistotunnus[kiinteistotunnus]
+        # Kerää kiinteistön rakennukset
+        rakennustiedot_to_add = rakennustiedot_by_kiinteistotunnus[kiinteistotunnus]
+        if not rakennustiedot_to_add:
+            print(f"Ei rakennuksia kiinteistötunnukselle: {kiinteistotunnus}")
+            continue
+
+        # 1. Jaa rakennukset klustereihin etäisyyden perusteella
+        clustered_rakennustiedot = _cluster_rakennustiedot(
+            rakennustiedot_to_add, DISTANCE_LIMIT
+        )
+
+        # Käsittele klusterit yksitellen
+        for rakennustiedot_cluster in clustered_rakennustiedot:
+            print(f"\nKäsitellään klusteri:")
+            for rakennus, _, _, _ in rakennustiedot_cluster:
+                print(f"- Rakennus {rakennus.id} (PRT: {rakennus.prt})")
+            
+            cluster_ids = {rakennus.id for rakennus, _, _, _ in rakennustiedot_cluster}
+            
+            # Kerää klusterin omistajat ja niiden omistamat rakennukset
+            cluster_owners_buildings = defaultdict(set)
+            for rakennus_id in cluster_ids:
+                for owner in owners_by_rakennus_id[rakennus_id]:
+                    cluster_owners_buildings[owner].add(rakennus_id)
+            
+            # Järjestä omistajat sen mukaan kuinka monta rakennusta omistavat
+            sorted_owners = sorted(
+                cluster_owners_buildings.items(),
+                key=lambda x: len(x[1]),
+                reverse=True
             )
             
-            if tracked_buildings:
-                f.write("\n" + "="*80 + "\n")
-                f.write(f"{datetime.datetime.now()}: Käsitellään kiinteistö {kiinteistotunnus}\n")
-                f.write("Rakennukset:\n")
-                for r in rakennustiedot_by_kiinteistotunnus[kiinteistotunnus]:
-                    f.write(f"- {r[0].prt}\n")
-
-            # Kerää kiinteistön rakennukset
-            rakennustiedot_to_add = rakennustiedot_by_kiinteistotunnus[kiinteistotunnus]
-
-            # 1. Jaa rakennukset klustereihin etäisyyden perusteella
-            clustered_rakennustiedot = _cluster_rakennustiedot(
-                rakennustiedot_to_add, DISTANCE_LIMIT
-            )
-
-            if tracked_buildings:
-                f.write("\nMuodostuneet klusterit:\n")
-                for i, cluster in enumerate(clustered_rakennustiedot, 1):
-                    f.write(f"Klusteri {i}:\n")
-                    for r in cluster:
-                        f.write(f"- {r[0].prt}\n")
-
-            # Käsittele klusterit yksitellen
-            for rakennustiedot_cluster in clustered_rakennustiedot:
-                cluster_ids = {rt[0].id for rt in rakennustiedot_cluster}
-                
-                if tracked_buildings:
-                    f.write("\nKäsitellään klusteri:\n")
-                    f.write(f"Rakennukset: {cluster_ids}\n")
-
-				# Kerää klusterin rakennusten omistajat ja tarkista asoy
-                cluster_owners = defaultdict(set)  # owner_id -> {rakennus_id:t}
-                owner_names = set()  # Uniikit omistajanimet
-                asoy_owners = set()  # Asoy-tyyppiset omistajat
-                
-                for rakennus_id in cluster_ids:
-                    if rakennus_id in owners_by_rakennus_id:
-                        for owner in owners_by_rakennus_id[rakennus_id]:
-                            cluster_owners[owner.id].add(rakennus_id)
-                            owner_names.add(owner.nimi.upper())
-                            if is_asoy(owner.nimi):
-                                asoy_owners.add(owner)
-
-                # 2. Tarkista onko koko klusteri saman asoy:n omistuksessa
-                if len(owner_names) == 1 and asoy_owners:
-                    if tracked_buildings:
-                        f.write(
-                            f"\nYksi asoy ({next(iter(asoy_owners)).nimi}) omistaa "
-                            f"kaikki klusterin rakennukset, luodaan yksi kohde\n"
-                        )
+            print("\nOmistajat:")
+            for owner, buildings in sorted_owners:
+                print(f"- {owner.nimi} omistaa {len(buildings)} rakennusta: {[session.get(Rakennus, id).prt for id in buildings]}")
+            
+            # 2. Jaa klusteri omistajittain
+            remaining_ids = set(cluster_ids)
+            
+            while remaining_ids:
+                # 2.1 Jaa ensin omistajien mukaan
+                if cluster_owners_buildings:
+                    # Aloita suurimmasta omistajaryhmästä
+                    owner_id, owner_buildings = max(
+                        cluster_owners_buildings.items(),
+                        key=lambda x: len(x[1])
+                    )
+                    buildings_to_process = remaining_ids & owner_buildings
                     
-                    # Koko klusteri yhdeksi kohteeksi, asoy:lla kaikki osoitteet sallittu
+                    # Tarkista omistaja asoy
+                    owner = next(
+                        owner for owner in owners_by_rakennus_id[next(iter(owner_buildings))]
+                        if owner.id == owner_id
+                    )
+                    is_owner_asoy = is_asoy(owner.nimi)
+                else:
+                    # Jos ei omistajia, käsittele kaikki jäljellä olevat
+                    buildings_to_process = remaining_ids
+                    is_owner_asoy = False
+
+                # 2.2 Jos ei ole asoy, jaa vielä osoitteen mukaan
+                if not is_owner_asoy:
+                    buildings_by_address = defaultdict(set)
+                    for building_id in buildings_to_process:
+                        for address in addresses_by_rakennus_id.get(building_id, set()):
+                            key = (address.katu_id, address.osoitenumero)
+                            buildings_by_address[key].add(building_id)
+
+                    # Käsittele osoiteryhmät suuruusjärjestyksessä
+                    while buildings_to_process:
+                        if buildings_by_address:
+                            # Aloita suurimmasta osoiteryhmästä
+                            _, address_group = max(
+                                buildings_by_address.items(),
+                                key=lambda x: len(x[1])
+                            )
+                            current_group = buildings_to_process & address_group
+                        else:
+                            # Jos ei osoitteita, käsittele kaikki kerralla
+                            current_group = buildings_to_process
+
+                        # Luo rakennusryhmä
+                        rakennustiedot_group = {
+                            dvv_rakennustiedot[id] 
+                            for id in current_group 
+                            if id in dvv_rakennustiedot
+                        }
+                        
+                        if rakennustiedot_group:
+                            building_sets.append(rakennustiedot_group)
+
+                        # Päivitä jäljellä olevat rakennukset
+                        buildings_to_process -= current_group
+                        remaining_ids -= current_group
+
+                        # Päivitä osoiteryhmät
+                        if buildings_by_address:
+                            buildings_by_address = {
+                                addr: buildings - current_group
+                                for addr, buildings in buildings_by_address.items()
+                                if buildings - current_group
+                            }
+                else:
+                    # Asoy - kaikki omistajan rakennukset samaan ryhmään
                     rakennustiedot_group = {
-                        dvv_rakennustiedot[id]
-                        for id in cluster_ids
+                        dvv_rakennustiedot[id] 
+                        for id in buildings_to_process 
                         if id in dvv_rakennustiedot
                     }
                     if rakennustiedot_group:
                         building_sets.append(rakennustiedot_group)
-                    continue  # Siirry seuraavaan klusteriin
+                    remaining_ids -= buildings_to_process
 
-                # 3. Jaa muut kuin yhden asoy:n klusterit omistajien ja osoitteiden mukaan
-                if tracked_buildings:
-                    f.write("\nEi yhden asoy:n klusteri, jaetaan omistajien ja osoitteiden mukaan\n")
+                # Päivitä omistajaryhmät
+                if cluster_owners_buildings:
+                    cluster_owners_buildings.pop(owner_id, None)
 
-                remaining_ids = set(cluster_ids)
-                
-                while remaining_ids:
-                    # 3.1 Jaa ensin omistajien mukaan
-                    if cluster_owners:
-                        # Aloita suurimmasta omistajaryhmästä
-                        owner_id, owner_buildings = max(
-                            cluster_owners.items(),
-                            key=lambda x: len(x[1])
-                        )
-                        buildings_to_process = remaining_ids & owner_buildings
-                        
-                        # Tarkista omistaja asoy
-                        owner = next(
-                            owner for owner in owners_by_rakennus_id[next(iter(owner_buildings))]
-                            if owner.id == owner_id
-                        )
-                        is_owner_asoy = is_asoy(owner.nimi)
-                    else:
-                        # Jos ei omistajia, käsittele kaikki jäljellä olevat
-                        buildings_to_process = remaining_ids
-                        is_owner_asoy = False
+    # Luo kohteet rakennusryhmien perusteella
+    kohteet = get_or_create_kohteet_from_rakennustiedot(
+        session,
+        dvv_rakennustiedot,
+        building_sets,
+        owners_by_rakennus_id,
+        inhabitants_by_rakennus_id,
+        poimintapvm,
+        loppupvm,
+    )
 
-                    if tracked_buildings:
-                        f.write(f"\nKäsitellään rakennukset: {buildings_to_process}\n")
-                        if is_owner_asoy:
-                            f.write(f"Omistaja on asoy ({owner.nimi}), ei jaeta osoitteen mukaan\n")
 
-                    # 3.2 Jos ei ole asoy, jaa vielä osoitteen mukaan
-                    if not is_owner_asoy:
-                        buildings_by_address = defaultdict(set)
-                        for building_id in buildings_to_process:
-                            for address in addresses_by_rakennus_id.get(building_id, set()):
-                                key = (address.katu_id, address.osoitenumero)
-                                buildings_by_address[key].add(building_id)
-
-                        # Käsittele osoiteryhmät suuruusjärjestyksessä
-                        while buildings_to_process:
-                            if buildings_by_address:
-                                # Aloita suurimmasta osoiteryhmästä
-                                _, address_group = max(
-                                    buildings_by_address.items(),
-                                    key=lambda x: len(x[1])
-                                )
-                                current_group = buildings_to_process & address_group
-                            else:
-                                # Jos ei osoitteita, käsittele kaikki kerralla
-                                current_group = buildings_to_process
-
-                            # Luo rakennusryhmä
-                            rakennustiedot_group = {
-                                dvv_rakennustiedot[id] 
-                                for id in current_group 
-                                if id in dvv_rakennustiedot
-                            }
-                            
-                            if rakennustiedot_group:
-                                building_sets.append(rakennustiedot_group)
-
-                            # Päivitä jäljellä olevat rakennukset
-                            buildings_to_process -= current_group
-                            remaining_ids -= current_group
-
-                            # Päivitä osoiteryhmät
-                            if buildings_by_address:
-                                buildings_by_address = {
-                                    addr: buildings - current_group
-                                    for addr, buildings in buildings_by_address.items()
-                                    if buildings - current_group
-                                }
-                    else:
-                        # Asoy - kaikki omistajan rakennukset samaan ryhmään
-                        rakennustiedot_group = {
-                            dvv_rakennustiedot[id] 
-                            for id in buildings_to_process 
-                            if id in dvv_rakennustiedot
-                        }
-                        if rakennustiedot_group:
-                            building_sets.append(rakennustiedot_group)
-                        remaining_ids -= buildings_to_process
-
-                    # Päivitä omistajaryhmät
-                    if cluster_owners:
-                        cluster_owners.pop(owner_id, None)
-
-        # Lokita lopputulos jos käsiteltiin seurattavia rakennuksia
-        if any(any(r[0].prt in log_prt_in for r in bs) for bs in building_sets):
-            f.write("\nLopulliset rakennusryhmät:\n")
-            for i, building_set in enumerate(building_sets, 1):
-                f.write(f"\nRyhmä {i}:\n")
-                for r in building_set:
-                    f.write(f"- {r[0].prt}\n")
-
-        # Luo kohteet rakennusryhmien perusteella
-        kohteet = get_or_create_kohteet_from_rakennustiedot(
-            session,
-            dvv_rakennustiedot,
-            building_sets,
-            owners_by_rakennus_id,
-            inhabitants_by_rakennus_id,
-            poimintapvm,
-            loppupvm,
-        )
-
-        # Lokita luodut kohteet jos käsiteltiin seurattavia rakennuksia
-        if any(any(r[0].prt in log_prt_in for r in bs) for bs in building_sets):
-            f.write("\nLuodut kohteet:\n")
-            for kohde in kohteet:
-                if any(r.prt in log_prt_in for r in kohde.rakennus_collection):
-                    f.write(f"\nKohde {kohde.id}:\n")
-                    f.write(f"Nimi: {kohde.nimi}\n")
-                    f.write("Rakennukset:\n")
-                    for r in kohde.rakennus_collection:
-                        f.write(f"- {r.prt}\n")
-
-        return kohteet
+    return kohteet
 
 def get_or_create_single_asunto_kohteet(
     session: Session,
@@ -1964,16 +1836,25 @@ def get_or_create_multiple_and_uninhabited_kohteet(
     """
     Luo kohteet kaikille kiinteistötunnuksille, joilla on rakennuksia ilman kohdetta
     määritellylle aikavälille. Tämä funktio käsittelee jäljellä olevat rakennukset,
-    mukaan lukien useita rakennuksia sisältävät kiinteistöt ja asumattomat rakennukset.
+    mukaan lukien:
+    - Useita rakennuksia sisältävät kiinteistöt
+    - Yhden asunnon talot jotka ovat samalla kiinteistöllä muiden rakennusten kanssa
+    - Asumattomat rakennukset
     """
     logger = logging.getLogger(__name__)
     logger.info("\n----- LUODAAN JÄLJELLÄ OLEVAT KOHTEET -----")
+
 
     rakennus_id_with_current_kohde = (
         select(Rakennus.id)
         .join(KohteenRakennukset)
         .join(Kohde)
-        .filter(Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)))
+        .filter(
+            or_(
+                Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)),
+                loppupvm is None
+            )
+        )
     )
     
     kiinteistotunnus_without_kohde = (
@@ -2331,3 +2212,83 @@ def get_or_create_kohteet_from_rakennustiedot(
 
     logger.info(f"Käsitelty kaikki {len(building_sets)} rakennusryhmää.")
     return kohteet
+
+
+def _cluster_rakennustiedot(
+    rakennustiedot_to_cluster: "Set[Rakennustiedot]",
+    distance_limit: int,
+    existing_cluster: "Optional[Set[Rakennustiedot]]" = None
+) -> "List[Set[Rakennustiedot]]":
+    """
+    Klusteroi rakennukset seuraavien ehtojen perusteella:
+    - Etäisyys toisistaan max 300m JA
+    - Samat omistajat/asukkaat JA
+    - Sama osoite TAI kiinteistötunnus
+    """
+    clusters = []
+    # Aloita klusteri ensimmäisestä rakennuksesta (tai olemassaolevasta klusterista)
+    cluster = existing_cluster.copy() if existing_cluster else None
+    
+    while rakennustiedot_to_cluster:
+        if not cluster:
+            first_building = rakennustiedot_to_cluster.pop()
+            cluster = set([first_building])
+            print(f"\nAloitetaan uusi klusteri: {first_building[0].prt}")
+
+        other_rakennustiedot_to_cluster = rakennustiedot_to_cluster.copy()
+        while other_rakennustiedot_to_cluster:
+            found_match = False
+            for other_rakennustiedot in other_rakennustiedot_to_cluster:
+                print(f"\nVerrataan rakennuksia {[r[0].prt for r in cluster]} ja {other_rakennustiedot[0].prt}")
+                
+                # Tarkista etäisyys kaikkiin klusterin rakennuksiin
+                all_buildings = [rakennustiedot[0] for rakennustiedot in cluster] + [other_rakennustiedot[0]]
+                max_distance = maximum_distance_of_buildings(all_buildings)
+                if max_distance >= distance_limit:
+                    print(f"- Etäisyys liian suuri: {max_distance}m >= {distance_limit}m")
+                    continue
+
+                # Tarkista omistajat/asukkaat
+                match_found = False
+                for cluster_building in cluster:
+                    if _match_ownership_or_residents(cluster_building, other_rakennustiedot):
+                        match_found = True
+                        break
+                if not match_found:
+                    print("- Ei yhteisiä omistajia/asukkaita")
+                    continue
+
+                # Tarkista osoite TAI kiinteistötunnus
+                match_found = False
+                for cluster_building in cluster:
+                    if _match_addresses(cluster_building[3], other_rakennustiedot[3]):
+                        print(f"- Osoite täsmää")
+                        match_found = True
+                        break
+                    if cluster_building[0].kiinteistotunnus == other_rakennustiedot[0].kiinteistotunnus:
+                        print(f"- Kiinteistötunnus täsmää: {cluster_building[0].kiinteistotunnus}")
+                        match_found = True
+                        break
+                if not match_found:
+                    print("- Ei samaa osoitetta/kiinteistötunnusta")
+                    continue
+
+                # Kaikki ehdot täyttyvät, lisää rakennus klusteriin
+                print(f"=> Lisätään {other_rakennustiedot[0].prt} klusteriin")
+                cluster.add(other_rakennustiedot)
+                found_match = True
+                break
+
+            if not found_match:
+                # Klusteri on valmis! Muita sopivia rakennuksia ei löytynyt.
+                break
+
+            # Poista löydetty rakennus käsiteltävistä ja jatka silmukkaa
+            other_rakennustiedot_to_cluster.remove(other_rakennustiedot)
+
+        # Klusteri on valmis! Poista klusteroidut rakennukset ja aloita silmukka alusta
+        clusters.append(cluster)
+        rakennustiedot_to_cluster -= cluster
+        cluster = None
+
+    return clusters

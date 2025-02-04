@@ -323,19 +323,24 @@ def import_dvv_kohteet(
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
     logger.info("\nLuodaan yhden asunnon kohteet...")
+    print("\nLuodaan yhden asunnon kohteet...")
+
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
     logger.info(f"Luotu {len(single_asunto_kohteet)} yhden asunnon kohdetta")
+    print(f"Luotu {len(single_asunto_kohteet)} yhden asunnon kohdetta")
 
     # 3. Muut kohteet (kaikki loput rakennukset)
     logger.info("\nLuodaan loput kohteet...")
+    print("\nLuodaan loput kohteet...")
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
     logger.info(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
+    print(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
 
     # Yhteenveto
     total_kohteet = (
