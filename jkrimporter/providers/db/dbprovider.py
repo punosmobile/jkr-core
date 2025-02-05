@@ -278,15 +278,6 @@ def import_dvv_kohteet(
         print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         
-        # add_date_query = text(
-        #     """
-        #     UPDATE jkr.kohde 
-        #     SET loppupvm = :loppu_pvm 
-        #     WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
-        #     AND alkupvm < :loppu_pvm
-        #     AND loppupvm != '2100-01-01'  -- Älä päivitä perusmaksurekisterin kohteita
-        #     """
-        # )
         add_date_query = text(
             """
             UPDATE jkr.kohde 

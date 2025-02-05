@@ -2120,7 +2120,7 @@ def create_perusmaksurekisteri_kohteet(
         session: Tietokantaistunto
         perusmaksutiedosto: Polku perusmaksurekisterin Excel-tiedostoon
         poimintapvm: Uuden kohteen alkupäivämäärä
-        loppupvm: Uuden kohteen loppupäivämäärä (ei käytetä, käytetään aina 2100-01-01)
+        loppupvm: Uuden kohteen loppupäivämäärä
         
     Returns:
         Lista luoduista kohteista
