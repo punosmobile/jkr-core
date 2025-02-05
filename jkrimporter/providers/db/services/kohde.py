@@ -757,105 +757,171 @@ def _match_addresses(addresses1: "FrozenSet[Osoite]", addresses2: "FrozenSet[Oso
     return bool(normalized1.intersection(normalized2))
 
 
-def update_old_kohde_data(session, old_kohde_id, new_kohde_id, new_kohde_alkupvm):
+def update_old_kohde_data(
+    session: Session, 
+    old_kohde_id: int, 
+    new_kohde_id: int, 
+    new_kohde_alkupvm: datetime.date
+) -> None:
     """
-    Päivittää vanhan kohteen tiedot kerralla yhtenä transaktiona:
-    - Asettaa vanhan kohteen loppupvm 
-    - Siirtää sopimukset ja kuljetukset
-    - Päivittää viranomaispäätökset
-    - Päivittää kompostorit
+    Päivittää vanhan kohteen tiedot ja siirtää tarvittavat tiedot uudelle kohteelle.
+    
+    Prosessi suoritetaan seuraavasti:
+    1. Päivitetään vanhan kohteen loppupvm (uuden alkupvm - 1 päivä)
+    2. Siirretään sopimukset ja kuljetukset joiden loppupvm >= uuden kohteen alkupvm
+    3. Käsitellään viranomaispäätökset:
+       - Päätöksille joiden alkupvm <= vanhan kohteen loppupvm asetetaan loppupvm
+       - Muut päätökset siirretään uudelle kohteelle
+    4. Käsitellään kompostorit:
+       - Kompostoreille joiden alkupvm <= vanhan kohteen loppupvm asetetaan loppupvm
+       - Muiden kompostorien osalta:
+         * Siirretään osapuolet uudelle kohteelle
+         * Päivitetään kompostorin kohdeviittaus
+
+    Args:
+        session: Tietokantaistunto
+        old_kohde_id: Vanhan kohteen ID
+        new_kohde_id: Uuden kohteen ID
+        new_kohde_alkupvm: Uuden kohteen alkupäivämäärä
+
+    Raises:
+        SQLAlchemyError: Jos tietokantaoperaatioissa tapahtuu virhe
     """
-    # Aseta loppupvm = uuden kohteen alkupvm - 1 päivä
-    loppupvm = new_kohde_alkupvm - timedelta(days=1)
-    
-    # 1. Päivitä kohteen loppupvm
-    stmt = (
-        update(Kohde)
-        .where(Kohde.id == old_kohde_id)
-        .values(loppupvm=loppupvm)
-        .execution_options(synchronize_session=False)
-    )
-    session.execute(stmt)
+    print(f"Päivitetään vanhan kohteen {old_kohde_id} tiedot uudelle kohteelle {new_kohde_id}")
 
-    # 2. Siirrä sopimukset ja kuljetukset uudelle kohteelle
-    # Sopimukset joiden loppupvm >= uuden kohteen alkupvm
-    stmt = (
-        update(Sopimus)
-        .where(Sopimus.kohde_id == old_kohde_id)
-        .where(Sopimus.loppupvm >= new_kohde_alkupvm)
-        .values(kohde_id=new_kohde_id)
-        .execution_options(synchronize_session=False)
-    )
-    session.execute(stmt)
-    
-    # Kuljetukset joiden loppupvm >= uuden kohteen alkupvm 
-    stmt = (
-        update(Kuljetus)
-        .where(Kuljetus.kohde_id == old_kohde_id)
-        .where(Kuljetus.loppupvm >= new_kohde_alkupvm)
-        .values(kohde_id=new_kohde_id)
-        .execution_options(synchronize_session=False)
-    )
-    session.execute(stmt)
+    try:
+        # Määritä vanhan kohteen loppupvm
+        loppupvm = new_kohde_alkupvm - timedelta(days=1)
+        
+        with session.begin_nested():
+            # 1. Päivitä kohteen loppupvm
+            stmt = (
+                update(Kohde)
+                .where(Kohde.id == old_kohde_id)
+                .values(loppupvm=loppupvm)
+                .execution_options(synchronize_session=False)
+            )
+            session.execute(stmt)
+            print(f"Kohteen {old_kohde_id} loppupvm påivitetty: {loppupvm}")
 
-    # 3. Päivitä viranomaispäätösten loppupvm
-    # Hae vanhan kohteen rakennusten id:t
-    rakennus_ids = select(KohteenRakennukset.rakennus_id).where(
-        KohteenRakennukset.kohde_id == old_kohde_id
-    )
+            # 2. Siirrä sopimukset ja kuljetukset
+            for model in [Sopimus, Kuljetus]:
+                stmt = (
+                    update(model)
+                    .where(
+                        model.kohde_id == old_kohde_id,
+                        model.loppupvm >= new_kohde_alkupvm
+                    )
+                    .values(kohde_id=new_kohde_id)
+                    .execution_options(synchronize_session=False)
+                )
+                result = session.execute(stmt)
+                print(f"Siirretty {result.rowcount} {model.__name__.lower()}ta uudelle kohteelle")
 
-    # Aseta loppupvm päätöksille jotka alkaneet <= vanhan kohteen loppupvm
-    stmt = (
-        update(Viranomaispaatokset)
-        .where(
-            Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
-            Viranomaispaatokset.alkupvm <= loppupvm
+            # 3. Käsittele viranomaispäätökset
+            # Hae vanhan kohteen rakennusten id:t
+            rakennus_ids = select(KohteenRakennukset.rakennus_id).where(
+                KohteenRakennukset.kohde_id == old_kohde_id
+            )
+
+            # 3.1 Aseta loppupvm vanhoille päätöksille
+            stmt = (
+                update(Viranomaispaatokset)
+                .where(
+                    Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
+                    Viranomaispaatokset.alkupvm <= loppupvm
+                )
+                .values(loppupvm=loppupvm)
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(stmt)
+            print(f"Päivitetty {result.rowcount} viranomaispäätöksen loppupvm")
+
+            # 3.2 Siirrä voimassa olevat päätökset uudelle kohteelle
+            stmt = (
+                update(Viranomaispaatokset)
+                .where(
+                    Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
+                    Viranomaispaatokset.alkupvm > loppupvm
+                )
+                .values(kohde_id=new_kohde_id)
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(stmt)
+            print(f"Siirretty {result.rowcount} viranomaispäätöstä uudelle kohteelle")
+
+            # 4. Käsittele kompostorit
+            # Hae vanhan kohteen kompostorien id:t
+            kompostori_ids = select(KompostorinKohteet.kompostori_id).where(
+                KompostorinKohteet.kohde_id == old_kohde_id
+            )
+
+            # 4.1 Aseta loppupvm vanhoille kompostoreille
+            stmt = (
+                update(Kompostori)
+                .where(
+                    Kompostori.id.in_(kompostori_ids.scalar_subquery()),
+                    Kompostori.alkupvm <= loppupvm
+                )
+                .values(loppupvm=loppupvm)
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(stmt)
+            print(f"Päivitetty {result.rowcount} kompostorin loppupvm")
+
+            # 4.2 Hae jatkuvien kompostorien id:t
+            jatkuvat_kompostorit = select(Kompostori.id).where(
+                and_(
+                    Kompostori.id.in_(kompostori_ids.scalar_subquery()),
+                    Kompostori.alkupvm > loppupvm
+                )
+            )
+
+            # 4.3 Siirrä kompostorien osapuolet
+            stmt = (
+                update(KohteenOsapuolet)
+                .where(
+                    and_(
+                        KohteenOsapuolet.osapuoli_id.in_(
+                            select(Kompostori.osapuoli_id).where(
+                                Kompostori.id.in_(jatkuvat_kompostorit.scalar_subquery())
+                            )
+                        ),
+                        KohteenOsapuolet.kohde_id == old_kohde_id,
+                        KohteenOsapuolet.osapuolenrooli_id == 311  # Kompostin yhteyshenkilö
+                    )
+                )
+                .values(kohde_id=new_kohde_id)
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(stmt)
+            print(f"Siirretty {result.rowcount} kompostorin osapuolta")
+
+            # 4.4 Päivitä kompostorien kohdeviittaukset
+            stmt = (
+                update(KompostorinKohteet)
+                .where(
+                    and_(
+                        KompostorinKohteet.kompostori_id.in_(jatkuvat_kompostorit.scalar_subquery()),
+                        KompostorinKohteet.kohde_id == old_kohde_id
+                    )
+                )
+                .values(kohde_id=new_kohde_id)
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(stmt)
+            print(f"Päivitetty {result.rowcount} kompostorin kohdeviittausta")
+
+        # Commit ulompi transaktio
+        session.commit()
+        print(f"Kohteen {old_kohde_id} tiedot påivitetty onnistuneesti")
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(
+            f"Virhe kohteen {old_kohde_id} tietojen påivityksessä: {str(e)}"
         )
-        .values(loppupvm=loppupvm)
-        .execution_options(synchronize_session=False)
-    )
-    session.execute(stmt)
-
-    # 4. Päivitä kompostorien tiedot
-    # Hae vanhan kohteen kompostorien id:t
-    kompostori_ids = select(KompostorinKohteet.kompostori_id).where(
-        KompostorinKohteet.kohde_id == old_kohde_id
-    )
-
-    # Aseta loppupvm kompostoreille jotka alkaneet <= vanhan kohteen loppupvm
-    stmt = (
-        update(Kompostori)
-        .where(
-            Kompostori.id.in_(kompostori_ids.scalar_subquery()),
-            Kompostori.alkupvm <= loppupvm
-        )
-        .values(loppupvm=loppupvm)
-        .execution_options(synchronize_session=False)
-    )
-    session.execute(stmt)
-
-    # Siirrä jatkuvat kompostorit uudelle kohteelle
-    # Hae kompostorit jotka jatkuvat loppupvm:n jälkeen
-    jatkuvat_kompostorit = select(Kompostori.id).where(
-        and_(
-            Kompostori.id.in_(kompostori_ids.scalar_subquery()),
-            Kompostori.alkupvm > loppupvm
-        )
-    )
-
-    stmt = (
-        update(KompostorinKohteet)
-        .where(
-            KompostorinKohteet.kompostori_id.in_(jatkuvat_kompostorit.scalar_subquery()),
-            KompostorinKohteet.kohde_id == old_kohde_id
-        )
-        .values(kohde_id=new_kohde_id)
-        .execution_options(synchronize_session=False)
-    )
-    session.execute(stmt)
-
-    # Kaikki muutokset tehdään yhdessä transaktiossa
-    session.commit()
+        raise
 
 
 def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "Optional[Set[Osapuoli]]" = None) -> KohdeTyyppi:
@@ -998,34 +1064,72 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
 
 def parse_alkupvm_for_kohde(
     session: "Session",
-    rakennus_ids: "List[int]",
-    old_kohde_alkupvm: "datetime.date",
-    poimintapvm: "Optional[datetime.date]",
-):
-    latest_omistaja_change = (
-        session.query(func.max(RakennuksenOmistajat.omistuksen_alkupvm))
-        .filter(RakennuksenOmistajat.rakennus_id.in_(rakennus_ids))
-        .scalar()
-    )
-    latest_vanhin_change = session.query(
-        func.max(RakennuksenVanhimmat.alkupvm)
-    ).filter(RakennuksenVanhimmat.rakennus_id.in_(rakennus_ids)).scalar()
+    rakennus_ids: List[int],
+    old_kohde_alkupvm: datetime.date,
+    poimintapvm: Optional[datetime.date],
+) -> datetime.date:
+    """
+    Määrittää uuden kohteen alkupäivämäärän määrityksen mukaisesti.
+    
+    Alkupäivä määräytyy seuraavien sääntöjen mukaan:
+    - Jos rakennusten omistajissa/asukkaissa ei ole muutoksia -> poimintapvm
+    - Muuten valitaan uusin seuraavista:
+        1. Uusin omistajan muutospäivä
+        2. Uusin asukkaan muutospäivä 
+        3. Vanhan kohteen alkupvm
 
-    if latest_omistaja_change is None and latest_vanhin_change is None:
-        return poimintapvm
+    Args:
+        session: Tietokantaistunto
+        rakennus_ids: Lista käsiteltävien rakennusten ID:istä
+        old_kohde_alkupvm: Vanhan kohteen alkupäivämäärä 
+        poimintapvm: Uusi poimintapäivämäärä
 
-    latest_change = old_kohde_alkupvm
-    if latest_omistaja_change is None and latest_vanhin_change is not None:
-        latest_change = latest_vanhin_change
-    elif latest_vanhin_change is None and latest_omistaja_change is not None:
-        latest_change = latest_omistaja_change
-    else:
-        latest_change = max(latest_omistaja_change, latest_vanhin_change)
+    Returns:
+        datetime.date: Määritetty alkupäivämäärä
 
-    if latest_change > old_kohde_alkupvm:
-        return latest_change
-    else:
-        return poimintapvm
+    Raises:
+        SQLAlchemyError: Jos tietokantakyselyssä tapahtuu virhe
+    """
+    try:
+        # Hae uusin omistajan muutospäivä
+        latest_omistaja_change = (
+            session.query(func.max(RakennuksenOmistajat.omistuksen_alkupvm))
+            .filter(RakennuksenOmistajat.rakennus_id.in_(rakennus_ids))
+            .scalar()
+        )
+
+        # Hae uusin asukkaan muutospäivä
+        latest_vanhin_change = (
+            session.query(func.max(RakennuksenVanhimmat.alkupvm))
+            .filter(RakennuksenVanhimmat.rakennus_id.in_(rakennus_ids))
+            .scalar()
+        )
+
+        # Jos ei muutoksia kummassakaan, palauta poimintapvm
+        if latest_omistaja_change is None and latest_vanhin_change is None:
+            return poimintapvm
+
+        # Valitse uusin päivämäärä muutoksista
+        latest_change = old_kohde_alkupvm
+        if latest_omistaja_change is None and latest_vanhin_change is not None:
+            latest_change = latest_vanhin_change
+        elif latest_vanhin_change is None and latest_omistaja_change is not None:
+            latest_change = latest_omistaja_change
+        else:
+            latest_change = max(latest_omistaja_change, latest_vanhin_change)
+
+        # Jos uusin muutos on vanhan kohteen alkupvm:n jälkeen,
+        # käytetään muutospäivää, muuten poimintapvm:ää
+        if latest_change > old_kohde_alkupvm:
+            return latest_change
+        else:
+            return poimintapvm
+
+    except SQLAlchemyError as e:
+        print(
+            f"Virhe alkupäivämäärän määrityksessä rakennuksille {rakennus_ids}: {str(e)}"
+        )
+        raise
 
 
 def create_new_kohde_from_buildings(
@@ -1454,12 +1558,6 @@ def update_or_create_kohde_from_buildings(
             rakennus_tiedot = dvv_rakennustiedot[rakennus.id]
             rakennus = rakennus_tiedot[0]
             print(f"Käytetään DVV rakennustietoja rakennukselle {rakennus.id}")
-        
-        print(f"Rakennus {rakennus.id}:")
-        for key in rakennus.__mapper__.attrs.keys():
-            if not key.startswith('_'):
-                value = getattr(rakennus, key)
-                print(f"  {key}: {value}")
         
         building_type = determine_kohdetyyppi(session, rakennus, asukkaat)
         if building_type == KohdeTyyppi.ASUINKIINTEISTO:
