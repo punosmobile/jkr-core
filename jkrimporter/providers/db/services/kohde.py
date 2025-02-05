@@ -1455,8 +1455,9 @@ def update_or_create_kohde_from_buildings(
             print(f"Käytetään DVV rakennustietoja rakennukselle {rakennus.id}")
         
         print(f"Rakennus {rakennus.id}:")
-        for key, value in vars(rakennus).items():
+        for key in rakennus.__mapper__.attrs.keys():
             if not key.startswith('_'):
+                value = getattr(rakennus, key)
                 print(f"  {key}: {value}")
         
         building_type = determine_kohdetyyppi(session, rakennus, asukkaat)
