@@ -243,8 +243,22 @@ def add_ulkoinen_asiakastieto_for_kohde(
 
 
 def find_kohde_by_prt(
-    session: "Session", asiakas: "Union[Asiakas, JkrIlmoitukset]"
+    session: "Session", 
+    asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus]"
 ) -> "Union[Kohde, None]":
+    """
+    Finds a kohde based on PRT identifiers from different source types.
+    
+    Args:
+        session: Database session
+        asiakas: The source object, which can be:
+            - Asiakas (customer data)  
+            - JkrIlmoitukset (composting notifications)
+            - LopetusIlmoitus (composting termination notices)
+            
+    Returns:
+        Kohde object if found, None otherwise
+    """
     if isinstance(asiakas, JkrIlmoitukset):
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.sijainti_prt), asiakas
@@ -253,9 +267,13 @@ def find_kohde_by_prt(
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
         )
+    elif isinstance(asiakas, LopetusIlmoitus):
+        # For termination notices, use the prt property
+        return _find_kohde_by_asiakastiedot(
+            session, Rakennus.prt.in_(asiakas.prt), asiakas
+        )
     else:
-        raise ValueError("Invalid asiakas type")
-
+        raise ValueError(f"Invalid asiakas type: {type(asiakas)}")
 
 def find_kohteet_by_prt(
         session: "Session",
