@@ -545,98 +545,99 @@ def get_or_create_pseudokohde(session: Session, nimi: str, kohdetyyppi) -> Kohde
 
 def get_dvv_rakennustiedot_without_kohde(
    session: Session,
-   poimintapvm: Optional[datetime.date],
-   loppupvm: Optional[datetime.date]
+   poimintapvm: Optional[date],
+   loppupvm: Optional[date]
 ) -> Dict[int, "Rakennustiedot"]:
-   """
-   Hakee DVV:n rakennustiedot rakennuksille, joilla ei ole aktiivista kohdetta.
-   
-   Rakennus katsotaan kohteettomaksi jos:
-   1. Sillä ei ole kohdetta joka olisi voimassa annetulla aikavälillä
-   2. Se ei ole poistettu käytöstä (kaytostapoisto_pvm) ennen poimintapvm
-   3. Kohde ei ole lukittu (perusmaksurekisterin kohde)
+    """
+    Hakee DVV:n rakennustiedot rakennuksille, joilla ei ole voimassaolevaa kohdetta.
+    
+    Rakennustiedot haetaan vain rakennuksille jotka:
+    1. Eivät kuulu millekään voimassaolevalle kohteelle annetulla aikavälillä
+    2. Eivät ole poistettu käytöstä (kaytostapoisto_pvm) ennen poimintapäivää
 
-   Args:
-       session: SQLAlchemy session
-       poimintapvm: Poiminnan alkupäivä 
-       loppupvm: Poiminnan loppupäivä. Jos None, tulkitaan äärettömäksi.
+    Args:
+        session: Tietokantaistunto
+        poimintapvm: Uusien kohteiden alkupäivämäärä
+        loppupvm: Uusien kohteiden loppupäivämäärä. Jos None, ei aikarajausta.
 
-   Returns:
-       Dict[int, Rakennustiedot]: Sanakirja jossa avaimena rakennuksen id ja
-       arvona tuple (rakennus, vanhimmat set, omistajat set, osoitteet set)
-   """
-   # Hae ensin rakennukset joilla ON aktiivinen kohde annetulla aikavälillä
-   if loppupvm is None:
-       rakennus_id_with_current_kohde = (
-           select(Rakennus.id)
-           .join(KohteenRakennukset)
-           .join(Kohde)
-           .filter(
-               and_(
-                   or_(
-                       Kohde.loppupvm.is_(None),  # Voimassa toistaiseksi
-                       poimintapvm < Kohde.loppupvm
-                   ),
-                   Kohde.lukittu.is_(False)
-               )
-           )
-       )
-   else:
-       rakennus_id_with_current_kohde = (
-           select(Rakennus.id)
-           .join(KohteenRakennukset)  
-           .join(Kohde)
-           .filter(
-               and_(
-                   Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)),
-                   Kohde.lukittu.is_(False)
-               )
-           )
-       )
+    Returns:
+        Dict[int, Rakennustiedot]: Sanakirja jossa avaimena rakennuksen id ja
+        arvona tuple (rakennus, vanhimmat set, omistajat set, osoitteet set)
+    """
+    # 1. Hae ensin rakennukset joilla ON voimassaoleva kohde
+    if loppupvm is None:
+        rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(
+                or_(
+                    Kohde.loppupvm.is_(None),
+                    poimintapvm < Kohde.loppupvm
+                )
+            )
+        )
+    else:
+        rakennus_id_with_current_kohde = (
+            select(Rakennus.id)
+            .join(KohteenRakennukset)
+            .join(Kohde)
+            .filter(
+                Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm))
+            )
+        )
 
-   # Hae kaikki rakennukset jotka:
-   # 1. Eivät ole yllä haetussa kohdelistassa
-   # 2. Eivät ole poistuneet käytöstä (kaytostapoisto_pvm null tai tulevaisuudessa)
-   rows = session.execute(
-       select(Rakennus, RakennuksenVanhimmat, RakennuksenOmistajat, Osoite)
-       .join_from(Rakennus, RakennuksenVanhimmat, isouter=True)  # Left outer join
-       .join_from(Rakennus, RakennuksenOmistajat, isouter=True)  # Left outer join 
-       .join(Rakennus.osoite_collection, isouter=True)           # Left outer join
-       .filter(~Rakennus.id.in_(rakennus_id_with_current_kohde))
-       .filter(
-           or_(
-               Rakennus.kaytostapoisto_pvm.is_(None),
-               Rakennus.kaytostapoisto_pvm > poimintapvm
-           )
-       )
-   ).all()
+    # 2. Hae kaikki rakennukset jotka:
+    # - Eivät ole yllä haetussa kohdelistassa
+    # - Eivät ole poistuneet käytöstä
+    rows = session.execute(
+        select(
+            Rakennus, 
+            RakennuksenVanhimmat, 
+            RakennuksenOmistajat, 
+            Osoite
+        )
+        .join_from(Rakennus, RakennuksenVanhimmat, isouter=True)  # Left outer join
+        .join_from(Rakennus, RakennuksenOmistajat, isouter=True)  # Left outer join 
+        .join(Rakennus.osoite_collection, isouter=True)           # Left outer join
+        .filter(
+            ~Rakennus.id.in_(rakennus_id_with_current_kohde)
+        )
+        .filter(
+            or_(
+                Rakennus.kaytostapoisto_pvm.is_(None),
+                Rakennus.kaytostapoisto_pvm > poimintapvm
+            )
+        )
+    ).all()
 
-   # Ryhmitä rakennustiedot rakennuksen id:n mukaan
-   rakennustiedot_by_id = dict()
-   for row in rows:
-       rakennus_id = row[0].id
-       if rakennus_id not in rakennustiedot_by_id:
-           # Luo uusi tuple (rakennus, vanhimmat set, omistajat set, osoitteet set)
-           rakennustiedot_by_id[rakennus_id] = (row[0], set(), set(), set())
-           
-       # Lisää vanhimmat, omistajat ja osoitteet setteihin jos niitä on
-       if row[1]:  # Vanhimmat
-           rakennustiedot_by_id[rakennus_id][1].add(row[1])
-       if row[2]:  # Omistajat
-           rakennustiedot_by_id[rakennus_id][2].add(row[2])
-       if row[3]:  # Osoitteet 
-           rakennustiedot_by_id[rakennus_id][3].add(row[3])
+    # 3. Ryhmittele rakennustiedot rakennuksen id:n mukaan
+    rakennustiedot_by_id = {}
+    for row in rows:
+        rakennus_id = row[0].id
+        if rakennus_id not in rakennustiedot_by_id:
+            # Luo uusi tuple (rakennus, vanhimmat set, omistajat set, osoitteet set)
+            rakennustiedot_by_id[rakennus_id] = (row[0], set(), set(), set())
+            
+        # Lisää vanhimmat, omistajat ja osoitteet setteihin jos niitä on
+        if row[1]:  # Vanhimmat
+            rakennustiedot_by_id[rakennus_id][1].add(row[1])
+        if row[2]:  # Omistajat
+            rakennustiedot_by_id[rakennus_id][2].add(row[2])
+        if row[3]:  # Osoitteet 
+            rakennustiedot_by_id[rakennus_id][3].add(row[3])
 
-   # Muunna setit frozenset:eiksi että niitä voi käyttää esim. seteissä
-   for id, (rakennus, vanhimmat, omistajat, osoitteet) in rakennustiedot_by_id.items():
-       rakennustiedot_by_id[id] = (
-           rakennus,
-           frozenset(vanhimmat),
-           frozenset(omistajat), 
-           frozenset(osoitteet)
-       )
-
-   return rakennustiedot_by_id
+    # 4. Muunna setit frozenset:eiksi että niitä voi käyttää esim. avaimina
+    return {
+        id: (
+            rakennus,
+            frozenset(vanhimmat),
+            frozenset(omistajat),
+            frozenset(osoitteet)
+        )
+        for id, (rakennus, vanhimmat, omistajat, osoitteet) 
+        in rakennustiedot_by_id.items()
+    }
 
 
 def _get_identifiers(osapuolet: Union[Set[Osapuoli], FrozenSet[RakennuksenOmistajat], FrozenSet[RakennuksenVanhimmat]]) -> Set[str]:
