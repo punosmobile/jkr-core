@@ -761,7 +761,6 @@ class DbProvider:
                 os.path.dirname(ilmoitustiedosto), kohdentumattomat
             )
 
-
     def write_paatokset(
         self,
         paatos_list: List[Paatos],

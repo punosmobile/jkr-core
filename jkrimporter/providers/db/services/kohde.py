@@ -263,17 +263,20 @@ def find_kohde_by_prt(
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.sijainti_prt), asiakas
         )
+    elif isinstance(asiakas, LopetusIlmoitus):
+        # Lopetusilmoitukselle käytetään erikoiskäsittelyä
+        return _find_kohde_by_ilmoitustiedot(
+            session,
+            Rakennus.prt.in_(asiakas.prt),
+            asiakas
+        )
     elif isinstance(asiakas, Asiakas):
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
         )
-    elif isinstance(asiakas, LopetusIlmoitus):
-        # For termination notices, use the prt property
-        return _find_kohde_by_asiakastiedot(
-            session, Rakennus.prt.in_(asiakas.prt), asiakas
-        )
     else:
         raise ValueError(f"Invalid asiakas type: {type(asiakas)}")
+
 
 def find_kohteet_by_prt(
         session: "Session",
@@ -946,13 +949,14 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
     """
     Määrittää kohteen tyypin rakennuksen tietojen perusteella.
     Logiikka:
-    1. Tarkista HAPA/BIOHAPA status
-    2. Tarkista onko asuinkiinteistö seuraavassa järjestyksessä:
+    1. Tarkista onko asuinkiinteistö seuraavassa järjestyksessä:
        1. Rakennusluokka 2018 (0110-0211)
        2. Vanha rakennusluokka (011-041)
-       3. Huoneistomaara > 0
-       4. Asukkaat olemassa
-    3. Jos mikään ehto ei täyty -> MUU
+       3. Käyttötarkoitus (011-041)
+       4. Huoneistomaara > 0
+       5. Rakennuksenolotila (VAKINAINEN_ASUMINEN)
+       6. Vähintään yksi asukas
+    2. Jos mikään ehto ei täyty -> MUU
 
     Args:
         session: Tietokantaistunto
