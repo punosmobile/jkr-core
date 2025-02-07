@@ -1016,7 +1016,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
         print(f"-> ASUINKIINTEISTO (asukkaat) {len(asukkaat)}")
         return KohdeTyyppi.ASUINKIINTEISTO
 
-    # 6. Jos mikainen ehto ei töytynyt, kyseessä on muu kohde
+    # 6. Jos mikään ehto ei täyttynyt, kyseessä on muu kohde
     if hasattr(rakennus, 'prt'):
         print(f"-> MUU (Asuinrakennuksen ehdot ei töytynyt) prt: {rakennus.prt}")
     else:
