@@ -611,16 +611,12 @@ def get_dvv_rakennustiedot_without_kohde(
     # 2. Hae kaikki rakennukset jotka:
     # - Eivät ole yllä haetussa kohdelistassa
     # - Eivät ole poistuneet käytöstä
-    rows = session.execute(
-        select(
-            Rakennus, 
-            RakennuksenVanhimmat, 
-            RakennuksenOmistajat, 
-            Osoite
-        )
-        .join_from(Rakennus, RakennuksenVanhimmat, isouter=True)  # Left outer join
-        .join_from(Rakennus, RakennuksenOmistajat, isouter=True)  # Left outer join 
-        .join(Rakennus.osoite_collection, isouter=True)           # Left outer join
+    query = (
+        select(Rakennus, RakennuksenVanhimmat, RakennuksenOmistajat, Osoite)
+        .select_from(Rakennus)
+        .outerjoin(RakennuksenVanhimmat)
+        .outerjoin(RakennuksenOmistajat)
+        .outerjoin(Osoite)
         .filter(
             ~Rakennus.id.in_(rakennus_id_with_current_kohde)
         )
@@ -630,7 +626,9 @@ def get_dvv_rakennustiedot_without_kohde(
                 Rakennus.kaytostapoisto_pvm > poimintapvm
             )
         )
-    ).all()
+    )
+
+    rows = session.execute(query).all()
 
     # 3. Ryhmittele rakennustiedot rakennuksen id:n mukaan
     rakennustiedot_by_id = {}
@@ -968,50 +966,81 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
     """
 
     # 1. Tarkista rakennusluokka 2018
-    if rakennus.rakennusluokka_2018 is not None:
-        try:
-            luokka = int(rakennus.rakennusluokka_2018)
-            if 110 <= luokka <= 211:
-                print(f"-> ASUINKIINTEISTO (rakennusluokka_2018: {luokka})")
-                return KohdeTyyppi.ASUINKIINTEISTO
-        except (ValueError, TypeError):
-            print(f"- rakennusluokka_2018 ei ole validi numero: {rakennus.rakennusluokka_2018}")
-            pass
+    if hasattr(rakennus, 'rakennusluokka_2018'):
+        if rakennus.rakennusluokka_2018 is not None:
+            try:
+                luokka = int(rakennus.rakennusluokka_2018)
+                if 110 <= luokka <= 211:
+                    print(f"-> ASUINKIINTEISTO (rakennusluokka_2018: {luokka})")
+                    return KohdeTyyppi.ASUINKIINTEISTO
+            except (ValueError, TypeError):
+                print(f"- rakennusluokka_2018 ei ole validi numero: {rakennus.rakennusluokka_2018}")
+                pass
+        else:
+            print("- rakennusluokka_2018 ei ole annettu")
 
     # 2. Jos ei rakennusluokkaa 2018, tarkista käyttötarkoitus
     try:
-        kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None)       
-        if 11 <= kayttotarkoitus <= 41:
-            print(f"-> ASUINKIINTEISTO (käyttötarkoitus): {kayttotarkoitus} {rakennus.rakennuksenkayttotarkoitus.koodi}")
-            return KohdeTyyppi.ASUINKIINTEISTO
+        if hasattr(rakennus, 'rakennuksenkayttotarkoitus'):
+            if rakennus.rakennuksenkayttotarkoitus is not None:
+                kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None)       
+                if 11 <= kayttotarkoitus <= 41:
+                    print(f"-> ASUINKIINTEISTO (käyttötarkoitus): {kayttotarkoitus} {rakennus.rakennuksenkayttotarkoitus.koodi}")
+                    return KohdeTyyppi.ASUINKIINTEISTO
+        else:
+            print("- rakennuksenkayttotarkoitus ei ole annettu")
     except (ValueError, TypeError):
         print("- kayttotarkoitus ei ole validi numero")
         pass
 
     # 3. Tarkista huoneistomäärä
-    if rakennus.huoneistomaara is not None and rakennus.huoneistomaara > 0:
-        print(f"-> ASUINKIINTEISTO (huoneistomaara: {rakennus.huoneistomaara})")
-        return KohdeTyyppi.ASUINKIINTEISTO
+    if hasattr(rakennus, 'huoneistomaara'):
+        if rakennus.huoneistomaara is not None and rakennus.huoneistomaara > 0:
+            print(f"-> ASUINKIINTEISTO (huoneistomaara: {rakennus.huoneistomaara})")
+            return KohdeTyyppi.ASUINKIINTEISTO
+    else:
+        print("- huoneistomaara ei ole annettu")
 
     # 4. Tarkista rakennuksenolotila
-    if rakennus.rakennuksenolotila is not None and rakennus.rakennuksenolotila.koodi in [
-        RakennuksenOlotilaTyyppi.VAKINAINEN_ASUMINEN.value
-    ]:
-        print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila.koodi})")
-        return KohdeTyyppi.ASUINKIINTEISTO
+    if hasattr(rakennus, 'rakennuksenolotila'):
+        if rakennus.rakennuksenolotila is not None and rakennus.rakennuksenolotila.koodi in [
+            RakennuksenOlotilaTyyppi.VAKINAINEN_ASUMINEN.value
+        ]:
+            print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila.koodi})")
+            return KohdeTyyppi.ASUINKIINTEISTO
+    else:
+        print("- rakennuksenolotila ei ole annettu")
 
     # 5. Tarkista asukkaat
     if asukkaat and len(asukkaat) > 0:
         print(f"-> ASUINKIINTEISTO (asukkaat) {len(asukkaat)}")
         return KohdeTyyppi.ASUINKIINTEISTO
 
-    # 6. Jos mikään ehto ei täyttynyt, kyseessä on muu kohde
-    print(f"-> MUU (Asuinrakennuksen ehdot ei täyty) prt: {rakennus.prt}")
-    print(f"- rakennusluokka_2018: {rakennus.rakennusluokka_2018}")
-    print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None}")
-    print(f"- huoneistomaara: {rakennus.huoneistomaara}")
-    print(f"- rakennuksenolotila: {rakennus.rakennuksenolotila.koodi if rakennus.rakennuksenolotila else None}")
-    print(f"- asukkaat: {len(asukkaat) if asukkaat else 0}")
+    # 6. Jos mikainen ehto ei töytynyt, kyseessä on muu kohde
+    if hasattr(rakennus, 'prt'):
+        print(f"-> MUU (Asuinrakennuksen ehdot ei töytynyt) prt: {rakennus.prt}")
+    else:
+        print("- prt ei ole annettu")
+    if hasattr(rakennus, 'rakennusluokka_2018'):
+        print(f"- rakennusluokka_2018: {rakennus.rakennusluokka_2018}")
+    else:
+        print("- rakennusluokka_2018 ei ole annettu")
+    if hasattr(rakennus, 'rakennuksenkayttotarkoitus'):
+        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None}")
+    else:
+        print("- rakennuksenkayttotarkoitus ei ole annettu")
+    if hasattr(rakennus, 'huoneistomaara'):
+        print(f"- huoneistomaara: {rakennus.huoneistomaara}")
+    else:
+        print("- huoneistomaara ei ole annettu")
+    if hasattr(rakennus, 'rakennuksenolotila'):
+        print(f"- rakennuksenolotila: {rakennus.rakennuksenolotila.koodi if rakennus.rakennuksenolotila else None}")
+    else:
+        print("- rakennuksenolotila ei ole annettu")
+    if asukkaat:
+        print(f"- asukkaat: {len(asukkaat) if asukkaat else 0}")
+    else:
+        print("- asukkaat ei ole annettu")
     print("")
     return KohdeTyyppi.MUU
 
@@ -1460,6 +1489,7 @@ def update_or_create_kohde_from_buildings(
         if isinstance(rakennustiedot, tuple):
             rakennus_ids.add(rakennustiedot[0].id)
             rakennus_prts.add(rakennustiedot[0].prt)
+            print(f"DEBUG: Tuple rakennus {rakennus.id} data:", rakennus.__dict__)
         else:
             rakennus_ids.add(rakennustiedot.id)
             rakennus_prts.add(rakennustiedot.prt)
