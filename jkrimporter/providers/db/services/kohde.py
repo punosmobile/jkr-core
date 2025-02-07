@@ -1040,7 +1040,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
     if asukkaat:
         print(f"- asukkaat: {len(asukkaat) if asukkaat else 0}")
     else:
-        print("- asukkaat ei ole annettu")
+        print("- ei asukkaita")
     print("")
     return KohdeTyyppi.MUU
 
