@@ -407,6 +407,7 @@ BEGIN
         SELECT
             v.kohde_id,
             vs.tallennuspvm,
+            vs.jakso,
             vvm.kuvaus
         FROM
             jkr.velvoiteyhteenveto v
@@ -423,6 +424,7 @@ BEGIN
         SELECT
             v.kohde_id,
             vs.tallennuspvm,
+            vs.jakso
             vm.kuvaus,
             vm.selite
         FROM
@@ -435,6 +437,8 @@ BEGIN
             v.kohde_id = ANY(kohde_ids)
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
+        ORDER BY
+            vs.jakso DESC
     ),
     aggregated_velvoite AS (
         SELECT
