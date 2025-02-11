@@ -424,7 +424,7 @@ BEGIN
         SELECT
             v.kohde_id,
             vs.tallennuspvm,
-            vs.jakso
+            vs.jakso,
             vm.kuvaus,
             vm.selite
         FROM
