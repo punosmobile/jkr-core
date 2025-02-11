@@ -419,6 +419,8 @@ BEGIN
             v.kohde_id = ANY(kohde_ids)
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
+        ORDER BY
+            vs.jakso DESC
     ),
     velvoite_data AS (
         SELECT
