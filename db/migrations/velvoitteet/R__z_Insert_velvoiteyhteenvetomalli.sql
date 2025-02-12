@@ -161,50 +161,5 @@ VALUES
         '2022-1-1',
         'Velvoiteyhteenveto väärä tyhjennysväli biojäte',
         1
-    ),
-    (
-        46,
-        'HAPA kohteen velvoiteyhteenveto',
-        'v_hapa_kohde',
-        'kohteet_joilla_seka_ok',
-        '2022-1-1',
-        'HAPA kohteen jätteenkuljetus kunnossa',
-        1
-    ),
-    (
-        47,
-        'HAPA kohteen velvoiteyhteenveto puutteellinen',
-        'v_hapa_kohde',
-        'kohteet_joilla_seka_puuttuu',
-        '2022-1-1',
-        'HAPA kohteen jätteenkuljetus puuttuu',
-        3
-    ),
-    (
-        48,
-        'BIOHAPA kohteen velvoiteyhteenveto',
-        'v_biohapa_kohde',
-        'kohteet_joilla_seka_ok_bio_enint_4',
-        '2022-1-1',
-        'BIOHAPA kohteen jätteenkuljetus kunnossa',
-        1
-    ),
-    (
-        49,
-        'BIOHAPA kohteen velvoiteyhteenveto sekajäte puuttuu',
-        'v_biohapa_kohde',
-        'kohteet_joilla_seka_puuttuu',
-        '2022-1-1',
-        'BIOHAPA kohteen sekajäte puuttuu',
-        3
-    ),
-    (
-        50,
-        'BIOHAPA kohteen velvoiteyhteenveto biojäte puuttuu',
-        'v_biohapa_kohde',
-        'kohteet_joilla_bio_puuttuu_ei_kompostointia',
-        '2022-1-1',
-        'BIOHAPA kohteen biojäte puuttuu',
-        2
     )
 ON CONFLICT DO NOTHING;
