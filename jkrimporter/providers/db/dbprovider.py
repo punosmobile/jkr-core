@@ -278,15 +278,6 @@ def import_dvv_kohteet(
         print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         
-        # add_date_query = text(
-        #     """
-        #     UPDATE jkr.kohde 
-        #     SET loppupvm = :loppu_pvm 
-        #     WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
-        #     AND alkupvm < :loppu_pvm
-        #     AND loppupvm != '2100-01-01'  -- Älä päivitä perusmaksurekisterin kohteita
-        #     """
-        # )
         add_date_query = text(
             """
             UPDATE jkr.kohde 
@@ -323,19 +314,24 @@ def import_dvv_kohteet(
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
     logger.info("\nLuodaan yhden asunnon kohteet...")
+    print("\nLuodaan yhden asunnon kohteet...")
+
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
     logger.info(f"Luotu {len(single_asunto_kohteet)} yhden asunnon kohdetta")
+    print(f"Luotu {len(single_asunto_kohteet)} yhden asunnon kohdetta")
 
     # 3. Muut kohteet (kaikki loput rakennukset)
     logger.info("\nLuodaan loput kohteet...")
+    print("\nLuodaan loput kohteet...")
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
         session, poimintapvm, loppupvm
     )
     session.commit()
     logger.info(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
+    print(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
 
     # Yhteenveto
     total_kohteet = (
@@ -764,7 +760,6 @@ class DbProvider:
             export_kohdentumattomat_lopetusilmoitukset(
                 os.path.dirname(ilmoitustiedosto), kohdentumattomat
             )
-
 
     def write_paatokset(
         self,
