@@ -420,7 +420,7 @@ BEGIN
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
         ORDER BY
-            vs.jakso DESC
+            vs.jakso DESC, v.id DESC
     ),
     velvoite_data AS (
         SELECT
@@ -440,7 +440,7 @@ BEGIN
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
         ORDER BY
-            vs.jakso DESC
+            vs.jakso DESC, v.id DESC
     ),
     aggregated_velvoite AS (
         SELECT
