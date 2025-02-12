@@ -242,5 +242,32 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
         '2022-1-1',
         'Metalli kunnossa'
+    ),
+    (
+        30,
+        'HAPA sekajäte',
+        'hapa_kohde',
+        'kohteet_joilla_seka_ok',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'HAPA kohteen sekajätevelvoite'
+    ),
+    (
+        31,
+        'BIOHAPA sekajäte',
+        'biohapa_kohde',
+        'kohteet_joilla_seka_ok',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
+        '2022-1-1',
+        'BIOHAPA kohteen sekajätevelvoite'
+    ),
+    (
+        32,
+        'BIOHAPA biojäte',
+        'biohapa_kohde',
+        'kohteet_joilla_bio_enint_4_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2022-1-1',
+        'BIOHAPA kohteen biojätevelvoite'
     )
 ON CONFLICT DO NOTHING;

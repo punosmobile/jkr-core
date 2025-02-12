@@ -22,6 +22,7 @@ BEGIN
       where
         exists (select 1 from jkr.'||quote_ident(velvoitemalli.saanto)||' kohteet where k.id = kohteet.id)
         and k.voimassaolo && $2
+        and k.kohdetyyppi_id != 8
       ON CONFLICT DO NOTHING
     ';
     EXECUTE insert_velvoite_sql USING velvoitemalli.id, velvoitemalli.voimassaolo;
@@ -37,6 +38,7 @@ BEGIN
       where
         exists (select 1 from jkr.'||quote_ident(yhteenvetomalli.saanto)||' kohteet where k.id = kohteet.id)
         and k.voimassaolo && $2
+        and k.kohdetyyppi_id != 8
       ON CONFLICT DO NOTHING
     ';
     EXECUTE insert_yhteenveto_sql USING yhteenvetomalli.id, yhteenvetomalli.voimassaolo;
@@ -46,7 +48,7 @@ END;
 $BODY$;
 
 
-create or replace function jkr.velvoite_status(loppupvm date) RETURNS TABLE(velvoite_id int, jakso daterange, ok bool) AS
+CREATE OR REPLACE FUNCTION jkr.velvoite_status(loppupvm date) RETURNS TABLE(velvoite_id int, jakso daterange, ok bool) AS
 $$
 DECLARE
   velvoitemalli RECORD;
@@ -73,6 +75,7 @@ BEGIN
           vm.id = $3
           and k.voimassaolo && daterange($1, $2)
           and vm.voimassaolo && daterange($1, $2)
+          and k.kohdetyyppi_id != 8
     ';
     RETURN QUERY EXECUTE select_sql USING jakso_alku, jakso_loppu, velvoitemalli.id;
   end loop;
@@ -116,6 +119,7 @@ BEGIN
           vm.id = $3
           and k.voimassaolo && daterange($1, $2)
           and vm.voimassaolo && daterange($1, $2)
+          and k.kohdetyyppi_id != 8
     ';
     EXECUTE 'INSERT INTO temp_status ' || select_sql USING jakso_alku, jakso_loppu, velvoiteyhteenvetomalli.id;
   END LOOP;
