@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION jkr.update_velvoitteet()
-    RETURNS integer
-    LANGUAGE 'plpgsql'
+RETURNS integer
+LANGUAGE 'plpgsql'
 AS $BODY$
 DECLARE
   velvoitemalli RECORD;
@@ -13,7 +13,7 @@ BEGIN
   from jkr.velvoitemalli vm 
   left join jkr_koodistot.jatetyyppi jt on vm.jatetyyppi_id = jt.id 
   where vm.saanto is not null
-  loop                
+  loop
     insert_velvoite_sql := '
       insert into jkr.velvoite(kohde_id, velvoitemalli_id)
       select distinct
@@ -23,21 +23,24 @@ BEGIN
       where
         exists (select 1 from jkr.'||quote_ident(velvoitemalli.saanto)||' kohteet where k.id = kohteet.id)
         and k.voimassaolo && $2
-        and k.kohdetyyppi_id != 8
         and (
-          k.kohdetyyppi_id not in (5,6)
+          -- HAPA kohteet (tyyppi 5)
+          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')
           OR 
-          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')  -- HAPA
+          -- BIOHAPA kohteet (tyyppi 6)
+          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))
           OR
-          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))  -- BIOHAPA
+          -- Asuinkiinteistöt (tyyppi 7)
+          (k.kohdetyyppi_id = 7)
         )
       ON CONFLICT DO NOTHING
     ';
+    
     EXECUTE insert_velvoite_sql 
     USING velvoitemalli.id, velvoitemalli.voimassaolo;
   end loop;
 
-  -- Velvoiteyhteenvetomallit
+  -- Velvoiteyhteenvetomallit - päivitetty samalla logiikalla
   FOR yhteenvetomalli in select id, saanto, voimassaolo 
   from jkr.velvoiteyhteenvetomalli where saanto is not null
   loop
@@ -53,6 +56,7 @@ BEGIN
         and k.kohdetyyppi_id != 8
       ON CONFLICT DO NOTHING
     ';
+    
     EXECUTE insert_yhteenveto_sql 
     USING yhteenvetomalli.id, yhteenvetomalli.voimassaolo;
   end loop;
@@ -70,11 +74,13 @@ DECLARE
   jakso_alku date := DATE_TRUNC('quarter', loppupvm) - INTERVAL '6 months';
   jakso_loppu date := DATE_TRUNC('quarter', loppupvm) + INTERVAL '3 months' - INTERVAL '1 day';
 BEGIN
+  -- Käydään läpi velvoitemallit huomioiden jätetyypit
   for velvoitemalli in select vm.id, vm.tayttymissaanto, vm.jatetyyppi_id, jt.selite as jatetyyppi_selite
   from jkr.velvoitemalli vm
   left join jkr_koodistot.jatetyyppi jt on vm.jatetyyppi_id = jt.id
   where vm.tayttymissaanto is not null
   loop
+    -- Muokattu status-kysely huomioimaan kohdetyypit ja jätelajit
     select_sql := '
       select
         v.id velvoite_id,
@@ -90,13 +96,15 @@ BEGIN
         vm.id = $3
         and k.voimassaolo && daterange($1, $2)
         and vm.voimassaolo && daterange($1, $2)
-        and k.kohdetyyppi_id != 8
         and (
-          k.kohdetyyppi_id not in (5,6)  -- normaalit kohteet
+          -- HAPA kohteet (tyyppi 5)
+          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')
           OR 
-          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')  -- HAPA
+          -- BIOHAPA kohteet (tyyppi 6)
+          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))
           OR
-          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))  -- BIOHAPA
+          -- Asuinkiinteistöt (tyyppi 7)
+          (k.kohdetyyppi_id = 7)
         )
     ';
 
@@ -116,6 +124,7 @@ DECLARE
   jakso_alku date := DATE_TRUNC('quarter', loppupvm) - INTERVAL '6 months';
   jakso_loppu date := DATE_TRUNC('quarter', loppupvm) + INTERVAL '3 months' - INTERVAL '1 day';
 BEGIN
+  -- Luodaan väliaikainen taulu yhteenvetostatuksille
   CREATE TEMP TABLE temp_status (
     velvoiteyhteenveto_id int,
     jakso daterange,
@@ -124,6 +133,7 @@ BEGIN
     luokitus int
   ) ON COMMIT DROP;
 
+  -- Käsitellään jokainen yhteenvetomalli erikseen
   FOR velvoiteyhteenvetomalli IN SELECT id, tayttymissaanto, luokitus 
   FROM jkr.velvoiteyhteenvetomalli 
   WHERE tayttymissaanto IS NOT null
@@ -145,14 +155,27 @@ BEGIN
         vm.id = $3
         and k.voimassaolo && daterange($1, $2)
         and vm.voimassaolo && daterange($1, $2)
-        and k.kohdetyyppi_id != 8
+        and k.kohdetyyppi_id != 8  -- Ei MUU-tyypin kohteille
+        and (
+          -- HAPA kohteet (tyyppi 5)
+          k.kohdetyyppi_id = 5 
+          OR
+          -- BIOHAPA kohteet (tyyppi 6)
+          k.kohdetyyppi_id = 6
+          OR
+          -- Asuinkiinteistöt (tyyppi 7)
+          k.kohdetyyppi_id = 7
+        )
     ';
     
+    -- Lisätään tulokset väliaikaiseen tauluun
     EXECUTE 'INSERT INTO temp_status ' || select_sql 
     USING jakso_alku, jakso_loppu, velvoiteyhteenvetomalli.id;
   END LOOP;
 
   -- Käsitellään tilanteet joissa samalla kohteella on parempi luokitus
+  -- Esim. jos kohteella on sekä "kunnossa" (luokitus 1) että "puutteellinen" (luokitus 2),
+  -- merkitään puutteellinen epätodeksi
   WITH yhteenvedot_joilla_parempi_luokitus AS (
     SELECT t1.*
     FROM temp_status t1
@@ -178,30 +201,34 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS jkr.tallenna_velvoite_status;
-create or replace function jkr.tallenna_velvoite_status(date) RETURNS int AS
+CREATE OR REPLACE FUNCTION jkr.tallenna_velvoite_status(date) 
+RETURNS int AS
 $$
-  -- Tallennetaan velvoitteiden status
+BEGIN
+  -- 1. Tallennetaan velvoitteiden status
   INSERT INTO jkr.velvoite_status (velvoite_id, jakso, ok, tallennuspvm)
-  select velvoite_id, jakso, ok, CURRENT_DATE from jkr.velvoite_status($1)
+  SELECT velvoite_id, jakso, ok, CURRENT_DATE 
+  FROM jkr.velvoite_status($1)
   ON CONFLICT (velvoite_id, jakso) DO UPDATE
     SET
       ok = EXCLUDED.ok,
-      tallennuspvm = CURRENT_DATE
-  ;
-  -- Päivitetään velvoitteiden materialisoitu näkymä
+      tallennuspvm = CURRENT_DATE;
+
+  -- 2. Päivitetään velvoitteiden materialisoitu näkymä
   REFRESH MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet;
 
-  -- Tallennetaan velvoiteyhteenvetojen status  
+  -- 3. Tallennetaan velvoiteyhteenvetojen status  
   INSERT INTO jkr.velvoiteyhteenveto_status (velvoiteyhteenveto_id, jakso, ok, tallennuspvm)
-  select velvoiteyhteenveto_id, jakso, ok, CURRENT_DATE from jkr.velvoiteyhteenveto_status($1)
+  SELECT velvoiteyhteenveto_id, jakso, ok, CURRENT_DATE 
+  FROM jkr.velvoiteyhteenveto_status($1)
   ON CONFLICT (velvoiteyhteenveto_id, jakso) DO UPDATE
     SET
       ok = EXCLUDED.ok,
-      tallennuspvm = CURRENT_DATE
-  ;
-  -- Päivitetään yhteenvetojen materialisoitu näkymä
+      tallennuspvm = CURRENT_DATE;
+
+  -- 4. Päivitetään yhteenvetojen materialisoitu näkymä
   REFRESH MATERIALIZED VIEW jkr.v_velvoiteyhteenvetojen_kohteet;
   
-  SELECT 1;
-$$ LANGUAGE SQL;
+  RETURN 1;
+END;
+$$ LANGUAGE plpgsql;
