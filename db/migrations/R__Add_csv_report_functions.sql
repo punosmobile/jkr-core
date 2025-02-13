@@ -104,7 +104,7 @@ BEGIN
                 AND k.id NOT IN (SELECT kohde_ids_in_taajama FROM jkr.kohde_ids_in_taajama(200))
             )
         ) 
-        AND kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id;
+        AND (kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -394,21 +394,19 @@ DECLARE
     selected_tallennuspvm DATE;
 BEGIN
     SELECT 
-        vs.tallennuspvm
+        MAX(vs.tallennuspvm)
     INTO 
         selected_tallennuspvm
     FROM 
         jkr.velvoite_status vs
     WHERE 
-        vs.jakso && tarkistusjakso
-    ORDER BY 
-        vs.tallennuspvm DESC
-    LIMIT 1;
+        vs.jakso && tarkistusjakso;
 
     RETURN QUERY
     WITH velvoiteyhteenveto_data AS (
         SELECT
             v.kohde_id,
+            vs.tallennuspvm,
             vs.jakso,
             vvm.kuvaus
         FROM
@@ -422,11 +420,12 @@ BEGIN
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
         ORDER BY
-            vs.jakso DESC
+            vs.jakso DESC, v.id DESC
     ),
     velvoite_data AS (
         SELECT
             v.kohde_id,
+            vs.tallennuspvm,
             vs.jakso,
             vm.kuvaus,
             vm.selite
@@ -441,7 +440,7 @@ BEGIN
             AND vs.ok = TRUE
             AND vs.tallennuspvm = selected_tallennuspvm
         ORDER BY
-            vs.jakso DESC
+            vs.jakso DESC, v.id DESC
     ),
     aggregated_velvoite AS (
         SELECT

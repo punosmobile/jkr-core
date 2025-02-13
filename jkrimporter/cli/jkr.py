@@ -228,7 +228,7 @@ def import_lopetusilmoitukset(
 @app.command("raportti")
 def raportti(
     output_path: Path = typer.Argument(..., help="Excel-raportin tallennuspolku (.xlsx)"),
-    tarkastelupvm: str = typer.Argument(..., help="Tarkastelupäivämäärä (YYYY-MM-DD tai DD.MM.YYYY)"),
+    tarkastelupvm: str = typer.Argument(None, help="Tarkastelupäivämäärä (YYYY-MM-DD tai DD.MM.YYYY)"),
     kunta: str = typer.Argument(None, help="Kunnan nimi (esim. 'Lahti'). Käytä 0 jos ei rajausta."),
     huoneistomaara: int = typer.Argument(0, help="Huoneistomäärä (4 = neljä tai vähemmän, 5 = viisi tai enemmän, 0 = ei rajausta)"),
     taajama: int = typer.Argument(None, help="Taajama (0 = ei rajausta, 1 = yli 10000, 2 = yli 200)"),
@@ -238,7 +238,10 @@ def raportti(
     Luo Excel-raportin kohteista annetuilla hakuehdoilla.
     """
     try:
-        tarkastelupvm_date = parse_date_string(tarkastelupvm)
+        if(tarkastelupvm != '0'):
+            tarkastelupvm_date = parse_date_string(tarkastelupvm)
+        else:
+            tarkastelupvm_date = None
         
         # Convert "0" to None for kunta
         kunta_filter = None if kunta == "0" else kunta
