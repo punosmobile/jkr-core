@@ -11,10 +11,13 @@ SELECT r.id,
     r.rakennuksenolotila_koodi,
     r.kayttoonotto_pvm,
     r.kaytostapoisto_pvm,
+    rl.selite as rakennusluokka_selite,
+    r.rakennusluokka_2018,
     (EXISTS ( SELECT 1
            FROM jkr.kohteen_rakennusehdokkaat kr
-          WHERE (r.id = kr.rakennus_id))) AS on_kohde_ehdokkaita
-   FROM jkr.rakennus r;
+          WHERE r.id = kr.rakennus_id)) AS on_kohde_ehdokkaita
+FROM jkr.rakennus r
+LEFT JOIN jkr_koodistot.rakennusluokka_2018 rl ON r.rakennusluokka_2018 = rl.koodi;
 
 ALTER VIEW jkr.v_rakennukset OWNER TO jkr_admin;
 
