@@ -26,3 +26,42 @@ All notable changes to this project will be documented in this file.
 - Updated README.md with new features and configurations
 - Added comprehensive code documentation
 - Improved debug message clarity
+
+## [0.6.1] - 2025-02-13
+
+### Added
+- Rakennusluokka_2018 integration:
+  - Added to rakennukset view with selite
+  - Enhanced building classification support
+- QGIS project improvements:
+  - New separate layers for kohdetyypit
+  - Migration system for QGIS projects
+  - Documentation for QGIS project migrations
+- Lopetusilmoitus handling enhancements
+- Enhanced logging and debugging capabilities
+- Null date option in velvoite reports
+- Type checking mode (basic) for Python analysis
+
+### Fixed
+- Kohdetyyppi determination logic:
+  - Improved rakennusluokka_2018 checks
+  - Enhanced building type validation
+- Query optimizations:
+  - Added proper parentheses in kohde filtering
+  - Improved velvoite ordering with DESC, id DESC
+  - Enhanced date range handling
+- Kompostitietojen processing and validation
+- Building data processing improvements:
+  - Enhanced DVV building data handling
+  - Improved building cluster logic
+  - Better ownership and resident matching
+
+### Changed
+- Enhanced documentation:
+  - Added QGIS project migration guide
+  - Updated README.md with new configurations
+- Improved data validation in velvoite system
+- Optimized building data processing:
+  - Added PRT tracking
+  - Enhanced logging for building processing
+  - Improved transaction handling
