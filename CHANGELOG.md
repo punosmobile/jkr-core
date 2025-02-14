@@ -65,3 +65,9 @@ All notable changes to this project will be documented in this file.
   - Added PRT tracking
   - Enhanced logging for building processing
   - Improved transaction handling
+
+## [0.6.2] - 2025-02-14
+
+### Fixed
+- Velvoite processing repaired:
+  - Fixed velvoite processing
