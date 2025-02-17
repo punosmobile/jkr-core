@@ -78,4 +78,4 @@ All notable changes to this project will be documented in this file.
 
 - Velvoite processing repaired:
   - Fixed velvoite processing
-  - Fixed Kohteiden luppupvm handling
+  - Fixed Kohteiden loppupvm handling
