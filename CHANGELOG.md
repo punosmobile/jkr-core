@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.0] - 2025-01-30
 
 ### Added
+
 - Building Classification 2018 (Rakennusluokka_2018)
   - Classification codes and mappings
   - Building classes integration into reporting system
@@ -14,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - `lukittu` field to kohde table to indicate if the kohde is locked
 
 ### Changed
+
 - Enhanced property type handling:
   - Improved property formation logic and validation
   - Enhanced type definition algorithms
@@ -23,6 +25,7 @@ All notable changes to this project will be documented in this file.
 - Fixed PostgreSQL 16 compatibility issues with DevDB public schema privileges
 
 ### Documentation
+
 - Updated README.md with new features and configurations
 - Added comprehensive code documentation
 - Improved debug message clarity
@@ -30,6 +33,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.1] - 2025-02-13
 
 ### Added
+
 - Rakennusluokka_2018 integration:
   - Added to rakennukset view with selite
   - Enhanced building classification support
@@ -43,6 +47,7 @@ All notable changes to this project will be documented in this file.
 - Type checking mode (basic) for Python analysis
 
 ### Fixed
+
 - Kohdetyyppi determination logic:
   - Improved rakennusluokka_2018 checks
   - Enhanced building type validation
@@ -57,6 +62,7 @@ All notable changes to this project will be documented in this file.
   - Better ownership and resident matching
 
 ### Changed
+
 - Enhanced documentation:
   - Added QGIS project migration guide
   - Updated README.md with new configurations
@@ -66,9 +72,10 @@ All notable changes to this project will be documented in this file.
   - Enhanced logging for building processing
   - Improved transaction handling
 
-## [0.6.2] - 2025-02-14
+## [0.6.2] - 2025-02-17
 
 ### Fixed
+
 - Velvoite processing repaired:
   - Fixed velvoite processing
   - Fixed Kohteiden luppupvm handling
