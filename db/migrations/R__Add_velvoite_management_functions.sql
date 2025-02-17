@@ -8,7 +8,22 @@ DECLARE
   yhteenvetomalli RECORD;
   insert_yhteenveto_sql text;
 BEGIN
-  -- Velvoitemallit
+  -- 1. Poistetaan vanhentuneet velvoitteet
+  DELETE FROM jkr.velvoite v
+  WHERE EXISTS (
+    SELECT 1 FROM jkr.kohde k 
+    WHERE k.id = v.kohde_id 
+    AND k.kohdetyyppi_id = 8
+  );
+
+  DELETE FROM jkr.velvoiteyhteenveto vh
+  WHERE EXISTS (
+    SELECT 1 FROM jkr.kohde k 
+    WHERE k.id = vh.kohde_id 
+    AND k.kohdetyyppi_id = 8
+  );
+
+  -- 2. Lisää velvoitteet
   FOR velvoitemalli in select vm.id, vm.saanto, vm.voimassaolo, jt.selite as jatetyyppi_selite
   from jkr.velvoitemalli vm 
   left join jkr_koodistot.jatetyyppi jt on vm.jatetyyppi_id = jt.id 
@@ -21,26 +36,32 @@ BEGIN
         $1
       from jkr.kohde k
       where
-        exists (select 1 from jkr.'||quote_ident(velvoitemalli.saanto)||' kohteet where k.id = kohteet.id)
-        and k.voimassaolo && $2
+        not exists (
+          select 1 from jkr.velvoite v 
+          where v.kohde_id = k.id 
+          and v.velvoitemalli_id = $1
+        )
+        and exists (
+          select 1 
+          from jkr.'||quote_ident(velvoitemalli.saanto)||' kohteet 
+          where k.id = kohteet.id
+        )
+        and k.kohdetyyppi_id != 8
         and (
-          -- HAPA kohteet (tyyppi 5)
           (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')
           OR 
-          -- BIOHAPA kohteet (tyyppi 6)
           (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))
           OR
-          -- Asuinkiinteistöt (tyyppi 7)
           (k.kohdetyyppi_id = 7)
         )
-      ON CONFLICT DO NOTHING
+        and k.voimassaolo && $2
     ';
     
     EXECUTE insert_velvoite_sql 
     USING velvoitemalli.id, velvoitemalli.voimassaolo;
   end loop;
 
-  -- Velvoiteyhteenvetomallit - päivitetty samalla logiikalla
+  -- 3. Lisää velvoiteyhteenvedot
   FOR yhteenvetomalli in select id, saanto, voimassaolo 
   from jkr.velvoiteyhteenvetomalli where saanto is not null
   loop
@@ -51,16 +72,24 @@ BEGIN
         $1
       from jkr.kohde k
       where
-        exists (select 1 from jkr.'||quote_ident(yhteenvetomalli.saanto)||' kohteet where k.id = kohteet.id)
+        not exists (
+          select 1 from jkr.velvoiteyhteenveto vh 
+          where vh.kohde_id = k.id 
+          and vh.velvoiteyhteenvetomalli_id = $1
+        )
+        and exists (
+          select 1 
+          from jkr.'||quote_ident(yhteenvetomalli.saanto)||' kohteet 
+          where k.id = kohteet.id
+        )
+        and k.kohdetyyppi_id in (5,6,7)
         and k.voimassaolo && $2
-        and k.kohdetyyppi_id != 8
-      ON CONFLICT DO NOTHING
     ';
     
     EXECUTE insert_yhteenveto_sql 
     USING yhteenvetomalli.id, yhteenvetomalli.voimassaolo;
   end loop;
-  
+
   RETURN 1;
 END;
 $BODY$;

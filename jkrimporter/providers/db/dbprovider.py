@@ -192,17 +192,6 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
 
     return kohde
 
-def set_end_dates_to_kohteet(
-    session: Session,
-    poimintapvm: datetime.date,
-):
-    previous_pvm = poimintapvm - timedelta(days=1)
-    add_date_query = text(
-        "UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL"
-    )
-    session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
-    session.commit()
-
 
 def import_asiakastiedot(
     session: Session,
@@ -272,24 +261,24 @@ def import_dvv_kohteet(
     print("Aloitetaan DVV-kohteiden luonti...")
     logger.info("\nAloitetaan DVV-kohteiden luonti...")
 
-    # Aseta loppupäivämäärä olemassa oleville kohteille ilman loppupäivää
-    if poimintapvm is not None:
-        previous_pvm = poimintapvm - timedelta(days=1)
-        print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
-        logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
+    # # Aseta loppupäivämäärä olemassa oleville kohteille ilman loppupäivää
+    # if poimintapvm is not None:
+    #     previous_pvm = poimintapvm - timedelta(days=1)
+    #     print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
+    #     logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         
-        add_date_query = text(
-            """
-            UPDATE jkr.kohde 
-            SET loppupvm = :loppu_pvm 
-            WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
-            AND alkupvm < :loppu_pvm
-            """
-        )
-        session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
-        session.commit()
-        print("Loppupäivämäärät asetettu")
-        logger.info("Loppupäivämäärät asetettu")
+    #     add_date_query = text(
+    #         """
+    #         UPDATE jkr.kohde 
+    #         SET loppupvm = :loppu_pvm 
+    #         WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
+    #         AND alkupvm < :loppu_pvm
+    #         """
+    #     )
+    #     session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
+    #     session.commit()
+    #     print("Loppupäivämäärät asetettu")
+    #     logger.info("Loppupäivämäärät asetettu")
 
     # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)  
     if perusmaksutiedosto:
