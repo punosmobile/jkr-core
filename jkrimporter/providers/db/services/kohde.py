@@ -1002,11 +1002,16 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
         print("- huoneistomaara ei ole annettu")
 
     # 4. Tarkista rakennuksenolotila
-    if hasattr(rakennus, 'rakennuksenolotila'):
-        if rakennus.rakennuksenolotila is not None and rakennus.rakennuksenolotila.koodi in [
+    if hasattr(rakennus, 'rakennuksenolotila') or hasattr(rakennus, 'rakennuksenolotila_koodi'):
+        if hasattr(rakennus, 'rakennuksenolotila') and rakennus.rakennuksenolotila is not None and rakennus.rakennuksenolotila.koodi in [
+            RakennuksenOlotilaTyyppi.VAKINAINEN_ASUMINEN.value
+        ] or hasattr(rakennus, 'rakennuksenolotila_koodi') and rakennus.rakennuksenolotila_koodi is not None and rakennus.rakennuksenolotila_koodi in [
             RakennuksenOlotilaTyyppi.VAKINAINEN_ASUMINEN.value
         ]:
-            print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila.koodi})")
+            if hasattr(rakennus, 'rakennuksenolotila'):
+                print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila.koodi})")
+            elif hasattr(rakennus, 'rakennuksenolotila_koodi'):
+                print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila_koodi})")
             return KohdeTyyppi.ASUINKIINTEISTO
     else:
         print("- rakennuksenolotila ei ole annettu")
@@ -1018,7 +1023,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
 
     # 6. Jos mikään ehto ei täyttynyt, kyseessä on muu kohde
     if hasattr(rakennus, 'prt'):
-        print(f"-> MUU (Asuinrakennuksen ehdot ei töytynyt) prt: {rakennus.prt}")
+        print(f"-> MUU (Asuinrakennuksen ehdot ei täyttynyt) prt: {rakennus.prt}")
     else:
         print("- prt ei ole annettu")
     if hasattr(rakennus, 'rakennusluokka_2018'):
@@ -1443,6 +1448,95 @@ def move_sopimukset_and_kuljetukset_to_new_kohde(
     )
     session.commit()
 
+def check_and_update_old_other_building_kohde_kohdetyyppi(
+    session: Session,
+    poimintapvm: Optional[datetime.date]
+) -> List[int]:
+    """
+    Etsii vanhat kohteet joilla on vain yksi rakennus ja joilla on väärä kohdetyyppi.
+
+    Toiminta:
+    1. Hakee kannasta kohteet joilla on vain yksi rakennus
+    2. Tarkistaa kohteisiin kohdistettujen rakennusten avulla kohdetyypin
+    
+    Args:
+        session: Tietokantaistunto
+        poimintapvm: Tarkasteltavien kohteiden alkupäivämäärä olisi ennen tämän päivän vuotta
+
+    Returns:
+        Kohteet: päivitetyt kohteet
+    """
+
+    maxYear = poimintapvm.year
+
+
+    print(f"\n\nEtsitään kohteita, joiden alkupvm on < {datetime.date(maxYear, 1, 1)}")
+
+    updated_kohteet = set()
+
+    try:
+        # Hae olemassa olevat kohteet ennen poimintapäivän vuotta
+        kohteet = (
+            session.query(Kohde)
+            .join(KohteenRakennukset, KohteenRakennukset.kohde_id == Kohde.id)
+            .filter(Kohde.kohdetyyppi_id == 8, Kohde.alkupvm < datetime.date(maxYear, 1, 1))
+            .all()
+        )
+        
+        print(f"Löydetty {len(kohteet)} vanhaa muuta kohdetta")
+        
+        for kohde in kohteet:
+            print(f"\n\nKohde ID: {kohde.id}, Tyyppi: {kohde.kohdetyyppi_id}")
+            original_kohdetyyppi = kohde.kohdetyyppi_id
+            
+            # Hae kohteen rakennukset
+            rakennus_query = (
+                select(
+                    Rakennus.id, 
+                    Rakennus.prt, 
+                    Rakennus.rakennusluokka_2018, 
+                    Rakennus.rakennuksenkayttotarkoitus_koodi, 
+                    Rakennus.huoneistomaara, 
+                    Rakennus.rakennuksenolotila_koodi
+                )
+                .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
+                .where(KohteenRakennukset.kohde_id == kohde.id)
+            )
+            rakennukset = session.execute(rakennus_query).all()
+            print(f"- Rakennukset: {[r[1] for r in rakennukset]}")
+            
+            found_asuinkiinteisto = False
+            
+            for rakennus_tiedot in rakennukset:  
+                # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
+                asukkaat = set(session.query(RakennuksenVanhimmat)
+                    .filter(RakennuksenVanhimmat.rakennus_id == rakennus_tiedot.id)
+                    .all())     
+                building_type = determine_kohdetyyppi(session, rakennus_tiedot, asukkaat)
+                print(f"Tarkastelussa kohdetyypin arvo {original_kohdetyyppi} vs {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} prt:llä {rakennus_tiedot}")
+                
+                if building_type == KohdeTyyppi.ASUINKIINTEISTO:
+                    if building_type != original_kohdetyyppi:
+                        print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} asuinkiinteistö")
+                        kohde.kohdetyyppi_id = codes.kohdetyypit[building_type].id
+                        updated_kohteet.add(kohde.id)
+
+                # Jos yksikään rakennus ei ole asuinkiinteistö, asetetaan tyypiksi MUU
+                if not found_asuinkiinteisto:
+                    new_kohdetyyppi = codes.kohdetyypit[KohdeTyyppi.MUU]
+                    if new_kohdetyyppi.id != original_kohdetyyppi:
+                        print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {new_kohdetyyppi.id} kohteelle {kohde.id} ei asuinkiinteistö")
+                        setattr(kohde, 'kohdetyyppi_id', new_kohdetyyppi.id)
+                        updated_kohteet.add(kohde.id)
+        
+        if len(updated_kohteet) > 0:
+            print(f"Päivitetty {len(updated_kohteet)} kohdetta")
+            session.flush()        
+    except NoResultFound:
+        updated_kohteet = []
+        
+    return updated_kohteet
+
 
 def update_or_create_kohde_from_buildings(
     session: Session,
@@ -1489,8 +1583,9 @@ def update_or_create_kohde_from_buildings(
         if isinstance(rakennustiedot, tuple):
             rakennus_ids.add(rakennustiedot[0].id)
             rakennus_prts.add(rakennustiedot[0].prt)
-            print(f"DEBUG: Tuple rakennus {rakennus.id} data:", rakennus.__dict__)
+            print(f"DEBUG: Tuple rakennus {rakennus.id}, {rakennus.prt} data:", rakennus.__dict__)
         else:
+            print(f"DEBUG: not Tuple rakennus {rakennustiedot.id}, {rakennustiedot.prt}")
             rakennus_ids.add(rakennustiedot.id)
             rakennus_prts.add(rakennustiedot.prt)
 

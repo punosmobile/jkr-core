@@ -57,6 +57,7 @@ from .services.kohde import (
     find_kohde_by_prt,
     find_kohteet_by_prt,
     get_or_create_multiple_and_uninhabited_kohteet,
+    check_and_update_old_other_building_kohde_kohdetyyppi,
     get_or_create_single_asunto_kohteet,
     get_ulkoinen_asiakastieto,
     update_kohde,
@@ -282,6 +283,7 @@ def import_dvv_kohteet(
 
     # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)  
     if perusmaksutiedosto:
+        print(f"\nLuodaan perusmaksurekisterin kohteet...")
         logger.info("\nLuodaan perusmaksurekisterin kohteet...")
         try:
             perusmaksukohteet = create_perusmaksurekisteri_kohteet(
@@ -299,6 +301,7 @@ def import_dvv_kohteet(
             logger.error(f"Virhe perusmaksurekisterin käsittelyssä: {str(e)}")
             raise
     else:
+        print(f"Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
@@ -322,13 +325,17 @@ def import_dvv_kohteet(
     logger.info(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
     print(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
 
+    # 4. Vanhat yhden rakennuksen kohteet
+    paivitetut_rakennus_kohteet = check_and_update_old_other_building_kohde_kohdetyyppi(session, poimintapvm)
+    session.commit()
+
     # Yhteenveto
     total_kohteet = (
         (len(perusmaksukohteet) if 'perusmaksukohteet' in locals() else 0) +
         len(single_asunto_kohteet) + 
         len(multiple_and_uninhabited_kohteet)
     )
-    print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
+    print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta ja päivitetty {len(paivitetut_rakennus_kohteet)} vanhaa kohdetta")
     logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 
 
