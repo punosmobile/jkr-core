@@ -1453,15 +1453,16 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
     poimintapvm: Optional[datetime.date]
 ) -> List[int]:
     """
-    Etsii vanhat kohteet joilla on vain yksi rakennus ja joilla on väärä kohdetyyppi.
+    Etsii vanhat kohteet joilla on kohdetyyppi MUU
 
     Toiminta:
-    1. Hakee kannasta kohteet joilla on vain yksi rakennus
+    1. Hakee kannasta ennen poimintavuotta tuodut kohteet joilla on kohdetyyppinä MUU
     2. Tarkistaa kohteisiin kohdistettujen rakennusten avulla kohdetyypin
+    3. Päivittää kohdetyypin vastaamaan oikeaa tilannetta
     
     Args:
         session: Tietokantaistunto
-        poimintapvm: Tarkasteltavien kohteiden alkupäivämäärä olisi ennen tämän päivän vuotta
+        poimintapvm: Tarkasteltavien kohteiden alkupäivämäärä on ennen tämän päivän vuotta
 
     Returns:
         Kohteet: päivitetyt kohteet
@@ -1513,7 +1514,7 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
                     .filter(RakennuksenVanhimmat.rakennus_id == rakennus_tiedot.id)
                     .all())     
                 building_type = determine_kohdetyyppi(session, rakennus_tiedot, asukkaat)
-                print(f"Tarkastelussa kohdetyypin arvo {original_kohdetyyppi} vs {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} prt:llä {rakennus_tiedot}")
+                print(f"Tarkastelussa kohdetyypin arvo {original_kohdetyyppi} vs {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} prt:llä {rakennus_tiedot.prt}")
                 
                 if building_type == KohdeTyyppi.ASUINKIINTEISTO:
                     if building_type != original_kohdetyyppi:
