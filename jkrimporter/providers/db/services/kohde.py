@@ -309,7 +309,7 @@ def find_kohteet_by_prt(
         try:
             kohteet = session.execute(query).all()
         except NoResultFound:
-            print("Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
+            print("Ei löytynyt kohdetta virheen takia, prt: {kompostoija.rakennus}")
             not_found_prts.append(kompostoija.rakennus)
             continue
 
