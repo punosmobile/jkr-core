@@ -146,8 +146,6 @@ log_exec "jkr create_dvv_kohteet 28.1.2022 ../data/Perusmaksuaineisto.xlsx" \
         "logs/kohteet/perusmaksu_kohteet.log" \
         "Kohteiden luonti perusmaksuaineistosta"
 
-sleep 6m # Odotetaan jotta kohteet on varmasti luotu ennen seuraavia vaiheita
-
 # Vaihe 6: HAPA-aineiston tuonti
 export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2022.csv'
 

@@ -108,8 +108,6 @@ log_exec "jkr create_dvv_kohteet 28.1.2023" \
         "logs/kohteet/dvv_kohteet.log" \
         "Kohteiden luonti"
 
-sleep 6m # Odotetaan jotta kohteet on varmasti luotu ennen seuraavia vaiheita
-
 # Tuodaan HAPA-aineisto
 echo "Tuodaan HAPA-aineisto 2023..."
 export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2023.csv'
