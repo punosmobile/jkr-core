@@ -290,10 +290,11 @@ def find_kohteet_by_prt(
         print(f"Kompostoija: {kompostoija_info}")
         query = (
             select(Kohde.id, Osapuoli.nimi)
-            .join(Kohde.rakennus_collection)
-            .join(KohteenOsapuolet, isouter=True)
-            .join(Osapuoli, isouter=True)
-            .join(Osoite, isouter=True)
+            .join(KohteenRakennukset, KohteenRakennukset.kohde_id == Kohde.id)
+            .join(Rakennus, Rakennus.id == KohteenRakennukset.rakennus_id)
+            .join(KohteenOsapuolet, KohteenOsapuolet.kohde_id == Kohde.id, isouter=True)
+            .join(Osapuoli, Osapuoli.id == KohteenOsapuolet.osapuoli_id, isouter=True)
+            .join(Osoite, Osoite.rakennus_id == Rakennus.id, isouter=True)
             .where(
                 Kohde.voimassaolo.overlaps(
                     DateRange(
@@ -309,7 +310,7 @@ def find_kohteet_by_prt(
         try:
             kohteet = session.execute(query).all()
         except NoResultFound:
-            print("Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
+            print(f"Ei löytynyt kohdetta virheen takia, prt: {kompostoija.rakennus}")
             not_found_prts.append(kompostoija.rakennus)
             continue
 
@@ -336,7 +337,7 @@ def find_kohteet_by_prt(
             kohde = session.get(Kohde, kohde_id)
             found_kohteet.append(kohde)
         else:
-            print("Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
+            print(f"Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
             not_found_prts.append(kompostoija.rakennus)
 
     return found_kohteet, not_found_prts

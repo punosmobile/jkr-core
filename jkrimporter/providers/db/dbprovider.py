@@ -617,7 +617,7 @@ class DbProvider:
                 for ilmoitus in ilmoitus_list:
                     kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
                     if kompostorin_kohde:
-                        print(f"Kompostorin kohde: {kompostorin_kohde}")
+                        print(f"Kompostorin kohde: {kompostorin_kohde.id} prt: {ilmoitus.sijainti_prt}")
                         osapuoli = create_or_update_komposti_yhteyshenkilo(
                             session, kompostorin_kohde, ilmoitus
                         )
