@@ -79,3 +79,22 @@ All notable changes to this project will be documented in this file.
 - Velvoite processing repaired:
   - Fixed velvoite processing
   - Fixed Kohteiden loppupvm handling
+
+## [0.6.3] - 2025-03-25
+
+### Added
+- Kohdetyyppi updates:
+  - Kohteet that have changes in their rakennukset will now recheck and update their kohdetyyppi_id
+
+### Fixed
+
+- Kompostori processing fixes:
+  - Kompostorin kohteet will no longer fail depending on a SQLAlchemy coin flip
+  - Fixed a rare crash where sheet header was treated as a number instead of text
+
+### Changes
+- Log and comment changes:
+  - Added slightly more identifiable log statements to several sections of code for improved debugging
+  - Updated some outdated comments to match current functionality
+- Report changes:
+  - Report will now filter kunta based on kiinteistotunnus instead of postinumero
