@@ -680,35 +680,52 @@ def _get_identifiers(osapuolet: Union[Set[Osapuoli], FrozenSet[RakennuksenOmista
     return identifiers
 
 def _match_ownership_or_residents(
-    building1: "Rakennustiedot",
+    cluster_buildings: Set["Rakennustiedot"],
     building2: "Rakennustiedot" 
 ) -> bool:
     """
-    Tarkistaa, onko rakennuksilla sama omistaja TAI asukas.
+    Tarkistaa, onko rakennusryhmällä ja rakennuksella sama omistaja JA asukas.
     Vertailee sekä ID:n että tunnisteen (y-tunnus/henkilötunnus) perusteella.
     """
 
-    # Kerää omistajien tunnisteet
-    owners1 = _get_identifiers(building1[2])
-    owners2 = _get_identifiers(building2[2])
-    
-    # Kerää asukkaiden tunnisteet
-    residents1 = _get_identifiers(building1[1])
-    residents2 = _get_identifiers(building2[1])
-    
-    # Palauta True jos joko omistajissa TAI asukkaissa on yhteinen tunniste
-    # if bool(
-    #     (owners1 and owners2 and (owners1 & owners2)) or
-    #     (residents1 and residents2 and (residents1 & residents2))
-    # ):
-    #     print(f"{building1[0].prt} {building2[0].prt} Match by: {owners1} {owners2} {residents1} {residents2}")
-    # else:
-    #     print(f"{building1[0].prt} {building2[0].prt} No match by: {owners1} {owners2} {residents1} {residents2}")
-    
-    return bool(
-        (owners1 and owners2 and (owners1 & owners2)) or
-        (residents1 and residents2 and (residents1 & residents2))
-    )
+    yhteensopivat: Set[bool] = set()
+   
+    for building in cluster_buildings:
+         # Kerää omistajien tunnisteet
+        owners1 = _get_identifiers(building[2])
+        owners2 = _get_identifiers(building2[2])
+
+        # Kerää asukkaiden tunnisteet
+        residents1 = _get_identifiers(building[1])
+        residents2 = _get_identifiers(building2[1])
+
+        print(f"asukkaat 1: {residents1} {len(residents1)}, 2: {residents2} {len(residents2)}")
+        if len(residents1) > 0 and len(residents2) > 0:
+            print(f"yhteiset asukkaat: {residents1 and residents2 and (residents1 & residents2)}")
+            print(f"yhteiset omistajat: {owners1 and owners2 and (owners1 & owners2)}")
+            yhteensopivat.add(bool(
+                (owners1 and owners2 and (owners1 & owners2)) and
+                (residents1 and residents2 and (residents1 & residents2))
+            ))
+
+        # Palauta True jos joko omistajissa JA asukkaissa on yhteinen tunniste
+        # if bool(
+        #     (owners1 and owners2 and (owners1 & owners2)) or
+        #     (residents1 and residents2 and (residents1 & residents2))
+        # ):
+        #     print(f"{building1[0].prt} {building2[0].prt} Match by: {owners1} {owners2} {residents1} {residents2}")
+        # else:
+        #     print(f"{building1[0].prt} {building2[0].prt} No match by: {owners1} {owners2} {residents1} {residents2}")
+        print(f"omistajavertaus 1. {owners1} 2. {owners2}")
+        print(f"omistajavertaus osumat: {(owners1 and owners2 and (owners1 & owners2))}")
+        yhteensopivat.add(bool(
+            (owners1 and owners2 and (owners1 & owners2))
+        ))
+
+    if False in yhteensopivat:
+        return False
+
+    return True
 
 
 def _normalize_address(address: "Osoite") -> str:
@@ -2504,10 +2521,10 @@ def _cluster_rakennustiedot(
 
                 # Tarkista omistajat/asukkaat
                 match_found = False
-                for cluster_building in cluster:
-                    if _match_ownership_or_residents(cluster_building, other_rakennustiedot):
-                        match_found = True
-                        break
+                if _match_ownership_or_residents(cluster, other_rakennustiedot):
+                    match_found = True
+                    print(f"- Omistaja tai asukkaat täsmää")
+
                 if not match_found:
                     print("- Ei yhteisiä omistajia/asukkaita")
                     continue
