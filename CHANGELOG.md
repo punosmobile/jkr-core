@@ -98,3 +98,11 @@ All notable changes to this project will be documented in this file.
   - Updated some outdated comments to match current functionality
 - Report changes:
   - Report will now filter kunta based on kiinteistotunnus instead of postinumero
+
+## [0.6.4] - 2025-04-4
+
+
+### Fixed
+
+- Building clustering logic fix 
+  - Compare whole cluster to each potential building as a whole instead of per building
