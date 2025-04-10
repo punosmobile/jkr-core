@@ -70,3 +70,6 @@ jkrconfig
 pg_service.conf
 .aider*
 .env
+
+#rooliraportit
+roles_report*
