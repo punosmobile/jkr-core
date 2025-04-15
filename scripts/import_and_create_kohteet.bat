@@ -34,6 +34,12 @@ if "%QGIS_BIN_PATH%"=="" (
     exit /b1
 )
 
+if "%JKR_PASSWORD%"=="" (
+    echo Error: USER variable not set in .env file
+    exit /b 1
+)
+
+set PGPASSWORD=%JKR_PASSWORD%
 
 REM Tarkistetaan, että dvv-aineisto on syötetty
 IF "%~1"=="" (
@@ -88,6 +94,7 @@ ECHO Asukkaat
 
 ECHO Muunnetaan jkr-muotoon...
 
-"%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v formatted_date="%formatted_date%" -f "./scripts/import_dvv.sql"
+ECHO "%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v formatted_date="%formatted_date%" -f ".\scripts\import_dvv.sql"
+"%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v formatted_date="%formatted_date%" -f ".\scripts\import_dvv.sql"
 
 endlocal
