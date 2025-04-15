@@ -94,7 +94,6 @@ ECHO Asukkaat
 
 ECHO Muunnetaan jkr-muotoon...
 
-ECHO "%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v formatted_date="%formatted_date%" -f ".\scripts\import_dvv.sql"
 "%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v formatted_date="%formatted_date%" -f ".\scripts\import_dvv.sql"
 
 endlocal
