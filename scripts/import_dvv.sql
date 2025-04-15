@@ -189,8 +189,7 @@ päivä"::text, 'YYYYMMDD') else null end as kayttoonotto_pvm,
     to_date("käytössä_olotilanteen muutospäivä"::text, 'YYYYMMDD') as kaytossaolotilanteenmuutos_pvm,
     "käyttö_tarkoitus" as rakennuksenkayttotarkoitus_koodi,
     "käytös_säolo_tilanne" as rakennuksenolotila_koodi,
-    "rakennus_
-luokka" as rakennusluokka_2018,
+    "rakennus_luokka" as rakennusluokka_2018,
     true as found_in_dvv
 from jkr_dvv.rakennus
 -- update all existing buildings
