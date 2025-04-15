@@ -2,7 +2,7 @@
 
 -- OSA 1: ROOLIT TYYPPEINEEN JA RYHMÄJÄSENYYDET
 \echo === ROLES AND GROUP MEMBERSHIPS ===
-\copy (SELECT 'rolname','tyyppi','kuuluu_ryhmiin' UNION ALL SELECT rol.rolname, CASE WHEN rol.rolcanlogin THEN 'käyttäjä' ELSE 'käyttöoikeusryhmä' END, COALESCE((SELECT string_agg(gr.rolname, ', ') FROM pg_auth_members m JOIN pg_roles gr ON m.roleid = gr.oid WHERE m.member = rol.oid), '') FROM pg_roles rol ORDER BY rol.rolcanlogin DESC, rol.rolname) TO STDOUT WITH CSV
+\copy (SELECT * FROM (SELECT 'rolname' AS rolname, 'tyyppi' AS tyyppi, 'kuuluu_ryhmiin' AS kuuluu_ryhmiin, 'voi_kirjautua' AS voi_kirjautua, NULL::boolean AS login_order UNION ALL SELECT r.rolname, CASE WHEN r.rolcanlogin THEN 'käyttäjä' ELSE 'käyttöoikeusryhmä' END, COALESCE(string_agg(g.rolname, ', '), ''), r.rolcanlogin::text, r.rolcanlogin FROM pg_roles r LEFT JOIN pg_auth_members m ON r.oid = m.member LEFT JOIN pg_roles g ON g.oid = m.roleid GROUP BY r.rolname, r.rolcanlogin) AS data ORDER BY login_order DESC, rolname) TO STDOUT WITH CSV
 
 \echo
 -- OSA 2: ROOLIEN PERUSTIEDOT
