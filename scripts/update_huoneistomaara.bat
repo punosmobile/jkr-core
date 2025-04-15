@@ -43,6 +43,14 @@ if "%QGIS_BIN_PATH%"=="" (
     echo Error: QGIS_BIN_PATH variable not set in .env file
     exit /b1
 )
+
+if "%JKR_PASSWORD%"=="" (
+    echo Error: USER variable not set in .env file
+    exit /b 1
+)
+
+set PGPASSWORD=%JKR_PASSWORD%
+
 SET EXCEL_FILE=%~1
 
 ECHO Luetaan huoneistomäärät

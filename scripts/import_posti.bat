@@ -38,6 +38,13 @@ if "%QGIS_BIN_PATH%"=="" (
     exit /b 1
 )
 
+if "%JKR_PASSWORD%"=="" (
+    echo Error: USER variable not set in .env file
+    exit /b 1
+)
+
+set PGPASSWORD=%JKR_PASSWORD%
+
 ECHO Kunnat ja postinumerot
 REM # Kunnat ja postinumerot on tuotava tietokantaan ennen dvv-aineiston tuontia
 "%QGIS_BIN_PATH%\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f "import_posti.sql"

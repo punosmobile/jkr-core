@@ -58,6 +58,13 @@ if "%QGIS_BIN_PATH%"=="" (
     exit /b1
 )
 
+if "%JKR_PASSWORD%"=="" (
+    echo Error: USER variable not set in .env file
+    exit /b 1
+)
+
+set PGPASSWORD=%JKR_PASSWORD%
+
 ECHO Rakennukset
 "%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln rakennus "../data/dvv/DVV_rakennukset_uusi.xlsx" "R1 rakennus"
 

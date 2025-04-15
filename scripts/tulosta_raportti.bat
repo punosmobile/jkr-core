@@ -34,6 +34,14 @@ if "%QGIS_BIN_PATH%"=="" (
     exit /b1
 )
 
+if "%JKR_PASSWORD%"=="" (
+    echo Error: USER variable not set in .env file
+    exit /b 1
+)
+
+set PGPASSWORD=%JKR_PASSWORD%
+
+
 REM Tarkistetaan parametrit
 IF "%~5"=="" (
    ECHO Anna parametrit järjestyksessä
