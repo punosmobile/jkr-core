@@ -106,3 +106,12 @@ All notable changes to this project will be documented in this file.
 
 - Building clustering logic fix 
   - Compare whole cluster to each potential building as a whole instead of per building
+
+## [0.6.5] - 2025-04-16
+
+### Added
+- Added scripts for checking database role assignments and resetting database
+
+### Fixed
+
+- Fixes to bat file password handling
