@@ -12,7 +12,7 @@ import shutil
 #      rip_path: Path to file or directory to process
 #      must_contain: Set of words or wildcards that a row must contain at least one of.
 #                    Wildcards are written like 156* and check for starts of each word on a row
-#      filter_fields: JSON-list of filtteröitävistä kentistä * loppuisille hakusanoille. Voi olla joko suora JSON-merkkijono tai @-alkuinen tiedostopolku'
+#      filter_fields: JSON-lista of filtteröitävistä kentistä * loppuisille hakusanoille. Voi olla joko suora JSON-merkkijono tai @-alkuinen tiedostopolku'
 
 def clean_old_ripped_files(path: Path) -> None:
     """
@@ -69,7 +69,9 @@ def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[
     
     Args:
         file_path: Path to the CSV file
-        must_contain: Set of words that a row must contain at least one of
+        must_contain: Set of words that a row must contain at least one of (any column)
+        must_contain_wild: Prefix strings to match only in specified filter_fields
+        filter_fields: Column headers to apply prefix-matching to
     """
     try:
         # Try different encodings in order
@@ -92,14 +94,30 @@ def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[
         # Keep header and matching lines
         kept_lines = [content[0]]  # Always keep header
         
+        # Store the header row
+        header_row = kept_lines[0].strip().split(';')
+
+        # Get header row indexes
+        col_index_to_name = {i: name for i, name in enumerate(header_row)}
+        wildcard_column_indexes = [i for i, name in col_index_to_name.items() if name in filter_fields]
+
+        if not wildcard_column_indexes:
+            print(f'\nEi löytynyt villikorttiotsikoita \nfilter: {filter_fields} \nfile: {file_path}')
+        
         for line in content[1:]:  # Skip header when checking
             columns = line.strip().split(';')  # Adjust delimiter if needed
     
+            # 1. Match any exact word in any column
             if any(word in val.lower() for val in columns for word in must_contain):
                 kept_lines.append(line)
                 continue  # Already matched
 
-            if any(val.startswith(prefix) for val in columns for prefix in must_contain_wild):
+            # 2. Match wildcard prefixes only in selected columns
+            if any(
+                not columns[i] is None and columns[i].startswith(prefix)
+                for i in wildcard_column_indexes if i < len(columns)
+                for prefix in must_contain_wild
+            ):
                 kept_lines.append(line)
 
         if len(kept_lines) == 1:
@@ -155,9 +173,16 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
             print(f"Välilehdellä {max_row} riviä")
             
             # Store the header row
-            header_row = next(ws.iter_rows(min_row=1, max_row=1))
-            contains_wildcard_fields = any(header in filter_fields for header in header_row)
-            print(contains_wildcard_fields)
+            header_row = []
+            for cell in ws[1]:
+                header_row.append(cell.value)
+
+            # Get header row indexes
+            col_index_to_name = {i: name for i, name in enumerate(header_row)}
+            wildcard_column_indexes = [i for i, name in col_index_to_name.items() if name in filter_fields]
+
+            if not wildcard_column_indexes:
+                print(f'\nEi löytynyt villikorttiotsikoita \nfile: {source_file} sheet: {sheet_name}')
 
             # Find matching rows and copy them to a list
             matching_rows = []
@@ -170,14 +195,21 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
                 if current_row % 1000 == 0:
                     print(f"Käsitelty {current_row}/{max_row} riviä...")
                 
-                row_text = ' '.join(str(cell.value or '').lower() for cell in row)
-                row_word_list = row_text.split(' ')
+                row_word_list = []
+                for cell in row:
+                    row_word_list.append(cell.value)
+
                 if any(word in row_word_list for word in must_contain):
                     matching_rows.append(row)
                     file_has_matches = True
                     continue
                     
-                if contains_wildcard_fields and any(any(word.startswith(prefix) for prefix in must_contain_wild) for word in row_word_list):
+                # 2. Match wildcard prefixes only in selected columns
+                if any(
+                    not row_word_list[i] is None and row_word_list[i].startswith(prefix)
+                    for i in wildcard_column_indexes if i < len(row_word_list)
+                    for prefix in must_contain_wild
+                ):
                     matching_rows.append(row)
                     file_has_matches = True
                     continue
