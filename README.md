@@ -259,20 +259,6 @@ python cherrypick_data.py --rip_path [File or directory] --must_contain [postalC
 - `python cherrypick_data.py --rip_path ../data/ --must_contain lahti heinola 171*`
 - `python cherrypick_data.py --rip_path ../data/ --must_contain 17100 17200`
 
- Pseudofields.json should look like this:
- `[
-    "Henkilötunnus",
-    "Omistajan nimi",
-    "Nimi",
-    "Osoite",
-    "Huoneiston vanhin asukas (henkilötunnus)",
-    "Sukunimi",
-    "Etunimi",
-    "Etunimet",
-    "Toimijanimi",
-    "Haltijannimi"
-]`
-
 ## Testing
 
 The testing procedures are under construction. Currently, the tests can be run only in a Windows system. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.
