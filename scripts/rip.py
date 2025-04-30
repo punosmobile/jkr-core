@@ -2,8 +2,17 @@
 import argparse
 from pathlib import Path
 import sys
-import pandas as pd
 import shutil
+
+#
+#   Example usage:python rip.py --rip_path ../data/ --must_contain lahti heinola 171*
+#   Example usage:python rip.py --rip_path ../data/ --must_contain 17100 17200
+
+#   Args:
+#      rip_path: Path to file or directory to process
+#      must_contain: Set of words or wildcards that a row must contain at least one of.
+#      Wildcards are written like 156* and check for starts of each word on a row
+#
 
 def clean_old_ripped_files(path: Path) -> None:
     """
@@ -55,7 +64,7 @@ def copy_excel_files(path: Path) -> None:
 def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[str]) -> None:
     """
     Process a CSV file, keeping only rows that contain at least one
-    of the must_contain words (case insensitive). Preserves original lines exactly.
+    of the must_contain words or have a word that starts with given wildcards (case insensitive). Preserves original lines exactly.
     Skip files that don't contain any of the words.
     
     Args:
