@@ -2,6 +2,7 @@
 import argparse
 from pathlib import Path
 import sys
+import json
 import shutil
 
 #   python rip.py --rip_path ../data/ --must_contain lahti heinola 171*
@@ -10,7 +11,8 @@ import shutil
 #   Args:
 #      rip_path: Path to file or directory to process
 #      must_contain: Set of words or wildcards that a row must contain at least one of.
-#      Wildcards are written like 156* and check for starts of each word on a row
+#                    Wildcards are written like 156* and check for starts of each word on a row
+#      filter_fields: JSON-list of filtteröitävistä kentistä * loppuisille hakusanoille. Voi olla joko suora JSON-merkkijono tai @-alkuinen tiedostopolku'
 
 def clean_old_ripped_files(path: Path) -> None:
     """
@@ -59,7 +61,7 @@ def copy_excel_files(path: Path) -> None:
     except Exception as e:
         print(f"Error while copying Excel files: {str(e)}", file=sys.stderr)
 
-def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[str]) -> None:
+def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[str], filter_fields: set[str]) -> None:
     """
     Process a CSV file, keeping only rows that contain at least one
     of the must_contain words or have a word that starts with given wildcards (case insensitive). Preserves original lines exactly.
@@ -117,7 +119,7 @@ def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[
     except Exception as e:
         print(f"Error processing CSV {file_path}: {str(e)}", file=sys.stderr)
 
-def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: set[str]) -> None:
+def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: set[str], filter_fields: set[str]) -> None:
     """
     Process an Excel file by copying matching rows to the end and then removing original rows.
     
@@ -154,7 +156,9 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
             
             # Store the header row
             header_row = next(ws.iter_rows(min_row=1, max_row=1))
-            
+            contains_wildcard_fields = any(header in filter_fields for header in header_row)
+            print(contains_wildcard_fields)
+
             # Find matching rows and copy them to a list
             matching_rows = []
             current_row = 0
@@ -173,7 +177,7 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
                     file_has_matches = True
                     continue
                     
-                if any(any(word.startswith(prefix) for prefix in must_contain_wild) for word in row_word_list):
+                if contains_wildcard_fields and any(any(word.startswith(prefix) for prefix in must_contain_wild) for word in row_word_list):
                     matching_rows.append(row)
                     file_has_matches = True
                     continue
@@ -211,7 +215,7 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
     except Exception as e:
         print(f"Virhe Excel-tiedoston {file_path} käsittelyssä: {str(e)}", file=sys.stderr)
 
-def process_file(file_path: Path, must_contain: set[str], must_contain_wild: set[str]) -> None:
+def process_file(file_path: Path, must_contain: set[str], must_contain_wild: set[str], filter_fields: set[str]) -> None:
     """
     Process a single file based on its extension.
     
@@ -226,13 +230,13 @@ def process_file(file_path: Path, must_contain: set[str], must_contain_wild: set
     suffix = file_path.suffix.lower()
     
     if suffix == '.csv':
-        process_csv(file_path, must_contain, must_contain_wild)
+        process_csv(file_path, must_contain, must_contain_wild, filter_fields)
     elif suffix in ['.xlsx', '.xls']:
-        process_excel(file_path, must_contain, must_contain_wild)
+        process_excel(file_path, must_contain, must_contain_wild, filter_fields)
     else:
         print(f"Skipping unsupported file type: {file_path}", file=sys.stderr)
 
-def process_directory(dir_path: Path, must_contain: set[str], must_contain_wild: set[str]) -> None:
+def process_directory(dir_path: Path, must_contain: set[str], must_contain_wild: set[str], filter_fields: set[str]) -> None:
     """
     Recursively process all supported files in directory and its subdirectories.
     
@@ -244,7 +248,7 @@ def process_directory(dir_path: Path, must_contain: set[str], must_contain_wild:
         # Recursively iterate through all files in directory and subdirectories
         for file_path in dir_path.rglob('*'):
             if file_path.is_file():
-                process_file(file_path, must_contain, must_contain_wild)
+                process_file(file_path, must_contain, must_contain_wild, filter_fields)
     except Exception as e:
         print(f"Error processing directory {dir_path}: {str(e)}", file=sys.stderr)
 
@@ -291,13 +295,32 @@ def main():
         required=True,
         help='List of words - rows not containing any of these words will be removed'
     )
-    
+    parser.add_argument(
+        '--filter_fields',
+        required=False,
+        default='@cherrypickfields.json',
+        help='JSON-muotoinen lista filtteröitävistä kentistä * loppuisille hakusanoille. Voi olla joko suora JSON-merkkijono tai @-alkuinen tiedostopolku'
+    )
+
     # Parse arguments
     args = parser.parse_args()
-    
+
+    if args.filter_fields.startswith('@'):
+        # Lue kentät JSON-tiedostosta
+        with open(args.filter_fields[1:], 'r', encoding='utf-8') as f:
+            filter_fields = json.load(f)
+    else:
+        # Parsitaan suoraan JSON-merkkijonosta
+        filter_fields: set[str] = json.loads(args.filter_fields)
+
+    print(filter_fields)
+
+    if len(filter_fields) == 0:
+        parser.error("Anna vähintään yksi rajoittava kenttä.")
+
     # Convert path to Path object
     path = Path(args.rip_path)
-    
+
     # Convert must_contain to set for faster lookups
     must_contain_raw: set[str] = set(args.must_contain)
     print(must_contain_raw)
@@ -306,20 +329,20 @@ def main():
     must_contain = {term.lower() for term in must_contain_raw if not term.endswith('*')}
     # Clean old ripped files before processing
     clean_old_ripped_files(path)
-    
+
     # First, create _ripped copies of Excel files
     copy_excel_files(path)
-    
+
     # Process path based on whether it's a file or directory
     if path.is_file():
         # If it's an Excel file, process the _ripped version instead
         if path.suffix.lower() in ['.xlsx', '.xls']:
             ripped_path = path.parent / f"{path.stem}_ripped{path.suffix}"
-            process_file(ripped_path, must_contain, must_contain_wild)
+            process_file(ripped_path, must_contain, must_contain_wild, filter_fields)
         else:
-            process_file(path, must_contain, must_contain_wild)
+            process_file(path, must_contain, must_contain_wild, filter_fields)
     elif path.is_dir():
-        process_directory(path, must_contain, must_contain_wild)
+        process_directory(path, must_contain, must_contain_wild, filter_fields)
     else:
         print(f"Error: {path} is neither a file nor directory", file=sys.stderr)
         sys.exit(1)
