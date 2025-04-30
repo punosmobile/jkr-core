@@ -6,6 +6,7 @@ import os
 import hashlib
 import json
 import sys
+import csv
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -14,7 +15,7 @@ from cryptography.hazmat.backends import default_backend
 DEFAULT_PASSW = os.getenv('PSEUDO_PASSW', 'default-passw-value-never-use-this-in-production')
 DEFAULT_SALT = os.getenv('PSEUDO_SALT', 'default-salt-value-never-use-this-in-production')
 
-def process_directory(dir_path: Path, cipher: Cipher, de_crypt: bool, output_suffix: str = None) -> None:
+def process_directory(dir_path: Path, cipher: Cipher, pseudo_fields: set[str], de_crypt: bool, output_suffix: str = None) -> None:
     """
     Recursively process all supported files in directory and its subdirectories.
     
@@ -28,9 +29,11 @@ def process_directory(dir_path: Path, cipher: Cipher, de_crypt: bool, output_suf
         # Recursively iterate through all files in directory and subdirectories
         for file_path in dir_path.rglob('*'):
             if file_path.is_file() and file_path.suffix.lower() in ['.xlsx', '.xls']:
-                process_excel(file_path, cipher, de_crypt, output_suffix)
+                process_excel(file_path, cipher, pseudo_fields, de_crypt, output_suffix)
+            elif file_path.is_file() and file_path.suffix.lower() == '.csv':
+                process_csv(file_path, cipher, pseudo_fields, de_crypt, output_suffix)
             else:
-                print(f"{file_path} is not an excel file, skipping")
+                print(f"{file_path} is not an excel or csv file, skipping")
     except Exception as e:
         raise Exception(f"Error processing directory {dir_path}: {str(e)}")
 
@@ -69,16 +72,20 @@ def pseudonymize(value, cipher):
         value: Value to Pseudonymize
         cipher: Cipher used to encrypt a value
     """
-    if pd.isna(value):
-        return value
-        
-    value_str = str(value)
-    encryptor = cipher.encryptor()
+    try:
+        if pd.isna(value):
+            return value
+            
+        value_str = str(value)
+        encryptor = cipher.encryptor()
 
-    padder = padding.PKCS7(128).padder()
-    padded_data = padder.update(value_str.encode()) + padder.finalize()
-    ct = encryptor.update(padded_data) + encryptor.finalize()
-    return base64.urlsafe_b64encode(ct).decode()
+        padder = padding.PKCS7(128).padder()
+        padded_data = padder.update(value_str.encode()) + padder.finalize()
+        ct = encryptor.update(padded_data) + encryptor.finalize()
+        return base64.urlsafe_b64encode(ct).decode()
+    except Exception as e:
+        print(f"Kohdattiin virhe pseudonymisoinnissa: {e}")
+        return ""
 
 def deanonymize(value: str, cipher: Cipher) -> str:
     """
@@ -125,9 +132,10 @@ def process_sheet(df, fields_to_pseudonymize, cipher, de_crypt: bool = False):
             df[field] = df[field].apply(lambda x: deanonymize(x, cipher))
     return df
 
-def get_output_filename(input_file, output_suffix, de_crypt: bool = False):
+def get_output_filename(input_file: Path, output_suffix, de_crypt: bool = False):
     """
-    Luo output-tiedoston nimen input-tiedoston ja output nimilisäyksen pohjalta
+    Luo output-tiedoston nimen input-tiedoston ja output nimilisäyksen pohjalta. 
+    Palauttaa skip jos tiedoston nimessä on jo annettu output_suffix
 
     Args:
         input_file: file that is being processed
@@ -141,20 +149,28 @@ def get_output_filename(input_file, output_suffix, de_crypt: bool = False):
         else:
             output = "_palautettu"
 
+    if output in str(input_file):
+        return 'skip'
+
     input_path = Path(input_file)
     return str(input_path.parent / f"{input_path.stem}{output}{input_path.suffix}")
 
-def process_excel(input_file: Path, cipher: Cipher, de_crypt: bool = False, output_file_suffix: str = None):
+def process_excel(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_crypt: bool = False, output_file_suffix: str = None):
     """
     Lukee Excel-tiedoston ja pseudonymisoi määritellyt kentät kaikilta sheeteiltä, joista ne löytyvät
     
     Args:
         input_file: Polku syötetiedostoon
-        passw: Salasana-arvo salaamiseen
+        cipher: Cipher salaukseen
+        de_crypt: Enkryptataanko vaiko dekryptataanko tiedosto
         pseudo_fields: Sanakirja pseudonymisoitavista kentistä ja niiden maksimipituuksista
         output_file: Polku tulostiedostoon (valinnainen)
     """
     output_file = get_output_filename(input_file, output_file_suffix, de_crypt)
+
+    if output_file == 'skip':
+        print("Ohitetaan aiemmin käsitelty tiedosto.")
+        return
 
     # Lue kaikki sheetit
     print(f"Luetaan Excel-tiedostoa: {input_file}")
@@ -185,7 +201,82 @@ def process_excel(input_file: Path, cipher: Cipher, de_crypt: bool = False, outp
         print(f"Käsitellyt sheetit: {', '.join(processed_sheets)}")
     else:
         print("Huom: Yhtään pseudonymisoitavaa kenttää ei löytynyt mistään sheetistä!")
-        
+
+def process_csv(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_crypt: bool = False, output_file_suffix: str = None) -> None:
+    """
+    Process a CSV file, keeping only rows that contain at least one
+    of the must_contain words (case insensitive). Preserves original lines exactly.
+    Skip files that don't contain any of the words.
+    
+    Args:
+        file_path: Path to the CSV file
+        : Set of words that a row must contain at least one of
+    """
+
+    output_file = get_output_filename(input_file, output_file_suffix, de_crypt)
+
+    if output_file == 'skip':
+        print("Ohitetaan aiemmin käsitelty tiedosto.")
+        return
+
+    try:
+        # Try different encodings in order
+        encodings = ['utf-8', 'iso-8859-1', 'cp1252', 'latin1']
+        content = None
+        used_encoding = None
+
+        for encoding in encodings:
+            try:
+                with open(input_file, 'r', encoding=encoding) as f:
+                    content = f.readlines()
+                used_encoding = encoding
+                break
+            except UnicodeDecodeError:
+                continue
+
+        print(f'\n\nencoding: {used_encoding}')
+        if content is None:
+            raise Exception("Failed to read file with any encoding")
+
+        # Open source and output simultaneously, process each applicable column and save the results in a new file
+        with open(input_file, newline='\n', encoding=used_encoding) as infile, \
+             open(output_file, 'w', newline='\n', encoding=used_encoding) as outfile:
+
+            reader = csv.DictReader(infile, delimiter=';')
+
+            if reader.fieldnames is None:
+                print(f"Ohitetaan tyhjä tiedosto: {input_file}")
+                return
+
+            writer = csv.DictWriter(outfile, fieldnames=reader.fieldnames,extrasaction='ignore', delimiter=';')
+            writer.writeheader()
+
+            print(f"\nKäsitellään tiedosto: {input_file}")
+
+            rows = 0
+            for row in reader:
+                rows += 1
+                for field in pseudo_fields:
+
+                    if field in row.keys() and row[field] is not None:
+                        unexpected = set(row) - set(reader.fieldnames)
+                        if unexpected:
+                            print(f"Warning: Extra fields found in row: {unexpected}")
+
+                        if de_crypt is False:
+                            row[field] = pseudonymize(row[field],cipher)
+                        else:
+                            row[field] = deanonymize(row[field],cipher)
+
+                writer.writerow(row)
+
+            print(f"Rivejä: {rows}")
+
+        print(f"Processed {output_file} using {used_encoding} encoding")
+
+    except Exception as e:
+        print(f"Error processing CSV {input_file}: {str(e)}", file=sys.stderr)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -203,7 +294,7 @@ Esimerkkejä:
     parser.add_argument('--output_suffix', '-o', help='Tulostiedoston lisänimi (valinnainen)', default=None)
     parser.add_argument('--passw', '-p', help='Salasana-arvo pseudonymisointiin (valinnainen, oletuksena käyttää PSEUDO_PASSW ympäristömuuttujaa)', default=DEFAULT_PASSW)
     parser.add_argument('--salt', '-s', help='Suola-arvo, muodostaa salauksen salasanan kanssa', default=DEFAULT_SALT)
-    parser.add_argument('--descrypt', '-d', help='Palautetaanko syöte', default=False)
+    parser.add_argument('--decrypt', '-d', help='Palautetaanko syöte', default=False)
     parser.add_argument('--pseudo_fields', required=True,
                       help='JSON-muotoinen sanakirja pseudonymisoitavista kentistä ja niiden maksimipituuksista. Voi olla joko suora JSON-merkkijono tai @-alkuinen tiedostopolku')
 
@@ -218,6 +309,9 @@ Esimerkkejä:
         # Parsitaan suoraan JSON-merkkijonosta
         pseudo_fields = json.loads(args.pseudo_fields)
 
+    if len(pseudo_fields) == 0:
+        parser.error("Anna vähintään yksi käännettävä kenttä.")
+
     if not args.passw:
         parser.error("Salasana-arvoa ei ole määritetty! Käytä --passw argumenttia tai aseta PSEUDO_passw ympäristömuuttuja.")
 
@@ -225,32 +319,38 @@ Esimerkkejä:
         parser.error("Suola-arvoa ei ole määritetty! Käytä --salt argumenttia.")
 
     de_crypt_init = False
-    if (args.descrypt == "true"):
+    if args.decrypt == "true":
         print("decryptaus valittu")
         de_crypt_init = True
 
     path = Path(args.input_path)
     key = derive_key(args.passw, args.salt)
     base_cipher = get_cipher(key)
-    
+
     # Process path based on whether it's a file or directory
     if path.is_file():
         # If it's an Excel file, process the _ripped version instead
         if path.suffix.lower() in ['.xlsx', '.xls']:
-            
+
             if not args.output_suffix:
                 print("tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi.")
-                process_excel(path, base_cipher, de_crypt_init)
+                process_excel(path, base_cipher, pseudo_fields, de_crypt_init)
             else:
-                process_excel(path, base_cipher, de_crypt_init, args.output_suffix)
+                process_excel(path, base_cipher, pseudo_fields, de_crypt_init, args.output_suffix)
+        elif path.suffix.lower() == '.csv':
+            if not args.output_suffix:
+                print("tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi.")
+                process_csv(path, base_cipher, pseudo_fields, de_crypt_init)
+            else:
+                process_csv(path, base_cipher, pseudo_fields, de_crypt_init, args.output_suffix)
         else:
-            parser.error("Please supply a directory or excel file")
+            parser.error("Please supply a directory, excel or csv file")
     elif path.is_dir():
         if not args.output_suffix:
             print("tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi sen manuaalisesti")
-            process_directory(path, base_cipher, de_crypt_init)
+            process_directory(path, base_cipher, pseudo_fields, de_crypt_init)
         else:
-            process_directory(path, base_cipher, de_crypt_init, args.output_suffix)
+            process_directory(path, base_cipher, pseudo_fields, de_crypt_init, args.output_suffix)
     else:
         print(f"Error: {path} is neither a file nor directory", file=sys.stderr)
         sys.exit(1)
