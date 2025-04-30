@@ -248,6 +248,31 @@ jkr import_and_create_kohteet <POIMINTAPVM> <DVV> <PERUSMAKSU> <POSTI>
 1. Replace <POSTI> with "posti" (without quotation marks) if you want to import posti data.
    If you do not want to import posti data, leave <POSTI> out of the command.
 
+## Picking smaller datasets
+
+You can pick a subset of data for faster processing by using cherrypick_data.py script which can filter whole directory trees at once.
+
+The scripts arguments look like this:
+python cherrypick_data.py --rip_path [File or directory] --must_contain [postalCode] [municipality] [start of a postal code]
+
+ Example calls:
+- `python cherrypick_data.py --rip_path ../data/ --must_contain lahti heinola 171*`
+- `python cherrypick_data.py --rip_path ../data/ --must_contain 17100 17200`
+
+ Pseudofields.json should look like this:
+ `[
+    "Henkilötunnus",
+    "Omistajan nimi",
+    "Nimi",
+    "Osoite",
+    "Huoneiston vanhin asukas (henkilötunnus)",
+    "Sukunimi",
+    "Etunimi",
+    "Etunimet",
+    "Toimijanimi",
+    "Haltijannimi"
+]`
+
 ## Testing
 
 The testing procedures are under construction. Currently, the tests can be run only in a Windows system. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.

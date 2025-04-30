@@ -4,15 +4,13 @@ from pathlib import Path
 import sys
 import shutil
 
-#
-#   Example usage:python rip.py --rip_path ../data/ --must_contain lahti heinola 171*
-#   Example usage:python rip.py --rip_path ../data/ --must_contain 17100 17200
+#   python rip.py --rip_path ../data/ --must_contain lahti heinola 171*
+#   python rip.py --rip_path ../data/ --must_contain 17100 17200
 
 #   Args:
 #      rip_path: Path to file or directory to process
 #      must_contain: Set of words or wildcards that a row must contain at least one of.
 #      Wildcards are written like 156* and check for starts of each word on a row
-#
 
 def clean_old_ripped_files(path: Path) -> None:
     """
