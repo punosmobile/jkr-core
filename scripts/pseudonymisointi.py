@@ -7,6 +7,7 @@ import hashlib
 import json
 import sys
 import csv
+import shutil
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -213,6 +214,40 @@ def process_excel(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_
     else:
         print("Huom: Yhtään pseudonymisoitavaa kenttää ei löytynyt mistään sheetistä!")
 
+def replace_with_new_files(path: Path, decrypt: bool = False, selected_suffix: str | None = None) -> None:
+    """
+    Recursively replace original files with their new versions.
+    
+    Args:
+        path: Path to process
+    """
+    try:
+        suffix = selected_suffix
+        if suffix is None:
+            if decrypt is False:
+                suffix = "_pseudottu."
+            else:
+                suffix = "_palautettu."
+        else:
+            suffix = suffix+'.'
+
+        if path.is_file():
+            if suffix in path.name:
+                original_path = path.parent / path.name.replace(suffix, '.')
+                if original_path.exists():
+                    shutil.copy2(path, original_path)
+                    path.unlink()
+                    print(f"Replaced original file with processed version: {original_path}")
+        elif path.is_dir():
+            for processed_file in path.rglob('*'+suffix+'*'):
+                original_path = processed_file.parent / processed_file.name.replace(suffix, '.')
+                if original_path.exists():
+                    shutil.copy2(processed_file, original_path)
+                    processed_file.unlink()
+                    print(f"Replaced original file with processed version: {original_path}")
+
+    except Exception as e:
+        print(f"Error while replacing files: {str(e)}", file=sys.stderr)
 
 def process_csv(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_crypt: bool = False, output_file_suffix: str = None) -> None:
     """
@@ -341,7 +376,7 @@ Esimerkkejä:
 
     # Process path based on whether it's a file or directory
     if path.is_file():
-        # If it's an Excel file, process the _ripped version instead
+        # If it's an Excel file, process the _new version instead
         if path.suffix.lower() in ['.xlsx', '.xls']:
 
             if not args.output_suffix:
@@ -368,5 +403,17 @@ Esimerkkejä:
     else:
         print(f"Error: {path} is neither a file nor directory", file=sys.stderr)
         sys.exit(1)
+
+     # Ask user if they want to replace original files
+    while True:
+        response = input("\nKorvataanko alkuperäiset tiedostot uusilla-versioilla? (Y/N): ").strip().upper()
+        if response in ['Y', 'N']:
+            break
+        print("Virheellinen vastaus. Anna Y (Kyllä) tai N (Ei).")
+
+    if response == 'Y':
+        print("\nKorvataan alkuperäiset tiedostot uusilla-versioilla...")
+        replace_with_new_files(path, args.output_suffix)
+        print("Korvaus valmis!")
 
     print("\nValmis!")
