@@ -115,3 +115,13 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixes to bat file password handling
+
+## [0.6.6] - 2025-05-05
+
+### Added
+- Added script for taking subsets of data from given dataset
+- Added script for encrypting and decrypting whole datasets
+
+### Fixed
+
+- Fixes to import_dvv.sql where one column is written in wrong format
