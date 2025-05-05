@@ -1,4 +1,4 @@
-import pandas as pd
+from openpyxl import load_workbook
 from pathlib import Path
 import argparse
 import base64
@@ -73,9 +73,9 @@ def pseudonymize(value, cipher):
         cipher: Cipher used to encrypt a value
     """
     try:
-        if pd.isna(value):
+        if value in (None, ''):
             return value
-            
+
         value_str = str(value)
         encryptor = cipher.encryptor()
 
@@ -87,9 +87,9 @@ def pseudonymize(value, cipher):
         print(f"Kohdattiin virhe pseudonymisoinnissa: {e}")
         return ""
 
-def deanonymize(value: str, cipher: Cipher) -> str:
+def depseudonymize(value: str, cipher: Cipher) -> str:
     """
-    Deanonymizes given value with given cipher
+    Depseudonymizes given value with given cipher
     
     Args:
         value: Value to decrypt
@@ -129,7 +129,7 @@ def process_sheet(df, fields_to_pseudonymize, cipher, de_crypt: bool = False):
         if de_crypt is False:
             df[field] = df[field].apply(lambda x: pseudonymize(x, cipher))
         else:
-            df[field] = df[field].apply(lambda x: deanonymize(x, cipher))
+            df[field] = df[field].apply(lambda x: depseudonymize(x, cipher))
     return df
 
 def get_output_filename(input_file: Path, output_suffix, de_crypt: bool = False):
@@ -157,14 +157,15 @@ def get_output_filename(input_file: Path, output_suffix, de_crypt: bool = False)
 
 def process_excel(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_crypt: bool = False, output_file_suffix: str = None):
     """
-    Lukee Excel-tiedoston ja pseudonymisoi määritellyt kentät kaikilta sheeteiltä, joista ne löytyvät
+    Lukee Excel-tiedoston ja pseudonymisoi määritellyt kentät kaikilta sheeteiltä, joista ne löytyvät.
+    Säilyttää solujen muotoilut.
     
     Args:
         input_file: Polku syötetiedostoon
         cipher: Cipher salaukseen
-        de_crypt: Enkryptataanko vaiko dekryptataanko tiedosto
-        pseudo_fields: Sanakirja pseudonymisoitavista kentistä ja niiden maksimipituuksista
-        output_file: Polku tulostiedostoon (valinnainen)
+        pseudo_fields: Sarakeotsikot, joita pseudonymisoidaan
+        de_crypt: Jos True, suorittaa depseudonymisoinnin
+        output_file_suffix: Tulostiedoston suffiksi
     """
     output_file = get_output_filename(input_file, output_file_suffix, de_crypt)
 
@@ -172,35 +173,46 @@ def process_excel(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_
         print("Ohitetaan aiemmin käsitelty tiedosto.")
         return
 
-    # Lue kaikki sheetit
     print(f"Luetaan Excel-tiedostoa: {input_file}")
-    all_sheets = pd.read_excel(input_file, sheet_name=None)
-    
+    wb = load_workbook(filename=input_file)
     processed_sheets = []
-    # Käy läpi kaikki sheetit ja etsi pseudonymisoitavat kentät
-    for sheet_name, df in all_sheets.items():
-        # Tarkista löytyykö sheetistä pseudonymisoitavia kenttiä
-        fields_in_sheet = {field
-                            for field in pseudo_fields
-                            if field in df.columns}
-        
-        if fields_in_sheet:
-            print(f"\nKäsitellään sheet: {sheet_name}")
-            print(f"Rivejä: {len(df)}")
-            all_sheets[sheet_name] = process_sheet(df, fields_in_sheet, cipher, de_crypt)
-            processed_sheets.append(sheet_name)
 
-    # Tallenna kaikki sheetit
+    for ws in wb.worksheets:
+        header_row = [cell.value for cell in ws[1]]
+        target_columns = {
+            i: header for i, header in enumerate(header_row)
+            if header in pseudo_fields
+        }
+
+        if target_columns:
+            print(f"\nKäsitellään sheet: {ws.title}")
+            print(f"Rivejä: {ws.max_row - 1}")
+            processed_sheets.append(ws.title)
+
+            for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+                for col_idx in target_columns:
+                    cell = row[col_idx]
+                    if cell.value is None:
+                        continue
+                    original = str(cell.value)
+                    try:
+                        cell.value = (
+                            depseudonymize(original, cipher)
+                            if de_crypt else
+                            pseudonymize(original, cipher)
+                        )
+                    except Exception as e:
+                        print(f"⚠️ Virhe solussa {ws.title} {cell.coordinate}: {e}")
+
     print(f"\nTallennetaan pseudonymisoitu data tiedostoon: {output_file}")
-    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-        for sheet_name, df in all_sheets.items():
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-            
-    print(f"Pseudonymisointi valmis!")
+    wb.save(output_file)
+
+    print("Pseudonymisointi valmis!")
     if processed_sheets:
         print(f"Käsitellyt sheetit: {', '.join(processed_sheets)}")
     else:
         print("Huom: Yhtään pseudonymisoitavaa kenttää ei löytynyt mistään sheetistä!")
+
 
 def process_csv(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_crypt: bool = False, output_file_suffix: str = None) -> None:
     """
@@ -266,7 +278,7 @@ def process_csv(input_file: Path, cipher: Cipher, pseudo_fields: set[str], de_cr
                         if de_crypt is False:
                             row[field] = pseudonymize(row[field],cipher)
                         else:
-                            row[field] = deanonymize(row[field],cipher)
+                            row[field] = depseudonymize(row[field],cipher)
 
                 writer.writerow(row)
 
@@ -333,13 +345,14 @@ Esimerkkejä:
         if path.suffix.lower() in ['.xlsx', '.xls']:
 
             if not args.output_suffix:
-                print("tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi.")
+                print("HUOM! tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi.")
                 process_excel(path, base_cipher, pseudo_fields, de_crypt_init)
             else:
                 process_excel(path, base_cipher, pseudo_fields, de_crypt_init, args.output_suffix)
         elif path.suffix.lower() == '.csv':
             if not args.output_suffix:
-                print("tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi.")
+                print("HUOM! tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi.")
+                print("Käytetään oletusarvoa _pseudottu/_palautettu.")
                 process_csv(path, base_cipher, pseudo_fields, de_crypt_init)
             else:
                 process_csv(path, base_cipher, pseudo_fields, de_crypt_init, args.output_suffix)
@@ -348,6 +361,7 @@ Esimerkkejä:
     elif path.is_dir():
         if not args.output_suffix:
             print("tiedoston nimilisää ei ole määritetty. Käytä --output_file argumenttia määrittääksesi sen manuaalisesti")
+            print("Käytetään oletusarvoa _pseudottu/_palautettu.")
             process_directory(path, base_cipher, pseudo_fields, de_crypt_init)
         else:
             process_directory(path, base_cipher, pseudo_fields, de_crypt_init, args.output_suffix)
