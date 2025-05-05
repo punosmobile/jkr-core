@@ -257,6 +257,7 @@ def process_file(file_path: Path, must_contain: set[str], must_contain_wild: set
     """
     # Skip files with '_ripped' in their name
     if '_ripped' in file_path.name:
+        print('skipping already processed file')
         return
         
     suffix = file_path.suffix.lower()
@@ -345,7 +346,7 @@ def main():
         # Parsitaan suoraan JSON-merkkijonosta
         filter_fields: set[str] = json.loads(args.filter_fields)
 
-    print(filter_fields)
+    print(f'Etsitään kenttiä: {filter_fields}')
 
     if len(filter_fields) == 0:
         parser.error("Anna vähintään yksi rajoittava kenttä.")
@@ -369,8 +370,7 @@ def main():
     if path.is_file():
         # If it's an Excel file, process the _ripped version instead
         if path.suffix.lower() in ['.xlsx', '.xls']:
-            ripped_path = path.parent / f"{path.stem}_ripped{path.suffix}"
-            process_file(ripped_path, must_contain, must_contain_wild, filter_fields)
+            process_file(path, must_contain, must_contain_wild, filter_fields)
         else:
             process_file(path, must_contain, must_contain_wild, filter_fields)
     elif path.is_dir():
