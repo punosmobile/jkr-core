@@ -5,14 +5,14 @@ import sys
 import json
 import shutil
 
-#   python rip.py --rip_path ../data/ --must_contain lahti heinola 171*
-#   python rip.py --rip_path ../data/ --must_contain 17100 17200
+#   python cherrypick_data.py --rip_path ../data/ --must_contain lahti heinola 171*
+#   python cherrypick_data.py --rip_path ../data/ --must_contain 17100 17200
 
 #   Args:
 #      rip_path: Path to file or directory to process
-#      must_contain: Set of words or wildcards that a row must contain at least one of.
-#                    Wildcards are written like 156* and check for starts of each word on a row
-#      filter_fields: JSON-lista of filtteröitävistä kentistä * loppuisille hakusanoille. Voi olla joko suora JSON-merkkijono tai @-alkuinen tiedostopolku'
+#      must_contain: Lista sanoista joita pitää olla vähintään yksi säilytettävällä rivillä.
+#                    Villikortit kirjoitetaan 156* ja niitä verrataan sanojen alkuun kullakin rivillä
+#      filter_fields: JSON-lista filtteröitävistä kentistä * loppuisille hakusanoille. Voi olla joko suora JSON-merkkijono tai @-alkuinen tiedostopolku'
 
 def clean_old_ripped_files(path: Path) -> None:
     """

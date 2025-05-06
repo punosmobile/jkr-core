@@ -2496,7 +2496,7 @@ def _cluster_rakennustiedot(
     - Samat omistajat/asukkaat JA
     - Sama osoite TAI kiinteistötunnus
     """
-    clusters = []
+    clusters: List[set[Rakennustiedot]] = []
     # Aloita klusteri ensimmäisestä rakennuksesta (tai olemassaolevasta klusterista)
     cluster = existing_cluster.copy() if existing_cluster else None
     
@@ -2504,12 +2504,19 @@ def _cluster_rakennustiedot(
         if not cluster:
             first_building = rakennustiedot_to_cluster.pop()
             cluster = set([first_building])
-            print(f"\nAloitetaan uusi klusteri: {first_building[0].prt}")
+            print(f"\nAloitetaan uusi klusteri: {first_building[0].prt} \nRakennuksia jäljellä: {len(rakennustiedot_to_cluster)}")
+            if first_building[0].prt is None:
+                print("\nRakennuksen tunnus puuttuu, ohitetaan")
+                continue
 
         other_rakennustiedot_to_cluster = rakennustiedot_to_cluster.copy()
         while other_rakennustiedot_to_cluster:
             found_match = False
             for other_rakennustiedot in other_rakennustiedot_to_cluster:
+                if not other_rakennustiedot[0].prt:
+                    print("\nRakennuksen tunnus puuttuu, ohitetaan")
+                    break
+
                 print(f"\nVerrataan rakennuksia {[r[0].prt for r in cluster]} ja {other_rakennustiedot[0].prt}")
                 
                 # Tarkista etäisyys kaikkiin klusterin rakennuksiin
