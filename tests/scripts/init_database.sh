@@ -4,7 +4,7 @@ set -e
 set -o pipefail
 
 # === CONFIG ===
-DEFAULT_ENV_PATH="../../.env.local"
+DEFAULT_ENV_PATH="../.env.local"
 ENV_FILE="${1:-$DEFAULT_ENV_PATH}"  # Use first argument or fallback to default
 
 echo "📄 Using .env file: $ENV_FILE"
