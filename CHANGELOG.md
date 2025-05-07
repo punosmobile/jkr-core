@@ -116,7 +116,7 @@ All notable changes to this project will be documented in this file.
 
 - Fixes to bat file password handling
 
-## [0.6.6.0] - 2025-05-05
+## [0.6.6] - 2025-05-07
 
 ### Added
 - Added script for taking subsets of data from given dataset
