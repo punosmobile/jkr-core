@@ -248,6 +248,17 @@ jkr import_and_create_kohteet <POIMINTAPVM> <DVV> <PERUSMAKSU> <POSTI>
 1. Replace <POSTI> with "posti" (without quotation marks) if you want to import posti data.
    If you do not want to import posti data, leave <POSTI> out of the command.
 
+## Picking smaller datasets
+
+You can pick a subset of data for faster processing by using cherrypick_data.py script which can filter whole directory trees at once.
+
+The scripts arguments look like this:
+python cherrypick_data.py --rip_path [File or directory] --must_contain [postalCode] [municipality] [start of a postal code]
+
+ Example calls:
+- `python cherrypick_data.py --rip_path ../data/ --must_contain lahti heinola 171*`
+- `python cherrypick_data.py --rip_path ../data/ --must_contain 17100 17200`
+
 ## Testing
 
 The testing procedures are under construction. Currently, the tests can be run only in a Windows system. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.
@@ -271,6 +282,35 @@ The postal code data (`/tests/data/test_data_import`) is real data downloaded fr
 ## Naming development branches
 
 Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}/{description}`. For example, `"Lahti-99/kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
+
+## Using Pseydonymized data
+
+You can pseudonymize data for secure data transfer or development purposes using our two-way encryption script pseudonymisointi.py which can pseudonymize whole directory trees at once.
+
+Instructions:
+ 1. Generate or decide on a password to use during encryption
+ 2. Run python `luo_suola_pseydolle.py` to generate a random salt, save this securely if you intend to decrypt the data later
+ 3. Run `python pseudonymisointi.py [Path to file or directory] --passw [Password] --salt [Random salt from luo_suola_pseydolle] --pseudo_fields [A list or a path to a json file containing a list of columns to pseudonymize] -d false` 
+
+ To decrypt data, the process is otherwise the same but you must use the same salt and password as you used during encryption and add the `-d` flag with a value of `true` at which point the code will reverse the encryption
+ 
+ Example calls :
+ - `python pseudonymisointi.py ../pseudonyms/ --passw test123 --salt FGKHNsGl6U8PtsMCBMw6AQ== --pseudo_fields @pseudofields.json -d true`
+ - `python pseudonymisointi.py ../pseudonyms/ --passw test123 --salt FGKHNsGl6U8PtsMCBMw6AQ== --pseudo_fields '["Henkilötunnus","Nimi"]' -d false`
+
+ Pseudofields.json should look like this:
+ `[
+    "Henkilötunnus",
+    "Omistajan nimi",
+    "Nimi",
+    "Osoite",
+    "Huoneiston vanhin asukas (henkilötunnus)",
+    "Sukunimi",
+    "Etunimi",
+    "Etunimet",
+    "Toimijanimi",
+    "Haltijannimi"
+]`
 
 ### Git Hooks
 

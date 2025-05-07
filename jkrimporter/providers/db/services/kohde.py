@@ -290,10 +290,11 @@ def find_kohteet_by_prt(
         print(f"Kompostoija: {kompostoija_info}")
         query = (
             select(Kohde.id, Osapuoli.nimi)
-            .join(Kohde.rakennus_collection)
-            .join(KohteenOsapuolet, isouter=True)
-            .join(Osapuoli, isouter=True)
-            .join(Osoite, isouter=True)
+            .join(KohteenRakennukset, KohteenRakennukset.kohde_id == Kohde.id)
+            .join(Rakennus, Rakennus.id == KohteenRakennukset.rakennus_id)
+            .join(KohteenOsapuolet, KohteenOsapuolet.kohde_id == Kohde.id, isouter=True)
+            .join(Osapuoli, Osapuoli.id == KohteenOsapuolet.osapuoli_id, isouter=True)
+            .join(Osoite, Osoite.rakennus_id == Rakennus.id, isouter=True)
             .where(
                 Kohde.voimassaolo.overlaps(
                     DateRange(
@@ -309,7 +310,7 @@ def find_kohteet_by_prt(
         try:
             kohteet = session.execute(query).all()
         except NoResultFound:
-            print("Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
+            print(f"Ei löytynyt kohdetta virheen takia, prt: {kompostoija.rakennus}")
             not_found_prts.append(kompostoija.rakennus)
             continue
 
@@ -336,7 +337,7 @@ def find_kohteet_by_prt(
             kohde = session.get(Kohde, kohde_id)
             found_kohteet.append(kohde)
         else:
-            print("Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
+            print(f"Ei löytynyt kohdetta, prt: {kompostoija.rakennus}")
             not_found_prts.append(kompostoija.rakennus)
 
     return found_kohteet, not_found_prts
@@ -679,35 +680,52 @@ def _get_identifiers(osapuolet: Union[Set[Osapuoli], FrozenSet[RakennuksenOmista
     return identifiers
 
 def _match_ownership_or_residents(
-    building1: "Rakennustiedot",
+    cluster_buildings: Set["Rakennustiedot"],
     building2: "Rakennustiedot" 
 ) -> bool:
     """
-    Tarkistaa, onko rakennuksilla sama omistaja TAI asukas.
+    Tarkistaa, onko rakennusryhmällä ja rakennuksella sama omistaja JA asukas.
     Vertailee sekä ID:n että tunnisteen (y-tunnus/henkilötunnus) perusteella.
     """
 
-    # Kerää omistajien tunnisteet
-    owners1 = _get_identifiers(building1[2])
-    owners2 = _get_identifiers(building2[2])
-    
-    # Kerää asukkaiden tunnisteet
-    residents1 = _get_identifiers(building1[1])
-    residents2 = _get_identifiers(building2[1])
-    
-    # Palauta True jos joko omistajissa TAI asukkaissa on yhteinen tunniste
-    # if bool(
-    #     (owners1 and owners2 and (owners1 & owners2)) or
-    #     (residents1 and residents2 and (residents1 & residents2))
-    # ):
-    #     print(f"{building1[0].prt} {building2[0].prt} Match by: {owners1} {owners2} {residents1} {residents2}")
-    # else:
-    #     print(f"{building1[0].prt} {building2[0].prt} No match by: {owners1} {owners2} {residents1} {residents2}")
-    
-    return bool(
-        (owners1 and owners2 and (owners1 & owners2)) or
-        (residents1 and residents2 and (residents1 & residents2))
-    )
+    yhteensopivat: Set[bool] = set()
+   
+    for building in cluster_buildings:
+         # Kerää omistajien tunnisteet
+        owners1 = _get_identifiers(building[2])
+        owners2 = _get_identifiers(building2[2])
+
+        # Kerää asukkaiden tunnisteet
+        residents1 = _get_identifiers(building[1])
+        residents2 = _get_identifiers(building2[1])
+
+        print(f"asukkaat 1: {residents1} {len(residents1)}, 2: {residents2} {len(residents2)}")
+        if len(residents1) > 0 and len(residents2) > 0:
+            print(f"yhteiset asukkaat: {residents1 and residents2 and (residents1 & residents2)}")
+            print(f"yhteiset omistajat: {owners1 and owners2 and (owners1 & owners2)}")
+            yhteensopivat.add(bool(
+                (owners1 and owners2 and (owners1 & owners2)) and
+                (residents1 and residents2 and (residents1 & residents2))
+            ))
+
+        # Palauta True jos joko omistajissa JA asukkaissa on yhteinen tunniste
+        # if bool(
+        #     (owners1 and owners2 and (owners1 & owners2)) or
+        #     (residents1 and residents2 and (residents1 & residents2))
+        # ):
+        #     print(f"{building1[0].prt} {building2[0].prt} Match by: {owners1} {owners2} {residents1} {residents2}")
+        # else:
+        #     print(f"{building1[0].prt} {building2[0].prt} No match by: {owners1} {owners2} {residents1} {residents2}")
+        print(f"omistajavertaus 1. {owners1} 2. {owners2}")
+        print(f"omistajavertaus osumat: {(owners1 and owners2 and (owners1 & owners2))}")
+        yhteensopivat.add(bool(
+            (owners1 and owners2 and (owners1 & owners2))
+        ))
+
+    if False in yhteensopivat:
+        return False
+
+    return True
 
 
 def _normalize_address(address: "Osoite") -> str:
@@ -1002,11 +1020,16 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
         print("- huoneistomaara ei ole annettu")
 
     # 4. Tarkista rakennuksenolotila
-    if hasattr(rakennus, 'rakennuksenolotila'):
-        if rakennus.rakennuksenolotila is not None and rakennus.rakennuksenolotila.koodi in [
+    if hasattr(rakennus, 'rakennuksenolotila') or hasattr(rakennus, 'rakennuksenolotila_koodi'):
+        if hasattr(rakennus, 'rakennuksenolotila') and rakennus.rakennuksenolotila is not None and rakennus.rakennuksenolotila.koodi in [
+            RakennuksenOlotilaTyyppi.VAKINAINEN_ASUMINEN.value
+        ] or hasattr(rakennus, 'rakennuksenolotila_koodi') and rakennus.rakennuksenolotila_koodi is not None and rakennus.rakennuksenolotila_koodi in [
             RakennuksenOlotilaTyyppi.VAKINAINEN_ASUMINEN.value
         ]:
-            print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila.koodi})")
+            if hasattr(rakennus, 'rakennuksenolotila'):
+                print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila.koodi})")
+            elif hasattr(rakennus, 'rakennuksenolotila_koodi'):
+                print(f"-> ASUINKIINTEISTO (rakennuksenolotila: {rakennus.rakennuksenolotila_koodi})")
             return KohdeTyyppi.ASUINKIINTEISTO
     else:
         print("- rakennuksenolotila ei ole annettu")
@@ -1018,7 +1041,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
 
     # 6. Jos mikään ehto ei täyttynyt, kyseessä on muu kohde
     if hasattr(rakennus, 'prt'):
-        print(f"-> MUU (Asuinrakennuksen ehdot ei töytynyt) prt: {rakennus.prt}")
+        print(f"-> MUU (Asuinrakennuksen ehdot ei täyttynyt) prt: {rakennus.prt}")
     else:
         print("- prt ei ole annettu")
     if hasattr(rakennus, 'rakennusluokka_2018'):
@@ -1443,6 +1466,96 @@ def move_sopimukset_and_kuljetukset_to_new_kohde(
     )
     session.commit()
 
+def check_and_update_old_other_building_kohde_kohdetyyppi(
+    session: Session,
+    poimintapvm: Optional[datetime.date]
+) -> List[int]:
+    """
+    Etsii vanhat kohteet joilla on kohdetyyppi MUU
+
+    Toiminta:
+    1. Hakee kannasta ennen poimintavuotta tuodut kohteet joilla on kohdetyyppinä MUU
+    2. Tarkistaa kohteisiin kohdistettujen rakennusten avulla kohdetyypin
+    3. Päivittää kohdetyypin vastaamaan oikeaa tilannetta
+    
+    Args:
+        session: Tietokantaistunto
+        poimintapvm: Tarkasteltavien kohteiden alkupäivämäärä on ennen tämän päivän vuotta
+
+    Returns:
+        Kohteet: päivitetyt kohteet
+    """
+
+    maxYear = poimintapvm.year
+
+
+    print(f"\n\nEtsitään kohteita, joiden alkupvm on < {datetime.date(maxYear, 1, 1)}")
+
+    updated_kohteet = set()
+
+    try:
+        # Hae olemassa olevat kohteet ennen poimintapäivän vuotta
+        kohteet = (
+            session.query(Kohde)
+            .join(KohteenRakennukset, KohteenRakennukset.kohde_id == Kohde.id)
+            .filter(Kohde.kohdetyyppi_id == 8, Kohde.alkupvm < datetime.date(maxYear, 1, 1))
+            .all()
+        )
+        
+        print(f"Löydetty {len(kohteet)} vanhaa muuta kohdetta")
+        
+        for kohde in kohteet:
+            print(f"\n\nKohde ID: {kohde.id}, Tyyppi: {kohde.kohdetyyppi_id}")
+            original_kohdetyyppi = kohde.kohdetyyppi_id
+            
+            # Hae kohteen rakennukset
+            rakennus_query = (
+                select(
+                    Rakennus.id, 
+                    Rakennus.prt, 
+                    Rakennus.rakennusluokka_2018, 
+                    Rakennus.rakennuksenkayttotarkoitus_koodi, 
+                    Rakennus.huoneistomaara, 
+                    Rakennus.rakennuksenolotila_koodi
+                )
+                .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
+                .where(KohteenRakennukset.kohde_id == kohde.id)
+            )
+            rakennukset = session.execute(rakennus_query).all()
+            print(f"- Rakennukset: {[r[1] for r in rakennukset]}")
+            
+            found_asuinkiinteisto = False
+            
+            for rakennus_tiedot in rakennukset:  
+                # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
+                asukkaat = set(session.query(RakennuksenVanhimmat)
+                    .filter(RakennuksenVanhimmat.rakennus_id == rakennus_tiedot.id)
+                    .all())     
+                building_type = determine_kohdetyyppi(session, rakennus_tiedot, asukkaat)
+                print(f"Tarkastelussa kohdetyypin arvo {original_kohdetyyppi} vs {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} prt:llä {rakennus_tiedot.prt}")
+                
+                if building_type == KohdeTyyppi.ASUINKIINTEISTO:
+                    if building_type != original_kohdetyyppi:
+                        print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} asuinkiinteistö")
+                        kohde.kohdetyyppi_id = codes.kohdetyypit[building_type].id
+                        updated_kohteet.add(kohde.id)
+
+                # Jos yksikään rakennus ei ole asuinkiinteistö, asetetaan tyypiksi MUU
+                if not found_asuinkiinteisto:
+                    new_kohdetyyppi = codes.kohdetyypit[KohdeTyyppi.MUU]
+                    if new_kohdetyyppi.id != original_kohdetyyppi:
+                        print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {new_kohdetyyppi.id} kohteelle {kohde.id} ei asuinkiinteistö")
+                        setattr(kohde, 'kohdetyyppi_id', new_kohdetyyppi.id)
+                        updated_kohteet.add(kohde.id)
+        
+        if len(updated_kohteet) > 0:
+            print(f"Päivitetty {len(updated_kohteet)} kohdetta")
+            session.flush()        
+    except NoResultFound:
+        updated_kohteet = []
+        
+    return updated_kohteet
+
 
 def update_or_create_kohde_from_buildings(
     session: Session,
@@ -1489,8 +1602,9 @@ def update_or_create_kohde_from_buildings(
         if isinstance(rakennustiedot, tuple):
             rakennus_ids.add(rakennustiedot[0].id)
             rakennus_prts.add(rakennustiedot[0].prt)
-            print(f"DEBUG: Tuple rakennus {rakennus.id} data:", rakennus.__dict__)
+            print(f"DEBUG: Tuple rakennus {rakennus.id}, {rakennus.prt} data:", rakennus.__dict__)
         else:
+            print(f"DEBUG: not Tuple rakennus {rakennustiedot.id}, {rakennustiedot.prt}")
             rakennus_ids.add(rakennustiedot.id)
             rakennus_prts.add(rakennustiedot.prt)
 
@@ -2382,7 +2496,7 @@ def _cluster_rakennustiedot(
     - Samat omistajat/asukkaat JA
     - Sama osoite TAI kiinteistötunnus
     """
-    clusters = []
+    clusters: List[set[Rakennustiedot]] = []
     # Aloita klusteri ensimmäisestä rakennuksesta (tai olemassaolevasta klusterista)
     cluster = existing_cluster.copy() if existing_cluster else None
     
@@ -2390,12 +2504,19 @@ def _cluster_rakennustiedot(
         if not cluster:
             first_building = rakennustiedot_to_cluster.pop()
             cluster = set([first_building])
-            print(f"\nAloitetaan uusi klusteri: {first_building[0].prt}")
+            print(f"\nAloitetaan uusi klusteri: {first_building[0].prt} \nRakennuksia jäljellä: {len(rakennustiedot_to_cluster)}")
+            if first_building[0].prt is None:
+                print("\nRakennuksen tunnus puuttuu, ohitetaan")
+                continue
 
         other_rakennustiedot_to_cluster = rakennustiedot_to_cluster.copy()
         while other_rakennustiedot_to_cluster:
             found_match = False
             for other_rakennustiedot in other_rakennustiedot_to_cluster:
+                if not other_rakennustiedot[0].prt:
+                    print("\nRakennuksen tunnus puuttuu, ohitetaan")
+                    break
+
                 print(f"\nVerrataan rakennuksia {[r[0].prt for r in cluster]} ja {other_rakennustiedot[0].prt}")
                 
                 # Tarkista etäisyys kaikkiin klusterin rakennuksiin
@@ -2407,10 +2528,10 @@ def _cluster_rakennustiedot(
 
                 # Tarkista omistajat/asukkaat
                 match_found = False
-                for cluster_building in cluster:
-                    if _match_ownership_or_residents(cluster_building, other_rakennustiedot):
-                        match_found = True
-                        break
+                if _match_ownership_or_residents(cluster, other_rakennustiedot):
+                    match_found = True
+                    print(f"- Omistaja tai asukkaat täsmää")
+
                 if not match_found:
                     print("- Ei yhteisiä omistajia/asukkaita")
                     continue

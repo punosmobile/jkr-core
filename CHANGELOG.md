@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.0] - 2025-01-30
 
 ### Added
+
 - Building Classification 2018 (Rakennusluokka_2018)
   - Classification codes and mappings
   - Building classes integration into reporting system
@@ -14,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - `lukittu` field to kohde table to indicate if the kohde is locked
 
 ### Changed
+
 - Enhanced property type handling:
   - Improved property formation logic and validation
   - Enhanced type definition algorithms
@@ -23,6 +25,7 @@ All notable changes to this project will be documented in this file.
 - Fixed PostgreSQL 16 compatibility issues with DevDB public schema privileges
 
 ### Documentation
+
 - Updated README.md with new features and configurations
 - Added comprehensive code documentation
 - Improved debug message clarity
@@ -30,6 +33,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.1] - 2025-02-13
 
 ### Added
+
 - Rakennusluokka_2018 integration:
   - Added to rakennukset view with selite
   - Enhanced building classification support
@@ -43,6 +47,7 @@ All notable changes to this project will be documented in this file.
 - Type checking mode (basic) for Python analysis
 
 ### Fixed
+
 - Kohdetyyppi determination logic:
   - Improved rakennusluokka_2018 checks
   - Enhanced building type validation
@@ -57,6 +62,7 @@ All notable changes to this project will be documented in this file.
   - Better ownership and resident matching
 
 ### Changed
+
 - Enhanced documentation:
   - Added QGIS project migration guide
   - Updated README.md with new configurations
@@ -65,3 +71,57 @@ All notable changes to this project will be documented in this file.
   - Added PRT tracking
   - Enhanced logging for building processing
   - Improved transaction handling
+
+## [0.6.2] - 2025-02-17
+
+### Fixed
+
+- Velvoite processing repaired:
+  - Fixed velvoite processing
+  - Fixed Kohteiden loppupvm handling
+
+## [0.6.3] - 2025-03-25
+
+### Added
+- Kohdetyyppi updates:
+  - Kohteet that have changes in their rakennukset will now recheck and update their kohdetyyppi_id
+
+### Fixed
+
+- Kompostori processing fixes:
+  - Kompostorin kohteet will no longer fail depending on a SQLAlchemy coin flip
+  - Fixed a rare crash where sheet header was treated as a number instead of text
+
+### Changes
+- Log and comment changes:
+  - Added slightly more identifiable log statements to several sections of code for improved debugging
+  - Updated some outdated comments to match current functionality
+- Report changes:
+  - Report will now filter kunta based on kiinteistotunnus instead of postinumero
+
+## [0.6.4] - 2025-04-4
+
+
+### Fixed
+
+- Building clustering logic fix 
+  - Compare whole cluster to each potential building as a whole instead of per building
+
+## [0.6.5] - 2025-04-16
+
+### Added
+- Added scripts for checking database role assignments and resetting database
+
+### Fixed
+
+- Fixes to bat file password handling
+
+## [0.6.6.0] - 2025-05-05
+
+### Added
+- Added script for taking subsets of data from given dataset
+- Added script for encrypting and decrypting whole datasets
+
+### Fixed
+
+- Fixes to import_dvv.sql where one column is written in wrong format

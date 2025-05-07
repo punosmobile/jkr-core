@@ -57,6 +57,7 @@ from .services.kohde import (
     find_kohde_by_prt,
     find_kohteet_by_prt,
     get_or_create_multiple_and_uninhabited_kohteet,
+    check_and_update_old_other_building_kohde_kohdetyyppi,
     get_or_create_single_asunto_kohteet,
     get_ulkoinen_asiakastieto,
     update_kohde,
@@ -192,17 +193,6 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
 
     return kohde
 
-def set_end_dates_to_kohteet(
-    session: Session,
-    poimintapvm: datetime.date,
-):
-    previous_pvm = poimintapvm - timedelta(days=1)
-    add_date_query = text(
-        "UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL"
-    )
-    session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
-    session.commit()
-
 
 def import_asiakastiedot(
     session: Session,
@@ -272,27 +262,28 @@ def import_dvv_kohteet(
     print("Aloitetaan DVV-kohteiden luonti...")
     logger.info("\nAloitetaan DVV-kohteiden luonti...")
 
-    # Aseta loppupäivämäärä olemassa oleville kohteille ilman loppupäivää
-    if poimintapvm is not None:
-        previous_pvm = poimintapvm - timedelta(days=1)
-        print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
-        logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
+    # # Aseta loppupäivämäärä olemassa oleville kohteille ilman loppupäivää
+    # if poimintapvm is not None:
+    #     previous_pvm = poimintapvm - timedelta(days=1)
+    #     print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
+    #     logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
         
-        add_date_query = text(
-            """
-            UPDATE jkr.kohde 
-            SET loppupvm = :loppu_pvm 
-            WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
-            AND alkupvm < :loppu_pvm
-            """
-        )
-        session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
-        session.commit()
-        print("Loppupäivämäärät asetettu")
-        logger.info("Loppupäivämäärät asetettu")
+    #     add_date_query = text(
+    #         """
+    #         UPDATE jkr.kohde 
+    #         SET loppupvm = :loppu_pvm 
+    #         WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
+    #         AND alkupvm < :loppu_pvm
+    #         """
+    #     )
+    #     session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
+    #     session.commit()
+    #     print("Loppupäivämäärät asetettu")
+    #     logger.info("Loppupäivämäärät asetettu")
 
     # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)  
     if perusmaksutiedosto:
+        print(f"\nLuodaan perusmaksurekisterin kohteet...")
         logger.info("\nLuodaan perusmaksurekisterin kohteet...")
         try:
             perusmaksukohteet = create_perusmaksurekisteri_kohteet(
@@ -310,6 +301,7 @@ def import_dvv_kohteet(
             logger.error(f"Virhe perusmaksurekisterin käsittelyssä: {str(e)}")
             raise
     else:
+        print(f"Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
@@ -333,13 +325,17 @@ def import_dvv_kohteet(
     logger.info(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
     print(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
 
+    # 4. Vanhat yhden rakennuksen kohteet
+    paivitetut_rakennus_kohteet = check_and_update_old_other_building_kohde_kohdetyyppi(session, poimintapvm)
+    session.commit()
+
     # Yhteenveto
     total_kohteet = (
         (len(perusmaksukohteet) if 'perusmaksukohteet' in locals() else 0) +
         len(single_asunto_kohteet) + 
         len(multiple_and_uninhabited_kohteet)
     )
-    print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
+    print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta ja päivitetty {len(paivitetut_rakennus_kohteet)} vanhaa kohdetta")
     logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 
 
@@ -621,7 +617,7 @@ class DbProvider:
                 for ilmoitus in ilmoitus_list:
                     kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
                     if kompostorin_kohde:
-                        print(f"Kompostorin kohde: {kompostorin_kohde}")
+                        print(f"Kompostorin kohde: {kompostorin_kohde.id} prt: {ilmoitus.sijainti_prt}")
                         osapuoli = create_or_update_komposti_yhteyshenkilo(
                             session, kompostorin_kohde, ilmoitus
                         )
