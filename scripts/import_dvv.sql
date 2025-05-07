@@ -42,7 +42,7 @@ set
     found_in_dvv = true;
 
 
-SELECT update_kaytostapoisto_pvm(:'poimintapvm');
+SELECT jkr.update_kaytostapoisto_pvm(:'poimintapvm');
 alter table jkr.rakennus drop column found_in_dvv;
 
 
@@ -233,9 +233,9 @@ on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
     set found_in_dvv = true;
 
 
-select update_omistuksen_loppupvm(:'poimintapvm');
-select update_osapuoli_with_ytunnus();
-select update_osapuoli_with_henkilotunnus();
+select jkr.update_omistuksen_loppupvm(:'poimintapvm');
+select jkr.update_osapuoli_with_ytunnus();
+select jkr.update_osapuoli_with_henkilotunnus();
 
 
 alter table jkr.osapuoli drop column rakennustunnus;
@@ -497,5 +497,5 @@ where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id
   and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 
-select update_vanhin_loppupvm(:'poimintapvm');
+select jkr.update_vanhin_loppupvm(:'poimintapvm');
 alter table jkr.rakennuksen_vanhimmat drop column found_in_dvv;
