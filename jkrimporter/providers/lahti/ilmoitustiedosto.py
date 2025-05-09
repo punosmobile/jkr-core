@@ -64,7 +64,7 @@ class Ilmoitustiedosto:
                 ilmoitus_list.append(ilmoitus_obj)
             except ValidationError as e:
                 logger.warning(
-                    f"Ilmoitus-olion luonti epäonnistui datalla: {row}. Virhe: ", e
+                    f"Ilmoitus-olion luonti epäonnistui datalla: {row}. Virhe: {e}"
                 )
                 failed_validations.append(data)
 

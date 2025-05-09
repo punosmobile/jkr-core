@@ -24,6 +24,7 @@ def datadir(tmpdir, request):
     print(datadir)
     print(tmpdir)
     print(os.listdir(tmpdir))
+    print("data dir")
 
     return tmpdir
 
@@ -45,6 +46,7 @@ def faulty_datadir(tmpdir, request):
     print(faulty_datadir)
     print(tmpdir)
     print(os.listdir(tmpdir))
+    print("faulty dir")
 
     return tmpdir
 
