@@ -261,11 +261,14 @@ python cherrypick_data.py --rip_path [File or directory] --must_contain [postalC
 
 ## Testing
 
-The testing procedures are under construction. Currently, the tests can be run only in a Windows system. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.
+The testing procedures are under construction. Currently, the tests can be run in Windows and Linux systems. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.
 
-1. The settings for the local test database are stored in `%APPDATA%/jkr/.env`. Copy the defaults from `/tests/.env.template`.
-
-2. When calling `pytest` the batch file `/tests/scripts/init_database.bat` is run before the tests related to the database.
+1. On Windows the settings for the local test database are stored in `%APPDATA%/jkr/.env`. Copy the defaults from `/tests/.env.template`.
+2. On Linux you can either configure it similarly or use env.template within workin directory
+3. It is recommended to setup a virtual environment for running tests, this can be done with `python3 -m venv .venv` followed by `source .venv/bin/activate` to activate it
+4. Install dependencies Using `pip install -e .` The -e will install the local repository as a local package so that the scripts can be changed in between tests
+5. When calling `pytest` the batch file `/tests/scripts/init_database.bat` on Windows and `/tests/scripts/init_database.sh` on Linux is run before the tests related to the database.
+6. `pytest` is called like this when located in `tests` folder: `python -m pytest ../tests/ -v`
 
 NOTE:
 
