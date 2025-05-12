@@ -1,57 +1,63 @@
-@echo off
+#!/bin/bash
 
-REM Vaihdetaan terminaalin code page UTF-8:ksi
-CHCP 65001
-REM Kerrotaan Postgresille myös terminaalin encoding UTF-8
-SET PGCLIENTENCODING=UTF8
+set -e  # Exit on error
+set -o pipefail
 
-REM Tarkistetaan .env tiedosto.
-if not exist "%APPDATA%\jkr\.env" (
-    echo Error: .env file not found at %APPDATA%\jkr\.env
-    exit /b 1
-)
+# Use UTF-8 encoding in terminal and Postgres
+export LANG=en_US.UTF-8
+export PGCLIENTENCODING=UTF8
 
-REM Ladataan muuttujat .env tiedostosta.
-for /f "usebackq tokens=1,* delims==" %%a in ("%APPDATA%\jkr\.env") do (
-    set "%%a=%%b"
-)
+# Default .env path
+DEFAULT_ENV_PATH="../tests/.env.local"
+ENV_FILE="${1:-$DEFAULT_ENV_PATH}" # Use first argument or fallback to default
 
-REM Tarkistetaan onko tarvittavat muuttujat asetettu.
-if "%JKR_DB_HOST%"=="" (
-    echo Error: HOST variable not set in .env file
-    exit /b 1
-)
-if "%JKR_TEST_DB_PORT%"=="" (
-    echo Error: PORT variable not set in .env file
-    exit /b 1
-)
-if "%JKR_TEST_DB%"=="" (
-    echo Error: DB_NAME variable not set in .env file
-    exit /b 1
-)
-if "%JKR_USER%"=="" (
-    echo Error: USER variable not set in .env file
-    exit /b 1
-)
-if "%QGIS_BIN_PATH%"=="" (
-    echo Error: QGIS_BIN_PATH variable not set in .env file
-    exit /b1
-)
+# Check if .env file exists
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "❌ Error: .env file not found at $ENV_FILE"
+  exit 1
+fi
 
+# Load environment variables from .env
+echo "📄 Loading environment from $ENV_FILE..."
+export $(grep -v '^#' "$ENV_FILE" | xargs)
 
-SET PGPASSWORD=%JKR_PASSWORD%
+# Validate required variables
+REQUIRED_VARS=(JKR_DB_HOST JKR_TEST_DB_PORT JKR_TEST_DB JKR_USER QGIS_BIN_PATH)
+for var in "${REQUIRED_VARS[@]}"; do
+  if [[ -z "${!var}" ]]; then
+    echo "❌ Error: Required variable $var not set in .env file"
+    exit 1
+  fi
+done
 
-ECHO Rakennukset
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_TEST_DB_PORT% dbname=%JKR_TEST_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln rakennus "./data/test_data_import/DVV_update.xlsx" "R1 rakennus"
+# Set Postgres password
+export PGPASSWORD="${JKR_PASSWORD}"
 
-ECHO Osoitteet
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_TEST_DB_PORT% dbname=%JKR_TEST_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln osoite "./data/test_data_import/DVV_update.xlsx" "R3 osoite"
+# Define input file
+INPUT_FILE="./data/test_data_import/DVV_update.xlsx"
 
-ECHO Omistajat
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_TEST_DB_PORT% dbname=%JKR_TEST_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln omistaja "./data/test_data_import/DVV_update.xlsx" "R4 omistaja"
+echo "🏗️  Importing Rakennukset..."
+"${QGIS_BIN_PATH}/ogr2ogr" -f PostgreSQL -overwrite -progress \
+  PG:"host=$JKR_DB_HOST port=$JKR_TEST_DB_PORT dbname=$JKR_TEST_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" \
+  -nln rakennus "$INPUT_FILE" "R1 rakennus"
 
-ECHO Asukkaat
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -overwrite -progress PG:"host=%JKR_DB_HOST% port=%JKR_TEST_DB_PORT% dbname=%JKR_TEST_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr_dvv" -nln vanhin "./data/test_data_import/DVV_update.xlsx" "R9 huon asukk"
+echo "📫 Importing Osoitteet..."
+"${QGIS_BIN_PATH}/ogr2ogr" -f PostgreSQL -overwrite -progress \
+  PG:"host=$JKR_DB_HOST port=$JKR_TEST_DB_PORT dbname=$JKR_TEST_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" \
+  -nln osoite "$INPUT_FILE" "R3 osoite"
 
-ECHO Muunnetaan jkr-muotoon...
-"%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_TEST_DB_PORT% -d %JKR_TEST_DB% -U %JKR_USER% -v formatted_date=20230131 -f "../scripts/import_dvv.sql"
+echo "👤 Importing Omistajat..."
+"${QGIS_BIN_PATH}/ogr2ogr" -f PostgreSQL -overwrite -progress \
+  PG:"host=$JKR_DB_HOST port=$JKR_TEST_DB_PORT dbname=$JKR_TEST_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" \
+  -nln omistaja "$INPUT_FILE" "R4 omistaja"
+
+echo "🏠 Importing Asukkaat..."
+"${QGIS_BIN_PATH}/ogr2ogr" -f PostgreSQL -overwrite -progress \
+  PG:"host=$JKR_DB_HOST port=$JKR_TEST_DB_PORT dbname=$JKR_TEST_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" \
+  -nln vanhin "$INPUT_FILE" "R9 huon asukk"
+
+echo "🔄 Muunnetaan jkr-muotoon..."
+"${QGIS_BIN_PATH}/psql" -h "$JKR_DB_HOST" -p "$JKR_TEST_DB_PORT" -d "$JKR_TEST_DB" -U "$JKR_USER" \
+  -v formatted_date=20230131 -f "../scripts/import_dvv.sql"
+
+echo "✅ Done!"

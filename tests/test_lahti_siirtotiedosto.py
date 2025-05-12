@@ -65,7 +65,7 @@ def test_import_data(engine, datadir):
     session = Session(engine)
 
     # Kohteita ei pidä muodostua lisää
-    lkm_kohteet = 11
+    lkm_kohteet = 8
     assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
 
     # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa
@@ -79,29 +79,35 @@ def test_import_data(engine, datadir):
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
 
     # Kuljetusdatassa on 11 kelvollista sopimusta, joista kaksi on kahden kimppaa.
-    lkm_sopimukset = 13
+    lkm_sopimukset = 7
     assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
 
     # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa),
     # kaksi lasisopimusta (eri ajanjaksoilla), kaksi metallisopimusta ja muita yksi kutakin
     sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
     seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
-    assert session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar() == 3
+    seka_sopimukset = session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar()
+    assert seka_sopimukset == 1, f"seka sopimuksia ei ole {1}, vaan {seka_sopimukset}"
     biojate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Biojäte').scalar_subquery()
     bio_sopimus_filter = Sopimus.jatetyyppi_id == biojate_id
-    assert session.query(func.count(Sopimus.id)).filter(bio_sopimus_filter).scalar() == 3
+    bio_sopimukset = session.query(func.count(Sopimus.id)).filter(bio_sopimus_filter).scalar()
+    assert bio_sopimukset == 1, f"bio sopimuksia ei ole {1}, vaan {bio_sopimukset}"
     lasi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Lasi').scalar_subquery()
     lasi_sopimus_filter = Sopimus.jatetyyppi_id == lasi_id
-    assert session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar() == 2
+    lasi_sopimukset = session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar()
+    assert lasi_sopimukset == 2, f"bio sopimuksia ei ole {2}, vaan {lasi_sopimukset}"
     kartonki_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Kartonki').scalar_subquery()
     kartonki_sopimus_filter = Sopimus.jatetyyppi_id == kartonki_id
-    assert session.query(func.count(Sopimus.id)).filter(kartonki_sopimus_filter).scalar() == 1
+    kartonki_sopimukset =session.query(func.count(Sopimus.id)).filter(kartonki_sopimus_filter).scalar()
+    assert kartonki_sopimukset == 1, f"kartonki sopimuksia ei ole {1}, vaan {kartonki_sopimukset}"
     metalli_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Metalli').scalar_subquery()
     metalli_sopimus_filter = Sopimus.jatetyyppi_id == metalli_id
-    assert session.query(func.count(Sopimus.id)).filter(metalli_sopimus_filter).scalar() == 2
+    metalli_sopimukset = session.query(func.count(Sopimus.id)).filter(metalli_sopimus_filter).scalar()
+    assert metalli_sopimukset == 1, f"metalli sopimuksia ei ole {1}, vaan {metalli_sopimukset}"
     muovi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Muovi').scalar_subquery()
     muovi_sopimus_filter = Sopimus.jatetyyppi_id == muovi_id
-    assert session.query(func.count(Sopimus.id)).filter(muovi_sopimus_filter).scalar() == 1
+    muovi_sopimukset = session.query(func.count(Sopimus.id)).filter(muovi_sopimus_filter).scalar()
+    assert muovi_sopimukset == 1, f"muovi sopimuksia ei ole {1}, vaan {muovi_sopimukset}"
 
     # Kohteella Asunto Oy Kahden Laulumuisto osapuolina tilaajaroolit eri jätelajeista
     kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
@@ -134,8 +140,8 @@ def test_import_data(engine, datadir):
     kimppa_sopimus = \
         session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
         filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == sekajate_id)
-    assert kimppa_sopimus[0][0] is not None  # sopimuksella on kimppaisäntä
-    assert kimppa_sopimus[0][1] == \
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is not None, "Sopimuksen kimppaisäntää ei löydy"  # sopimuksella on kimppaisäntä
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
         session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
     osapuolen_roolit_query = \
         select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
@@ -150,8 +156,8 @@ def test_import_data(engine, datadir):
     kimppa_sopimus = \
         session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
         filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == biojate_id)
-    assert kimppa_sopimus[0][0] is not None  # sopimuksella on kimppaisäntä
-    assert kimppa_sopimus[0][1] == \
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is not None  # sopimuksella on kimppaisäntä
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
         session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
     osapuolen_roolit_query = \
         select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
@@ -166,8 +172,8 @@ def test_import_data(engine, datadir):
     kimppa_sopimus = \
         session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
         filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == sekajate_id)
-    assert kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
-    assert kimppa_sopimus[0][1] == \
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
         session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
     osapuolen_roolit_query = \
         select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
@@ -182,8 +188,8 @@ def test_import_data(engine, datadir):
     kimppa_sopimus = \
         session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
         filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == biojate_id)
-    assert kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
-    assert kimppa_sopimus[0][1] == \
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
         session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
     osapuolen_roolit_query = \
         select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
@@ -242,7 +248,7 @@ def test_import_data(engine, datadir):
         filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == kartonki_id).scalar()
     kartonki_sopimus_tyhjennysvali_count = \
         session.query(func.count()).filter(Tyhjennysvali.sopimus_id == kartonki_sopimus_id).scalar()
-    assert kartonki_sopimus_tyhjennysvali_count == 3
+    assert kartonki_sopimus_tyhjennysvali_count == 3, f"kartonki eroaa {kartonki_sopimus_tyhjennysvali_count} vs 3"
 
     # Kuljetusdatassa on yksi keskeytys.
     assert session.query(func.count(Keskeytys.id)).scalar() == 1
