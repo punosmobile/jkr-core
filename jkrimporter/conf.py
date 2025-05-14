@@ -10,7 +10,9 @@ print('checking system and loading env')
 if platform.system() == 'Windows':
     dotenv_path = os.path.join(os.getenv("APPDATA"), "jkr", ".env")
 else:
-    dotenv_path = "../.env.local"
+    home_path = os.getenv("HOME")
+    if home_path:
+        dotenv_path = home_path + "/.config/jkr/.env"
 
 # Read the environment variables from the .env file
 env = {
