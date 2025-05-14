@@ -395,6 +395,7 @@ def find_kohde_by_address(
     else:
         osoitenumero_filter = Osoite.osoitenumero.in_(osoitenumerot)
 
+    # If katunimi is also present, try to match it and return the result. Otherwise do not try to find it
     if asiakas.haltija.osoite.katunimi:
         kohde_filter = and_(
             Osoite.posti_numero == asiakas.haltija.osoite.postinumero,
