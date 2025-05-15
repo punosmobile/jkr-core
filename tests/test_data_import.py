@@ -162,7 +162,7 @@ def test_import_dvv_kohteet(engine, datadir):
         print(f"Creating kohteet failed: {e}")
 
     # Kohteiden lkm
-    lkm_kohteet = 7
+    lkm_kohteet = 8
     assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
 
     # Kohteiden alkupäivämääränä on poimintapäivämäärä
