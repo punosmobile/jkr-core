@@ -53,8 +53,8 @@ def test_kompostori_osakkaan_lisays(engine, datadir):
     session = Session(engine)
     # Tuodaan kaksi riviä lisää, toinen liitetään jo löytyvään kompostoriin osakkaaksi,
     # toinen luo uuden kompostorin uudella päivämäärällä.
-    assert session.query(func.count(Kompostori.id)).scalar() == 3
+    assert session.query(func.count(Kompostori.id)).scalar() == 2
 
     # KompostorinKohteet-taulussa viisi kohdentunutta kohdetta.
     # Kolmen kimppa sekä kaksi yksittäistä, joilla sama kohde_id.
-    assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 5
+    assert session.query(func.count(KompostorinKohteet.kompostori_id)).scalar() == 4

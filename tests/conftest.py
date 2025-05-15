@@ -1,4 +1,5 @@
 import os
+import platform
 from pathlib import Path
 from shutil import copytree
 import subprocess
@@ -54,7 +55,11 @@ def pytest_sessionstart(session):
     before performing collection and entering the run test loop.
     Creating the test database each time from scratch.
     """
-    init_test_db_command = ".\\scripts\\init_database.bat"
+    if platform.system() == 'Windows':
+        init_test_db_command = ".\\scripts\\init_database.bat"
+    else:
+        init_test_db_command = "./scripts/init_database.sh"
+
     try:
         subprocess.check_output(init_test_db_command, shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
