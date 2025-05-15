@@ -346,7 +346,7 @@ def find_kohteet_by_prt(
 def find_kohde_by_address(
     session: "Session", asiakas: "Asiakas"
 ) -> "Union[Kohde, None]":
-    print("matching by address:")
+    print(f"matching by address at {datetime.datetime.now()}:")
     # The osoitenumero may contain dash. In that case, the buildings may be
     # listed as separate in DVV data.
     if (
@@ -395,18 +395,19 @@ def find_kohde_by_address(
     else:
         osoitenumero_filter = Osoite.osoitenumero.in_(osoitenumerot)
 
+    # TODO Using this filter WILL cause a seemingly infinite during kuljetustiedot import loop. Function should be fixed at a later time 15.5.2025 EK
     # If katunimi is also present, try to match it and return the result. Otherwise do not try to find it
-    if asiakas.haltija.osoite.katunimi:
-        kohde_filter = and_(
-            Osoite.posti_numero == asiakas.haltija.osoite.postinumero,
-            or_(
-                Katu.katunimi_fi == asiakas.haltija.osoite.katunimi,
-                Katu.katunimi_sv == asiakas.haltija.osoite.katunimi,
-            ),
-            osoitenumero_filter,
-        )
+    # if asiakas.haltija.osoite.katunimi:
+    #     kohde_filter = and_(
+    #         Osoite.posti_numero == asiakas.haltija.osoite.postinumero,
+    #         or_(
+    #             Katu.katunimi_fi == asiakas.haltija.osoite.katunimi,
+    #             Katu.katunimi_sv == asiakas.haltija.osoite.katunimi,
+    #         ),
+    #         osoitenumero_filter,
+    #     )
 
-        return _find_kohde_by_asiakastiedot(session, kohde_filter, asiakas)
+    #     return _find_kohde_by_asiakastiedot(session, kohde_filter, asiakas)
 
     return None
 
