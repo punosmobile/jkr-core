@@ -1,9 +1,15 @@
+from sqlalchemy import select
 from jkrimporter.model import Asiakas, Jatelaji, JkrIlmoitukset, SopimusTyyppi
-
+from jkrimporter.providers.db.models import (
+    Kohde,
+    KohteenOsapuolet,
+    Osapuoli,
+    RakennuksenVanhimmat
+)
 from .. import codes
 from ..codes import OsapuolenlajiTyyppi, OsapuolenrooliTyyppi
-from ..models import Kohde, KohteenOsapuolet, Osapuoli
 from ..utils import is_asoy
+
 
 
 def create_or_update_haltija_osapuoli(
@@ -163,3 +169,55 @@ def create_or_update_komposti_yhteyshenkilo(
     session.commit()
 
     return kompostin_yhteyshenkilo
+
+def extract_identifier(rakennuksen_vanhin):
+    if rakennuksen_vanhin.osapuoli:
+        return rakennuksen_vanhin.osapuoli.henkilotunnus or rakennuksen_vanhin.osapuoli.nimi
+    return None
+
+def check_building_inhabitant_changes(
+    session, rakennus_id: int
+) -> bool:
+    """
+    Hae rakennuksen nykyiset ja menneet asukkaat sekä tarkista onko niissä yhtäläisyyksiä palauttaa true jos asukkaissa on päällekkäisyyksiä
+    """
+
+    # Haetaan rakennuksesta poistuneet asukkaat (loppupvm IS NOT NULL)
+    poistuneet_query = (
+        select(RakennuksenVanhimmat)
+        .join(Osapuoli)
+        .where(
+            RakennuksenVanhimmat.rakennus_id == rakennus_id,
+            RakennuksenVanhimmat.loppupvm.isnot(None)
+        )
+    )
+    poistuneet = session.execute(poistuneet_query).scalars().all()
+
+    # Haetaan yhä rakennuksessa asuvat (loppupvm IS NULL)
+    asuvat_query = (
+        select(RakennuksenVanhimmat)
+        .join(Osapuoli)
+        .where(
+            RakennuksenVanhimmat.rakennus_id == rakennus_id,
+            RakennuksenVanhimmat.loppupvm.is_(None)
+        )
+    )
+    asuvat = session.execute(asuvat_query).scalars().all()
+
+    # Luodaan setti henkilötunnuksista
+    poistuneet_tunnisteet = set()
+    for rv in poistuneet:
+        tunniste = extract_identifier(rv)
+        if tunniste:
+            poistuneet_tunnisteet.add(tunniste)
+
+    asuvat_tunnisteet = set()
+    for rv in asuvat:
+        tunniste = extract_identifier(rv)
+        if tunniste:
+            asuvat_tunnisteet.add(tunniste)
+
+    # Tarkistetaan, onko yksikin sama
+    onko_yha_asuva_poistunut = poistuneet_tunnisteet & asuvat_tunnisteet
+
+    return bool(onko_yha_asuva_poistunut)

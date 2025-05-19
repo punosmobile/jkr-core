@@ -48,6 +48,7 @@ from .services.buildings import (
     find_buildings_for_kohde,
     find_osoite_by_prt,
     find_single_building_id_by_prt,
+    find_active_buildings_with_moved_residents
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -66,6 +67,7 @@ from .services.kohde import (
 from .services.osapuoli import (
     create_or_update_haltija_osapuoli,
     create_or_update_komposti_yhteyshenkilo,
+    check_building_inhabitant_changes,
 )
 from .services.sopimus import update_sopimukset_for_kohde
 
@@ -194,6 +196,18 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
     return kohde
 
 
+def set_end_dates_to_kohteet(
+    session: Session,
+    poimintapvm: datetime.date,
+):
+    previous_pvm = poimintapvm - timedelta(days=1)
+    add_date_query = text(
+        "UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL"
+    )
+    session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
+    session.commit()
+
+
 def import_asiakastiedot(
     session: Session,
     asiakas: Asiakas,
@@ -303,6 +317,21 @@ def import_dvv_kohteet(
     else:
         print(f"Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
+
+    # Irrotetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
+    tarkistettava_rakennus_id_list = find_active_buildings_with_moved_residents(session)
+    print(f"\nTarkistetaan {len(tarkistettava_rakennus_id_list)} rakennusta")
+    poistettavat_rakennukset_asukastiedolla: list[int] = []
+    pysyvat_rakennukset_asukastiedolla: list[int] = []
+    for rakennus_id in tarkistettava_rakennus_id_list:
+        if not check_building_inhabitant_changes(session, rakennus_id):
+            poistettavat_rakennukset_asukastiedolla.append(rakennus_id)
+        else:
+            pysyvat_rakennukset_asukastiedolla.append(rakennus_id)
+
+    print(f"{len(poistettavat_rakennukset_asukastiedolla)} rakennusta on poistumassa kohteiltaan")
+    print(f"{len(pysyvat_rakennukset_asukastiedolla)} rakennusta on pysymässä kohteillaan")
+
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
     logger.info("\nLuodaan yhden asunnon kohteet...")
