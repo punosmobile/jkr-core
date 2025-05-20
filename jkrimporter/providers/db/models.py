@@ -119,7 +119,7 @@ with warnings.catch_warnings():
         name_for_scalar_relationship=name_for_scalar,
         name_for_collection_relationship=name_for_collection,
         reflect=True,
-        schema= "jkr",
+        reflection_options={"schema": "jkr"},
     )
 
 # Get references to all tables through the generated Base classes

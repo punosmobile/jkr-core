@@ -366,10 +366,10 @@ def import_dvv_kohteet(
         len(multiple_and_uninhabited_kohteet)
     )
 
+    # Tallennetaan uusin DVV-poimintaPVM tietokantaan seuraavalle käsittelylle
     db_dvv_pomintapvvm = DVVPoimintaPvm(
         poimintapvm=poimintapvm
     )
-
     print(f"Saving poimintapvm: {db_dvv_pomintapvvm}")
     session.add(db_dvv_pomintapvvm)
     session.commit()
