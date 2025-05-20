@@ -1,4 +1,5 @@
-from sqlalchemy import select, NoResultFound, desc
+from sqlalchemy import select, desc
+from sqlalchemy.exc import NoResultFound
 from datetime import datetime
 from jkrimporter.model import Asiakas, Jatelaji, JkrIlmoitukset, SopimusTyyppi
 from jkrimporter.providers.db.models import (
