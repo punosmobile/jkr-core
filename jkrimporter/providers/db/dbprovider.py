@@ -325,7 +325,7 @@ def import_dvv_kohteet(
     poistettavat_rakennukset_asukastiedolla: list[int] = []
     pysyvat_rakennukset_asukastiedolla: list[int] = []
     for rakennus_id in tarkistettava_rakennus_id_list:
-        if not check_building_inhabitant_changes(session, rakennus_id):
+        if not check_building_inhabitant_changes(session, rakennus_id, poimintapvm):
             poistettavat_rakennukset_asukastiedolla.append(rakennus_id)
         else:
             pysyvat_rakennukset_asukastiedolla.append(rakennus_id)
