@@ -12,7 +12,17 @@ alter table jkr.rakennus add column found_in_dvv boolean;
 
 
 -- Insert buildings to jkr_rakennus
-insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi, rakennusluokka_2018, found_in_dvv)
+insert into jkr.rakennus (
+  prt, 
+  kiinteistotunnus, 
+  onko_viemari, 
+  geom, kayttoonotto_pvm, 
+  kaytossaolotilanteenmuutos_pvm, 
+  rakennuksenkayttotarkoitus_koodi, 
+  rakennuksenolotila_koodi, 
+  rakennusluokka_2018, 
+  kunta, 
+  found_in_dvv)
 select 
     rakennustunnus as prt,
     "sijaintikiinteistön tunnus" as kiinteistotunnus,
@@ -26,6 +36,7 @@ päivä"::text, 'YYYYMMDD') else null end as kayttoonotto_pvm,
     "käytös_säolo_tilanne" as rakennuksenolotila_koodi,
     "rakennus_
 luokka" as rakennusluokka_2018,
+    "sijainti_kunta" as kunta,
     true as found_in_dvv
 from jkr_dvv.rakennus
 -- update all existing buildings
@@ -94,12 +105,32 @@ on conflict do nothing; -- osoitenumero and posti_numero may be null. katu_id al
 -- Insert owners to jkr.osapuoli
 -- Step 1: Find distinct people. This will pick the first line with matching henkilötunnus,
 -- if a person is listed multiple times.
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, erikoisosoite, kunta, henkilotunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (
+  nimi, 
+  katuosoite, 
+  postitoimipaikka, 
+  postinumero, kuolinpaiva, 
+  vakinaisen_osoitteen_alkupaiva, 
+  postiosoite_postinumero, 
+  postiosoitteen_postitoimipaikka, 
+  postiosoite, 
+  maakoodi, 
+  erikoisosoite, 
+  kunta, 
+  henkilotunnus, 
+  tiedontuottaja_tunnus
+)
 select distinct on ("henkilötunnus")
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan vakinainen kotimainen asuinosoite" as katuosoite,
     omistaja."vakinaisen kotim osoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."vak os posti_ numero" as postinumero,
+    to_date(omistaja."omistajan kuolinpäivä"::text, 'YYYYMMDD') as kuolinpaiva,
+    to_date(omistaja."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
+    omistaja."postios posti_numero" as postiosoite_postinumero,
+    omistaja."postiosoitteen postitoimipaikka" as postiosoitteen_postitoimipaikka,
+    omistaja."omistajan postiosoite" as postiosoite,
+    omistaja."um os valtio_koodi" as maakoodi,
     concat_ws(e'\n', omistaja."omistajan ulkomainen lähiosoite", omistaja."ulkomaisen osoitteen paikkakunta", omistaja."ulkomaisen osoitteen valtion postinimi") as erikoisosoite,
     omistaja."omist koti_kunta" as kunta,
     omistaja."henkilötunnus" as henkilotunnus,
@@ -122,12 +153,31 @@ set
 
 -- Step 2: Find distinct non-people. Luckily, DVV y-tunnus entries don't have foreign addresses.
 -- y-tunnus does not have kotikunta either. y-tunnus always has postiosoite instead of asuinosoite.
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, ytunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (
+  nimi, 
+  katuosoite, 
+  postitoimipaikka, 
+  postinumero, 
+  kuolinpaiva, 
+  vakinaisen_osoitteen_alkupaiva, 
+  postiosoite_postinumero, 
+  postiosoitteen_postitoimipaikka,
+  postiosoite,
+  maakoodi,
+  ytunnus, 
+  tiedontuottaja_tunnus
+)
 select distinct on ("y_tunnus")
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan postiosoite" as katuosoite,
     omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."postios posti_numero" as postinumero,
+    to_date(omistaja."omistajan kuolinpäivä"::text, 'YYYYMMDD') as kuolinpaiva,
+    to_date(omistaja."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
+    omistaja."postios posti_numero" as postiosoite_postinumero,
+    omistaja."postiosoitteen postitoimipaikka" as postiosoitteen_postitoimipaikka,
+    omistaja."omistajan postiosoite" as postiosoite,
+    omistaja."um os valtio_koodi" as maakoodi,
     omistaja."y_tunnus" as ytunnus,
     'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
@@ -147,13 +197,32 @@ set
 alter table jkr.osapuoli add column rakennustunnus text;
 
 
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, rakennustunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (
+  nimi, 
+  katuosoite, 
+  postitoimipaikka, 
+  postinumero, 
+  rakennustunnus, 
+  kuolinpaiva, 
+  vakinaisen_osoitteen_alkupaiva, 
+  postiosoite_postinumero, 
+  postiosoitteen_postitoimipaikka, 
+  postiosoite,
+  maakoodi,
+  tiedontuottaja_tunnus
+)
 select distinct -- There are some duplicate rows with identical address data
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan postiosoite" as katuosoite,
     omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."postios posti_numero" as postinumero,
     omistaja."rakennustunnus" as rakennustunnus, -- We need rakennustunnus to match each row
+    to_date(omistaja."omistajan kuolinpäivä"::text, 'YYYYMMDD') as kuolinpaiva,
+    to_date(omistaja."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
+    omistaja."postios posti_numero" as postiosoite_postinumero,
+    omistaja."postiosoitteen postitoimipaikka" as postiosoitteen_postitoimipaikka,
+    omistaja."omistajan postiosoite" as postiosoite,
+    omistaja."um os valtio_koodi" as maakoodi,
     'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
 where
@@ -243,13 +312,14 @@ alter table jkr.rakennuksen_omistajat drop column found_in_dvv;
 
 
 -- Insert elders to jkr.osapuoli
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, kunta, henkilotunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, kunta, vakinaisen_osoitteen_alkupaiva, henkilotunnus, tiedontuottaja_tunnus)
 select distinct on ("huoneiston vanhin asukas (henkilötunnus)")
     concat_ws(' ', vanhin."sukunimi", vanhin."etunimet") as nimi,
     vanhin."vakinainen kotimainen asuinosoite" as katuosoite,
     vanhin."vakinaisen kotim osoitteen postitoimipaikka" as postitoimipaikka,
     vanhin."vak os posti_ numero" as postinumero,
     vanhin.sijainti_kunta as kunta,
+    to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
     vanhin."huoneiston vanhin asukas (henkilötunnus)" as henkilotunnus,
     'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.vanhin
