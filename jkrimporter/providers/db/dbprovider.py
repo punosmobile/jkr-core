@@ -49,7 +49,7 @@ from .services.buildings import (
     find_buildings_for_kohde,
     find_osoite_by_prt,
     find_single_building_id_by_prt,
-    find_active_buildings_with_moved_residents
+    find_active_buildings_with_moved_residents_or_owners
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -319,13 +319,22 @@ def import_dvv_kohteet(
         print(f"Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
 
-    # Irrotetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
-    tarkistettava_rakennus_id_list = find_active_buildings_with_moved_residents(session)
-    print(f"\nTarkistetaan {len(tarkistettava_rakennus_id_list)} rakennusta")
+    # Haetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
+    tarkistettava_rakennus_id_list = find_active_buildings_with_moved_residents_or_owners(session)
+    print(f"\nTarkistetaan {len(tarkistettava_rakennus_id_list[0])} asukasta vaihtanutta rakennusta")
+    print(f"\nTarkistetaan {len(tarkistettava_rakennus_id_list[1])} omistajaa vaihtanutta rakennusta")
     poistettavat_rakennukset_asukastiedolla: list[int] = []
     pysyvat_rakennukset_asukastiedolla: list[int] = []
-    for rakennus_id in tarkistettava_rakennus_id_list:
+    for rakennus_id in tarkistettava_rakennus_id_list[0]:
+        # Tarkastetaan kunkin rakennuksen asukastietojen muutokset
         if not check_building_inhabitant_changes(session, rakennus_id, poimintapvm):
+            poistettavat_rakennukset_asukastiedolla.append(rakennus_id)
+        else:
+            pysyvat_rakennukset_asukastiedolla.append(rakennus_id)
+
+    for rakennus_id in tarkistettava_rakennus_id_list[1]:
+        # Tarkastetaan kunkin rakennuksen omistajatietojen muutokset
+        if not check_building_owner_changes(session, rakennus_id, poimintapvm):
             poistettavat_rakennukset_asukastiedolla.append(rakennus_id)
         else:
             pysyvat_rakennukset_asukastiedolla.append(rakennus_id)

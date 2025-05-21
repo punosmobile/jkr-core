@@ -7,7 +7,7 @@ from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
 from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
-from sqlalchemy import or_, select, exists
+from sqlalchemy import or_, select, exists, not_in
 from sqlalchemy.orm import Session
 from ..database import engine
 
@@ -245,7 +245,7 @@ def find_buildings_for_kohde(
 
     return []
 
-def find_active_buildings_with_moved_residents(session: "Session") -> List[int]:
+def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> List[List[int]]:
     """
     Etsii rakennukset, joista on muutettu pois.
 
@@ -259,9 +259,9 @@ def find_active_buildings_with_moved_residents(session: "Session") -> List[int]:
     logger = logging.getLogger(__name__)
     logger.debug("Etsitään muuttajia")
 
-    statement = (
+    muuttajat_query = (
         select(Rakennus.id)
-        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == KohteenRakennukset.rakennus_id)
+        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
         .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
         .where(
             and_(
@@ -278,8 +278,30 @@ def find_active_buildings_with_moved_residents(session: "Session") -> List[int]:
         .distinct()
     )
 
+    muuttajat = session.execute(muuttajat_query).scalars().all()
+
+    vaihtuneet_omistajat = (
+        select(Rakennus.id)
+        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
+        .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
+        .where(
+            and_(
+                exists(
+                    select(RakennuksenOmistajat.id)
+                    .where(
+                        RakennuksenOmistajat.omistuksen_loppupvm.isnot(None),
+                        RakennuksenOmistajat.rakennus_id == Rakennus.id
+                    )
+                ),
+                Kohde.lukittu.is_(False),
+                Rakennus.id.not_in(muuttajat)
+            )
+        )
+        .distinct()
+    )
+
     logger.debug("haettu rakennukset")
-    return session.execute(statement).scalars().all()
+    return [muuttajat, session.execute(vaihtuneet_omistajat).scalars().all()]
 
 
 def find_building_candidates_for_kohde(session: "Session", asiakas: "Asiakas") -> List[Rakennus]:
