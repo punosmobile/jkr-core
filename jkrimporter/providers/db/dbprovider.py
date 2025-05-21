@@ -16,7 +16,7 @@ from jkrimporter.model import (
     JkrData,
     JkrIlmoitukset,
     Paatos,
-    LopetusIlmoitus
+    LopetusIlmoitus,
 )
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.ilmoitus import (
@@ -41,6 +41,7 @@ from .models import (
     Tapahtumalaji,
     Tiedontuottaja,
     Viranomaispaatokset,
+    DVVPoimintaPvm
 )
 from .services.buildings import counts as building_counts
 from .services.buildings import (
@@ -324,7 +325,7 @@ def import_dvv_kohteet(
     poistettavat_rakennukset_asukastiedolla: list[int] = []
     pysyvat_rakennukset_asukastiedolla: list[int] = []
     for rakennus_id in tarkistettava_rakennus_id_list:
-        if not check_building_inhabitant_changes(session, rakennus_id):
+        if not check_building_inhabitant_changes(session, rakennus_id, poimintapvm):
             poistettavat_rakennukset_asukastiedolla.append(rakennus_id)
         else:
             pysyvat_rakennukset_asukastiedolla.append(rakennus_id)
@@ -364,6 +365,15 @@ def import_dvv_kohteet(
         len(single_asunto_kohteet) + 
         len(multiple_and_uninhabited_kohteet)
     )
+
+    # Tallennetaan uusin DVV-poimintaPVM tietokantaan seuraavalle käsittelylle
+    db_dvv_pomintapvvm = DVVPoimintaPvm(
+        poimintapvm=poimintapvm
+    )
+    print(f"Saving poimintapvm: {db_dvv_pomintapvvm}")
+    session.add(db_dvv_pomintapvvm)
+    session.commit()
+    
     print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta ja päivitetty {len(paivitetut_rakennus_kohteet)} vanhaa kohdetta")
     logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 

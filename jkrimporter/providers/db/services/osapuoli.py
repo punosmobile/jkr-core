@@ -1,10 +1,13 @@
-from sqlalchemy import select
+from sqlalchemy import select, desc
+from sqlalchemy.exc import NoResultFound
+from datetime import datetime
 from jkrimporter.model import Asiakas, Jatelaji, JkrIlmoitukset, SopimusTyyppi
 from jkrimporter.providers.db.models import (
     Kohde,
     KohteenOsapuolet,
     Osapuoli,
-    RakennuksenVanhimmat
+    RakennuksenVanhimmat,
+    DVVPoimintaPvm
 )
 from .. import codes
 from ..codes import OsapuolenlajiTyyppi, OsapuolenrooliTyyppi
@@ -176,10 +179,11 @@ def extract_identifier(rakennuksen_vanhin):
     return None
 
 def check_building_inhabitant_changes(
-    session, rakennus_id: int
+    session, rakennus_id: int, poimintapvm: datetime.date
 ) -> bool:
     """
     Hae rakennuksen nykyiset ja menneet asukkaat sekä tarkista onko niissä yhtäläisyyksiä palauttaa true jos asukkaissa on päällekkäisyyksiä
+    tai jos uusi asukas on aloittanut ennen edellistä poiminta päivämäärää
     """
 
     # Haetaan rakennuksesta poistuneet asukkaat (loppupvm IS NOT NULL)
@@ -218,6 +222,25 @@ def check_building_inhabitant_changes(
             asuvat_tunnisteet.add(tunniste)
 
     # Tarkistetaan, onko yksikin sama
-    onko_yha_asuva_poistunut = poistuneet_tunnisteet & asuvat_tunnisteet
+    onko_yha_asuva_poistunut = bool(poistuneet_tunnisteet & asuvat_tunnisteet)
 
-    return bool(onko_yha_asuva_poistunut)
+    # Jos asukkaissa ei ole yhtäläisyyksiä, tarkistetaan onko joku asukkaista muuttanut taloon ennen edellistä poimintapäivää.
+    # Tämä voi tapahtua esimerkiksi kahden henkilön asuessa samassa taloudessa josta toinen muuttaa pois
+    if  not onko_yha_asuva_poistunut:
+        vanha_poiminta_query = (
+            select(DVVPoimintaPvm)
+            .order_by(desc(DVVPoimintaPvm.poimintapvm))
+        )
+
+        try:
+            dvv_poiminta = session.execute(vanha_poiminta_query).scalar_one()
+        except NoResultFound:
+            dvv_poiminta = None
+
+        print(f"DVV_PoimintaPVM: {dvv_poiminta}")
+
+        for asukas in asuvat:
+            if asukas.alkupvm < (dvv_poiminta or poimintapvm):
+                onko_yha_asuva_poistunut = True
+
+    return onko_yha_asuva_poistunut
