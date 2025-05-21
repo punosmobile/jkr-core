@@ -7,7 +7,7 @@ from typing import Optional
 import typer
 import pandas as pd
 from sqlalchemy import text
-from sqlalchemy.orm import declarative_base, scoped_session
+from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 import openpyxl
 from openpyxl.utils import get_column_letter

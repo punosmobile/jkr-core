@@ -305,6 +305,7 @@ on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
 select jkr.update_omistuksen_loppupvm(:'poimintapvm');
 select jkr.update_osapuoli_with_ytunnus();
 select jkr.update_osapuoli_with_henkilotunnus();
+select jkr.update_osapuoli_without_ytunnus_or_henkilotunnus();
 
 
 alter table jkr.osapuoli drop column rakennustunnus;

@@ -7,7 +7,7 @@ from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
 from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, exists
 from sqlalchemy.orm import Session
 from ..database import engine
 
@@ -23,6 +23,8 @@ from ..models import (
     RakennuksenOmistajat,
     RakennuksenVanhimmat,
     Rakennus,
+    Kohde,
+    KohteenRakennukset
 )
 
 logger = logging.getLogger(__name__)
@@ -242,6 +244,42 @@ def find_buildings_for_kohde(
             return rakennukset
 
     return []
+
+def find_active_buildings_with_moved_residents(session: "Session") -> List[int]:
+    """
+    Etsii rakennukset, joista on muutettu pois.
+
+    Args:
+        session: SQLAlchemy-tietokantaistunto
+
+    Returns:
+        List[int]: Lista löydetyistä rakennuksista. Lista voi olla tyhjä jos
+                        yksikään asukas ei ole vielä muuttanut.
+    """
+    logger = logging.getLogger(__name__)
+    logger.debug("Etsitään muuttajia")
+
+    statement = (
+        select(Rakennus.id)
+        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == KohteenRakennukset.rakennus_id)
+        .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
+        .where(
+            and_(
+                exists(
+                    select(RakennuksenVanhimmat.id)
+                    .where(
+                        RakennuksenVanhimmat.loppupvm.isnot(None),
+                        RakennuksenVanhimmat.rakennus_id == Rakennus.id
+                    )
+                ),
+                Kohde.lukittu.is_(False)
+            )
+        )
+        .distinct()
+    )
+
+    logger.debug("haettu rakennukset")
+    return session.execute(statement).scalars().all()
 
 
 def find_building_candidates_for_kohde(session: "Session", asiakas: "Asiakas") -> List[Rakennus]:
