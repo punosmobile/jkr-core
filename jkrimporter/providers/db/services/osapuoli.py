@@ -237,11 +237,12 @@ def should_remove_from_kohde_via_asukas(
 
         try:
             dvv_poiminta = session.execute(vanha_poiminta_query).scalar_one()
+            dvv_poimintapvm = dvv_poiminta.poimintapvm
         except NoResultFound:
             dvv_poiminta = None
 
         for asukas in asuvat:
-            vertailupvm = dvv_poiminta or poimintapvm
+            vertailupvm = dvv_poimintapvm or poimintapvm
             print(f"Asukas alkupvm vs DVV_PoimintaPVM: {asukas.alkupvm} < {vertailupvm}: {asukas.alkupvm < vertailupvm}")
             if asukas.alkupvm < vertailupvm:
                 poistetaan_kohteelta = False
