@@ -5,9 +5,8 @@ from typing import TYPE_CHECKING, Dict, List, Set, Union
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
-from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
-from sqlalchemy import or_, select, exists, not_in
+from sqlalchemy import or_, select, exists, and_
 from sqlalchemy.orm import Session
 from ..database import engine
 
