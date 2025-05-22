@@ -5,9 +5,8 @@ from typing import TYPE_CHECKING, Dict, List, Set, Union
 
 from geoalchemy2.shape import to_shape
 from shapely.geometry import MultiPoint
-from sqlalchemy import and_
 from sqlalchemy import func as sqlalchemyFunc
-from sqlalchemy import or_, select, exists
+from sqlalchemy import or_, select, exists, and_
 from sqlalchemy.orm import Session
 from ..database import engine
 
@@ -245,7 +244,7 @@ def find_buildings_for_kohde(
 
     return []
 
-def find_active_buildings_with_moved_residents(session: "Session") -> List[int]:
+def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> List[List[int]]:
     """
     Etsii rakennukset, joista on muutettu pois.
 
@@ -259,9 +258,10 @@ def find_active_buildings_with_moved_residents(session: "Session") -> List[int]:
     logger = logging.getLogger(__name__)
     logger.debug("Etsitään muuttajia")
 
-    statement = (
+    # Rakennukset aktiivisissa kohteissa, joista on muutettu pois
+    muuttajat_query = (
         select(Rakennus.id)
-        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == KohteenRakennukset.rakennus_id)
+        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
         .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
         .where(
             and_(
@@ -272,14 +272,42 @@ def find_active_buildings_with_moved_residents(session: "Session") -> List[int]:
                         RakennuksenVanhimmat.rakennus_id == Rakennus.id
                     )
                 ),
-                Kohde.lukittu.is_(False)
+                Kohde.lukittu.is_(False),
+                Kohde.loppupvm.is_(None)
             )
         )
         .distinct()
     )
 
+    muuttaja_rakennukset = session.execute(muuttajat_query).scalars().all()
+
+    # Rakennukset, joista on poistunut yksi tai useampi omistaja aktiivisissa kohteissa,
+    # joissa asukkaita ei ole poistunut
+    omistajat_query = (
+        select(Rakennus.id)
+        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
+        .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
+        .where(
+            and_(
+                exists(
+                    select(RakennuksenOmistajat.id)
+                    .where(
+                        RakennuksenOmistajat.omistuksen_loppupvm.isnot(None),
+                        RakennuksenOmistajat.rakennus_id == Rakennus.id
+                    )
+                ),
+                Kohde.lukittu.is_(False),
+                Rakennus.id.not_in(muuttaja_rakennukset),
+                Kohde.loppupvm.is_(None)
+            )
+        )
+        .distinct()
+    )
+
+    omistaja_rakennukset = session.execute(omistajat_query).scalars().all()
+
     logger.debug("haettu rakennukset")
-    return session.execute(statement).scalars().all()
+    return [muuttaja_rakennukset, omistaja_rakennukset]
 
 
 def find_building_candidates_for_kohde(session: "Session", asiakas: "Asiakas") -> List[Rakennus]:
