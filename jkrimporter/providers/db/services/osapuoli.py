@@ -7,6 +7,7 @@ from jkrimporter.providers.db.models import (
     KohteenOsapuolet,
     Osapuoli,
     RakennuksenVanhimmat,
+    RakennuksenOmistajat,
     DVVPoimintaPvm
 )
 from .. import codes
@@ -178,11 +179,13 @@ def extract_identifier(rakennuksen_vanhin):
         return rakennuksen_vanhin.osapuoli.henkilotunnus or rakennuksen_vanhin.osapuoli.nimi
     return None
 
-def check_building_inhabitant_changes(
+def should_remove_from_kohde_via_asukas(
     session, rakennus_id: int, poimintapvm: datetime.date
 ) -> bool:
     """
-    Hae rakennuksen nykyiset ja menneet asukkaat sekä tarkista onko niissä yhtäläisyyksiä palauttaa true jos asukkaissa on päällekkäisyyksiä
+    Hae rakennuksen nykyiset ja menneet asukkaat 
+    sekä tarkista onko niissä yhtäläisyyksiä. 
+    Palauttaa Truen jos asukkaissa ei ole päällekkäisyyksiä
     tai jos uusi asukas on aloittanut ennen edellistä poiminta päivämäärää
     """
 
@@ -221,12 +224,12 @@ def check_building_inhabitant_changes(
         if tunniste:
             asuvat_tunnisteet.add(tunniste)
 
-    # Tarkistetaan, onko yksikin sama
-    onko_yha_asuva_poistunut = bool(poistuneet_tunnisteet & asuvat_tunnisteet)
+    # Tarkistetaan, onko yksikin sama, jos on, ei tulisi poistaa kohteelta
+    poistetaan_kohteelta = not bool(poistuneet_tunnisteet & asuvat_tunnisteet)
 
     # Jos asukkaissa ei ole yhtäläisyyksiä, tarkistetaan onko joku asukkaista muuttanut taloon ennen edellistä poimintapäivää.
     # Tämä voi tapahtua esimerkiksi kahden henkilön asuessa samassa taloudessa josta toinen muuttaa pois
-    if  not onko_yha_asuva_poistunut:
+    if  poistetaan_kohteelta and len(asuvat) != 0:
         vanha_poiminta_query = (
             select(DVVPoimintaPvm)
             .order_by(desc(DVVPoimintaPvm.poimintapvm))
@@ -237,10 +240,83 @@ def check_building_inhabitant_changes(
         except NoResultFound:
             dvv_poiminta = None
 
-        print(f"DVV_PoimintaPVM: {dvv_poiminta}")
-
         for asukas in asuvat:
-            if asukas.alkupvm < (dvv_poiminta or poimintapvm):
-                onko_yha_asuva_poistunut = True
+            vertailupvm = dvv_poiminta or poimintapvm
+            print(f"Asukas alkupvm vs DVV_PoimintaPVM: {asukas.alkupvm} < {vertailupvm}: {asukas.alkupvm < vertailupvm}")
+            if asukas.alkupvm < vertailupvm:
+                poistetaan_kohteelta = False
+                break
+    
+    # Onko joku poistuneista asukkaista yhä nykyinen omistaja jos uutta asukasta ei ole?
+    elif poistetaan_kohteelta and len(asuvat) == 0:
+        rakennuksen_omistajat_query = (
+            select(RakennuksenOmistajat)
+            .join(Osapuoli)
+            .where(
+                RakennuksenOmistajat.rakennus_id == rakennus_id,
+                RakennuksenOmistajat.omistuksen_loppupvm.isnot(None)
+            )
+        )
+        rakennuksen_omistajat = session.execute(rakennuksen_omistajat_query).scalars().all()
+        omistaja_tunnisteet = set()
+        for ro in rakennuksen_omistajat:
+            tunniste = extract_identifier(ro)
+            if tunniste:
+                omistaja_tunnisteet.add(tunniste)
 
-    return onko_yha_asuva_poistunut
+        print(f"Nykyiset omistajat vs poistuneet asukkaat: {poistuneet_tunnisteet & omistaja_tunnisteet}")
+        
+        # Tarkistetaan, onko yksikin sama, jos on, ei tulisi poistaa kohteelta
+        poistetaan_kohteelta = not bool(poistuneet_tunnisteet & omistaja_tunnisteet)
+
+    return poistetaan_kohteelta
+
+
+def should_remove_from_kohde_via_omistaja(
+    session, rakennus_id: int
+) -> bool:
+    """
+    Hae rakennuksen nykyiset ja menneet omistajat 
+    sekä tarkista onko niissä yhtäläisyyksiä.
+    Palauttaa Truen jos omistajissa ei ole päällekkäisyyksiä
+    """
+
+    # Haetaan rakennuksesta poistuneet asukkaat (loppupvm IS NOT NULL)
+    poistuneet_omistajat_query = (
+        select(RakennuksenOmistajat)
+        .join(Osapuoli)
+        .where(
+            RakennuksenOmistajat.rakennus_id == rakennus_id,
+            RakennuksenOmistajat.omistuksen_loppupvm.isnot(None)
+        )
+    )
+    poistuneet_omistajat = session.execute(poistuneet_omistajat_query).scalars().all()
+
+    # Haetaan yhä rakennuksessa asuvat (loppupvm IS NULL)
+    nykyiset_omistajat_query = (
+        select(RakennuksenOmistajat)
+        .join(Osapuoli)
+        .where(
+            RakennuksenOmistajat.rakennus_id == rakennus_id,
+            RakennuksenOmistajat.omistuksen_loppupvm.is_(None)
+        )
+    )
+    nykyiset_omistajat = session.execute(nykyiset_omistajat_query).scalars().all()
+
+    # Luodaan setti henkilötunnuksista tai nimistä
+    poistuneet_tunnisteet = set()
+    for rv in poistuneet_omistajat:
+        tunniste = extract_identifier(rv)
+        if tunniste:
+            poistuneet_tunnisteet.add(tunniste)
+
+    omistaja_tunnisteet = set()
+    for rv in nykyiset_omistajat:
+        tunniste = extract_identifier(rv)
+        if tunniste:
+            omistaja_tunnisteet.add(tunniste)
+
+    # Tarkistetaan, onko yksikin sama
+    poistetaan_kohteelta = bool(poistuneet_tunnisteet & omistaja_tunnisteet)
+
+    return poistetaan_kohteelta

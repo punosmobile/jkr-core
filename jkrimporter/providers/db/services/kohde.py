@@ -406,7 +406,7 @@ def find_kohde_by_address(
             osoitenumero_filter,
         )
 
-        #return _find_kohde_by_asiakastiedot(session, kohde_filter, asiakas)
+        return _find_kohde_by_asiakastiedot(session, kohde_filter, asiakas)
 
     return None
 

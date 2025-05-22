@@ -68,7 +68,8 @@ from .services.kohde import (
 from .services.osapuoli import (
     create_or_update_haltija_osapuoli,
     create_or_update_komposti_yhteyshenkilo,
-    check_building_inhabitant_changes,
+    should_remove_from_kohde_via_asukas,
+    should_remove_from_kohde_via_omistaja,
 )
 from .services.sopimus import update_sopimukset_for_kohde
 
@@ -320,27 +321,33 @@ def import_dvv_kohteet(
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
 
     # Haetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
-    tarkistettava_rakennus_id_list = find_active_buildings_with_moved_residents_or_owners(session)
-    print(f"\nTarkistetaan {len(tarkistettava_rakennus_id_list[0])} asukasta vaihtanutta rakennusta")
-    print(f"\nTarkistetaan {len(tarkistettava_rakennus_id_list[1])} omistajaa vaihtanutta rakennusta")
+    tarkistettava_rakennus_id_lists = find_active_buildings_with_moved_residents_or_owners(session)
+    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists[0])} asukasta vaihtanutta rakennusta")
+
+    # Asukaspohjaiset päätökset
     poistettavat_rakennukset_asukastiedolla: list[int] = []
     pysyvat_rakennukset_asukastiedolla: list[int] = []
-    for rakennus_id in tarkistettava_rakennus_id_list[0]:
+    for rakennus_id in tarkistettava_rakennus_id_lists[0]:
         # Tarkastetaan kunkin rakennuksen asukastietojen muutokset
-        if not check_building_inhabitant_changes(session, rakennus_id, poimintapvm):
+        if should_remove_from_kohde_via_asukas(session, rakennus_id, poimintapvm):
             poistettavat_rakennukset_asukastiedolla.append(rakennus_id)
         else:
             pysyvat_rakennukset_asukastiedolla.append(rakennus_id)
 
-    for rakennus_id in tarkistettava_rakennus_id_list[1]:
+    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists[1])} omistajaa vaihtanutta rakennusta")
+    
+    # Omistajapohjaiset päätökset
+    poistettavat_rakennukset_omistajatiedolla: list[int] = []
+    pysyvat_rakennukset_omistajatiedolla: list[int] = []
+    for rakennus_id in tarkistettava_rakennus_id_lists[1]:
         # Tarkastetaan kunkin rakennuksen omistajatietojen muutokset
-        if not check_building_owner_changes(session, rakennus_id, poimintapvm):
-            poistettavat_rakennukset_asukastiedolla.append(rakennus_id)
+        if should_remove_from_kohde_via_omistaja(session, rakennus_id):
+            poistettavat_rakennukset_omistajatiedolla.append(rakennus_id)
         else:
-            pysyvat_rakennukset_asukastiedolla.append(rakennus_id)
+            pysyvat_rakennukset_omistajatiedolla.append(rakennus_id)
 
-    print(f"{len(poistettavat_rakennukset_asukastiedolla)} rakennusta on poistumassa kohteiltaan")
-    print(f"{len(pysyvat_rakennukset_asukastiedolla)} rakennusta on pysymässä kohteillaan")
+    print(f"{len(poistettavat_rakennukset_asukastiedolla) + len(poistettavat_rakennukset_omistajatiedolla)} rakennusta on poistumassa kohteiltaan")
+    print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} rakennusta on pysymässä kohteillaan")
 
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
