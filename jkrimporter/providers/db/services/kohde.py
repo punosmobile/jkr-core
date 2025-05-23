@@ -2584,3 +2584,50 @@ def _cluster_rakennustiedot(
         cluster = None
 
     return clusters
+
+def remove_buildings_from_kohde(session: Session, rakennukset: list[int]):
+
+    for rakennus in rakennukset:
+        rakennuksen_kohde_query = (
+            select(KohteenRakennukset)
+            .join(Rakennus, Rakennus.id == KohteenRakennukset.rakennus_id)
+            .where(KohteenRakennukset.rakennus_id == rakennus)
+        )
+
+        rakennuksen_kohteet = session.execute(rakennuksen_kohde_query).scalars().all()
+        if len(rakennuksen_kohteet) != 1:
+            print("RAKENNUKSELLA ON USEAMPI TAI NOLLA KOHDETTA")
+            print(rakennuksen_kohteet)
+            continue
+        else:
+            rakennuksen_kohde = rakennuksen_kohteet[0]
+
+        kohde_id = rakennuksen_kohde.kohde_id
+
+        kohteen_muut_rakennukset_query = (
+            select(KohteenRakennukset)
+            .where(
+                and_(
+                    KohteenRakennukset.kohde_id == kohde_id,
+                    KohteenRakennukset.rakennus_id != rakennus
+                )
+            )
+        )
+
+        muut_rakennukset = session.execute(kohteen_muut_rakennukset_query).all()
+
+        if len(muut_rakennukset) > 0:
+            print(f"Poistetaan vain rakennus {rakennuksen_kohde.rakennus.prt}")
+            session.delete(rakennuksen_kohde)
+        else:
+            kohde_query = (
+                select(Kohde)
+                .where(
+                    Kohde.id== kohde_id,
+                )
+            )
+
+            kohde = session.execute(kohde_query).scalars().all()
+            kohde.loppupvm = 
+            
+    return None

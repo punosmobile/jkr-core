@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List, Set, Union
+from typing import TYPE_CHECKING, Dict, List, Set, Union, cast
+from datetime import date
 
 
 from geoalchemy2.shape import to_shape
@@ -244,7 +245,15 @@ def find_buildings_for_kohde(
 
     return []
 
-def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> List[List[int]]:
+class RakennusData(Dict):
+    id: int
+    loppupvm: date
+
+class RakennusMuutokset(Dict):
+    asukasRakennukset: List[RakennusData]
+    omistajaRakennus: List[RakennusData]
+
+def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> RakennusMuutokset:
     """
     Etsii rakennukset, joista on muutettu pois.
 
@@ -260,7 +269,7 @@ def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> 
 
     # Rakennukset aktiivisissa kohteissa, joista on muutettu pois
     muuttajat_query = (
-        select(Rakennus.id)
+        select(Rakennus.id, loppupvm=RakennuksenVanhimmat.loppupvm)
         .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
         .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
         .where(
@@ -279,12 +288,15 @@ def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> 
         .distinct()
     )
 
-    muuttaja_rakennukset = session.execute(muuttajat_query).scalars().all()
+    muuttaja_rakennukset: list[RakennusData] = cast(
+        List[RakennusData], 
+        session.execute(muuttajat_query).scalars().all()
+    )
 
     # Rakennukset, joista on poistunut yksi tai useampi omistaja aktiivisissa kohteissa,
     # joissa asukkaita ei ole poistunut
     omistajat_query = (
-        select(Rakennus.id)
+        select(Rakennus.id, loppupvm = RakennuksenOmistajat.omistuksen_loppupvm)
         .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
         .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
         .where(
@@ -304,10 +316,16 @@ def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> 
         .distinct()
     )
 
-    omistaja_rakennukset = session.execute(omistajat_query).scalars().all()
+    omistaja_rakennukset: list[RakennusData] = cast(
+        List[RakennusData], 
+        session.execute(omistajat_query).scalars().all()
+    )
 
     logger.debug("haettu rakennukset")
-    return [muuttaja_rakennukset, omistaja_rakennukset]
+    return cast(RakennusMuutokset, {
+        "asukasRakennukset": muuttaja_rakennukset,
+        "omistajaRakennus": omistaja_rakennukset
+    })
 
 
 def find_building_candidates_for_kohde(session: "Session", asiakas: "Asiakas") -> List[Rakennus]:
