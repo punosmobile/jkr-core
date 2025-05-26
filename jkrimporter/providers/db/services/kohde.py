@@ -40,7 +40,7 @@ from ..models import (
     HapaAineisto,
 )
 from ..utils import clean_asoy_name, form_display_name, is_asoy, is_company, is_yhteiso
-from .buildings import DISTANCE_LIMIT, create_nearby_buildings_lookup, maximum_distance_of_buildings
+from .buildings import DISTANCE_LIMIT, create_nearby_buildings_lookup, maximum_distance_of_buildings, RakennusData
 
 T = TypeVar('T')
 
@@ -2585,22 +2585,22 @@ def _cluster_rakennustiedot(
 
     return clusters
 
-def remove_buildings_from_kohde(session: Session, rakennukset: list[int]):
+def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData]):
 
     for rakennus in rakennukset:
         rakennuksen_kohde_query = (
             select(KohteenRakennukset)
             .join(Rakennus, Rakennus.id == KohteenRakennukset.rakennus_id)
-            .where(KohteenRakennukset.rakennus_id == rakennus)
+            .where(KohteenRakennukset.rakennus_id == rakennus["id"])
         )
 
         rakennuksen_kohteet = session.execute(rakennuksen_kohde_query).scalars().all()
         if len(rakennuksen_kohteet) != 1:
-            print("RAKENNUKSELLA ON USEAMPI TAI NOLLA KOHDETTA")
+            print(f"Rakennuksella {rakennus['id']} ei ole odotettua määrää kohteita: {len(rakennuksen_kohteet)}")
             print(rakennuksen_kohteet)
             continue
-        else:
-            rakennuksen_kohde = rakennuksen_kohteet[0]
+        
+        rakennuksen_kohde = rakennuksen_kohteet[0]
 
         kohde_id = rakennuksen_kohde.kohde_id
 
@@ -2609,7 +2609,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[int]):
             .where(
                 and_(
                     KohteenRakennukset.kohde_id == kohde_id,
-                    KohteenRakennukset.rakennus_id != rakennus
+                    KohteenRakennukset.rakennus_id != rakennus["id"]
                 )
             )
         )
@@ -2626,8 +2626,17 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[int]):
                     Kohde.id== kohde_id,
                 )
             )
+            
+            kohde = session.execute(kohde_query).scalar_one()
+            print(f"Lopetetaan kohde ja poistetaan rakennus {rakennuksen_kohde.rakennus.prt} kohteelta {kohde.id}")
 
-            kohde = session.execute(kohde_query).scalars().all()
-            kohde.loppupvm = 
+            uusi_loppupvm = rakennus["loppupvm"]
+            print(uusi_loppupvm)
+            print(kohde.alkupvm)
+            if kohde.alkupvm >= uusi_loppupvm:
+                uusi_loppupvm = kohde.alkupvm
+
+            kohde.loppupvm = uusi_loppupvm
+            session.delete(rakennuksen_kohde)
             
     return None

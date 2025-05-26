@@ -49,7 +49,8 @@ from .services.buildings import (
     find_buildings_for_kohde,
     find_osoite_by_prt,
     find_single_building_id_by_prt,
-    find_active_buildings_with_moved_residents_or_owners
+    find_active_buildings_with_moved_residents_or_owners,
+    RakennusData
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -323,25 +324,25 @@ def import_dvv_kohteet(
 
     # Haetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
     tarkistettava_rakennus_id_lists = find_active_buildings_with_moved_residents_or_owners(session)
-    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists.asukasRakennukset)} asukasta vaihtanutta rakennusta")
+    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists['asukasRakennukset'])} asukasta vaihtanutta rakennusta")
 
     # Asukaspohjaiset päätökset
-    poistettavat_rakennukset = []
-    pysyvat_rakennukset_asukastiedolla = []
-    for rakennus in tarkistettava_rakennus_id_lists.asukasRakennukset:
+    poistettavat_rakennukset: list[RakennusData] = []
+    pysyvat_rakennukset_asukastiedolla: list[RakennusData] = []
+    for rakennus in tarkistettava_rakennus_id_lists['asukasRakennukset']:
         # Tarkastetaan kunkin rakennuksen asukastietojen muutokset
-        if should_remove_from_kohde_via_asukas(session, rakennus.id, poimintapvm):
+        if should_remove_from_kohde_via_asukas(session, rakennus["id"], poimintapvm):
             poistettavat_rakennukset.append(rakennus)
         else:
             pysyvat_rakennukset_asukastiedolla.append(rakennus)
 
-    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists[1])} omistajaa vaihtanutta rakennusta")
+    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists['omistajaRakennukset'])} omistajaa vaihtanutta rakennusta")
     
     # Omistajapohjaiset päätökset
     pysyvat_rakennukset_omistajatiedolla = []
-    for rakennus in tarkistettava_rakennus_id_lists.omistajaRakennus:
+    for rakennus in tarkistettava_rakennus_id_lists['omistajaRakennukset']:
         # Tarkastetaan kunkin rakennuksen omistajatietojen muutokset
-        if should_remove_from_kohde_via_omistaja(session, rakennus.id):
+        if should_remove_from_kohde_via_omistaja(session, rakennus["id"]):
             poistettavat_rakennukset.append(rakennus)
         else:
             pysyvat_rakennukset_omistajatiedolla.append(rakennus)
@@ -351,6 +352,7 @@ def import_dvv_kohteet(
 
     if len(poistettavat_rakennukset) > 0:
         remove_buildings_from_kohde(session, poistettavat_rakennukset)
+        session.commit()
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
     logger.info("\nLuodaan yhden asunnon kohteet...")

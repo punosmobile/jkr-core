@@ -233,6 +233,7 @@ def should_remove_from_kohde_via_asukas(
         vanha_poiminta_query = (
             select(DVVPoimintaPvm)
             .order_by(desc(DVVPoimintaPvm.poimintapvm))
+            .limit(1)
         )
 
         try:
@@ -243,13 +244,12 @@ def should_remove_from_kohde_via_asukas(
 
         for asukas in asuvat:
             vertailupvm = dvv_poimintapvm or poimintapvm
-            print(f"Asukas alkupvm vs DVV_PoimintaPVM: {asukas.alkupvm} < {vertailupvm}: {asukas.alkupvm < vertailupvm}")
             if asukas.alkupvm < vertailupvm:
                 poistetaan_kohteelta = False
                 break
     
     # Onko joku poistuneista asukkaista yhä nykyinen omistaja jos uutta asukasta ei ole?
-    elif poistetaan_kohteelta and len(asuvat) == 0:
+    if poistetaan_kohteelta and len(asuvat) == 0:
         rakennuksen_omistajat_query = (
             select(RakennuksenOmistajat)
             .join(Osapuoli)
@@ -265,11 +265,12 @@ def should_remove_from_kohde_via_asukas(
             if tunniste:
                 omistaja_tunnisteet.add(tunniste)
 
-        print(f"Nykyiset omistajat vs poistuneet asukkaat: {poistuneet_tunnisteet & omistaja_tunnisteet}")
-        
+
         # Tarkistetaan, onko yksikin sama, jos on, ei tulisi poistaa kohteelta
         poistetaan_kohteelta = not bool(poistuneet_tunnisteet & omistaja_tunnisteet)
 
+        if poistetaan_kohteelta:
+            print(f"Poistetaan rakennus kohteelta id:llä: {rakennus_id}")
     return poistetaan_kohteelta
 
 
