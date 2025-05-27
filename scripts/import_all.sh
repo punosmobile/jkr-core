@@ -5,7 +5,7 @@ export PORT=$JKR_DB_PORT
 export DB_NAME=$JKR_DB
 export USER=$JKR_USER
 export PGPASSWORD=$JKR_PASSWORD
-export APPDATA=/usr/local/bin/dotenv
+export APPDATA=/$HOME/.config/jkr/.env
 
 # Haetaan kuluva päivä ja muotoillaan
 formatted_date=$(date +"%Y%m%d")

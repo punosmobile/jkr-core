@@ -224,7 +224,7 @@ def replace_with_new_files(path: Path, decrypt: bool = False, selected_suffix: s
     try:
         suffix = selected_suffix
         if suffix is None:
-            if decrypt is False:
+            if decrypt is False or decrypt is None:
                 suffix = "_pseudottu."
             else:
                 suffix = "_palautettu."

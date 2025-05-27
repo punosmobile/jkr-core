@@ -1,171 +1,6 @@
 SELECT to_date(:'formatted_date', 'YYYYMMDD') AS poimintapvm \gset
 
 
-create or replace function update_omistuksen_loppupvm(poimintapvm DATE) returns void as $$
-begin
-  update jkr.rakennuksen_omistajat as ro
-  set omistuksen_loppupvm = 
-    case
-      -- Looks for existing entry and
-      -- sets loppupvm to new entry's omistuksen_alkupvm - 1 day,
-      -- if it is greater than the omistuksen_alkupvm
-      -- of the entry being updated.
-      -- If multiple existing entries are found
-      -- picks the one with latest omistuksen_alkupvm
-      when exists(
-        select 1 
-        from jkr.rakennuksen_omistajat as existing_entry
-        where existing_entry.rakennus_id = ro.rakennus_id
-        and existing_entry.omistuksen_alkupvm::date > ro.omistuksen_alkupvm::date
-        and existing_entry.found_in_dvv = true
-        order by omistuksen_alkupvm desc
-        limit 1
-      ) then 
-        (select to_date((existing_entry.omistuksen_alkupvm::date - interval '1 DAY')::text, 'YYYY-MM-DD') 
-         from jkr.rakennuksen_omistajat as existing_entry
-         where existing_entry.rakennus_id = ro.rakennus_id
-         and existing_entry.omistuksen_alkupvm::date > ro.omistuksen_alkupvm::date
-         and existing_entry.found_in_dvv = TRUE
-         order by omistuksen_alkupvm desc
-         limit 1)
-      else 
-        poimintapvm -- if no applicable existing entry is found, use poimintapvm.
-    end
-  where found_in_dvv is not True
-  and omistuksen_loppupvm is null;
-end;
-$$ language plpgsql;
-
-
-create or replace function update_vanhin_loppupvm(poimintapvm DATE) returns void as $$
-begin
-  update jkr.rakennuksen_vanhimmat as rv
-  set loppupvm = 
-    case
-      -- Looks for a new entry in the same appartment
-      -- sets loppupvm to new entry's alkupvm - 1 day, if it is greater than the alkupvm
-      -- of the entry being updated. 
-      when exists(
-        select 1
-        from jkr.rakennuksen_vanhimmat as new_entry
-        where new_entry.rakennus_id = rv.rakennus_id
-          and new_entry.huoneistokirjain is not distinct from rv.huoneistokirjain
-          and new_entry.huoneistonumero is not distinct from rv.huoneistonumero
-          and new_entry.jakokirjain is not distinct from rv.jakokirjain
-          and new_entry.alkupvm::date > rv.alkupvm::date
-          and new_entry.found_in_dvv = True
-          limit 1
-      ) then (select (new_entry.alkupvm::date - interval '1 DAY')
-        from jkr.rakennuksen_vanhimmat as new_entry
-        where new_entry.rakennus_id = rv.rakennus_id
-          and new_entry.huoneistokirjain is not distinct from rv.huoneistokirjain
-          and new_entry.huoneistonumero is not distinct from rv.huoneistonumero
-          and new_entry.jakokirjain is not distinct from rv.jakokirjain
-          and new_entry.found_in_dvv = True
-        limit 1)
-      else
-        -- if no applicable existing entry is found, use poimintapvm.
-        poimintapvm 
-    end
-  where found_in_dvv is not True
-  and loppupvm is null;
-end;
-$$ language plpgsql;
-
-
-create or replace function update_kaytostapoisto_pvm(poimintapvm DATE) returns void as $$
-begin
-  update jkr.rakennus as r
-  set kaytostapoisto_pvm = poimintapvm
-  where found_in_dvv is not True
-    and kaytostapoisto_pvm is null;
-end;
-$$ language plpgsql;
-
-
--- Matches and updates information (nimi, postioimipaikka, postinumero) for osapuoli with known ytunnus and missing information
-create or replace function update_osapuoli_with_ytunnus() returns void as $$
-declare
-    rec jkr.osapuoli%rowtype;
-begin
-    for rec in select * from jkr.osapuoli where ytunnus is not null and henkilotunnus is null and tiedontuottaja_tunnus = 'dvv'
-        and (nimi is null
-        or katuosoite is null
-        or postitoimipaikka is null
-        or postinumero is null)
-    loop
-        update jkr.osapuoli
-        set nimi = (
-                select nimi from jkr.osapuoli
-                where ytunnus = rec.ytunnus
-                and nimi is not null
-                and tiedontuottaja_tunnus = 'dvv'
-                limit 1
-            ),
-            katuosoite = (
-                select katuosoite from jkr.osapuoli
-                where ytunnus = rec.ytunnus
-                and katuosoite is not null
-                and tiedontuottaja_tunnus = 'dvv'
-                limit 1
-            ),
-            postitoimipaikka = (
-                select postitoimipaikka from jkr.osapuoli
-                where ytunnus = rec.ytunnus
-                and postitoimipaikka is not null
-                and tiedontuottaja_tunnus = 'dvv'
-                limit 1
-            ),
-            postinumero = (
-                select postinumero from jkr.osapuoli
-                where ytunnus = rec.ytunnus
-                and postinumero is not null
-                and tiedontuottaja_tunnus = 'dvv'
-                limit 1
-            )
-        where
-            ytunnus = rec.ytunnus;   
-    end loop;
-   end;
-$$ language plpgsql;
-
-
--- Matches and updates information (nimi, postitomipaikka, postinumero) for osapuoli with known henkilotunnus and missing information. 
-create or replace function update_osapuoli_with_henkilotunnus() returns void as $$
-declare
-    rec jkr.osapuoli%rowtype;
-begin
-    for rec in select * from jkr.osapuoli where henkilotunnus is not null and ytunnus is null
-        and (nimi is null
-        or postitoimipaikka is null
-        or postinumero is null)
-    loop
-        update jkr.osapuoli
-        set nimi = (
-                select nimi from jkr.osapuoli
-                where henkilotunnus = rec.henkilotunnus
-                and nimi is not null
-                limit 1         
-            ),
-            postitoimipaikka = (
-                select postitoimipaikka from jkr.osapuoli
-                where henkilotunnus = rec.henkilotunnus
-                and postitoimipaikka is not null
-                limit 1
-            ),
-            postinumero = (
-                select postinumero from jkr.osapuoli
-                where henkilotunnus = rec.henkilotunnus
-                and postinumero is not null
-                limit 1
-            )
-        where
-            henkilotunnus = rec.henkilotunnus;
-    end loop;
-   end;
-$$ language plpgsql;
-
-
 -- Add dvv tiedontuottaja
 insert into jkr_koodistot.tiedontuottaja values
     ('dvv', 'Digi- ja väestötietovirasto')
@@ -177,7 +12,17 @@ alter table jkr.rakennus add column found_in_dvv boolean;
 
 
 -- Insert buildings to jkr_rakennus
-insert into jkr.rakennus (prt, kiinteistotunnus, onko_viemari, geom, kayttoonotto_pvm, kaytossaolotilanteenmuutos_pvm, rakennuksenkayttotarkoitus_koodi, rakennuksenolotila_koodi, rakennusluokka_2018, found_in_dvv)
+insert into jkr.rakennus (
+  prt, 
+  kiinteistotunnus, 
+  onko_viemari, 
+  geom, kayttoonotto_pvm, 
+  kaytossaolotilanteenmuutos_pvm, 
+  rakennuksenkayttotarkoitus_koodi, 
+  rakennuksenolotila_koodi, 
+  rakennusluokka_2018, 
+  kunta, 
+  found_in_dvv)
 select 
     rakennustunnus as prt,
     "sijaintikiinteistön tunnus" as kiinteistotunnus,
@@ -191,6 +36,7 @@ päivä"::text, 'YYYYMMDD') else null end as kayttoonotto_pvm,
     "käytös_säolo_tilanne" as rakennuksenolotila_koodi,
     "rakennus_
 luokka" as rakennusluokka_2018,
+    "sijainti_kunta" as kunta,
     true as found_in_dvv
 from jkr_dvv.rakennus
 -- update all existing buildings
@@ -207,7 +53,7 @@ set
     found_in_dvv = true;
 
 
-SELECT update_kaytostapoisto_pvm(:'poimintapvm');
+SELECT jkr.update_kaytostapoisto_pvm(:'poimintapvm');
 alter table jkr.rakennus drop column found_in_dvv;
 
 
@@ -259,12 +105,32 @@ on conflict do nothing; -- osoitenumero and posti_numero may be null. katu_id al
 -- Insert owners to jkr.osapuoli
 -- Step 1: Find distinct people. This will pick the first line with matching henkilötunnus,
 -- if a person is listed multiple times.
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, erikoisosoite, kunta, henkilotunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (
+  nimi, 
+  katuosoite, 
+  postitoimipaikka, 
+  postinumero, kuolinpaiva, 
+  vakinaisen_osoitteen_alkupaiva, 
+  postiosoite_postinumero, 
+  postiosoitteen_postitoimipaikka, 
+  postiosoite, 
+  maakoodi, 
+  erikoisosoite, 
+  kunta, 
+  henkilotunnus, 
+  tiedontuottaja_tunnus
+)
 select distinct on ("henkilötunnus")
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan vakinainen kotimainen asuinosoite" as katuosoite,
     omistaja."vakinaisen kotim osoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."vak os posti_ numero" as postinumero,
+    to_date(omistaja."omistajan kuolinpäivä"::text, 'YYYYMMDD') as kuolinpaiva,
+    to_date(omistaja."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
+    omistaja."postios posti_numero" as postiosoite_postinumero,
+    omistaja."postiosoitteen postitoimipaikka" as postiosoitteen_postitoimipaikka,
+    omistaja."omistajan postiosoite" as postiosoite,
+    omistaja."um os valtio_koodi" as maakoodi,
     concat_ws(e'\n', omistaja."omistajan ulkomainen lähiosoite", omistaja."ulkomaisen osoitteen paikkakunta", omistaja."ulkomaisen osoitteen valtion postinimi") as erikoisosoite,
     omistaja."omist koti_kunta" as kunta,
     omistaja."henkilötunnus" as henkilotunnus,
@@ -287,12 +153,31 @@ set
 
 -- Step 2: Find distinct non-people. Luckily, DVV y-tunnus entries don't have foreign addresses.
 -- y-tunnus does not have kotikunta either. y-tunnus always has postiosoite instead of asuinosoite.
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, ytunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (
+  nimi, 
+  katuosoite, 
+  postitoimipaikka, 
+  postinumero, 
+  kuolinpaiva, 
+  vakinaisen_osoitteen_alkupaiva, 
+  postiosoite_postinumero, 
+  postiosoitteen_postitoimipaikka,
+  postiosoite,
+  maakoodi,
+  ytunnus, 
+  tiedontuottaja_tunnus
+)
 select distinct on ("y_tunnus")
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan postiosoite" as katuosoite,
     omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."postios posti_numero" as postinumero,
+    to_date(omistaja."omistajan kuolinpäivä"::text, 'YYYYMMDD') as kuolinpaiva,
+    to_date(omistaja."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
+    omistaja."postios posti_numero" as postiosoite_postinumero,
+    omistaja."postiosoitteen postitoimipaikka" as postiosoitteen_postitoimipaikka,
+    omistaja."omistajan postiosoite" as postiosoite,
+    omistaja."um os valtio_koodi" as maakoodi,
     omistaja."y_tunnus" as ytunnus,
     'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
@@ -312,13 +197,32 @@ set
 alter table jkr.osapuoli add column rakennustunnus text;
 
 
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, rakennustunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (
+  nimi, 
+  katuosoite, 
+  postitoimipaikka, 
+  postinumero, 
+  rakennustunnus, 
+  kuolinpaiva, 
+  vakinaisen_osoitteen_alkupaiva, 
+  postiosoite_postinumero, 
+  postiosoitteen_postitoimipaikka, 
+  postiosoite,
+  maakoodi,
+  tiedontuottaja_tunnus
+)
 select distinct -- There are some duplicate rows with identical address data
     omistaja."omistajan nimi" as nimi,
     omistaja."omistajan postiosoite" as katuosoite,
     omistaja."postiosoitteen postitoimipaikka" as postitoimipaikka,
     omistaja."postios posti_numero" as postinumero,
     omistaja."rakennustunnus" as rakennustunnus, -- We need rakennustunnus to match each row
+    to_date(omistaja."omistajan kuolinpäivä"::text, 'YYYYMMDD') as kuolinpaiva,
+    to_date(omistaja."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
+    omistaja."postios posti_numero" as postiosoite_postinumero,
+    omistaja."postiosoitteen postitoimipaikka" as postiosoitteen_postitoimipaikka,
+    omistaja."omistajan postiosoite" as postiosoite,
+    omistaja."um os valtio_koodi" as maakoodi,
     'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.omistaja
 where
@@ -398,9 +302,9 @@ on conflict (rakennus_id, osapuoli_id, omistuksen_alkupvm) do update
     set found_in_dvv = true;
 
 
-select update_omistuksen_loppupvm(:'poimintapvm');
-select update_osapuoli_with_ytunnus();
-select update_osapuoli_with_henkilotunnus();
+select jkr.update_omistuksen_loppupvm(:'poimintapvm');
+select jkr.update_osapuoli_with_ytunnus();
+select jkr.update_osapuoli_with_henkilotunnus();
 
 
 alter table jkr.osapuoli drop column rakennustunnus;
@@ -408,13 +312,14 @@ alter table jkr.rakennuksen_omistajat drop column found_in_dvv;
 
 
 -- Insert elders to jkr.osapuoli
-insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, kunta, henkilotunnus, tiedontuottaja_tunnus)
+insert into jkr.osapuoli (nimi, katuosoite, postitoimipaikka, postinumero, kunta, vakinaisen_osoitteen_alkupaiva, henkilotunnus, tiedontuottaja_tunnus)
 select distinct on ("huoneiston vanhin asukas (henkilötunnus)")
     concat_ws(' ', vanhin."sukunimi", vanhin."etunimet") as nimi,
     vanhin."vakinainen kotimainen asuinosoite" as katuosoite,
     vanhin."vakinaisen kotim osoitteen postitoimipaikka" as postitoimipaikka,
     vanhin."vak os posti_ numero" as postinumero,
     vanhin.sijainti_kunta as kunta,
+    to_date(vanhin."vakin kotim osoitteen alkupäivä"::text, 'YYYYMMDD') as vakinaisen_osoitteen_alkupaiva,
     vanhin."huoneiston vanhin asukas (henkilötunnus)" as henkilotunnus,
     'dvv' as tiedontuottaja_tunnus
 from jkr_dvv.vanhin
@@ -662,5 +567,5 @@ where jkr.rakennuksen_vanhimmat.osapuoli_id = excluded.osapuoli_id
   and jkr.rakennuksen_vanhimmat.rakennus_id = excluded.rakennus_id;
 
 
-select update_vanhin_loppupvm(:'poimintapvm');
+select jkr.update_vanhin_loppupvm(:'poimintapvm');
 alter table jkr.rakennuksen_vanhimmat drop column found_in_dvv;

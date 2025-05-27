@@ -5,7 +5,7 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     POETRY_VERSION=1.5.1 \
     POETRY_VIRTUALENVS_CREATE=false \
-    APPDATA=/usr/local/bin/dotenv
+    APPDATA=/$HOME/.config/jkr/.env
 
 # Asenna järjestelmäriippuvuudet ja QGIS
 RUN apt-get update && apt-get install -y --no-install-recommends \

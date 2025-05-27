@@ -1,11 +1,18 @@
 import os
+import platform
 import sys
 
 from dotenv import dotenv_values
 
 
 # Path to the .env file in the user's %APPDATA%/jkr directory
-dotenv_path = os.path.join(os.getenv("APPDATA"), "jkr", ".env")
+print('checking system and loading env')
+if platform.system() == 'Windows':
+    dotenv_path = os.path.join(os.getenv("APPDATA"), "jkr", ".env")
+else:
+    home_path = os.getenv("HOME")
+    if home_path:
+        dotenv_path = home_path + "/.config/jkr/.env"
 
 # Read the environment variables from the .env file
 env = {
@@ -24,7 +31,7 @@ dbconf = {
     "dbname": env.get("JKR_DB", None),
 }
 if (
-    os.path.basename(sys.argv[0]) == test_command
+    test_command in sys.argv[0]
 ):  # Running tests, set configuration for test database
     dbconf["port"] = env.get("JKR_TEST_DB_PORT", None)
     dbconf["password"] = env.get("JKR_TEST_PASSWORD", None)

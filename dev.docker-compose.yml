@@ -135,7 +135,7 @@ services:
       - JKR_USER=${JKR_USER}
       - JKR_PASSWORD=${JKR_PASSWORD}
       - JKR_DB_PORT=5432
-      - APPDATA=/usr/local/bin/dotenv
+      - APPDATA=/$HOME/.config/jkr/.env
       - HOOK_URL=${HOOK_URL}
     networks:
       - default

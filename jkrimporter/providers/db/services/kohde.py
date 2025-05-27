@@ -394,7 +394,22 @@ def find_kohde_by_address(
         )
     else:
         osoitenumero_filter = Osoite.osoitenumero.in_(osoitenumerot)
-    print(osoitenumero_filter)
+
+    # TODO Using this filter WILL cause a seemingly infinite loop during kuljetustiedot import. Function should be fixed at a later time 15.5.2025 EK
+    # If katunimi is also present, try to match it and return the result. Otherwise do not try to find it
+    # if asiakas.haltija.osoite.katunimi:
+    #     kohde_filter = and_(
+    #         Osoite.posti_numero == asiakas.haltija.osoite.postinumero,
+    #         or_(
+    #             Katu.katunimi_fi == asiakas.haltija.osoite.katunimi,
+    #             Katu.katunimi_sv == asiakas.haltija.osoite.katunimi,
+    #         ),
+    #         osoitenumero_filter,
+    #     )
+
+    #     return _find_kohde_by_asiakastiedot(session, kohde_filter, asiakas)
+
+    return None
 
 def _find_kohde_by_ilmoitustiedot(
     session: "Session",
@@ -513,7 +528,7 @@ def _find_kohde_by_asiakastiedot(
                 continue
                 
             db_nimi = db_nimi.upper()
-            
+
             # Jos kyseessä asoy, vaadi tarkka täsmäys
             if 'ASOY' in db_nimi or 'AS OY' in db_nimi:
                 if db_nimi == asiakas_nimi:

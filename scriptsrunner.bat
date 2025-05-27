@@ -21,7 +21,7 @@ docker run --rm -it ^
     -e JKR_USER=%JKR_USER% ^
     -e JKR_PASSWORD=%JKR_PASSWORD% ^
     -e PGPASSWORD=%PGPASSWORD% ^
-    -e APPDATA=/usr/local/bin/dotenv ^
+    -e APPDATA=/$HOME/.config/jkr/.env ^
     -v "%CD%":/app ^
     jkr-core-runner:latest ^
     bash -c "cd /app && poetry install && cd /app/scripts && exec /bin/bash"
