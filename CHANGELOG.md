@@ -125,3 +125,21 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixes to import_dvv.sql where one column is written in wrong format
+
+## [0.6.7] - 2025-05-27
+
+### Added
+- File containing default pseudonymization fields
+
+- Database
+  - Several new columns
+  - Kunta column to v__rakennukset view
+  - Updated QGis project
+
+### Fixed
+
+- Tests
+  - Fixed most automated tests to work with current code
+  - Enabled usage of tests in Linux operating systems
+- Pseudonymizer
+  - Fix for file replacer
