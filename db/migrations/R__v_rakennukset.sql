@@ -15,7 +15,8 @@ SELECT r.id,
     r.rakennusluokka_2018,
     (EXISTS ( SELECT 1
            FROM jkr.kohteen_rakennusehdokkaat kr
-          WHERE r.id = kr.rakennus_id)) AS on_kohde_ehdokkaita
+          WHERE r.id = kr.rakennus_id)) AS on_kohde_ehdokkaita,
+    r.kunta
 FROM jkr.rakennus r
 LEFT JOIN jkr_koodistot.rakennusluokka_2018 rl ON r.rakennusluokka_2018 = rl.koodi;
 
