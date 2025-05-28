@@ -2,8 +2,11 @@ import subprocess
 from datetime import datetime
 
 import platform
+import csv
+import os
+from pathlib import Path
 import pytest
-from sqlalchemy import and_, create_engine, distinct, func, or_, select
+from sqlalchemy import and_, create_engine, distinct, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from jkrimporter import conf
@@ -28,8 +31,11 @@ from jkrimporter.providers.db.models import (
     RakennuksenOmistajat,
     RakennuksenVanhimmat,
     Sopimus,
+    SopimusTyyppi,
     Tiedontuottaja,
     Viranomaispaatokset,
+    Keskeytys,
+    Tyhjennysvali,
 )
 
 
@@ -93,7 +99,7 @@ def _assert_kohde_has_sopimus_with_jatelaji(
             .filter(Sopimus.jatetyyppi_id == jatetyyppi_id)
             .scalar()
             is not None
-        )
+        ), f"Ei sopimuksia kohteelle {kohde_nimi} selitteellä {jatetyyppi_selite}"
     else:
         assert (
             session.query(Sopimus.id)
@@ -101,7 +107,7 @@ def _assert_kohde_has_sopimus_with_jatelaji(
             .filter(Sopimus.jatetyyppi_id == jatetyyppi_id)
             .scalar()
             is None
-        )
+        ), f"Saatiin sopimuks kohteelle {kohde_nimi} selitteellä {jatetyyppi_selite}"
 
 
 def _assert_kohde_has_kuljetus_with_jatelaji(
@@ -162,7 +168,7 @@ def test_import_dvv_kohteet(engine, datadir):
         print(f"Creating kohteet failed: {e}")
 
     # Kohteiden lkm
-    lkm_kohteet = 7
+    lkm_kohteet = 9
     assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
 
     # Kohteiden alkupäivämääränä on poimintapäivämäärä
@@ -172,21 +178,20 @@ def test_import_dvv_kohteet(engine, datadir):
         == lkm_kohteet
     )
 
-    # Perusmaksurekisteristä luodulla kohteella Asunto Oy Kahden Laulumuisto on loppupäivämäärä
+    # Perusmaksurekisteristä luodulla kohteella Asunto Oy Kahden Laulumuisto ei ole loppupäivämäärää
     kohde_nimi_filter = Kohde.nimi == "Asunto Oy Kahden Laulumuisto"
-    loppu_pvm_filter = Kohde.loppupvm == func.to_date("2100-01-01", "YYYY-MM-DD")
     kohde_id = (
         session.query(Kohde.id)
         .filter(kohde_nimi_filter)
-        .filter(loppu_pvm_filter)
+        .filter(Kohde.loppupvm.isnot(None))
         .scalar()
     )
-    assert kohde_id is not None, f"Ei löytynyt päättymispäivällistä kohdetta"
+    assert kohde_id is None, "Löytyi päättymispäivällisiä kohteita"
 
     # Muilla kohteilla ei loppupäivämäärää
     loppu_pvm_filter = Kohde.loppupvm != None
     paattyneet_kohteet = session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar()
-    assert paattyneet_kohteet == 1, f"Ei löytynyt vain yhtä loppupäivämäärällistä kohdetta {paattyneet_kohteet}"
+    assert paattyneet_kohteet == 0, f"Löytyi päättyneitä kohteita {paattyneet_kohteet}"
 
     # Kaikilla kohteilla vähintään yksi omistaja
     kohteet = select(Kohde.id)
@@ -202,10 +207,14 @@ def test_import_dvv_kohteet(engine, datadir):
         Kohde.nimi == "Forsström", Kohde.nimi == "Kemp", Kohde.nimi == "Lindroth"
     )
     vanhin_asukas_filter = KohteenOsapuolet.osapuolenrooli_id == 2
-    kohde_ids = session.execute(select(Kohde.id).where(kohde_nimi_filter)).fetchall()
+    kohde_ids = [row[0] for row in session.execute(select(Kohde.id).where(kohde_nimi_filter)).fetchall()]
     vanhin_asukas_ids = session.execute(
-        select(KohteenOsapuolet.kohde_id).where(vanhin_asukas_filter)
-    ).fetchall()
+        select(KohteenOsapuolet.kohde_id).where(
+            and_(
+                vanhin_asukas_filter,
+                KohteenOsapuolet.kohde_id.in_(kohde_ids)
+            ))
+    ).scalars().all()
     assert kohde_ids == vanhin_asukas_ids, f"Vanhimpia asukkaita on liikaa {kohde_ids} vs {vanhin_asukas_ids}"
 
     # Muissa kohteissa ei vanhinta asukasta osapuolena - 12.05.2025 havaittu että koodi asettaa lähes kaikki vanhimmmiksi osapuoli asukkaiksi
@@ -221,13 +230,13 @@ def test_import_dvv_kohteet(engine, datadir):
     import_data(
         datadir + "/kuljetus1", "LSJ", False, False, True, "1.1.2022", "31.12.2022"
     )
-    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Sekajäte")
-    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Sekajäte")
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Granström", "Sekajäte")
+    _assert_kohde_has_kuljetus_with_jatelaji(session, "Granström", "Sekajäte")
     import_data(
         datadir + "/kuljetus2", "LSJ", False, False, True, "1.1.2023", "31.12.2023"
     )
-    _assert_kohde_has_sopimus_with_jatelaji(session, "Kemp", "Kartonki")
-    _assert_kohde_has_kuljetus_with_jatelaji(session, "Kemp", "Kartonki")
+    _assert_kohde_has_sopimus_with_jatelaji(session, "Granström", "Kartonki")
+    _assert_kohde_has_kuljetus_with_jatelaji(session,"Granström", "Kartonki")
 
     # Lisätään päätökset kohteelle Kemp
     import_paatokset(datadir + "/paatokset.xlsx")
@@ -243,9 +252,9 @@ def _assert_kohteen_alkupvm(session, pvmstr, nimi):
         session.query(Kohde.id)
         .filter(kohde_nimi_filter)
         .filter(alku_pvm_filter)
-        .scalar()
+        .all()
     )
-    assert kohde_id is not None
+    assert kohde_id is not None, f"Ei löytynyt alkupäivää {pvmstr} ja nimeä {nimi} vastaavaa kohdetta"
 
 
 def _assert_kohteen_loppupvm(session, pvmstr, nimi):
@@ -257,7 +266,7 @@ def _assert_kohteen_loppupvm(session, pvmstr, nimi):
         .filter(loppu_pvm_filter)
         .scalar()
     )
-    assert kohde_id is not None
+    assert kohde_id is not None, f"Ei löytynyt loppupäivää {pvmstr} ja nimeä {nimi} vastaavaa kohdetta"
 
 
 def _remove_kuljetusdata_from_database(session):
@@ -306,13 +315,13 @@ def test_update_dvv_kohteet(engine, datadir):
         print(f"Updating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 11
+    assert session.query(func.count(Kohde.id)).scalar() == 14
 
     # Perusmaksurekisteristä luodun kohteen Asunto Oy Kahden Laulumuisto loppupäivämäärä ei ole muuttunut
-    _assert_kohteen_loppupvm(session, "2100-01-01", "Asunto Oy Kahden Laulumuisto")
+    _assert_kohteen_loppupvm(session, "2023-01-31", "Asunto Oy Kahden Laulumuisto")
 
     # Päättyneelle kohteelle Kemp (asukas vaihtunut) asetettu loppupäivämäärät oikein
-    _assert_kohteen_loppupvm(session, "2022-06-16", "Kemp")
+    _assert_kohteen_loppupvm(session, "2023-01-31", "Granström")
     osapuoli_nimi_filter = Osapuoli.nimi == "Kemp Johan"
     osapuoli_tiedontuottaja_filter = Osapuoli.tiedontuottaja_tunnus == "dvv"
     osapuoli_id = (
@@ -322,7 +331,7 @@ def test_update_dvv_kohteet(engine, datadir):
         .scalar()
     )
     loppu_pvm_filter = RakennuksenVanhimmat.loppupvm == func.to_date(
-        "2022-06-16", "YYYY-MM-DD"
+        "2023-01-31", "YYYY-MM-DD"
     )
     rakennuksen_vanhimmat_id = (
         session.query(RakennuksenVanhimmat.id)
@@ -330,19 +339,19 @@ def test_update_dvv_kohteet(engine, datadir):
         .filter(loppu_pvm_filter)
         .scalar()
     )
-    assert rakennuksen_vanhimmat_id is not None
+    assert rakennuksen_vanhimmat_id is not None, "Ei löytynyt asukkaita"
 
-    # Päättyneelle ja uudelle kohteelle Riipinen (asukas vaihtunut) asetettu alku- ja loppupäivämäärät oikein
-    _assert_kohteen_alkupvm(session, "2022-01-28", "Riipinen")
-    _assert_kohteen_loppupvm(session, "2023-01-30", "Riipinen")
+    # Päättyneelle ja uudelle kohteelle Kauko (asukas vaihtunut) asetettu alku- ja loppupäivämäärät oikein
+    _assert_kohteen_alkupvm(session, "2022-01-28", "Kauko")
+    _assert_kohteen_loppupvm(session, "2023-01-31", "Kauko")
     _assert_kohteen_alkupvm(session, "2023-01-31", "Riipinen")
 
     # Päättyneelle kohteelle Pohjonen (omistaja vaihtunut) asetettu loppupäivämäärät oikein
-    _assert_kohteen_loppupvm(session, "2023-01-22", "Pohjonen")
+    _assert_kohteen_loppupvm(session, "2023-01-31", "Pohjonen")
     osapuoli_nimi_filter = Osapuoli.nimi == "Pohjonen Aarno Armas"
     osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
     loppu_pvm_filter = RakennuksenOmistajat.omistuksen_loppupvm == func.to_date(
-        "2023-01-22", "YYYY-MM-DD"
+        "2023-01-31", "YYYY-MM-DD"
     )
     rakennuksen_vanhimmat_id = (
         session.query(RakennuksenOmistajat.id)
@@ -350,7 +359,7 @@ def test_update_dvv_kohteet(engine, datadir):
         .filter(loppu_pvm_filter)
         .scalar()
     )
-    assert rakennuksen_vanhimmat_id is not None
+    assert rakennuksen_vanhimmat_id is not None, "Ei löytynyt asukkaita päivityksen jälkeen"
 
     # Muilla kohteilla ei loppupäivämäärää
     loppu_pvm_filter = Kohde.loppupvm != None
@@ -403,6 +412,32 @@ def test_update_dvv_kohteet(engine, datadir):
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Metalli")
     _assert_kohde_has_sopimus_with_jatelaji(session, "Kyykoski", "Biojäte")
     _assert_kohde_has_kuljetus_with_jatelaji(session, "Kyykoski", "Biojäte")
+
+    # Kohteella Asunto Oy Kahden Laulumuisto osapuolina tilaajaroolit eri jätelajeista
+    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
+    kohde_loppupvm_filter = Kohde.loppupvm is None
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(kohde_loppupvm_filter).scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    sekajate_tilaaja_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja sekajäte').scalar()
+    assert sekajate_tilaaja_id in osapuolen_roolit
+    biojate_tilaaja_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja biojäte').scalar()
+    assert biojate_tilaaja_id in osapuolen_roolit
+    muovi_tilaaja_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja muovipakkaus').scalar()
+    assert muovi_tilaaja_id in osapuolen_roolit
+    kartonki_tilaaja_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja kartonkipakkaus').scalar()
+    assert kartonki_tilaaja_id in osapuolen_roolit
+    lasi_tilaaja_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja lasipakkaus').scalar()
+    assert lasi_tilaaja_id in osapuolen_roolit
+    metalli_tilaaja_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Tilaaja metalli').scalar()
+    assert metalli_tilaaja_id in osapuolen_roolit
 
     # Kyykoskelle syntyy tilaajarooli seuraavasta kuljetuksesta
     import_data(
@@ -461,5 +496,188 @@ def test_update_dvv_kohteet(engine, datadir):
         .scalar()
         == 1
     )
+
+    # Kuljetusdatassa on 11 kelvollista sopimusta, joista kaksi on kahden kimppaa.
+    lkm_sopimukset = 7
+    assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
+
+    # Sopimuksissa kaksi validia sekajätesopimusta (joista toinen kimppa),
+    # kaksi lasisopimusta (eri ajanjaksoilla), kaksi metallisopimusta ja muita yksi kutakin
+    sekajate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Sekajäte').scalar_subquery()
+    seka_sopimus_filter = Sopimus.jatetyyppi_id == sekajate_id
+    seka_sopimukset = session.query(func.count(Sopimus.id)).filter(seka_sopimus_filter).scalar()
+    assert seka_sopimukset == 1, f"seka sopimuksia ei ole {1}, vaan {seka_sopimukset}"
+    biojate_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Biojäte').scalar_subquery()
+    bio_sopimus_filter = Sopimus.jatetyyppi_id == biojate_id
+    bio_sopimukset = session.query(func.count(Sopimus.id)).filter(bio_sopimus_filter).scalar()
+    assert bio_sopimukset == 1, f"bio sopimuksia ei ole {1}, vaan {bio_sopimukset}"
+    lasi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Lasi').scalar_subquery()
+    lasi_sopimus_filter = Sopimus.jatetyyppi_id == lasi_id
+    lasi_sopimukset = session.query(func.count(Sopimus.id)).filter(lasi_sopimus_filter).scalar()
+    assert lasi_sopimukset == 2, f"bio sopimuksia ei ole {2}, vaan {lasi_sopimukset}"
+    kartonki_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Kartonki').scalar_subquery()
+    kartonki_sopimus_filter = Sopimus.jatetyyppi_id == kartonki_id
+    kartonki_sopimukset =session.query(func.count(Sopimus.id)).filter(kartonki_sopimus_filter).scalar()
+    assert kartonki_sopimukset == 1, f"kartonki sopimuksia ei ole {1}, vaan {kartonki_sopimukset}"
+    metalli_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Metalli').scalar_subquery()
+    metalli_sopimus_filter = Sopimus.jatetyyppi_id == metalli_id
+    metalli_sopimukset = session.query(func.count(Sopimus.id)).filter(metalli_sopimus_filter).scalar()
+    assert metalli_sopimukset == 1, f"metalli sopimuksia ei ole {1}, vaan {metalli_sopimukset}"
+    muovi_id = select([Jatetyyppi.id]).where(Jatetyyppi.selite == 'Muovi').scalar_subquery()
+    muovi_sopimus_filter = Sopimus.jatetyyppi_id == muovi_id
+    muovi_sopimukset = session.query(func.count(Sopimus.id)).filter(muovi_sopimus_filter).scalar()
+    assert muovi_sopimukset == 1, f"muovi sopimuksia ei ole {1}, vaan {muovi_sopimukset}"
+
+    # Kohde Forsström on sekajätekimpan osakas
+    kohde_nimi_filter = Kohde.nimi == 'Forsström'
+    kohde_loppupvm_filter = Kohde.loppupvm is None
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(kohde_loppupvm_filter).scalar()
+    kimppa_sopimus_query = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == sekajate_id)
+    print("kimppa_sopimus")
+    print(kohde_id)
+    kimppa_sopimus = session.execute(kimppa_sopimus_query).fetchall()
+    print(kimppa_sopimus)
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is not None, "Sopimuksen kimppaisäntää ei löydy"  # sopimuksella on kimppaisäntä
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    sekajate_kimppaosakas_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaosakas sekajäte').scalar()
+    assert sekajate_kimppaosakas_id in osapuolen_roolit
+
+    # Kohde Forsström on myös biojätekimpan osakas
+    kohde_nimi_filter = Kohde.nimi == 'Forsström'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    kimppa_sopimus = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == biojate_id)
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is not None  # sopimuksella on kimppaisäntä
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    biojate_kimppaosakas_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaosakas biojäte').scalar()
+    assert biojate_kimppaosakas_id in osapuolen_roolit
+
+    # Kohde Lindroth on sekajätekimpan isäntä
+    kohde_nimi_filter = Kohde.nimi == 'Lindroth'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    kimppa_sopimus = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == sekajate_id)
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    sekajate_kimppaisanta_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä sekajäte').scalar()
+    assert sekajate_kimppaisanta_id in osapuolen_roolit
+
+    # Kohde Lindroth on myös biojätekimpan isäntä
+    kohde_nimi_filter = Kohde.nimi == 'Lindroth'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    kimppa_sopimus = \
+        session.query(Sopimus.kimppaisanta_kohde_id, Sopimus.sopimustyyppi_id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == biojate_id)
+    assert kimppa_sopimus and kimppa_sopimus[0][0] is None  # sopimuksella ei ole kimppaisäntää
+    assert kimppa_sopimus and kimppa_sopimus[0][1] == \
+        session.query(SopimusTyyppi.id).filter(SopimusTyyppi.selite == 'Kimppasopimus').scalar()
+    osapuolen_roolit_query = \
+        select([KohteenOsapuolet.osapuolenrooli_id]).where(KohteenOsapuolet.kohde_id == kohde_id)
+    osapuolen_roolit = [row[0] for row in session.execute(osapuolen_roolit_query).fetchall()]
+    biojate_kimppaisanta_id = \
+        session.query(Osapuolenrooli.id).filter(Osapuolenrooli.selite == 'Kimppaisäntä biojäte').scalar()
+    assert biojate_kimppaisanta_id in osapuolen_roolit
+
+    # Kohteella Kyykoski on aluekeräyspistesopimus.
+    kohde_nimi_filter = Kohde.nimi == "Kyykoski"
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    akp_sopimus_id = (
+        session.query(Sopimus.sopimustyyppi_id)
+        .filter(Sopimus.kohde_id == kohde_id)
+        .scalar()
+    )
+    assert (
+        akp_sopimus_id
+        == session.query(SopimusTyyppi.id)
+        .filter(SopimusTyyppi.selite == "Aluekeräyssopimus")
+        .scalar()
+    )
+
+    # Osapuolettomalla kohteella Tuntematon on sopimus ja kuljetus.
+    kohde_nimi_filter = Kohde.nimi == "Tuntematon"
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).scalar()
+    assert (
+        session.query(Sopimus.id).filter(Sopimus.kohde_id == kohde_id).scalar()
+        is not None
+    )
+    assert (
+        session.query(Kuljetus.id).filter(Kuljetus.kohde_id == kohde_id).scalar()
+        is not None
+    )
+
+    # Kiinteänjätteen massa kenttä on tyhjä.
+    assert (
+        session.query(func.count(Kuljetus.id)).filter(text("massa is NULL")).scalar()
+        == lkm_sopimukset
+    )
+
+    # Tyhjennysvalejä on 15, kahdella sopimuksista on useita tyhjennysvälejä.
+    assert session.query(func.count(Tyhjennysvali.id)).scalar() == 15
+
+
+    # Kohteella Asunto Oy Kahden Laulumuisto on kaksi tyhjennysväliä muovijätteellä ja kolme kartongilla.
+    kohde_nimi_filter = Kohde.nimi == 'Asunto Oy Kahden Laulumuisto'
+    kohde_id = session.query(Kohde.id).filter(kohde_nimi_filter).filter(kohde_loppupvm_filter).scalar()
+    muovi_sopimus_id = \
+        session.query(Sopimus.id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == muovi_id).scalar()
+    muovi_sopimus_tyhjennysvali_count = \
+        session.query(func.count()).filter(Tyhjennysvali.sopimus_id == muovi_sopimus_id).scalar()
+    assert muovi_sopimus_tyhjennysvali_count == 2
+    kartonki_sopimus_id = \
+        session.query(Sopimus.id).\
+        filter(Sopimus.kohde_id == kohde_id).filter(Sopimus.jatetyyppi_id == kartonki_id).scalar()
+    kartonki_sopimus_tyhjennysvali_count = \
+        session.query(func.count()).filter(Tyhjennysvali.sopimus_id == kartonki_sopimus_id).scalar()
+    assert kartonki_sopimus_tyhjennysvali_count == 3, f"kartonki eroaa {kartonki_sopimus_tyhjennysvali_count} vs 3"
+
+    # Kuljetusdatassa on yksi keskeytys.
+    assert session.query(func.count(Keskeytys.id)).scalar() == 1
+
+    # Kohdentumattomat.csv sisältää kahdeksan kohdentumatonta Asiakas-riviä.
+    csv_file_path = os.path.join(datadir, "kohdentumattomat_kuljetukset.csv")
+    assert os.path.isfile(csv_file_path), f"File not found: {csv_file_path}"
+    with open(csv_file_path, 'r') as csvfile:
+        csv_reader = csv.reader(csvfile)
+        header = next(csv_reader, None)
+        assert header is not None
+        rows = list(csv_reader)
+        assert len(rows) == 8
+
+    # Korjataan kuljetuksen PRT kohdentumattomissa.
+    with open(csv_file_path, "r") as csvfile:
+        csv_file_content = csvfile.read()
+    fixed_content = csv_file_content.replace("000000000W", "100456789B")
+    fixed_folder = os.path.join(datadir, "fixed")
+    os.makedirs(fixed_folder)
+    csv_file_write_path = os.path.join(fixed_folder, "kohdentumattomat_kuljetukset.csv")
+    with open(csv_file_write_path, "w") as csvfile:
+        csvfile.write(fixed_content)
+
+
+    import_data(Path(fixed_folder), "LSJ", False, False, True, "1.1.2023", "31.3.2023")
+
+    # Korjattu kuljetus on aiheuttanut uuden sopimuksen sopimus-tauluun.
+    lkm_sopimukset += 1
+    assert session.query(func.count(Sopimus.id)).scalar() == lkm_sopimukset
 
     _remove_kompostoridata_from_database(session)
