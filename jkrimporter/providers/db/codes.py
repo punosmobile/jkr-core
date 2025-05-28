@@ -25,6 +25,7 @@ from .models import (
     Rakennuksenolotila,
     SopimusTyyppi,
     Tapahtumalaji,
+    DVVPoimintaPvm
 )
 
 if TYPE_CHECKING:

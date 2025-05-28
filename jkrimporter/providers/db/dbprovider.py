@@ -16,7 +16,7 @@ from jkrimporter.model import (
     JkrData,
     JkrIlmoitukset,
     Paatos,
-    LopetusIlmoitus
+    LopetusIlmoitus,
 )
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.ilmoitus import (
@@ -41,6 +41,7 @@ from .models import (
     Tapahtumalaji,
     Tiedontuottaja,
     Viranomaispaatokset,
+    DVVPoimintaPvm
 )
 from .services.buildings import counts as building_counts
 from .services.buildings import (
@@ -48,6 +49,8 @@ from .services.buildings import (
     find_buildings_for_kohde,
     find_osoite_by_prt,
     find_single_building_id_by_prt,
+    find_active_buildings_with_moved_residents_or_owners,
+    RakennusData
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
@@ -60,12 +63,15 @@ from .services.kohde import (
     check_and_update_old_other_building_kohde_kohdetyyppi,
     get_or_create_single_asunto_kohteet,
     get_ulkoinen_asiakastieto,
+    remove_buildings_from_kohde,
     update_kohde,
     update_ulkoinen_asiakastieto,
 )
 from .services.osapuoli import (
     create_or_update_haltija_osapuoli,
     create_or_update_komposti_yhteyshenkilo,
+    should_remove_from_kohde_via_asukas,
+    should_remove_from_kohde_via_omistaja,
 )
 from .services.sopimus import update_sopimukset_for_kohde
 
@@ -194,6 +200,18 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
     return kohde
 
 
+def set_end_dates_to_kohteet(
+    session: Session,
+    poimintapvm: datetime.date,
+):
+    previous_pvm = poimintapvm - timedelta(days=1)
+    add_date_query = text(
+        "UPDATE jkr.kohde SET loppupvm = :loppu_pvm WHERE loppupvm IS NULL"
+    )
+    session.execute(add_date_query, {"loppu_pvm": previous_pvm.strftime("%Y-%m-%d")})
+    session.commit()
+
+
 def import_asiakastiedot(
     session: Session,
     asiakas: Asiakas,
@@ -304,6 +322,38 @@ def import_dvv_kohteet(
         print(f"Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
 
+    # Haetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
+    tarkistettava_rakennus_id_lists = find_active_buildings_with_moved_residents_or_owners(session)
+    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists['asukasRakennukset'])} asukasta vaihtanutta rakennusta")
+
+    # Asukaspohjaiset päätökset
+    poistettavat_rakennukset: list[RakennusData] = []
+    pysyvat_rakennukset_asukastiedolla: list[RakennusData] = []
+    for rakennus in tarkistettava_rakennus_id_lists['asukasRakennukset']:
+        # Tarkastetaan kunkin rakennuksen asukastietojen muutokset
+        if should_remove_from_kohde_via_asukas(session, rakennus["id"], poimintapvm):
+            poistettavat_rakennukset.append(rakennus)
+        else:
+            pysyvat_rakennukset_asukastiedolla.append(rakennus)
+
+    print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists['omistajaRakennukset'])} omistajaa vaihtanutta rakennusta")
+    
+    # Omistajapohjaiset päätökset
+    pysyvat_rakennukset_omistajatiedolla = []
+    for rakennus in tarkistettava_rakennus_id_lists['omistajaRakennukset']:
+        # Tarkastetaan kunkin rakennuksen omistajatietojen muutokset
+        if should_remove_from_kohde_via_omistaja(session, rakennus["id"]):
+            poistettavat_rakennukset.append(rakennus)
+        else:
+            pysyvat_rakennukset_omistajatiedolla.append(rakennus)
+
+    print(f"{len(poistettavat_rakennukset)} rakennusta on poistumassa kohteiltaan")
+    print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} rakennusta on pysymässä kohteillaan")
+
+    if len(poistettavat_rakennukset) > 0:
+        remove_buildings_from_kohde(session, poistettavat_rakennukset)
+        session.commit()
+
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
     logger.info("\nLuodaan yhden asunnon kohteet...")
     print("\nLuodaan yhden asunnon kohteet...")
@@ -335,6 +385,15 @@ def import_dvv_kohteet(
         len(single_asunto_kohteet) + 
         len(multiple_and_uninhabited_kohteet)
     )
+
+    # Tallennetaan uusin DVV-poimintaPVM tietokantaan seuraavalle käsittelylle
+    db_dvv_pomintapvvm = DVVPoimintaPvm(
+        poimintapvm=poimintapvm
+    )
+    print(f"Saving poimintapvm: {db_dvv_pomintapvvm}")
+    session.add(db_dvv_pomintapvvm)
+    session.commit()
+    
     print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta ja päivitetty {len(paivitetut_rakennus_kohteet)} vanhaa kohdetta")
     logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 

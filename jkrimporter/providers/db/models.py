@@ -1,7 +1,7 @@
 import warnings
 
 from geoalchemy2 import Geometry  # noqa: F401, must be imported for Geometry reflect
-from sqlalchemy import Column, ForeignKey, Integer, String, Table
+from sqlalchemy import Column, ForeignKey, Integer, String, Table, Date
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import relationship
 
@@ -69,6 +69,13 @@ class KompostorinKohteet(Base):
     __table_args__ = {"schema": "jkr"}
     kompostori_id = Column(ForeignKey("jkr.kompostori.id"), primary_key=True)
     kohde_id = Column(ForeignKey("jkr.kohde.id"), primary_key=True)
+
+class DVVPoimintaPvm(Base):
+    __tablename__ = "dvv_poimintapvm"
+    __table_args__ = {"schema": "jkr"}
+
+    id = Column(Integer, primary_key=True)
+    poimintapvm = Column(Date, nullable=False)
 
 # Määritellään Rakennus-luokka ennen automap_base valmistelua
 # jotta voidaan lisätä uusi kenttä
