@@ -143,3 +143,20 @@ All notable changes to this project will be documented in this file.
   - Enabled usage of tests in Linux operating systems
 - Pseudonymizer
   - Fix for file replacer
+
+  ## [0.6.8] - 2025-05-30
+
+### Added
+- A check during kohde creation which can remove a rakennus from kohde
+  - Checks for changes in residents and owners
+  - Is there a new resident and have they lived there longer than the last poimintapvm
+  - Is the mover the buildings owner
+  - Removes rakennus from kohde depending on results
+- Added poimintapvm to database
+
+### Fixed
+
+- Tests
+  - Some additional fixes to tests
+  - Increased the amount of test rows in test data
+

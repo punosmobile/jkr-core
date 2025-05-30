@@ -13,10 +13,14 @@ def list_tiedontuottajat():
 
 
 def insert_tiedontuottaja(tunnus: str, nimi: str):
-    with Session(engine) as session:
-        new = Tiedontuottaja(tunnus=tunnus, nimi=nimi)
-        session.add(new)
-        session.commit()
+    try:
+        with Session(engine) as session:
+            new = Tiedontuottaja(tunnus=tunnus, nimi=nimi)
+            session.add(new)
+            session.commit()
+    except Exception as e:
+        print(f"Tiedontuottajan luvussa tapahtui virhe tiedoilla {tunnus} {nimi}")
+        print(e)
 
 
 def get_tiedontuottaja(tunnus: str):
