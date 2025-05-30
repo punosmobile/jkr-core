@@ -144,7 +144,7 @@ All notable changes to this project will be documented in this file.
 - Pseudonymizer
   - Fix for file replacer
 
-  ## [0.6.8] - 2025-05-30
+## [0.6.8] - 2025-05-30
 
 ### Added
 - A check during kohde creation which can remove a rakennus from kohde
