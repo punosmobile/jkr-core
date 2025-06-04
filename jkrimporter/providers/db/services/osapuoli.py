@@ -285,7 +285,7 @@ def should_remove_from_kohde_via_omistaja(
         .where(
             RakennuksenOmistajat.rakennus_id == rakennus_id,
             RakennuksenOmistajat.omistuksen_loppupvm.is_(None),
-            RakennuksenOmistajat.omistuksen_alkupvm <= poimintapvm
+            RakennuksenOmistajat.omistuksen_alkupvm <= vertailupoimintapvm
         )
     )
     samoja_omistajia_pvm = session.execute(aikaisemmat_omistajat_query).scalars().all()
