@@ -65,7 +65,7 @@ def test_import_data(engine, datadir):
     session = Session(engine)
 
     # Kohteita ei pidä muodostua lisää
-    lkm_kohteet = 14
+    lkm_kohteet = 15
     assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
 
     # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa

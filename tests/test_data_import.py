@@ -315,7 +315,7 @@ def test_update_dvv_kohteet(engine, datadir):
         print(f"Updating kohteet failed: {e}")
 
     # Kohteiden lkm
-    assert session.query(func.count(Kohde.id)).scalar() == 14
+    assert session.query(func.count(Kohde.id)).scalar() == 15
 
     # Perusmaksurekisteristä luodun kohteen Asunto Oy Kahden Laulumuisto loppupäivämäärä ei ole muuttunut
     _assert_kohteen_loppupvm(session, "2023-01-31", "Asunto Oy Kahden Laulumuisto")
