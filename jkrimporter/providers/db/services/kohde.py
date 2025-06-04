@@ -2618,7 +2618,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
         muut_rakennukset = session.execute(kohteen_muut_rakennukset_query).all()
 
         if len(muut_rakennukset) > 0:
-            print(f"Poistetaan vain rakennus {rakennuksen_kohde.rakennus.prt}")
+            print(f"Poistetaan vain rakennus {rakennuksen_kohde.rakennus.prt} kohteelta: {kohde_id}")
             session.delete(rakennuksen_kohde)
         else:
             kohde_query = (

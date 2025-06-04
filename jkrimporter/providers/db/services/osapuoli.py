@@ -260,7 +260,7 @@ def should_remove_from_kohde_via_asukas(
         poistetaan_kohteelta = not bool(poistuneet_tunnisteet & omistaja_tunnisteet)
 
         if poistetaan_kohteelta:
-            print(f"Poistetaan rakennus kohteelta id:llä: {rakennus_id}")
+            print(f"Poistetaan rakennus asukkailla kohteelta id:llä: {rakennus_id}")
     return poistetaan_kohteelta
 
 
@@ -285,11 +285,52 @@ def should_remove_from_kohde_via_omistaja(
             RakennuksenOmistajat.omistuksen_alkupvm <= poimintapvm
         )
     )
-    samoja_omistajia = session.execute(aikaisemmat_omistajat_query).scalars().all()
+    samoja_omistajia_pvm = session.execute(aikaisemmat_omistajat_query).scalars().all()
 
     poistetaan_kohteelta = True
 
-    if len(samoja_omistajia) > 0:
-        poistetaan_kohteelta = False
+    if len(samoja_omistajia_pvm) > 0:
+        return False
+    
+    # Haetaan rakennuksesta poistuneet omistajat (loppupvm IS NOT NULL)
+    poistuneet_omistajat_query = (
+        select(RakennuksenOmistajat)
+        .join(Osapuoli)
+        .where(
+            RakennuksenOmistajat.rakennus_id == rakennus_id,
+            RakennuksenOmistajat.omistuksen_loppupvm.isnot(None)
+        )
+    )
+    poistuneet_omistajat = session.execute(poistuneet_omistajat_query).scalars().all()
+
+    # Haetaan nykyiset omistajat (loppupvm IS NULL)
+    nykyiset_omistajat_query = (
+        select(RakennuksenOmistajat)
+        .join(Osapuoli)
+        .where(
+            RakennuksenOmistajat.rakennus_id == rakennus_id,
+            RakennuksenOmistajat.omistuksen_loppupvm.is_(None)
+        )
+    )
+    nykyiset_omistajat = session.execute(nykyiset_omistajat_query).scalars().all()
+
+    # Luodaan setti henkilötunnuksista tai nimistä
+    poistuneet_tunnisteet = set()
+    for rv in poistuneet_omistajat:
+        tunniste = extract_identifier(rv)
+        if tunniste:
+            poistuneet_tunnisteet.add(tunniste)
+
+    omistaja_tunnisteet = set()
+    for rv in nykyiset_omistajat:
+        tunniste = extract_identifier(rv)
+        if tunniste:
+            omistaja_tunnisteet.add(tunniste)
+
+    # Tarkistetaan, onko yksikin sama
+    poistetaan_kohteelta = not bool(poistuneet_tunnisteet & omistaja_tunnisteet)
+
+    if poistetaan_kohteelta:
+            print(f"Poistetaan rakennus omistajilla kohteelta id:llä: {rakennus_id}")
 
     return poistetaan_kohteelta
