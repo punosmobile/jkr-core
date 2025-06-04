@@ -50,6 +50,7 @@ from .services.buildings import (
     find_osoite_by_prt,
     find_single_building_id_by_prt,
     find_active_buildings_with_moved_residents_or_owners,
+    find_inactive_buildings,
     RakennusData
 )
 from .services.dvv_poimintapvm import (
@@ -325,12 +326,17 @@ def import_dvv_kohteet(
         print(f"Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
 
+    # Haetaan rakennukset, joita ei enää löydy aineistoista
+    poistettavat_paattyneet_rakennukset = find_inactive_buildings(session)
+    print(f"Löydettiin {len(poistettavat_paattyneet_rakennukset)} päättynyttä rakennusta")
+    
+    poistettavat_rakennukset: list[RakennusData] = poistettavat_paattyneet_rakennukset
+
     # Haetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
     tarkistettava_rakennus_id_lists = find_active_buildings_with_moved_residents_or_owners(session)
     print(f"Tarkistetaan {len(tarkistettava_rakennus_id_lists['asukasRakennukset'])} asukasta vaihtanutta rakennusta")
 
     # Asukaspohjaiset päätökset
-    poistettavat_rakennukset: list[RakennusData] = []
     pysyvat_rakennukset_asukastiedolla: list[RakennusData] = []
     dvv_poimintapvm: datetime.date | None = None
     if len(tarkistettava_rakennus_id_lists['asukasRakennukset'] + tarkistettava_rakennus_id_lists['omistajaRakennukset']) > 0:
@@ -357,7 +363,7 @@ def import_dvv_kohteet(
             pysyvat_rakennukset_omistajatiedolla.append(rakennus)
 
     print(f"{len(poistettavat_rakennukset)} asukas ja  {len(poistettavat_rakennukset_omistaja)} omistaja rakennusta on poistumassa kohteiltaan")
-    print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} rakennusta on pysymässä kohteillaan")
+    print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} tarkastelluista rakennuksista pysyy kohteillaan")
 
     if len(poistettavat_rakennukset + poistettavat_rakennukset_omistaja) > 0:
         remove_buildings_from_kohde(session, poistettavat_rakennukset + poistettavat_rakennukset_omistaja)
