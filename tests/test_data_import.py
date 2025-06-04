@@ -347,11 +347,11 @@ def test_update_dvv_kohteet(engine, datadir):
     _assert_kohteen_alkupvm(session, "2023-01-31", "Riipinen")
 
     # Päättyneelle kohteelle Pohjonen (omistaja vaihtunut) asetettu loppupäivämäärät oikein
-    _assert_kohteen_loppupvm(session, "2023-01-31", "Pohjonen")
+    _assert_kohteen_loppupvm(session, "2023-01-22", "Pohjonen")
     osapuoli_nimi_filter = Osapuoli.nimi == "Pohjonen Aarno Armas"
     osapuoli_id = session.query(Osapuoli.id).filter(osapuoli_nimi_filter).scalar()
     loppu_pvm_filter = RakennuksenOmistajat.omistuksen_loppupvm == func.to_date(
-        "2023-01-31", "YYYY-MM-DD"
+        "2023-01-22", "YYYY-MM-DD"
     )
     rakennuksen_vanhimmat_id = (
         session.query(RakennuksenOmistajat.id)
@@ -363,7 +363,7 @@ def test_update_dvv_kohteet(engine, datadir):
 
     # Muilla kohteilla ei loppupäivämäärää
     loppu_pvm_filter = Kohde.loppupvm != None
-    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 4
+    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == 6
 
     # Uudessa kohteessa Kyykoski osapuolina Granström (omistaja) ja Kyykoski (uusi asukas)
     kohde_filter = and_(Kohde.nimi == "Kyykoski", Kohde.alkupvm == "2022-06-17")
