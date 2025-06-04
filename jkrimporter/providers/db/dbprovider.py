@@ -351,7 +351,7 @@ def import_dvv_kohteet(
     poistettavat_rakennukset_omistaja: list[RakennusData] = []
     for rakennus in tarkistettava_rakennus_id_lists['omistajaRakennukset']:
         # Tarkastetaan kunkin rakennuksen omistajatietojen muutokset
-        if should_remove_from_kohde_via_omistaja(session, rakennus["id"], dvv_poimintapvm):
+        if should_remove_from_kohde_via_omistaja(session, rakennus["id"], poimintapvm, dvv_poimintapvm):
             poistettavat_rakennukset_omistaja.append(rakennus)
         else:
             pysyvat_rakennukset_omistajatiedolla.append(rakennus)

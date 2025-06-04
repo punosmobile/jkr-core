@@ -266,7 +266,8 @@ def should_remove_from_kohde_via_asukas(
 
 def should_remove_from_kohde_via_omistaja(
     session, rakennus_id: int,
-    poimintapvm: datetime.date
+    poimintapvm: datetime.date,
+    vanha_dvv_poimintapvm: datetime.date | None
 ) -> bool:
     """
     Hae rakennuksen nykyiset omistajat, jotka ovat omistaneet sen
@@ -276,6 +277,8 @@ def should_remove_from_kohde_via_omistaja(
 
     # Haetaan rakennuksen omistajat jotka ovat omistaneet sen ennen edellistä poimintaa
     # (loppupvm IS NULL ja omistuksen_alkupwm pienempi kuin edellinen poiminta)
+    vertailupoimintapvm = vanha_dvv_poimintapvm or poimintapvm
+
     aikaisemmat_omistajat_query = (
         select(RakennuksenOmistajat)
         .join(Osapuoli)
