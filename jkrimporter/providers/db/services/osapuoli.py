@@ -267,7 +267,7 @@ def should_remove_from_kohde_via_asukas(
 def should_remove_from_kohde_via_omistaja(
     session, rakennus_id: int,
     poimintapvm: datetime.date,
-    vanha_dvv_poimintapvm: datetime.date | None
+    vanha_dvv_poimintapvm: datetime.date
 ) -> bool:
     """
     Hae rakennuksen nykyiset omistajat, jotka ovat omistaneet sen
