@@ -253,6 +253,40 @@ class RakennusMuutokset(TypedDict):
     asukasRakennukset: List[RakennusData]
     omistajaRakennukset: List[RakennusData]
 
+def find_inactive_buildings(session: "Session") -> List[RakennusData]:
+    """
+    Etsii rakennukset, jotka eivät ole enää käytössä.
+
+    Args:
+        session: SQLAlchemy-tietokantaistunto
+
+    Returns:
+        List[{id: int, loppupvm: date}]: Lista löydetyistä rakennuksista,
+        lista voi olla tyhjä jos vuoden aikana ei ole päättynyt rakennuksia.
+    """
+    logger = logging.getLogger(__name__)
+    logger.debug("Etsitään poistuneita rakennuksia")
+
+    rakennukset_query = (
+        select(Rakennus.id, Rakennus.kaytostapoisto_pvm.label('loppupvm'))
+        .join(KohteenRakennukset, KohteenRakennukset.rakennus_id == Rakennus.id)
+        .join(Kohde, KohteenRakennukset.kohde_id == Kohde.id)
+        .where(
+            and_(
+                Kohde.loppupvm.is_(None),
+                Rakennus.kaytostapoisto_pvm.isnot(None)
+            )
+        )
+        .distinct()
+    )
+
+    rakennukset_rows = session.execute(rakennukset_query).all()
+    rakennukset: List[RakennusData] =[
+        {"id": row[0], "loppupvm": row[1]} for row in rakennukset_rows
+    ]
+
+    return rakennukset
+
 def find_active_buildings_with_moved_residents_or_owners(session: "Session") -> RakennusMuutokset:
     """
     Etsii rakennukset, joista on muutettu pois.

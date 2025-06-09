@@ -1,6 +1,4 @@
-import csv
-import os
-from pathlib import Path
+from datetime import date
 
 import pytest
 from sqlalchemy import create_engine, func, or_
@@ -10,16 +8,8 @@ from jkrimporter import conf
 from jkrimporter.cli.jkr import import_data, tiedontuottaja_add_new
 from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.models import (
-    Jatetyyppi,
-    Keskeytys,
     Kohde,
-    KohteenOsapuolet,
-    Kuljetus,
-    Osapuolenrooli,
-    Sopimus,
-    SopimusTyyppi,
     Tiedontuottaja,
-    Tyhjennysvali,
 )
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 
@@ -66,15 +56,15 @@ def test_import_data(engine, datadir):
 
     # Kohteita ei pidä muodostua lisää
     lkm_kohteet = 15
-    assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet
+    assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet, f"Kohteita on eri määrä kuin odotettu {lkm_kohteet}"
 
     # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa
     loppu_pvms = [
-        func.to_date("2022-06-16", "YYYY-MM-DD"),
-        func.to_date("2023-01-22", "YYYY-MM-DD"),
-        func.to_date("2023-01-30", "YYYY-MM-DD"),
-        func.to_date("2100-01-01", "YYYY-MM-DD"),
-        func.to_date("2023-01-31", "YYYY-MM-DD"),
+        date(2022,6,16),
+        date(2023,1,22),
+        date(2023,1,30),
+        date(2100,1,1),
+        date(2023,1,31),
     ]
     loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))
     assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
