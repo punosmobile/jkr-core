@@ -180,7 +180,7 @@ def extract_identifier(rakennuksen_vanhin):
     return None
 
 def should_remove_from_kohde_via_asukas(
-    session, rakennus_id: int, poimintapvm: datetime.date
+    session, rakennus_id: int, poimintapvm: datetime.date, vanha_dvv_poimintapvm: datetime.date
 ) -> bool:
     """
     Hae rakennuksen nykyiset ja menneet asukkaat 
@@ -230,20 +230,10 @@ def should_remove_from_kohde_via_asukas(
     # Jos asukkaissa ei ole yhtäläisyyksiä, tarkistetaan onko joku asukkaista muuttanut taloon ennen edellistä poimintapäivää.
     # Tämä voi tapahtua esimerkiksi kahden henkilön asuessa samassa taloudessa josta toinen muuttaa pois
     if  poistetaan_kohteelta and len(asuvat) != 0:
-        vanha_poiminta_query = (
-            select(DVVPoimintaPvm)
-            .order_by(desc(DVVPoimintaPvm.poimintapvm))
-            .limit(1)
-        )
-
-        try:
-            dvv_poiminta = session.execute(vanha_poiminta_query).scalar_one()
-            dvv_poimintapvm = dvv_poiminta.poimintapvm
-        except NoResultFound:
-            dvv_poiminta = None
+        
 
         for asukas in asuvat:
-            vertailupvm = dvv_poimintapvm or poimintapvm
+            vertailupvm = vanha_dvv_poimintapvm or poimintapvm
             if asukas.alkupvm < vertailupvm:
                 poistetaan_kohteelta = False
                 break
@@ -270,20 +260,42 @@ def should_remove_from_kohde_via_asukas(
         poistetaan_kohteelta = not bool(poistuneet_tunnisteet & omistaja_tunnisteet)
 
         if poistetaan_kohteelta:
-            print(f"Poistetaan rakennus kohteelta id:llä: {rakennus_id}")
+            print(f"Poistetaan rakennus asukkailla kohteelta id:llä: {rakennus_id}")
     return poistetaan_kohteelta
 
 
 def should_remove_from_kohde_via_omistaja(
-    session, rakennus_id: int
+    session, rakennus_id: int,
+    poimintapvm: datetime.date,
+    vanha_dvv_poimintapvm: datetime.date
 ) -> bool:
     """
-    Hae rakennuksen nykyiset ja menneet omistajat 
-    sekä tarkista onko niissä yhtäläisyyksiä.
-    Palauttaa Truen jos omistajissa ei ole päällekkäisyyksiä
+    Hae rakennuksen nykyiset omistajat, jotka ovat omistaneet sen
+    jo ennen edellistä poimintapäivää
+    Palauttaa Truen jos tällaisia omistajia ei löydy (Ei ole yhtään samaa omistajaa)
     """
 
-    # Haetaan rakennuksesta poistuneet asukkaat (loppupvm IS NOT NULL)
+    # Haetaan rakennuksen omistajat jotka ovat omistaneet sen ennen edellistä poimintaa
+    # (loppupvm IS NULL ja omistuksen_alkupwm pienempi kuin edellinen poiminta)
+    vertailupoimintapvm = vanha_dvv_poimintapvm or poimintapvm
+
+    aikaisemmat_omistajat_query = (
+        select(RakennuksenOmistajat)
+        .join(Osapuoli)
+        .where(
+            RakennuksenOmistajat.rakennus_id == rakennus_id,
+            RakennuksenOmistajat.omistuksen_loppupvm.is_(None),
+            RakennuksenOmistajat.omistuksen_alkupvm <= vertailupoimintapvm
+        )
+    )
+    samoja_omistajia_pvm = session.execute(aikaisemmat_omistajat_query).scalars().all()
+
+    poistetaan_kohteelta = True
+
+    if len(samoja_omistajia_pvm) > 0:
+        return False
+    
+    # Haetaan rakennuksesta poistuneet omistajat (loppupvm IS NOT NULL)
     poistuneet_omistajat_query = (
         select(RakennuksenOmistajat)
         .join(Osapuoli)
@@ -294,7 +306,7 @@ def should_remove_from_kohde_via_omistaja(
     )
     poistuneet_omistajat = session.execute(poistuneet_omistajat_query).scalars().all()
 
-    # Haetaan yhä rakennuksessa asuvat (loppupvm IS NULL)
+    # Haetaan nykyiset omistajat (loppupvm IS NULL)
     nykyiset_omistajat_query = (
         select(RakennuksenOmistajat)
         .join(Osapuoli)
@@ -319,6 +331,9 @@ def should_remove_from_kohde_via_omistaja(
             omistaja_tunnisteet.add(tunniste)
 
     # Tarkistetaan, onko yksikin sama
-    poistetaan_kohteelta = bool(poistuneet_tunnisteet & omistaja_tunnisteet)
+    poistetaan_kohteelta = not bool(poistuneet_tunnisteet & omistaja_tunnisteet)
+
+    if poistetaan_kohteelta:
+            print(f"Poistetaan rakennus omistajilla kohteelta id:llä: {rakennus_id}")
 
     return poistetaan_kohteelta

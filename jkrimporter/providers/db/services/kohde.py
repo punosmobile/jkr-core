@@ -2618,7 +2618,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
         muut_rakennukset = session.execute(kohteen_muut_rakennukset_query).all()
 
         if len(muut_rakennukset) > 0:
-            print(f"Poistetaan vain rakennus {rakennuksen_kohde.rakennus.prt}")
+            print(f"Poistetaan vain rakennus {rakennuksen_kohde.rakennus.prt} kohteelta: {kohde_id}")
             session.delete(rakennuksen_kohde)
         else:
             kohde_query = (
@@ -2631,11 +2631,14 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             kohde = session.execute(kohde_query).scalar_one()
             print(f"Lopetetaan kohde ja poistetaan rakennus {rakennuksen_kohde.rakennus.prt} kohteelta {kohde.id}")
 
+            print("Valitaan loppupvm kohteelle:")
             uusi_loppupvm = rakennus["loppupvm"]
             print(uusi_loppupvm)
             print(kohde.alkupvm)
             if kohde.alkupvm >= uusi_loppupvm:
-                uusi_loppupvm = kohde.alkupvm
+                uusi_loppupvm = max(kohde.alkupvm, uusi_loppupvm)
+            
+            print(f"Loppupäivä tulos: {uusi_loppupvm}")
 
             kohde.loppupvm = uusi_loppupvm
             session.delete(rakennuksen_kohde)
