@@ -69,8 +69,8 @@ SET PGCLIENTENCODING=UTF8
 echo Importing HAPA data from %CSV_FILE_PATH%...
 
 REM Import the HAPA data using psql's COPY command
+SET PGSSLMODE=prefer
 "%PSQL_CMD%" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -c "\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '%CSV_FILE_PATH%' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');"
-
 if %ERRORLEVEL% neq 0 (
     echo Error importing HAPA data.
     exit /b %ERRORLEVEL%
