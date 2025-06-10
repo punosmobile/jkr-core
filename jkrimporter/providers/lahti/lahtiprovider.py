@@ -319,12 +319,18 @@ class LahtiTranslator:
             )
             sopimus.keraysvalineet.append(keraysvaline)
 
+            rakennus = None
+            if data.asiakkaat[tunnus].ulkoinen_asiakastieto.Kiinteistotunnus:
+                print("Lisätään kiinteistötunnus rakennuksiin")
+                rakennus = data.asiakkaat[tunnus].ulkoinen_asiakastieto.Kiinteistotunnus
+
             data.asiakkaat[tunnus].tyhjennystapahtumat.append(
                 Tyhjennystapahtuma(
                     alkupvm=row.Pvmalk,
                     loppupvm=row.Pvmasti,
                     jatelaji=jatelaji,
                     tyhjennyskerrat=row.get_kaynnit(),
+                    rakennus_id=rakennus or None,
                     tilavuus=row.koko * 1000 if row.koko else None,
                     massa=row.get_paino(),
                 )

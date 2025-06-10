@@ -164,6 +164,7 @@ class Tyhjennystapahtuma:
     loppupvm: Optional[date]
     tyhjennyskerrat: int
     tilavuus: Optional[int]
+    rakennus_id: Optional[Rakennustunnus]
     massa: Optional[int] = None
 
 

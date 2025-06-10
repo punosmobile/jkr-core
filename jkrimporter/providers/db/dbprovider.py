@@ -99,12 +99,15 @@ def count(jkr_data: JkrData):
 def insert_kuljetukset(
     session,
     kohde,
-    tyhjennystapahtumat: List[JkrTyhjennystapahtuma],
+    asiakas: Asiakas,
     raportointi_alkupvm: Optional[datetime.date],
     raportointi_loppupvm: Optional[datetime.date],
     urakoitsija: Tiedontuottaja,
 ):
-    for tyhjennys in tyhjennystapahtumat:
+    print("urakoitsija SISALTO")
+    print(urakoitsija)
+
+    for tyhjennys in asiakas.tyhjennystapahtumat:
         print("importing tyhjennys")
         print(tyhjennys)
         if not tyhjennys.alkupvm:
@@ -134,6 +137,18 @@ def insert_kuljetukset(
             for k in kohde.kuljetus_collection
         )
 
+        if not len(asiakas.rakennukset) == 1:
+            print("ERIÄVÄ RAKENNUSMÄÄRÄ")
+            print(asiakas.rakennukset)
+            
+        if not asiakas.ulkoinen_asiakastieto.Kiinteistotunnus:
+            print("KIINTEISTOTUNNUS PUUTTUU")
+            print(asiakas.ulkoinen_asiakastieto.Kiinteistotunnus)
+
+        if len(asiakas.rakennukset) == 0 and asiakas.ulkoinen_asiakastieto.Kiinteistotunnus:
+            print("Lisätään kiinteistötunnus rakennuksiin")
+            asiakas.rakennukset = [asiakas.ulkoinen_asiakastieto.Kiinteistotunnus]
+
         if not exists:
             db_kuljetus = Kuljetus(
                 kohde=kohde,
@@ -141,6 +156,7 @@ def insert_kuljetukset(
                 alkupvm=alkupvm,
                 loppupvm=loppupvm,
                 tyhjennyskerrat=tyhjennys.tyhjennyskerrat,
+                rakennus_id=asiakas.rakennukset[1] if 1 < len(asiakas.rakennukset) else None,
                 massa=massa,
                 tilavuus=tyhjennys.tilavuus,
                 tiedontuottaja=urakoitsija,
@@ -154,7 +170,9 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
     """
     kohde = None
     ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
-    
+    print(f"ULKOINEN ASIAKASTIETO")
+    print(ulkoinen_asiakastieto)
+    print(asiakas.asiakasnumero)
     # 1. Etsi kohde asiakasnumeron perusteella
     if ulkoinen_asiakastieto:
         print("Kohde found by customer id.")
@@ -244,10 +262,12 @@ def import_asiakastiedot(
     create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update_contact)
 
     update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
+    print("asiakas INFOA")
+    print(asiakas)
     insert_kuljetukset(
         session,
         kohde,
-        asiakas.tyhjennystapahtumat,
+        asiakas,
         alkupvm,
         loppupvm,
         urakoitsija,

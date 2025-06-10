@@ -170,10 +170,15 @@ class NokiaTranslator:
                     )
                     sopimus.keraysvalineet.append(keraysvaline)
 
+                print("asiakas TIETO NOKIA")
+                print(data.asiakkaat[tunnus])
+
                 data.asiakkaat[tunnus].tyhjennystapahtumat.append(
                     Tyhjennystapahtuma(
                         loppupvm=row.pvm,
+                        alkupvm=None,
                         jatelaji=jatelaji_map[row.jatelaji],
+                        rakennus_id=None,
                         tyhjennyskerrat=1,
                         tilavuus=row.tilavuus * 1000,
                     )

@@ -210,6 +210,8 @@ class PjhTranslator:
 
             try:
                 asiakas = jkr_data.asiakkaat[tunnus]
+                print("asiakas TIETO PJH")
+                print(asiakas)
             except KeyError:
                 logger.warning(
                     f"Ohitetaan tyhjennystapahtuma. Ei asiakasta {row.asiakasnumero}"
@@ -218,9 +220,11 @@ class PjhTranslator:
 
             tyhjennystapahtuma = JkrTyhjennystapahtuma(
                 jatelaji=jatelaji,
+                alkupvm=None,
                 loppupvm=row.pvm,
                 tyhjennyskerrat=row.tyhjennyskerrat,
                 massa=row.massa,
+                rakennus_id=None,
                 tilavuus=row.tilavuus,
             )
 
