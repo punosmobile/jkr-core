@@ -1154,7 +1154,7 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
 def parse_alkupvm_for_kohde(
     session: "Session",
     rakennus_ids: List[int],
-    old_kohde_alkupvm: datetime.date,
+    old_kohde_alkupvm: Optional[datetime.date],
     poimintapvm: Optional[datetime.date],
 ) -> datetime.date:
     """
@@ -1195,7 +1195,7 @@ def parse_alkupvm_for_kohde(
         )
 
         # Jos ei muutoksia kummassakaan, palauta poimintapvm
-        if latest_omistaja_change is None and latest_vanhin_change is None:
+        if latest_omistaja_change is None and latest_vanhin_change is None and poimintapvm:
             return poimintapvm
 
         # Valitse uusin päivämäärä muutoksista
@@ -1209,7 +1209,7 @@ def parse_alkupvm_for_kohde(
 
         # Jos uusin muutos on vanhan kohteen alkupvm:n jälkeen,
         # käytetään muutospäivää, muuten poimintapvm:ää
-        if latest_change > old_kohde_alkupvm:
+        if latest_change:
             return latest_change
         else:
             return poimintapvm
@@ -1306,11 +1306,9 @@ def create_new_kohde_from_buildings(
     else:
         kohde_display_name = "Tuntematon"
         
-    alkupvm = poimintapvm
-    if old_kohde:
-        alkupvm = parse_alkupvm_for_kohde(
-            session, rakennus_ids, old_kohde.alkupvm, poimintapvm
-        )
+    alkupvm = parse_alkupvm_for_kohde(
+        session, rakennus_ids, old_kohde and old_kohde.alkupvm or None, poimintapvm
+    )
 
         
     # Määritä kohdetyyppi rakennusten perusteella
@@ -1682,15 +1680,14 @@ def update_or_create_kohde_from_buildings(
             
         # Määritä alkupvm
         alkupvm = poimintapvm
-        if old_kohde:
-            alkupvm = parse_alkupvm_for_kohde(
-                session, rakennus_ids, old_kohde.alkupvm, poimintapvm
-            )
+        alkupvm = parse_alkupvm_for_kohde(
+            session, list(rakennus_ids), old_kohde and old_kohde.alkupvm or None, poimintapvm
+        )
             
         # Luo uusi kohde
         new_kohde = create_new_kohde_from_buildings(
             session,
-            rakennus_ids,
+            list(rakennus_ids),
             asukkaat,
             omistajat,
             alkupvm,
