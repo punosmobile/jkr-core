@@ -33,7 +33,6 @@ from .database import engine
 from .models import (
     AKPPoistoSyy,
     Jatetyyppi,
-    Kohde,
     Kompostori,
     KompostorinKohteet,
     Kuljetus,
@@ -45,7 +44,6 @@ from .models import (
 )
 from .services.buildings import counts as building_counts
 from .services.buildings import (
-    find_building_candidates_for_kohde,
     find_buildings_for_kohde,
     find_osoite_by_prt,
     find_single_building_id_by_prt,
@@ -289,11 +287,11 @@ def import_dvv_kohteet(
     #     previous_pvm = poimintapvm - timedelta(days=1)
     #     print(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
     #     logger.info(f"Asetetaan loppupäivämäärä {previous_pvm} vanhoille kohteille...")
-        
+
     #     add_date_query = text(
     #         """
-    #         UPDATE jkr.kohde 
-    #         SET loppupvm = :loppu_pvm 
+    #         UPDATE jkr.kohde
+    #         SET loppupvm = :loppu_pvm
     #         WHERE (loppupvm IS NULL OR loppupvm > :loppu_pvm)
     #         AND alkupvm < :loppu_pvm
     #         """
@@ -303,7 +301,7 @@ def import_dvv_kohteet(
     #     print("Loppupäivämäärät asetettu")
     #     logger.info("Loppupäivämäärät asetettu")
 
-    # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)  
+    # 1. Perusmaksurekisterin kohteet (jos tiedosto annettu)
     if perusmaksutiedosto:
         print(f"\nLuodaan perusmaksurekisterin kohteet...")
         logger.info("\nLuodaan perusmaksurekisterin kohteet...")
@@ -326,10 +324,11 @@ def import_dvv_kohteet(
         print(f"Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
         logger.info("Ei perusmaksurekisteritiedostoa, ohitetaan vaihe 1")
 
+    print("Päätetään vanhat kohteet ennen uusien luomista")
     # Haetaan rakennukset, joita ei enää löydy aineistoista
     poistettavat_paattyneet_rakennukset = find_inactive_buildings(session)
     print(f"Löydettiin {len(poistettavat_paattyneet_rakennukset)} päättynyttä rakennusta")
-    
+
     poistettavat_rakennukset: list[RakennusData] = poistettavat_paattyneet_rakennukset
 
     # Haetaan rakennukset, joiden omistajat tai asukkaat ovat vaihtuneet kohteilta
@@ -367,7 +366,8 @@ def import_dvv_kohteet(
 
     if len(poistettavat_rakennukset + poistettavat_rakennukset_omistaja) > 0:
         remove_buildings_from_kohde(session, poistettavat_rakennukset + poistettavat_rakennukset_omistaja)
-        session.commit()
+    
+    session.commit()
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
     logger.info("\nLuodaan yhden asunnon kohteet...")
@@ -405,10 +405,10 @@ def import_dvv_kohteet(
     db_dvv_pomintapvvm = DVVPoimintaPvm(
         poimintapvm=poimintapvm
     )
-    print(f"Saving poimintapvm: {db_dvv_pomintapvvm}")
+    print(f"\nSaving poimintapvm: {db_dvv_pomintapvvm.poimintapvm}")
     session.add(db_dvv_pomintapvvm)
     session.commit()
-    
+
     print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta ja päivitetty {len(paivitetut_rakennus_kohteet)} vanhaa kohdetta")
     logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 
