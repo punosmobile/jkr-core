@@ -83,6 +83,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.3] - 2025-03-25
 
 ### Added
+
 - Kohdetyyppi updates:
   - Kohteet that have changes in their rakennukset will now recheck and update their kohdetyyppi_id
 
@@ -93,6 +94,7 @@ All notable changes to this project will be documented in this file.
   - Fixed a rare crash where sheet header was treated as a number instead of text
 
 ### Changes
+
 - Log and comment changes:
   - Added slightly more identifiable log statements to several sections of code for improved debugging
   - Updated some outdated comments to match current functionality
@@ -110,6 +112,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.5] - 2025-04-16
 
 ### Added
+
 - Added scripts for checking database role assignments and resetting database
 
 ### Fixed
@@ -119,6 +122,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.6] - 2025-05-07
 
 ### Added
+
 - Added script for taking subsets of data from given dataset
 - Added script for encrypting and decrypting whole datasets
 
@@ -129,6 +133,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.7] - 2025-05-27
 
 ### Added
+
 - File containing default pseudonymization fields
 
 - Database
@@ -147,6 +152,7 @@ All notable changes to this project will be documented in this file.
 ## [0.6.8] - 2025-05-30
 
 ### Added
+
 - A check during kohde creation which can remove a rakennus from kohde
   - Checks for changes in residents and owners
   - Is there a new resident and have they lived there longer than the last poimintapvm
@@ -159,4 +165,15 @@ All notable changes to this project will be documented in this file.
 - Tests
   - Some additional fixes to tests
   - Increased the amount of test rows in test data
+
+## [0.6.9] - 2025-06-13
+
+### Added
+
+- Added import_hapa command for easy hapa data import
+
+### Changed
+
+- Kohde alkupvm is now dynamic and will use either owner or resident starting date and default to poimintapvm if neither is available
+- If Kohde would end due to a building leaving it, it will be marked as expired and removed after active contracts and shipments have been moved to a new Kohde 
 
