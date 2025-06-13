@@ -651,7 +651,7 @@ def get_dvv_rakennustiedot_without_kohde(
         if rakennus_id not in rakennustiedot_by_id:
             # Luo uusi tuple (rakennus, vanhimmat set, omistajat set, osoitteet set)
             rakennustiedot_by_id[rakennus_id] = (row[0], set(), set(), set())
-            
+
         # Lisää vanhimmat, omistajat ja osoitteet setteihin jos niitä on
         if row[1]:  # Vanhimmat
             rakennustiedot_by_id[rakennus_id][1].add(row[1])
@@ -1799,7 +1799,7 @@ def update_or_create_kohde_from_buildings(
 
 def get_or_create_kohteet_from_kiinteistot(
     session: Session,
-    kiinteistotunnukset: "Select", 
+    kiinteistotunnukset: "Select",
     poimintapvm: "Optional[datetime.date]",
     loppupvm: "Optional[datetime.date]",
 ) -> "List[Kohde]":
@@ -1843,7 +1843,7 @@ def get_or_create_kohteet_from_kiinteistot(
     ]
     logger.info(f"{len(kiinteistotunnukset)} tuotavaa kiinteistötunnusta löydetty")
     print(f"{len(kiinteistotunnukset)} tuotavaa kiinteistötunnusta löydetty")
-    
+
     # Hae DVV:n rakennustiedot ilman kohdetta ja logita määrä
     dvv_rakennustiedot = get_dvv_rakennustiedot_without_kohde(
         session, poimintapvm, loppupvm
@@ -1903,6 +1903,8 @@ def get_or_create_kohteet_from_kiinteistot(
         if not rakennustiedot_to_add:
             print(f"Ei rakennuksia kiinteistötunnukselle: {kiinteistotunnus}")
             continue
+        else:
+            print(f"lisätään kiinteistotunnus {kiinteistotunnus}")
 
         # 1. Jaa rakennukset klustereihin etäisyyden perusteella
         clustered_rakennustiedot = _cluster_rakennustiedot(
@@ -2054,7 +2056,12 @@ def get_or_create_single_asunto_kohteet(
             select(Rakennus.id)
             .join(KohteenRakennukset)
             .join(Kohde)
-            .filter(poimintapvm == Kohde.alkupvm)
+            .filter(
+                or_(
+                    poimintapvm == Kohde.alkupvm,
+                    Kohde.loppupvm.is_(None)
+                )
+            )
         )
     else:
         rakennus_id_with_current_kohde = (
@@ -2139,11 +2146,11 @@ def get_or_create_multiple_and_uninhabited_kohteet(
         .filter(
             or_(
                 Kohde.voimassaolo.overlaps(DateRange(poimintapvm, loppupvm)),
-                loppupvm is None
+                Kohde.loppupvm.is_(None)
             )
         )
     )
-    
+
     kiinteistotunnus_without_kohde = (
         select(Rakennus.kiinteistotunnus)
         .filter(~Rakennus.id.in_(rakennus_id_with_current_kohde))
@@ -2630,7 +2637,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             )
             
             kohde = session.execute(kohde_query).scalar_one()
-            print(f"Lopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt} kohde {kohde.id}")
+            print(f"Lopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}")
 
             print("Valitaan loppupvm kohteelle:")
             uusi_loppupvm = rakennus["loppupvm"]
