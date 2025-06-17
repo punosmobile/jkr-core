@@ -255,9 +255,11 @@ You can pick a subset of data for faster processing by using cherrypick_data.py 
 The scripts arguments look like this:
 python cherrypick_data.py --rip_path [File or directory] --must_contain [postalCode] [municipality] [start of a postal code]
 
- Example calls:
+Example calls:
 - `python cherrypick_data.py --rip_path ../data/ --must_contain lahti heinola 171*`
 - `python cherrypick_data.py --rip_path ../data/ --must_contain 17100 17200`
+
+Note that it is recommended to include target municipality id/ sijainti-kunta value to ensure all owners located in the given area are included in the data
 
 ## Testing
 
