@@ -2594,7 +2594,7 @@ def _cluster_rakennustiedot(
 
     return clusters
 
-def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData]):
+def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData], poistosyy: str):
 
     for rakennus in rakennukset:
         rakennuksen_kohde_query = (
@@ -2637,7 +2637,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             )
             
             kohde = session.execute(kohde_query).scalar_one()
-            print(f"Lopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}")
+            print(f"Lopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}, syy: {poistosyy}")
 
             print("Valitaan loppupvm kohteelle:")
             uusi_loppupvm = rakennus["loppupvm"]
@@ -2649,6 +2649,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             print(f"Loppupäivä tulos: {uusi_loppupvm}")
 
             kohde.loppupvm = uusi_loppupvm
+            kohde.loppumisen_syy += f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm} "
             #session.delete(rakennuksen_kohde)
             
     return None
