@@ -234,7 +234,7 @@ def should_remove_from_kohde_via_asukas(
 
         for asukas in asuvat:
             vertailupvm = vanha_dvv_poimintapvm or poimintapvm
-            if asukas.alkupvm < vertailupvm:
+            if asukas.alkupvm and asukas.alkupvm < vertailupvm:
                 poistetaan_kohteelta = False
                 break
     
