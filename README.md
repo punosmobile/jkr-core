@@ -282,6 +282,43 @@ The data used in tests (`/tests/data`) is mostly dummy data created only for tes
 
 The postal code data (`/tests/data/test_data_import`) is real data downloaded from Postal Code Services by Posti. Please see the current service description and terms of use if you share this data further. [Service description and terms of use](https://www.posti.fi/mzj3zpe8qb7p/1eKbwM2WAEY5AuGi5TrSZ7/c76a865cf5feb2c527a114b8615e9580/posti-postal-code-services-service-description-and-terms-of-use-20150101.pdf)
 
+### Test scopes
+
+The automated tests test a wide variety of features within the data import processes
+
+| File | Test class | Test description |
+|-------|------------|-----------------|
+| akppoistosyy | test_akppoistosyyt | Verifies the AKP removal types in authority decisions |
+| data_import | test_osapuolenrooli | Verifies the existence of correct role types for parties |
+|  | test_import_dvv_kohteet | Verifies the number of objects created from the base fee register, start dates, owners, end date presence, number of oldest residents, the oldest resident's party link, formation and existence of transport contracts on the correct object |
+|  | test_update_dvv_kohteet | Verifies end date updates, correct parties, missing party for unknown object, transfer of decisions and notifications, formation of client role from transport, old decision ending and new one starting, composting changes and retention |
+| date_utils | test_parse_date | Verifies that date parsing still works correctly |
+|  | test_invalid_date_should_raise | Verifies that invalid date raises an error |
+| db_utils | test_is_asoy | Verifies that the housing company detector works correctly |
+|  | test_is_company | Verifies that the company detector works correctly |
+| interval | test_range_overlap | Verifies that interval overlap checking works |
+|  | test_range_contains | Verifies that number containment in interval works |
+|  | test_interval_counter_containing | Verifies that interval counter works |
+|  | test_interval_overlapping | Verifies the count of overlapping intervals |
+| kitu | test_short_kitu_2_long | Verifies the interpretation of short KITU codes |
+| kompostori_end_dates | test_readable | Verifies the readability of compost end notification xlsx file |
+|  | test_lopetusilmoitus | Verifies the ending of two composters and recording of two unmatched composters |
+| kompostori | test_readable | Verifies the readability of notification file |
+|  | test_kompostori | Verifies creation of two composters, two unmatched, one rejected, and three composter objects |
+|  | test_kompostori_osakkaan_lisays | Verifies importing additional composter owner notifications, existence of three composter objects |
+| lahti_siirtotiedosto | test_tiedontuottaja_add_new | Verifies adding a data producer |
+|  | test_readable | Verifies readability of CSV files in directory |
+|  | test_kohteet | Verifies that contractor ID exists in customer data |
+|  | test_import_faulty_data | Verifies error with faulty data |
+|  | test_import_data | Verifies no new objects are created, end dates are unchanged, contract count, contract types (including shared), client roles by waste type, shared owners, shared managers, area collection contracts, unknown contract and transport, fixed waste mass, emptying intervals including per waste type, interruptions, unmatched count, unmatched PRT correction and resulting contract |
+| päätöstulos | test_paatostulos | Verifies decision result types |
+| progress | test_progress | Verifies reporting progress |
+|  | test_progress_reset | Verifies reporting progress reset |
+| tapahtumalajit | test_tapahtumalajit | Verifies event types |
+| viranomaispäätöset | test_readable | Verifies readability of decision file |
+|  | test_import_faulty_data | Verifies failure with bad data |
+|  | test_import_paatokset | Verifies number of authority decisions, decision numbers, dates, positive and negative decisions, event type, AKP removal reason, matching, emptying interval, waste type, unmatched list |
+
 ## Naming development branches
 
 Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}/{description}`. For example, `"Lahti-99/kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
