@@ -74,7 +74,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- Hae kunnan nimi vaihdetaan kunnan nimi hakeutumaan kuntakentästä
+-- Haetaan kunnan nimi rakennuksen kuntakoodin perusteella.
 
 CREATE OR REPLACE FUNCTION jkr.get_report_filter(
     tarkastelupvm DATE,
