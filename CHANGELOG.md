@@ -177,3 +177,17 @@ All notable changes to this project will be documented in this file.
 - Kohde alkupvm is now dynamic and will use either owner or resident starting date and default to poimintapvm if neither is available
 - If Kohde would end due to a building leaving it, it will be marked as expired and removed after active contracts and shipments have been moved to a new Kohde 
 
+## [0.6.10] - 2025-06-23
+
+### Fixed
+
+- Kohde geometry will now be updated to match when building geometry is updated
+
+### Added
+
+- Added table descriping the scope of automated tests within the codebase
+
+### Changed
+
+- Switched Kunta_out value source to building.kunta column instead of kiinteistotunnus or postal address
+
