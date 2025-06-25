@@ -100,6 +100,8 @@ def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[
         # Get header row indexes
         col_index_to_name = {i: name for i, name in enumerate(header_row)}
         wildcard_column_indexes = [i for i, name in col_index_to_name.items() if name in filter_fields]
+        print("wildcard_column_indexes list")
+        print(wildcard_column_indexes)
 
         if not wildcard_column_indexes:
             print(f'\nEi löytynyt villikorttiotsikoita \nfilter: {filter_fields} \nfile: {file_path}')
@@ -180,7 +182,9 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
             # Get header row indexes
             col_index_to_name = {i: name for i, name in enumerate(header_row)}
             wildcard_column_indexes = [i for i, name in col_index_to_name.items() if name in filter_fields]
-
+            print("wildcard_column_indexes list")
+            print(wildcard_column_indexes)
+            
             if not wildcard_column_indexes:
                 print(f'\nEi löytynyt villikorttiotsikoita \nfile: {source_file} sheet: {sheet_name}')
 

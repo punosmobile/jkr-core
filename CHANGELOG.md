@@ -191,3 +191,9 @@ All notable changes to this project will be documented in this file.
 
 - Switched Kunta_out value source to building.kunta column instead of kiinteistotunnus or postal address
 
+
+## [0.6.11] - 2025-06-25
+
+### Fixed
+
+- Old kohde data will now be handled correctly when multiple expiring kohde objects are clustered together

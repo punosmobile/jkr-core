@@ -364,8 +364,10 @@ def import_dvv_kohteet(
     print(f"{len(poistettavat_rakennukset)} asukas ja  {len(poistettavat_rakennukset_omistaja)} omistaja rakennusta on poistumassa kohteiltaan")
     print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} tarkastelluista rakennuksista pysyy kohteillaan")
 
-    if len(poistettavat_rakennukset + poistettavat_rakennukset_omistaja) > 0:
-        remove_buildings_from_kohde(session, poistettavat_rakennukset + poistettavat_rakennukset_omistaja)
+    if len(poistettavat_rakennukset) > 0:
+        remove_buildings_from_kohde(session, poistettavat_rakennukset, 'asukas')
+    if len(poistettavat_rakennukset_omistaja) > 0:
+        remove_buildings_from_kohde(session, poistettavat_rakennukset_omistaja, 'omistaja')
     
     session.commit()
 
