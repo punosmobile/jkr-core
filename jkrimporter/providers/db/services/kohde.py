@@ -817,7 +817,7 @@ def update_old_kohde_data(
     Päivittää vanhan kohteen tiedot ja siirtää tarvittavat tiedot uudelle kohteelle.
     
     Prosessi suoritetaan seuraavasti:
-    # Alkupäivä on asetettu kohteen lopettamisessa -> ei tarvitse asettaa uudelleen
+    Alkupäivä on asetettu kohteen lopettamisessa -> ei tarvitse asettaa uudelleen
     1. Siirretään sopimukset ja kuljetukset joiden loppupvm >= uuden kohteen alkupvm
     2. Käsitellään viranomaispäätökset:
        - Päätöksille joiden alkupvm <= vanhan kohteen loppupvm asetetaan loppupvm
@@ -1152,7 +1152,7 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
 def parse_alkupvm_for_kohde(
     session: "Session",
     rakennus_ids: List[int],
-    old_kohde_alkupvm: Optional[datetime.date],
+    old_kohde_list: List[Kohde],
     poimintapvm: Optional[datetime.date],
 ) -> datetime.date:
     """
@@ -1197,7 +1197,12 @@ def parse_alkupvm_for_kohde(
             return poimintapvm
 
         # Valitse uusin päivämäärä muutoksista
-        latest_change = old_kohde_alkupvm
+        latest_change = None
+        for kohde in old_kohde_list:
+            if latest_change is None or latest_change < kohde.loppupvm:
+                latest_change = kohde.loppupvm
+
+
         if latest_omistaja_change is None and latest_vanhin_change is not None:
             latest_change = latest_vanhin_change
         elif latest_vanhin_change is None and latest_omistaja_change is not None:
@@ -1205,8 +1210,8 @@ def parse_alkupvm_for_kohde(
         else:
             latest_change = max(latest_omistaja_change, latest_vanhin_change)
 
-        # Jos uusin muutos on vanhan kohteen alkupvm:n jälkeen,
-        # käytetään muutospäivää, muuten poimintapvm:ää
+        # Jos muutospäivä löytyy, käytetään muutospäivää,
+        # muuten poimintapvm:ää
         if latest_change:
             return latest_change
         else:
@@ -1224,9 +1229,9 @@ def create_new_kohde_from_buildings(
     rakennus_ids: List[int],
     asukkaat: Set[Osapuoli],
     omistajat: Set[Osapuoli],
+    vanhat_kohteet: List[Kohde],
     poimintapvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date],
-    old_kohde: Optional[Kohde],
     lukittu: bool = False
 ):
     """
@@ -1305,7 +1310,7 @@ def create_new_kohde_from_buildings(
         kohde_display_name = "Tuntematon"
         
     alkupvm = parse_alkupvm_for_kohde(
-        session, rakennus_ids, old_kohde and old_kohde.alkupvm or None, poimintapvm
+        session, rakennus_ids, vanhat_kohteet, poimintapvm
     )
 
         
@@ -1366,7 +1371,7 @@ def create_new_kohde_from_buildings(
 
 def old_kohde_for_buildings(
     session: Session, rakennus_ids: List[int], poimintapvm: datetime.date
-):
+) -> List[Kohde]:
     kohde_query = (
         select(Kohde)
         .join(KohteenRakennukset)
@@ -1375,11 +1380,11 @@ def old_kohde_for_buildings(
             Kohde.loppupvm.isnot(None),
         )
     )
-    old_kohde_id = session.execute(kohde_query).scalar()
-    if old_kohde_id:
-        print("Löydetty vanha kohde: ")
-        print(old_kohde_id.id)
-    return old_kohde_id
+    old_kohteet = session.execute(kohde_query).scalars().all()
+    if old_kohteet:
+        print(f"Löydetty vanhoja kohteita: {[k.id for k in old_kohteet]}")
+
+    return old_kohteet
 
 
 def set_old_kohde_loppupvm(session: Session, kohde_id: int, loppupvm: datetime.date):
@@ -1685,15 +1690,15 @@ def update_or_create_kohde_from_buildings(
         logger.debug("Kohdetta ei löytynyt, luodaan uusi")
 
         # Tarkista mahdollinen vanha kohde
-        old_kohde = None
+        vanhat_kohteet: List[Kohde] = []
         if poimintapvm:
             print("Checking for old kohde")
-            old_kohde = old_kohde_for_buildings(session, list(rakennus_ids), poimintapvm)
+            vanhat_kohteet = old_kohde_for_buildings(session, list(rakennus_ids), poimintapvm)
 
         # Määritä alkupvm
         alkupvm = poimintapvm
         alkupvm = parse_alkupvm_for_kohde(
-            session, list(rakennus_ids), old_kohde and old_kohde.alkupvm or None, poimintapvm
+            session, list(rakennus_ids), vanhat_kohteet, poimintapvm
         )
 
         # Luo uusi kohde
@@ -1702,47 +1707,45 @@ def update_or_create_kohde_from_buildings(
             list(rakennus_ids),
             asukkaat,
             omistajat,
+            vanhat_kohteet,
             alkupvm,
             loppupvm,
-            old_kohde if 'old_kohde' in locals() else None,
             lukittu=lukittu
         )
 
         print(f"uusi kohde luotu: {new_kohde.id}")
 
-        # Käsittele vanhan kohteen tiedot
-        if new_kohde and poimintapvm and old_kohde:
-            logger.debug(f"Päivitetään vanhan kohteen {old_kohde.id} tiedot")
-            print(f"Päivitetään vanhan kohteen {old_kohde.id} tiedot")
-            update_old_kohde_data(
-                session,
-                old_kohde,
-                new_kohde.id,
-                new_kohde.alkupvm
-            )
+        for old_kohde in vanhat_kohteet:
+            # Käsittele vanhan kohteen tiedot
+            if new_kohde and old_kohde:
+                logger.debug(f"Päivitetään vanhan kohteen {old_kohde.id} tiedot")
+                print(f"Päivitetään vanhan kohteen {old_kohde.id} tiedot")
+                update_old_kohde_data(
+                    session,
+                    old_kohde,
+                    new_kohde.id,
+                    new_kohde.alkupvm
+                )
 
-        if old_kohde:
-            vanhan_kohteen_linkit = (
-            select(KohteenRakennukset)
-            .where(
-                and_(
-                    KohteenRakennukset.kohde_id == old_kohde.id,
-                    KohteenRakennukset.rakennus_id.in_(list(rakennus_ids))
+            if old_kohde:
+                vanhan_kohteen_linkit = (
+                select(KohteenRakennukset)
+                .where(
+                    and_(
+                        KohteenRakennukset.kohde_id == old_kohde.id,
+                        KohteenRakennukset.rakennus_id.in_(list(rakennus_ids))
+                        )
                     )
                 )
-            )
 
-            vanhat_linkit: list[KohteenRakennukset] = session.execute(vanhan_kohteen_linkit).scalars().all()
-            print(f"Poistetaan linkitys rakennuksien ja kohteen {old_kohde.id} väliltä. Linkit: {[r.rakennus_id for r in vanhat_linkit]}")
+                vanhat_linkit: list[KohteenRakennukset] = session.execute(vanhan_kohteen_linkit).scalars().all()
+                print(f"Poistetaan linkitys rakennuksien ja kohteen {old_kohde.id} väliltä. Linkit: {[r.rakennus_id for r in vanhat_linkit]}")
 
-            for linkki in vanhat_linkit:
-                session.delete(linkki)
+                for linkki in vanhat_linkit:
+                    session.delete(linkki)
 
+        
         print(f"Uusi kohde {new_kohde.id} muodostettu {len(rakennus_ids)} rakennukselle")
-        for rakennus in rakennukset_id_prt:
-            if rakennus.prt == "102648238F":
-                print(rakennus.prt)
-
         return new_kohde
 
     # Jos kohde löytyi, päivitä sen tiedot
@@ -2635,7 +2638,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
                     Kohde.id== kohde_id,
                 )
             )
-            
+
             kohde = session.execute(kohde_query).scalar_one()
             print(f"Lopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}, syy: {poistosyy}")
 
@@ -2645,11 +2648,11 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             print(kohde.alkupvm)
             if kohde.alkupvm >= uusi_loppupvm:
                 uusi_loppupvm = max(kohde.alkupvm, uusi_loppupvm)
-            
+
             print(f"Loppupäivä tulos: {uusi_loppupvm}")
 
             kohde.loppupvm = uusi_loppupvm
-            kohde.loppumisen_syy += f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm} "
+            kohde.loppumisen_syy = kohde.loppumisen_syy + f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}" if kohde.loppumisen_syy else f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}"
             #session.delete(rakennuksen_kohde)
-            
+
     return None
