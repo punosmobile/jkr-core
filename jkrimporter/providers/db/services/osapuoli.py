@@ -266,7 +266,7 @@ def should_remove_from_kohde_via_asukas(
         if poistetaan_kohteelta:
             print(f"Poistetaan rakennus asukkailla kohteelta rakennus_id:llä: {rakennus_id}")
         else:
-            print(f"Ei poisteta rakennusta asukkailta kohteelta rakennus_id:llä: {rakennus_id}")
+            print(f"Ei poisteta rakennusta asukkailla kohteelta rakennus_id:llä: {rakennus_id}")
     return poistetaan_kohteelta
 
 
