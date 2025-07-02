@@ -197,3 +197,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Old kohde data will now be handled correctly when multiple expiring kohde objects are clustered together
+
+## [0.7.0] - 2025-07-2
+
+### Fixed
+
+- Fixed a situation where an osapuoli who is the last resident and owner moved out of a building but would still be considered as current owner, failing to end the Kohde
