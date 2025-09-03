@@ -197,3 +197,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Old kohde data will now be handled correctly when multiple expiring kohde objects are clustered together
+
+## [0.7.1] - 2025-09-03
+
+### Fixed
+
+- Fixed mistake in migration files where some changes were being overwritten by repeatable migrations
