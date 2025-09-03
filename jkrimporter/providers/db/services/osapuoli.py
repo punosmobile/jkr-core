@@ -226,6 +226,8 @@ def should_remove_from_kohde_via_asukas(
 
     # Tarkistetaan, onko yksikin sama, jos on, ei tulisi poistaa kohteelta
     poistetaan_kohteelta = not bool(poistuneet_tunnisteet & asuvat_tunnisteet)
+    if not poistetaan_kohteelta:
+        print(f"Ei poisteta kohteelta, asukkaissa on yhtäläisyys {poistuneet_tunnisteet & asuvat_tunnisteet}")
 
     # Jos asukkaissa ei ole yhtäläisyyksiä, tarkistetaan onko joku asukkaista muuttanut taloon ennen edellistä poimintapäivää.
     # Tämä voi tapahtua esimerkiksi kahden henkilön asuessa samassa taloudessa josta toinen muuttaa pois
@@ -245,7 +247,7 @@ def should_remove_from_kohde_via_asukas(
             .join(Osapuoli)
             .where(
                 RakennuksenOmistajat.rakennus_id == rakennus_id,
-                RakennuksenOmistajat.omistuksen_loppupvm.isnot(None)
+                RakennuksenOmistajat.omistuksen_loppupvm.is_(None)
             )
         )
         rakennuksen_omistajat = session.execute(rakennuksen_omistajat_query).scalars().all()
@@ -258,9 +260,13 @@ def should_remove_from_kohde_via_asukas(
 
         # Tarkistetaan, onko yksikin sama, jos on, ei tulisi poistaa kohteelta
         poistetaan_kohteelta = not bool(poistuneet_tunnisteet & omistaja_tunnisteet)
+        if not poistetaan_kohteelta:
+            print(f"Ei poisteta kohteelta, asukas on sama kuin edellinen omistaja {poistuneet_tunnisteet & omistaja_tunnisteet}")
 
         if poistetaan_kohteelta:
-            print(f"Poistetaan rakennus asukkailla kohteelta id:llä: {rakennus_id}")
+            print(f"Poistetaan rakennus asukkailla kohteelta rakennus_id:llä: {rakennus_id}")
+        else:
+            print(f"Ei poisteta rakennusta asukkailla kohteelta rakennus_id:llä: {rakennus_id}")
     return poistetaan_kohteelta
 
 
