@@ -242,5 +242,14 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
         '2022-1-1',
         'Metalli kunnossa'
+    ),
+    (
+        30,
+        'Sekajäte',
+        'kohde',
+        'kohteet_joilla_on_aluekerays_kuljetuksia_tai_sopimuksia',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Aluekeräys'),
+        '2022-1-1',
+        'Sekajäte kunnossa'
     )
 ON CONFLICT DO NOTHING;

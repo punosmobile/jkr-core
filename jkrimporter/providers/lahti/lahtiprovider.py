@@ -256,7 +256,7 @@ class LahtiTranslator:
             # Lahti saves aluekeräys in the same field as jätelajit
             if row.tyyppiIdEWC == Jatelaji.aluekerays:
                 sopimustyyppi = SopimusTyyppi.aluekerayssopimus
-                jatelaji = JkrJatelaji.muu
+                jatelaji = JkrJatelaji.aluekerays
             else:
                 sopimustyyppi = SopimusTyyppi.tyhjennyssopimus
                 jatelaji = jatelaji_map[row.tyyppiIdEWC]
