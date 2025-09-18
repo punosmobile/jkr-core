@@ -6,12 +6,12 @@ CREATE OR REPLACE VIEW jkr.v_kohdevelvoitteet_status
     m.selite AS velvoitemalli_selite,
     m.kuvaus AS velvoitemalli_kuvaus,
     m.voimassaolo,
-    CURRENT_DATE <@ m.voimassaolo AS model_valid_now,
+    CURRENT_DATE <@ m.voimassaolo AS voimassa,
     s.id AS status_id,
     s.ok AS status_ok,
     s.tallennuspvm AS status_tallennuspvm,
     s.jakso AS status_jakso,
-    s.jakso IS NOT NULL AND CURRENT_DATE <@ s.jakso AS status_current_now
+    s.jakso IS NOT NULL AND CURRENT_DATE <@ s.jakso AS nykystatus
    FROM jkr.velvoite v
      JOIN jkr.velvoitemalli m ON m.id = v.velvoitemalli_id
      LEFT JOIN LATERAL ( SELECT s_1.id,
