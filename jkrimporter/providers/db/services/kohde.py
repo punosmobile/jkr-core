@@ -1521,9 +1521,11 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
             session.query(Kohde)
             .join(KohteenRakennukset, KohteenRakennukset.kohde_id == Kohde.id)
             .filter(
-                Kohde.kohdetyyppi_id == 8,
                 Kohde.alkupvm < datetime.date(maxYear, 1, 1),
-                Kohde.loppupvm > datetime.date(maxYear, 1, 1)
+                or_(
+                    Kohde.loppupvm.is_(None),
+                    Kohde.loppupvm > datetime.date(maxYear, 1, 1)
+                ),
             )
             .all()
         )
