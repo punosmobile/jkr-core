@@ -878,7 +878,10 @@ def update_old_kohde_data(
                     Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
                     Viranomaispaatokset.alkupvm <= loppupvm
                 )
-                .values(loppupvm=loppupvm)
+                .values(
+                    loppupvm=loppupvm,
+                    rakennus_id = None  # Irroita rakennuksesta
+                    )
                 .execution_options(synchronize_session=False)
             )
             result = session.execute(stmt)
