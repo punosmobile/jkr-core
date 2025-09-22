@@ -294,6 +294,7 @@ class JkrIlmoitukset:
     onko_kimppa: str
     tiedontuottaja: str
     sijainti_prt: List[str]
+    prt: List[str]
     rawdata: Optional[List[Dict[str, str]]] = None
 
 
