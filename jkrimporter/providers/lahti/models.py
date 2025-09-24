@@ -532,7 +532,7 @@ class Ilmoitus(BaseModel):
     def parse_prts(value: str):
         if isinstance(value, str):
             return value.split(',')
-        return value
+        return [value]
 
     @root_validator
     def check_vastuuhenkilo_names(cls, values):

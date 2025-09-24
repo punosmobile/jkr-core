@@ -553,10 +553,7 @@ def _verify_rakennukset(
 def find_osoite_by_prt(
     session: "Session", asiakas: Union["JkrIlmoitukset", "LopetusIlmoitus"]
 ):
-    if hasattr(asiakas, 'sijainti_prt'):
-        prts = asiakas.sijainti_prt
-    else:
-        prts = asiakas.prt
+    prts = asiakas.prt
 
     for prt in prts:
         rakennus = session.query(Rakennus).filter_by(prt=prt).first()
