@@ -1,10 +1,10 @@
 CREATE OR REPLACE VIEW jkr.v_kohdevelvoitteet_status
  AS
- SELECT v.id AS velvoite_id,
+ SELECT m.kuvaus AS velvoitemalli_kuvaus,
+ 	v.id AS velvoite_id,
     v.kohde_id,
     v.velvoitemalli_id,
     m.selite AS velvoitemalli_selite,
-    m.kuvaus AS velvoitemalli_kuvaus,
     m.voimassaolo,
     CURRENT_DATE <@ m.voimassaolo AS voimassa,
     s.id AS status_id,
@@ -23,4 +23,3 @@ CREATE OR REPLACE VIEW jkr.v_kohdevelvoitteet_status
           WHERE s_1.velvoite_id = v.id
           ORDER BY (upper(s_1.jakso)) DESC NULLS LAST, s_1.tallennuspvm DESC, s_1.id DESC
          LIMIT 1) s ON true
-  WHERE s.ok = true;
