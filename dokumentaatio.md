@@ -401,14 +401,14 @@ Kompostointi-ilmoitukset luetaan Excel-tiedostosta (.xlsx), jossa yksi rivi vast
 - Voimassaasti (kompostoinnin loppupäivä)
 - Onko kimppa (tieto siitä, onko kyseessä useamman kiinteistön yhteinen kompostori)
 - Vastuuhenkilön tiedot (sukunimi, etunimi, osoite, postinumero, postitoimipaikka)
-- Sijainti_prt (rakennustunnus, jossa kompostori sijaitsee)
+- PRT (kompostoria käyttävän rakennuksen rakennustunnus, käsittelijän lisäämä)
 - Käyttäjän tiedot (sukunimi, etunimi) ja prt (rakennustunnus)
 
 ### 6.2 Kompostointi-ilmoitusten kohdentaminen
 
 Kompostointi-ilmoitus kohdennetaan kohteille seuraavassa järjestyksessä:
 
-1. Haetaan kompostorin sijainnin kohde rakennustunnuksen (sijainti_prt) perusteella
+1. Haetaan kompostorin kohde rakennustunnuksen ("1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste" eli PRT) perusteella
 2. Luodaan tai päivitetään kompostorin vastuuhenkilö (osapuoli)
 3. Haetaan kompostorin osoite_id rakennustunnuksen perusteella
 4. Luodaan uusi kompostori tai käytetään olemassa olevaa:
