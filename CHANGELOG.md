@@ -211,3 +211,23 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixed mistake in migration files where some changes were being overwritten by repeatable migrations
+
+## [0.7.2] - 2025-09-24
+
+### Fixed
+
+- Fixed incorrect kompostori ilmoitus, lopetus ilmoitus and kuljetus matching behaviour
+- Fixed mistake in check_and_update_old_other_building_kohde_kohdetyyppi function where it did not account for null loppupvm
+- Fixed mistake in check_and_update_old_other_building_kohde_kohdetyyppi function where it only affected kohdetyyppi 8
+
+### Added
+
+- Added AKP jätetyyppi
+- Added AKP based sekajäte velvoite and velvoitemalli
+
+### Changed
+
+- Failure of biojäte yhteenvetomalli now returns "biojäte puuttuu"
+- Removed tyhjennysväli päätös from sekajätevelvoite
+- Altered sekajäte velvoite calculations
+- Some changes to Kohde velvoite listings
