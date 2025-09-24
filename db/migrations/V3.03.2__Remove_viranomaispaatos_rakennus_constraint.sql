@@ -1,0 +1,1 @@
+ALTER TABLE jkr.viranomaispaatokset ALTER COLUMN rakennus_id DROP NOT NULL;
