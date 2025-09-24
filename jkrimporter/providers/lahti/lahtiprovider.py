@@ -450,7 +450,8 @@ class IlmoitusTranslator:
                 row.vastuuhenkilo_postitoimipaikka,
                 row.vastuuhenkilo_osoite,
                 row.onko_kimppa,
-                tuple(row.sijainti_prt)
+                tuple(row.sijainti_prt),
+                tuple(row.prt)
             )
             if key not in grouped_data:
                 grouped_data[key] = {
@@ -477,6 +478,7 @@ class IlmoitusTranslator:
                         "Kompostori on useamman kiinteistön yhteinen kompostori (voit ilmoittaa enintään 5 rakennusta)"
                         in row.onko_kimppa
                     ),
+                    'prt': row.prt,
                     'sijainti_prt': row.sijainti_prt,
                     'tiedontuottaja': "ilmoitus",
                     'rawdata': [row.rawdata]
