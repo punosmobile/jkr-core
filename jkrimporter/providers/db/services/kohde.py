@@ -1077,7 +1077,7 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
     try:
         for prt in asiakas.rakennukset:
             rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
-            if rakennus:           
+            if rakennus:
                 # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
                 asukkaat = set(session.query(RakennuksenVanhimmat)
                     .filter(RakennuksenVanhimmat.rakennus_id == rakennus.id)
@@ -1501,22 +1501,24 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
             )
             rakennukset = session.execute(rakennus_query).all()
             print(f"- Rakennukset: {[r[1] for r in rakennukset]}")
-            
+
             found_asuinkiinteisto = False
-            
-            for rakennus_tiedot in rakennukset:  
+
+            for rakennus_tiedot in rakennukset:
                 # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
                 asukkaat = set(session.query(RakennuksenVanhimmat)
                     .filter(RakennuksenVanhimmat.rakennus_id == rakennus_tiedot.id)
-                    .all())     
+                    .all())
                 building_type = determine_kohdetyyppi(session, rakennus_tiedot, asukkaat)
                 print(f"Tarkastelussa kohdetyypin arvo {original_kohdetyyppi} vs {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} prt:llä {rakennus_tiedot.prt}")
-                
+
                 if building_type == KohdeTyyppi.ASUINKIINTEISTO:
                     if building_type != original_kohdetyyppi:
                         print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} asuinkiinteistö")
                         kohde.kohdetyyppi_id = codes.kohdetyypit[building_type].id
                         updated_kohteet.add(kohde.id)
+                    found_asuinkiinteisto = True
+                    break  # Jos löydetään asuinkiinteistö, ei tarvitse tarkistaa muita rakennuksia
 
                 # Jos yksikään rakennus ei ole asuinkiinteistö, asetetaan tyypiksi MUU
                 if not found_asuinkiinteisto:
@@ -1525,13 +1527,13 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
                         print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {new_kohdetyyppi.id} kohteelle {kohde.id} ei asuinkiinteistö")
                         setattr(kohde, 'kohdetyyppi_id', new_kohdetyyppi.id)
                         updated_kohteet.add(kohde.id)
-        
+
         if len(updated_kohteet) > 0:
             print(f"Päivitetty {len(updated_kohteet)} kohdetta")
-            session.flush()        
+            session.flush()
     except NoResultFound:
         updated_kohteet = []
-        
+
     return updated_kohteet
 
 
