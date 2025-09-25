@@ -82,7 +82,7 @@ class LahtiSiirtotiedosto:
                 asiakas_obj = AsiakasRow.parse_obj(data)
                 asiakas_rows.append(asiakas_obj)
             except ValidationError as e:
-                logger.warning(f"Asiakas-objektin luonti epäonnistui datalla: {data}. Virhe: {e}")
+                logger.warning(f"\n\nAsiakas-objektin luonti epäonnistui datalla: {data}. \nVirhe: {e}")
                 failed_validations.append(data)
 
         # Save failed validations to a new CSV file.

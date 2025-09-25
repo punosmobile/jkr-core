@@ -259,7 +259,7 @@ def find_kohde_by_prt(
     """
     if isinstance(asiakas, JkrIlmoitukset):
         return _find_kohde_by_asiakastiedot(
-            session, Rakennus.prt.in_(asiakas.sijainti_prt), asiakas
+            session, Rakennus.prt.in_(asiakas.prt), asiakas
         )
     elif isinstance(asiakas, LopetusIlmoitus):
         # Lopetusilmoitukselle käytetään erikoiskäsittelyä
@@ -412,7 +412,7 @@ def find_kohde_by_address(
 def _find_kohde_by_ilmoitustiedot(
     session: "Session",
     filter,
-    ilmoitus: "LopetusIlmoitus" 
+    ilmoitus: "LopetusIlmoitus"
 ) -> "Optional[Kohde]":
     """
     Optimoitu versio lopetusilmoitusten käsittelyyn.
@@ -438,36 +438,17 @@ def _find_kohde_by_ilmoitustiedot(
     if not kohde_ids:
         return None
 
-    # 2. Standardoi vastuuhenkilön nimi kerran
-    vastuuhenkilo = ilmoitus.nimi.upper()
+    # 2. Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä
+    if len(kohde_ids) > 1:
+        print(f"Löytyi {len(kohde_ids)} kohdetta rakennukselle {ilmoitus.prt}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
 
-    # 3. Käy läpi kohteet kunnes löytyy täsmäys
-    for kohde_id in kohde_ids:
-        osapuolet_query = (
-            select(Osapuoli.nimi)
-            .join(KohteenOsapuolet)
-            .where(
-                KohteenOsapuolet.kohde_id == kohde_id,
-                KohteenOsapuolet.osapuolenrooli_id.in_([1, 2, 311])
-            )
-        )
-        
-        osapuoli_nimet = session.execute(osapuolet_query).scalars().all()
-        
-        for db_nimi in osapuoli_nimet:
-            if not db_nimi:
-                continue
-                
-            if db_nimi.upper() == vastuuhenkilo:
-                return session.get(Kohde, kohde_id)
-
-    return None
+    return session.get(Kohde, kohde_ids[0])
 
 
 
 def _find_kohde_by_asiakastiedot(
-    session: "Session", 
-    filter,  
+    session: "Session",
+    filter,
     asiakas: "Union[Asiakas, JkrIlmoitukset]"
 ) -> "Optional[Kohde]":
     """
@@ -480,7 +461,7 @@ def _find_kohde_by_asiakastiedot(
         .join(KohteenRakennukset)
         .join(Rakennus)
         .where(
-            filter,
+            filter, # Rakennus.prt.in_(...)
             Kohde.voimassaolo.overlaps(
                 DateRange(
                     asiakas.voimassa.lower or datetime.date.min,
@@ -500,42 +481,11 @@ def _find_kohde_by_asiakastiedot(
     if not kohde_ids:
         return None
 
-    # 2. Standardoi asiakkaan nimi kerran
-    if isinstance(asiakas, JkrIlmoitukset):
-        asiakas_nimi = asiakas.vastuuhenkilo.nimi.upper()
-    else:
-        asiakas_nimi = asiakas.haltija.nimi.upper()
+    # 3. Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä
+    if len(kohde_ids) > 1:
+        print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.rakennukset}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
 
-    # 3. Hae ja validoi kohteet yksi kerrallaan kunnes löytyy täsmäys
-    for kohde_id in kohde_ids:
-        # Hae vain oleelliset osapuolet kohteelle
-        osapuolet_query = (
-            select(Osapuoli.nimi)
-            .join(KohteenOsapuolet)
-            .where(
-                KohteenOsapuolet.kohde_id == kohde_id,
-                KohteenOsapuolet.osapuolenrooli_id.in_([1, 2, 311])  # Vain oleelliset roolit
-            )
-        )
-        
-        osapuoli_nimet = session.execute(osapuolet_query).scalars().all()
-        
-        # Tarkista täsmääkö jokin osapuoli
-        for db_nimi in osapuoli_nimet:
-            if not db_nimi:
-                continue
-                
-            db_nimi = db_nimi.upper()
-
-            # Jos kyseessä asoy, vaadi tarkka täsmäys
-            if 'ASOY' in db_nimi or 'AS OY' in db_nimi:
-                if db_nimi == asiakas_nimi:
-                    return session.get(Kohde, kohde_id)
-            # Muuten salli osittainen täsmäys
-            elif (asiakas_nimi in db_nimi or db_nimi in asiakas_nimi):
-                return session.get(Kohde, kohde_id)
-
-    return None
+    return session.get(Kohde, kohde_ids[0])
 
 
 
@@ -878,7 +828,10 @@ def update_old_kohde_data(
                     Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
                     Viranomaispaatokset.alkupvm <= loppupvm
                 )
-                .values(loppupvm=loppupvm)
+                .values(
+                    loppupvm=loppupvm,
+                    rakennus_id = None  # Irroita rakennuksesta
+                    )
                 .execution_options(synchronize_session=False)
             )
             result = session.execute(stmt)
@@ -1124,7 +1077,7 @@ def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> K
     try:
         for prt in asiakas.rakennukset:
             rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
-            if rakennus:           
+            if rakennus:
                 # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
                 asukkaat = set(session.query(RakennuksenVanhimmat)
                     .filter(RakennuksenVanhimmat.rakennus_id == rakennus.id)
@@ -1518,9 +1471,11 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
             session.query(Kohde)
             .join(KohteenRakennukset, KohteenRakennukset.kohde_id == Kohde.id)
             .filter(
-                Kohde.kohdetyyppi_id == 8,
                 Kohde.alkupvm < datetime.date(maxYear, 1, 1),
-                Kohde.loppupvm > datetime.date(maxYear, 1, 1)
+                or_(
+                    Kohde.loppupvm.is_(None),
+                    Kohde.loppupvm > datetime.date(maxYear, 1, 1)
+                ),
             )
             .all()
         )
@@ -1546,22 +1501,24 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
             )
             rakennukset = session.execute(rakennus_query).all()
             print(f"- Rakennukset: {[r[1] for r in rakennukset]}")
-            
+
             found_asuinkiinteisto = False
-            
-            for rakennus_tiedot in rakennukset:  
+
+            for rakennus_tiedot in rakennukset:
                 # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
                 asukkaat = set(session.query(RakennuksenVanhimmat)
                     .filter(RakennuksenVanhimmat.rakennus_id == rakennus_tiedot.id)
-                    .all())     
+                    .all())
                 building_type = determine_kohdetyyppi(session, rakennus_tiedot, asukkaat)
                 print(f"Tarkastelussa kohdetyypin arvo {original_kohdetyyppi} vs {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} prt:llä {rakennus_tiedot.prt}")
-                
+
                 if building_type == KohdeTyyppi.ASUINKIINTEISTO:
                     if building_type != original_kohdetyyppi:
                         print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {codes.kohdetyypit[building_type].id} kohteelle {kohde.id} asuinkiinteistö")
                         kohde.kohdetyyppi_id = codes.kohdetyypit[building_type].id
                         updated_kohteet.add(kohde.id)
+                    found_asuinkiinteisto = True
+                    break  # Jos löydetään asuinkiinteistö, ei tarvitse tarkistaa muita rakennuksia
 
                 # Jos yksikään rakennus ei ole asuinkiinteistö, asetetaan tyypiksi MUU
                 if not found_asuinkiinteisto:
@@ -1570,13 +1527,13 @@ def check_and_update_old_other_building_kohde_kohdetyyppi(
                         print(f"Päivitetään kohdetyypin arvo {original_kohdetyyppi} arvoksi {new_kohdetyyppi.id} kohteelle {kohde.id} ei asuinkiinteistö")
                         setattr(kohde, 'kohdetyyppi_id', new_kohdetyyppi.id)
                         updated_kohteet.add(kohde.id)
-        
+
         if len(updated_kohteet) > 0:
             print(f"Päivitetty {len(updated_kohteet)} kohdetta")
-            session.flush()        
+            session.flush()
     except NoResultFound:
         updated_kohteet = []
-        
+
     return updated_kohteet
 
 

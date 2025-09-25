@@ -232,7 +232,7 @@ def raportti(
     tarkastelupvm: str = typer.Argument(None, help="Tarkastelupäivämäärä (YYYY-MM-DD tai DD.MM.YYYY)"),
     kunta: str = typer.Argument(None, help="Kunnan nimi (esim. 'Lahti'). Käytä 0 jos ei rajausta."),
     huoneistomaara: int = typer.Argument(0, help="Huoneistomäärä (4 = neljä tai vähemmän, 5 = viisi tai enemmän, 0 = ei rajausta)"),
-    taajama: int = typer.Argument(None, help="Taajama (0 = ei rajausta, 1 = yli 10000, 2 = yli 200)"),
+    taajama: int = typer.Argument(None, help="Taajama (0 = ei rajausta, 2 = yli 10000, 1 = yli 200, 3 = molemmat, 10000 = yli 10000, 200 = yli 200)"),
     kohde_tyyppi: int = typer.Argument(None, help="Kohdetyyppi 5 = hapa, 6 = biohapa, 7 = asuinkiinteistö, 8 = muu, 0 = ei rajausta"),
 ):
     """

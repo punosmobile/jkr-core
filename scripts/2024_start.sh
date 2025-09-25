@@ -4,6 +4,11 @@
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 START_TIME=$(date +%s)
 
+rm -rf logs
+rm jkr.log
+rm cluster_debug.log
+rm kiinteisto_debug.log
+
 # Luo logs-hakemisto jos ei ole olemassa
 mkdir -p logs/arkisto
 mkdir -p logs/kohteet
@@ -47,81 +52,102 @@ status() {
 
 # Funktio lokitusta varten
 log_exec() {
-    local cmd="$1"
-    local log_file="$2"
-    local desc="$3"
-    echo "=== $desc ==="
-    status "=== $desc - Aloitettu ==="
-    echo "Aloitusaika: $(date)"
-    echo "=== $desc ===" > "$log_file"
-    echo "Suoritetaan: $cmd" >> "$log_file"
-    echo "Aloitusaika: $(date)" >> "$log_file"
-    echo "===================" >> "$log_file"
-    
-    eval "$cmd" >> "$log_file" 2>&1
-    
-    echo "===================" >> "$log_file"
-    echo "Lopetusaika: $(date)" >> "$log_file"
-    echo "Suoritus valmis" >> "$log_file"
-    echo "Lopetusaika: $(date)"
-    echo "Suoritus valmis"
-    echo "==================="
-    status "=== $desc - Lopetettu ==="
+   local cmd="$1"
+   local log_file="$2"
+   local desc="$3"
+   
+   # Aloitusaika
+   local STEP_START=$(date +%s)
+   
+   echo "=== $desc ==="
+   status "=== $desc - Aloitettu ==="
+   echo "Aloitusaika: $(date)"
+   echo "=== $desc ===" > "$log_file"
+   echo "Suoritetaan: $cmd" >> "$log_file"
+   echo "Aloitusaika: $(date)" >> "$log_file"
+   echo "===================" >> "$log_file"
+   
+   eval "$cmd" >> "$log_file" 2>&1
+   
+   # Lopetusaika ja keston laskeminen
+   local STEP_END=$(date +%s)
+   local DURATION=$((STEP_END - STEP_START))
+   local HOURS=$((DURATION / 3600))
+   local MINUTES=$(( (DURATION % 3600) / 60 ))
+   local SECONDS=$((DURATION % 60))
+   
+   echo "===================" >> "$log_file"
+   echo "Lopetusaika: $(date)" >> "$log_file"
+   echo "Suoritus valmis" >> "$log_file"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia" >> "$log_file"
+   echo "Lopetusaika: $(date)"
+   echo "Suoritus valmis"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
+   echo "==================="
+   status "=== $desc - Lopetettu (Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s) ==="
 }
 
-echo "Tuodaan DVV 2024 aineisto..."
-# DVV-aineisto 2024
+echo "Aloitetaan tietojen tuonti..."
+
+# Tarkista että tiedontuottaja on olemassa
+log_exec "jkr tiedontuottaja list | grep -q 'LSJ' || jkr tiedontuottaja add LSJ 'Lahden Seudun Jätehuolto'" \
+        "logs/tiedontuottaja_setup.log" \
+        "Tiedontuottajan määritys"
+
+# Vaihe 1: Taajamarajaukset
+log_exec "sh import_taajama.sh 2026-01-01" \
+        "logs/import_taajama.log" \
+        "Taajamarajausten tuonti"
+
+# Vaihe 2: Kunnat ja postinumerot
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql" \
+        "logs/import_posti.log" \
+        "Kuntien ja postinumeroiden tuonti"
+
+# Vaihe 3: DVV aineisto 2024
+echo "=== DVV-aineiston tuonti ===" > logs/import_dvv.log
+# Rakennukset
 log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln rakennus ../data/DVV/DVV-aineisto_2024.xlsx \"R1 rakennus\"" \
         "logs/import_dvv_rakennukset.log" \
         "DVV rakennusten tuonti"
 
+# Osoitteet
 log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln osoite ../data/DVV/DVV-aineisto_2024.xlsx \"R3 osoite\"" \
         "logs/import_dvv_osoitteet.log" \
         "DVV osoitteiden tuonti"
 
+# Omistajat
 log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln omistaja ../data/DVV/DVV-aineisto_2024.xlsx \"R4 omistaja\"" \
         "logs/import_dvv_omistajat.log" \
         "DVV omistajien tuonti"
 
+# Asukkaat
 log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln vanhin ../data/DVV/DVV-aineisto_2024.xlsx \"R9 huon asukk\"" \
         "logs/import_dvv_asukkaat.log" \
         "DVV asukkaiden tuonti"
 
-echo "Muunnetaan jkr-muotoon..."
+# DVV muunnos JKR-muotoon
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"20240307\" -f import_dvv.sql" \
         "logs/import_dvv_muunnos.log" \
         "DVV-tietojen muunnos JKR-muotoon"
 
-# Päivitetään huoneistomäärät
-echo "Tuodaan huoneistomäärät..."
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2024.xlsx \"Huoneistomäärät 2024\"" \
+# Vaihe 4: Huoneistomäärän päivitys
+
+log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2024.xlsx \"Huoneistolkm\"" \
         "logs/huoneistomaara_tuonti.log" \
         "Huoneistomäärien tuonti"
 
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f update_huoneistomaara.sql" \
+log_exec "psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update_huoneistomaara.sql" \
         "logs/huoneistomaara_paivitys.log" \
         "Huoneistomäärien päivitys"
 
-# Luodaan kohteet
-echo "Luodaan kohteet..."
-log_exec "jkr create_dvv_kohteet 7.3.2024" \
-        "logs/kohteet/DVV_kohteet.log" \
-        "Kohteiden luonti"
+# Vaihe 5: Kohteiden luonti perusmaksuaineistosta
+log_exec "jkr create_dvv_kohteet 07.03.2024 ../data/Perusmaksuaineisto.xlsx" \
+        "logs/kohteet/perusmaksu_kohteet.log" \
+        "Kohteiden luonti perusmaksuaineistosta"
 
-# # Tuodaan HAPA-aineisto
-# echo "Tuodaan HAPA-aineisto 2024..."
-# export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2024.csv'
-
-# if [ ! -f "$CSV_FILE_PATH" ]; then
-#     echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
-# fi
-
-# log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
-#         "logs/hapa_import.log" \
-#         "HAPA-aineiston tuonti"
-# Tuodaan HAPA-aineisto
-echo "Tuodaan HAPA-aineisto 2023..."
-export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2023.csv'
+# Vaihe 6: HAPA-aineiston tuonti
+export CSV_FILE_PATH='../data/Hapa-kohteet_aineisto_2024.csv'
 
 if [ ! -f "$CSV_FILE_PATH" ]; then
     echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
@@ -131,8 +157,7 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineis
         "logs/hapa_import.log" \
         "HAPA-aineiston tuonti"
 
-# Päivitetään velvoitteet
-echo "Ajetaan velvoitepäivitys..."
+# Velvoitteiden päivitys
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"SELECT jkr.update_velvoitteet();\"" \
         "logs/kohteet/velvoitteet.log" \
         "Velvoitteiden päivitys"
@@ -143,7 +168,7 @@ log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_j
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q1 päätösten tuonti"
 
-log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi-ilmoitus_2024$quarter.xlsx" \
+log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi_ilmoitus_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q1 ilmoitusten tuonti"
 
@@ -165,7 +190,7 @@ log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_j
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q2 päätösten tuonti"
 
-log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi-ilmoitus_2024$quarter.xlsx" \
+log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi_ilmoitus_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q2 ilmoitusten tuonti"
 
@@ -187,7 +212,7 @@ log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_j
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q3 päätösten tuonti"
 
-log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi-ilmoitus_2024$quarter.xlsx" \
+log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi_ilmoitus_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q3 ilmoitusten tuonti"
 
@@ -203,15 +228,13 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_v
         "logs/tietovirrat/2024_$quarter/velvoitteet.log" \
         "Q3 velvoitteiden tallennus"
 
-exit 0
-
 # Q4 2024 tietojen tuonti
 quarter="Q4"
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q4 päätösten tuonti"
 
-log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi-ilmoitus_2024$quarter.xlsx" \
+log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi_ilmoitus_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q4 ilmoitusten tuonti"
 

@@ -4,7 +4,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "jkr-core"
-version = "0.7.0"
+version = "0.7.2"
+
 description = ""
 authors = [
     "Lauri Kajan <lauri.kajan@gispo.fi>",

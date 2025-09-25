@@ -126,7 +126,7 @@ class AsiakasRow(BaseModel):
 
     @validator("tyyppiIdEWC", pre=True)
     def parse_jatelaji(value: str):
-        if value == "Aluekeräyspiste":
+        if value == "Aluekeräyspiste" or value == "Aluekerï¿½yspiste":
             value = "Aluekeräys"
         if value == "Sekaj":
             value = "Sekajäte"
@@ -224,7 +224,7 @@ class AsiakasRow(BaseModel):
         else:
             tyhjennysvali = None
         # Check if tyyppiIdEWC is not "Aluekeräys" or "Aluekeräyspiste" tyhjennysvali must be > 0
-        if tyyppiIdEWC not in ["Aluekeräys", "Aluekeräyspiste"]:
+        if tyyppiIdEWC not in ["Aluekeräys", "Aluekeräyspiste", "Aluekerï¿½yspiste"]:
             if tyhjennysvali is None or tyhjennysvali <= 0:
                 raise ValueError(
                     "For other tyyppiIdEWC values than AKP, tyhjennysvali must be greater than 0."
@@ -532,7 +532,7 @@ class Ilmoitus(BaseModel):
     def parse_prts(value: str):
         if isinstance(value, str):
             return value.split(',')
-        return value
+        return [value]
 
     @root_validator
     def check_vastuuhenkilo_names(cls, values):

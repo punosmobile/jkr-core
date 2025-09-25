@@ -146,20 +146,20 @@ VALUES
     ),
     (
         44,
-        'Velvoiteyhteenveto biojäte väärä tyhjennysväli',
+        'Velvoiteyhteenveto biojäte puuttuu',
         'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
         'kohteet_joilla_bio_vaara_tvali_seka_voimassa',
         '2022-1-1',
-        'Velvoiteyhteenveto väärä tyhjennysväli biojäte',
+        'Velvoiteyhteenveto biojäte puuttuu',
         1
     ),
     (
         45,
-        'Velvoiteyhteenveto biojäte väärä tyhjennysväli',
+        'Velvoiteyhteenveto biojäte puuttuu',
         'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
         'kohteet_joilla_bio_vaara_tvali_muut_voimassa',
         '2022-1-1',
-        'Velvoiteyhteenveto väärä tyhjennysväli biojäte',
+        'Velvoiteyhteenveto biojäte puuttuu',
         1
     )
 ON CONFLICT DO NOTHING;

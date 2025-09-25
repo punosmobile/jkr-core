@@ -88,7 +88,7 @@ log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT 
         "DVV asukkaiden tuonti"
 
 echo "Muunnetaan jkr-muotoon..."
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"20230127\" -f import_dvv.sql" \
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"20230131\" -f import_dvv.sql" \
         "logs/import_dvv_muunnos.log" \
         "DVV-tietojen muunnos JKR-muotoon"
 
@@ -104,7 +104,7 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f update_huoneistomaara.s
 
 # Luodaan kohteet
 echo "Luodaan kohteet..."
-log_exec "jkr create_dvv_kohteet 28.1.2023" \
+log_exec "jkr create_dvv_kohteet 31.1.2023" \
         "logs/kohteet/dvv_kohteet.log" \
         "Kohteiden luonti"
 
