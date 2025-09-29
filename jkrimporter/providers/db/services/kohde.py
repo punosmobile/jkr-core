@@ -258,6 +258,7 @@ def find_kohde_by_prt(
         Kohde object if found, None otherwise
     """
     if isinstance(asiakas, JkrIlmoitukset):
+        print(f'Haetaan rakennukset prt:n mukaan kompostorille {asiakas.prt}')
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.prt), asiakas
         )
@@ -269,6 +270,7 @@ def find_kohde_by_prt(
             asiakas
         )
     elif isinstance(asiakas, Asiakas):
+        print(f'Haetaan rakennukset prt:n mukaan kohteelle {asiakas.rakennukset}')
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
         )
@@ -481,12 +483,14 @@ def _find_kohde_by_asiakastiedot(
     if not kohde_ids:
         return None
 
-    # 3. Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä
+    # 2 Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä jos on useampi
     if len(kohde_ids) > 1:
-        print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.rakennukset}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
+        if isinstance(asiakas, JkrIlmoitukset):
+            print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.prt}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
+        if isinstance(asiakas, Asiakas):
+            print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.rakennukset}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
 
     return session.get(Kohde, kohde_ids[0])
-
 
 
 def update_kohde(kohde: Kohde, asiakas: "Asiakas"):

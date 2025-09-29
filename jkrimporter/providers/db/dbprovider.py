@@ -180,6 +180,7 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
             kohde = find_kohde_by_address(session, asiakas)
             
         if kohde and do_update_kohde:
+            print("Kohde found, updating dates...")
             update_kohde(kohde, asiakas)
         elif do_create:
             print("Kohde not found, creating new one...")
@@ -758,7 +759,7 @@ class DbProvider:
                             for prt in kohdentumattomat_prt:
                                 for rawdata in ilmoitus.rawdata:
                                     if rawdata.get(
-                                        "Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste"
+                                        "1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste"
                                     ) == prt:
                                         kohdentumattomat.append(rawdata)
                     else:
