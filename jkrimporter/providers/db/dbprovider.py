@@ -691,9 +691,10 @@ class DbProvider:
                 print("Importoidaan ilmoitukset")
                 kohteet = []
                 for ilmoitus in ilmoitus_list:
+                    print("\n ---------- \n")
                     kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
                     if kompostorin_kohde:
-                        print(f"Kompostorin kohde: {kompostorin_kohde.id} prt: {ilmoitus.sijainti_prt}")
+                        print(f"Kompostorin kohde: {kompostorin_kohde.id} prt: {ilmoitus.prt}")
                         osapuoli = create_or_update_komposti_yhteyshenkilo(
                             session, kompostorin_kohde, ilmoitus
                         )
@@ -701,7 +702,7 @@ class DbProvider:
                         if not osoite_id:
                             print(
                                 "Ei löytynyt osoite_id:tä rakennus: "
-                                + f"{ilmoitus.sijainti_prt}"
+                                + f"{ilmoitus.prt}"
                             )
                             kohdentumattomat.append(ilmoitus.rawdata)
                             continue
