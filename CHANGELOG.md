@@ -236,4 +236,4 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fixed mistake in kohde update that caused detachment from kohde to fail
+- Fixed mistake in Kuljetustieto import that caused extra kohde assignments to buildings

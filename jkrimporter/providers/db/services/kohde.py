@@ -270,7 +270,7 @@ def find_kohde_by_prt(
             asiakas
         )
     elif isinstance(asiakas, Asiakas):
-        print(f'Haetaan rakennukset prt:n mukaan kohteelle {asiakas.rakennukset}')
+        print(f'Haetaan rakennukset prt:n mukaan kuljetukselle {asiakas.rakennukset}')
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
         )
