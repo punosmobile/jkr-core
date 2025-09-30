@@ -150,7 +150,7 @@ def insert_kuljetukset(
             session.add(db_kuljetus)
 
 
-def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_counts, kitu_counts, address_counts):
+def find_and_update_kohde(session, asiakas, do_update_kohde, prt_counts, kitu_counts, address_counts):
     """
     Etsii olemassa olevan kohteen asiakkaalle tai luo uuden.
     """
@@ -182,23 +182,11 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
         if kohde and do_update_kohde:
             print("Kohde found, updating dates...")
             update_kohde(kohde, asiakas)
-        elif do_create:
-            print("Kohde not found, creating new one...")
-            kohde = create_new_kohde(session, asiakas)
             
         if kohde:
             add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
         else:
             print("Could not find kohde.")
-
-    # 4. Jos kohde luotu ilman rakennuksia, etsi sopivat rakennukset
-    if do_create and kohde and not kohde.rakennus_collection:
-        print("New kohde created. Looking for buildings...")
-        buildings = find_buildings_for_kohde(
-            session, asiakas, prt_counts, kitu_counts, address_counts
-        )
-        if buildings:
-            kohde.rakennus_collection = buildings
 
     return kohde
 
@@ -221,7 +209,6 @@ def import_asiakastiedot(
     alkupvm: Optional[datetime.date],
     loppupvm: Optional[datetime.date],
     urakoitsija: Tiedontuottaja,
-    do_create: bool,
     do_update_contact: bool,
     do_update_kohde: bool,
     prt_counts: Dict[str, IntervalCounter],
@@ -232,7 +219,6 @@ def import_asiakastiedot(
     kohde = find_and_update_kohde(
         session,
         asiakas,
-        do_create,
         do_update_kohde,
         prt_counts,
         kitu_counts,
@@ -421,7 +407,6 @@ class DbProvider:
         self,
         jkr_data: JkrData,
         tiedontuottaja_lyhenne: str,
-        ala_luo: bool,
         ala_paivita_yhteystietoja: bool,
         ala_paivita_kohdetta: bool,
         siirtotiedosto: Path,
@@ -480,7 +465,6 @@ class DbProvider:
                         jkr_data.alkupvm,
                         jkr_data.loppupvm,
                         tiedontuottajat[urakoitsija_tunnus],
-                        not ala_luo,
                         not ala_paivita_yhteystietoja,
                         not ala_paivita_kohdetta,
                         prt_counts,
