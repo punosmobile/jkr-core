@@ -56,7 +56,6 @@ from .services.dvv_poimintapvm import (
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
-    create_new_kohde,
     create_perusmaksurekisteri_kohteet,
     find_kohde_by_address,
     find_kohde_by_prt,
