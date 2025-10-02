@@ -2,7 +2,7 @@ import csv
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
@@ -101,8 +101,8 @@ def insert_kuljetukset(
     session,
     kohde,
     tyhjennystapahtumat: List[JkrTyhjennystapahtuma],
-    raportointi_alkupvm: Optional[datetime.date],
-    raportointi_loppupvm: Optional[datetime.date],
+    raportointi_alkupvm: Optional[date],
+    raportointi_loppupvm: Optional[date],
     urakoitsija: Tiedontuottaja,
 ):
     for tyhjennys in tyhjennystapahtumat:
@@ -192,7 +192,7 @@ def find_and_update_kohde(session, asiakas, do_update_kohde, prt_counts, kitu_co
 
 def set_end_dates_to_kohteet(
     session: Session,
-    poimintapvm: datetime.date,
+    poimintapvm: date,
 ):
     previous_pvm = poimintapvm - timedelta(days=1)
     add_date_query = text(
@@ -205,8 +205,8 @@ def set_end_dates_to_kohteet(
 def import_asiakastiedot(
     session: Session,
     asiakas: Asiakas,
-    alkupvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date],
+    alkupvm: Optional[date],
+    loppupvm: Optional[date],
     urakoitsija: Tiedontuottaja,
     do_update_contact: bool,
     do_update_kohde: bool,
@@ -246,8 +246,8 @@ def import_asiakastiedot(
 
 def import_dvv_kohteet(
     session: Session,
-    poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date] = None,
+    poimintapvm: Optional[date],
+    loppupvm: Optional[date] = None,
     perusmaksutiedosto: Optional[Path] = None,
 ) -> None:
     """
@@ -323,7 +323,7 @@ def import_dvv_kohteet(
 
     # Asukaspohjaiset päätökset
     pysyvat_rakennukset_asukastiedolla: list[RakennusData] = []
-    dvv_poimintapvm: datetime.date | None = None
+    dvv_poimintapvm: date | None = None
     if len(tarkistettava_rakennus_id_lists['asukasRakennukset'] + tarkistettava_rakennus_id_lists['omistajaRakennukset']) > 0:
         dvv_poimintapvm = find_last_dvv_poiminta(session)
 
@@ -351,9 +351,9 @@ def import_dvv_kohteet(
     print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} tarkastelluista rakennuksista pysyy kohteillaan")
 
     if len(poistettavat_rakennukset) > 0:
-        remove_buildings_from_kohde(session, poistettavat_rakennukset, 'asukas')
+        remove_buildings_from_kohde(session, poistettavat_rakennukset, 'asukas', poimintapvm)
     if len(poistettavat_rakennukset_omistaja) > 0:
-        remove_buildings_from_kohde(session, poistettavat_rakennukset_omistaja, 'omistaja')
+        remove_buildings_from_kohde(session, poistettavat_rakennukset_omistaja, 'omistaja', poimintapvm)
     
     session.commit()
 

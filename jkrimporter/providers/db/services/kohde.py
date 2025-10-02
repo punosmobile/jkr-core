@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import datetime
 import re
 import logging
 from collections import defaultdict
@@ -2511,7 +2510,7 @@ def _cluster_rakennustiedot(
 
     return clusters
 
-def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData], poistosyy: str):
+def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData], poistosyy: str, poimintapvm: date | None = datetime.date.today()):
 
     for rakennus in rakennukset:
         rakennuksen_kohde_query = (
@@ -2543,7 +2542,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
         muut_rakennukset = session.execute(kohteen_muut_rakennukset_query).all()
 
         if len(muut_rakennukset) > 0:
-            print(f"Poistetaan vain rakennus {rakennuksen_kohde.rakennus.prt} kohteelta: {kohde_id}")
+            print(f"\nPoistetaan vain rakennus {rakennuksen_kohde.rakennus.prt} kohteelta: {kohde_id}")
             session.delete(rakennuksen_kohde)
         else:
             kohde_query = (
@@ -2554,7 +2553,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             )
 
             kohde = session.execute(kohde_query).scalar_one()
-            print(f"Lopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}, syy: {poistosyy}")
+            print(f"\nLopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}, syy: {poistosyy}")
 
             print("Valitaan loppupvm kohteelle:")
             uusi_loppupvm = rakennus["loppupvm"]
@@ -2562,11 +2561,15 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             print(kohde.alkupvm)
             if kohde.alkupvm >= uusi_loppupvm:
                 uusi_loppupvm = max(kohde.alkupvm, uusi_loppupvm)
+                if poimintapvm and uusi_loppupvm >= poimintapvm:
+                    uusi_loppupvm = poimintapvm - timedelta(days=1)
+                    print(f"alkupäivä asetettu tulos: {uusi_loppupvm}")
+                    kohde.alkupvm = uusi_loppupvm
 
             print(f"Loppupäivä tulos: {uusi_loppupvm}")
 
             kohde.loppupvm = uusi_loppupvm
-            kohde.loppumisen_syy = kohde.loppumisen_syy + f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}" if kohde.loppumisen_syy else f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}"
+            kohde.loppumisen_syy = kohde.loppumisen_syy + f" Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}" if kohde.loppumisen_syy else f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}"
             #session.delete(rakennuksen_kohde)
 
     return None
