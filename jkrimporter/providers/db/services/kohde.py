@@ -258,6 +258,7 @@ def find_kohde_by_prt(
         Kohde object if found, None otherwise
     """
     if isinstance(asiakas, JkrIlmoitukset):
+        print(f'Haetaan rakennukset prt:n mukaan kompostorille {asiakas.prt}')
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.prt), asiakas
         )
@@ -269,6 +270,7 @@ def find_kohde_by_prt(
             asiakas
         )
     elif isinstance(asiakas, Asiakas):
+        print(f'Haetaan rakennukset prt:n mukaan kuljetukselle {asiakas.rakennukset}')
         return _find_kohde_by_asiakastiedot(
             session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
         )
@@ -481,12 +483,14 @@ def _find_kohde_by_asiakastiedot(
     if not kohde_ids:
         return None
 
-    # 3. Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä
+    # 2 Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä jos on useampi
     if len(kohde_ids) > 1:
-        print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.rakennukset}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
+        if isinstance(asiakas, JkrIlmoitukset):
+            print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.prt}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
+        if isinstance(asiakas, Asiakas):
+            print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.rakennukset}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
 
     return session.get(Kohde, kohde_ids[0])
-
 
 
 def update_kohde(kohde: Kohde, asiakas: "Asiakas"):
@@ -1054,53 +1058,6 @@ def get_hapa_aineisto(session: "Session") -> Dict[str, str]:
         print(f"Virhe HAPA-aineiston haussa: {str(e)}")
         return {}
 
-
-def create_new_kohde(session: Session, asiakas: Asiakas, keraysalueet=None) -> Kohde:
-    """
-    Luo uusi kohde asiakkaan tietojen perusteella.
-    
-    Args:
-        session: Tietokantaistunto
-        asiakas: Asiakas jonka tiedoista kohde luodaan
-        keraysalueet: Valinnainen dictionary keräysaluetiedoilla
-            {
-                'biojate': bool,
-                'hyotyjate': bool 
-            }
-        asukkaat: Valinnainen set asukkaista kohdetyypin määritystä varten
-    Returns:
-        Kohde: Luotu kohdeobjekti
-    """
-
-    # Tarkista rakennusten perusteella
-    kohdetyyppi = KohdeTyyppi.MUU
-    try:
-        for prt in asiakas.rakennukset:
-            rakennus = session.query(Rakennus).filter(Rakennus.prt == prt).first()
-            if rakennus:
-                # Hae rakennuksen asukkaat suoraan RakennuksenVanhimmat-taulusta
-                asukkaat = set(session.query(RakennuksenVanhimmat)
-                    .filter(RakennuksenVanhimmat.rakennus_id == rakennus.id)
-                    .all())
-                
-                building_type = determine_kohdetyyppi(session, rakennus, asukkaat)
-                if building_type in (KohdeTyyppi.ASUINKIINTEISTO):
-                    kohdetyyppi = building_type
-                    break
-    
-    except Exception as e:
-        logger = logging.getLogger(__name__)
-        logger.error(f"Virhe rakennusten tyypin määrityksessä: {str(e)}")
-        # Jatketaan oletustyypillä MUU
-
-    kohde = Kohde(
-        nimi=form_display_name(asiakas.haltija),
-        kohdetyyppi=codes.kohdetyypit[kohdetyyppi],
-        alkupvm=asiakas.voimassa.lower,
-        loppupvm=asiakas.voimassa.upper,
-    )
-
-    return kohde
 
 def parse_alkupvm_for_kohde(
     session: "Session",

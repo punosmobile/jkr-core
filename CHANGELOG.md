@@ -231,3 +231,9 @@ All notable changes to this project will be documented in this file.
 - Removed tyhjennysväli päätös from sekajätevelvoite
 - Altered sekajäte velvoite calculations
 - Some changes to Kohde velvoite listings
+
+## [0.7.3] - 2025-09-29
+
+### Fixed
+
+- Fixed mistake in Kuljetustieto import that caused extra kohde assignments to buildings
