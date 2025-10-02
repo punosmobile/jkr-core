@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import datetime
 import re
 import logging
 from collections import defaultdict
@@ -968,11 +969,11 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
 
     # 2. Jos ei rakennusluokkaa 2018, tarkista käyttötarkoitus
     try:
-        if hasattr(rakennus, 'rakennuksenkayttotarkoitus'):
-            if rakennus.rakennuksenkayttotarkoitus is not None:
-                kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None)       
+        if hasattr(rakennus, 'rakennuksenkayttotarkoitus_koodi'):
+            if rakennus.rakennuksenkayttotarkoitus_koodi is not None:
+                kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus else None)       
                 if 11 <= kayttotarkoitus <= 41:
-                    print(f"-> ASUINKIINTEISTO (käyttötarkoitus): {kayttotarkoitus} {rakennus.rakennuksenkayttotarkoitus.koodi}")
+                    print(f"-> ASUINKIINTEISTO (käyttötarkoitus): {kayttotarkoitus} {rakennus.rakennuksenkayttotarkoitus_koodi}")
                     return KohdeTyyppi.ASUINKIINTEISTO
         else:
             print("- rakennuksenkayttotarkoitus ei ole annettu")
@@ -1017,8 +1018,8 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
         print(f"- rakennusluokka_2018: {rakennus.rakennusluokka_2018}")
     else:
         print("- rakennusluokka_2018 ei ole annettu")
-    if hasattr(rakennus, 'rakennuksenkayttotarkoitus'):
-        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None}")
+    if hasattr(rakennus, 'rakennuksenkayttotarkoitus_koodi'):
+        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus else None}")
     else:
         print("- rakennuksenkayttotarkoitus ei ole annettu")
     if hasattr(rakennus, 'huoneistomaara'):
@@ -2559,12 +2560,13 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             uusi_loppupvm = rakennus["loppupvm"]
             print(uusi_loppupvm)
             print(kohde.alkupvm)
-            if kohde.alkupvm >= uusi_loppupvm:
-                uusi_loppupvm = max(kohde.alkupvm, uusi_loppupvm)
-                if poimintapvm and uusi_loppupvm >= poimintapvm:
-                    uusi_loppupvm = poimintapvm - timedelta(days=1)
-                    print(f"alkupäivä asetettu tulos: {uusi_loppupvm}")
-                    kohde.alkupvm = uusi_loppupvm
+
+            if poimintapvm and uusi_loppupvm >= poimintapvm: # loppupvm tulee olla ennen poimintapvm:ää 
+                uusi_loppupvm = poimintapvm - timedelta(days=1)
+            if kohde.alkupvm >= uusi_loppupvm: # alkupvm ei saa olla suurempi kuin loppupvm
+                print(f"alkupäivä asetettu tulos: {uusi_loppupvm}")
+                kohde.alkupvm = uusi_loppupvm
+                
 
             print(f"Loppupäivä tulos: {uusi_loppupvm}")
 
