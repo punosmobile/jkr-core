@@ -1010,7 +1010,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
     else:
         print("- rakennusluokka_2018 ei ole annettu")
     if hasattr(rakennus, 'rakennuksenkayttotarkoitus_koodi'):
-        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus else None}")
+        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus_koodi else None}")
     else:
         print("- rakennuksenkayttotarkoitus ei ole annettu")
     if hasattr(rakennus, 'huoneistomaara'):
