@@ -314,26 +314,16 @@ def find_kohteet_by_prt(
             not_found_prts.append(kompostoija.rakennus)
             continue
 
-        kompostoija_nimi = clean_asoy_name(kompostoija.nimi)
         if len(kohteet) > 1:
-            names_by_kohde_id = defaultdict(set)
-            for kohde_id, db_osapuoli_name in kohteet:
-                names_by_kohde_id[kohde_id].add(db_osapuoli_name)
-            for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
-                for db_osapuoli_name in db_osapuoli_names:
-                    if db_osapuoli_name is not None:
-                        db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                        print(kompostoija_nimi)
-                        print(db_osapuoli_name)
-                        if (
-                            match_name(kompostoija_nimi, db_osapuoli_name)
-                        ):
-                            print(f"{db_osapuoli_name} match")
-                            kohde = session.get(Kohde, kohde_id)
-                            print("Adding kohde to list")
-                            found_kohteet.append(kohde)
+            print("monta kohdetta")
+            for kohde_id in kohteet:
+                print(f"kohde data {kohde_id}")
+                kohde = session.get(Kohde, {"id": kohde_id.id})
+                print(f"Adding kohde {kohde.id} to list")
+                found_kohteet.append(kohde)
         elif len(kohteet) == 1:
             kohde_id = kohteet[0][0]
+            print(f"yksi kohde {kohde_id}")
             kohde = session.get(Kohde, kohde_id)
             found_kohteet.append(kohde)
         else:
@@ -481,6 +471,7 @@ def _find_kohde_by_asiakastiedot(
         return None
 
     if not kohde_ids:
+        print("Ei löytynyt voimassaolevaa kohdetta, ohitetaan...")
         return None
 
     # 2 Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä jos on useampi
@@ -969,11 +960,11 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
 
     # 2. Jos ei rakennusluokkaa 2018, tarkista käyttötarkoitus
     try:
-        if hasattr(rakennus, 'rakennuksenkayttotarkoitus'):
-            if rakennus.rakennuksenkayttotarkoitus is not None:
-                kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None)       
+        if hasattr(rakennus, 'rakennuksenkayttotarkoitus_koodi'):
+            if rakennus.rakennuksenkayttotarkoitus_koodi is not None:
+                kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus_koodi else None)       
                 if 11 <= kayttotarkoitus <= 41:
-                    print(f"-> ASUINKIINTEISTO (käyttötarkoitus): {kayttotarkoitus} {rakennus.rakennuksenkayttotarkoitus.koodi}")
+                    print(f"-> ASUINKIINTEISTO (käyttötarkoitus): {kayttotarkoitus} {rakennus.rakennuksenkayttotarkoitus_koodi}")
                     return KohdeTyyppi.ASUINKIINTEISTO
         else:
             print("- rakennuksenkayttotarkoitus ei ole annettu")
@@ -1018,8 +1009,8 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
         print(f"- rakennusluokka_2018: {rakennus.rakennusluokka_2018}")
     else:
         print("- rakennusluokka_2018 ei ole annettu")
-    if hasattr(rakennus, 'rakennuksenkayttotarkoitus'):
-        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus.koodi if rakennus.rakennuksenkayttotarkoitus else None}")
+    if hasattr(rakennus, 'rakennuksenkayttotarkoitus_koodi'):
+        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus_koodi else None}")
     else:
         print("- rakennuksenkayttotarkoitus ei ole annettu")
     if hasattr(rakennus, 'huoneistomaara'):
@@ -2511,7 +2502,7 @@ def _cluster_rakennustiedot(
 
     return clusters
 
-def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData], poistosyy: str):
+def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData], poistosyy: str, poimintapvm: date | None = datetime.date.today()):
 
     for rakennus in rakennukset:
         rakennuksen_kohde_query = (
@@ -2543,7 +2534,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
         muut_rakennukset = session.execute(kohteen_muut_rakennukset_query).all()
 
         if len(muut_rakennukset) > 0:
-            print(f"Poistetaan vain rakennus {rakennuksen_kohde.rakennus.prt} kohteelta: {kohde_id}")
+            print(f"\nPoistetaan vain rakennus {rakennuksen_kohde.rakennus.prt} kohteelta: {kohde_id}")
             session.delete(rakennuksen_kohde)
         else:
             kohde_query = (
@@ -2554,19 +2545,24 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             )
 
             kohde = session.execute(kohde_query).scalar_one()
-            print(f"Lopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}, syy: {poistosyy}")
+            print(f"\nLopetetaan rakennuksen {rakennuksen_kohde.rakennus.prt}, {rakennuksen_kohde.rakennus.kiinteistotunnus} kohde {kohde.id}, syy: {poistosyy}")
 
             print("Valitaan loppupvm kohteelle:")
             uusi_loppupvm = rakennus["loppupvm"]
             print(uusi_loppupvm)
             print(kohde.alkupvm)
-            if kohde.alkupvm >= uusi_loppupvm:
-                uusi_loppupvm = max(kohde.alkupvm, uusi_loppupvm)
+
+            if poimintapvm and uusi_loppupvm >= poimintapvm: # loppupvm tulee olla ennen poimintapvm:ää 
+                uusi_loppupvm = poimintapvm - timedelta(days=1)
+            if kohde.alkupvm >= uusi_loppupvm: # alkupvm ei saa olla suurempi kuin loppupvm
+                print(f"alkupäivä asetettu tulos: {uusi_loppupvm}")
+                kohde.alkupvm = uusi_loppupvm
+                
 
             print(f"Loppupäivä tulos: {uusi_loppupvm}")
 
             kohde.loppupvm = uusi_loppupvm
-            kohde.loppumisen_syy = kohde.loppumisen_syy + f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}" if kohde.loppumisen_syy else f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}"
+            kohde.loppumisen_syy = kohde.loppumisen_syy + f" Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}" if kohde.loppumisen_syy else f"Syy: {poistosyy} Loppu_pwm: {uusi_loppupvm}"
             #session.delete(rakennuksen_kohde)
 
     return None
