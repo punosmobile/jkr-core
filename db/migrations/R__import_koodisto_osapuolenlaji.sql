@@ -9,6 +9,7 @@ insert into jkr_koodistot.osapuolenrooli(id, selite) values
     (16,'Tilaaja metalli'),
     (17,'Tilaaja monilokero'),
     (18,'Tilaaja liete'),
+    (19,'Tilaaja aluekeräyspiste')
     (111,'Kimppaisäntä sekajäte'),
     (112,'Kimppaisäntä biojäte'),
     (113,'Kimppaisäntä muovipakkaus'),
