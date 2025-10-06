@@ -720,6 +720,8 @@ class DbProvider:
                             session,
                             ilmoitus
                         )
+
+                        print(f"Käsiteltävän kompostorin id: {komposti.id}")
                         if kohteet:
                             for kohde in kohteet:
                                 existing_kohde = session.query(
@@ -728,9 +730,9 @@ class DbProvider:
                                         KompostorinKohteet.kohde_id == kohde.id
                                 ).first()
                                 if existing_kohde:
-                                    print("Kohde on jo kompostorin kohteissa...")
+                                    print(f"Kohde {kohde.id} on jo kompostorin {komposti.id} kohteissa...")
                                 else:
-                                    print("Lisätään kohde kompostorin kohteisiin...")
+                                    print(f"Lisätään kohde {kohde.id} kompostorin {komposti.id} kohteisiin...")
                                     session.add(
                                         KompostorinKohteet(
                                             kompostori=komposti,
@@ -739,7 +741,9 @@ class DbProvider:
                                     )
                         if kohdentumattomat_prt:
                             # Append rawdata dicts for each kohdentumaton kompostoija.
+                            print(f"Kohdentumatta jäi {len(kohdentumattomat_prt)} kompostoria")
                             for prt in kohdentumattomat_prt:
+                                print(prt)
                                 for rawdata in ilmoitus.rawdata:
                                     if rawdata.get(
                                         "1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste"

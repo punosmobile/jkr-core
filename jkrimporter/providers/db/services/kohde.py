@@ -314,26 +314,16 @@ def find_kohteet_by_prt(
             not_found_prts.append(kompostoija.rakennus)
             continue
 
-        kompostoija_nimi = clean_asoy_name(kompostoija.nimi)
         if len(kohteet) > 1:
-            names_by_kohde_id = defaultdict(set)
-            for kohde_id, db_osapuoli_name in kohteet:
-                names_by_kohde_id[kohde_id].add(db_osapuoli_name)
-            for kohde_id, db_osapuoli_names in names_by_kohde_id.items():
-                for db_osapuoli_name in db_osapuoli_names:
-                    if db_osapuoli_name is not None:
-                        db_osapuoli_name = clean_asoy_name(db_osapuoli_name)
-                        print(kompostoija_nimi)
-                        print(db_osapuoli_name)
-                        if (
-                            match_name(kompostoija_nimi, db_osapuoli_name)
-                        ):
-                            print(f"{db_osapuoli_name} match")
-                            kohde = session.get(Kohde, kohde_id)
-                            print("Adding kohde to list")
-                            found_kohteet.append(kohde)
+            print("monta kohdetta")
+            for kohde_id in kohteet:
+                print(f"kohde data {kohde_id}")
+                kohde = session.get(Kohde, {"id": kohde_id.id})
+                print(f"Adding kohde {kohde.id} to list")
+                found_kohteet.append(kohde)
         elif len(kohteet) == 1:
             kohde_id = kohteet[0][0]
+            print(f"yksi kohde {kohde_id}")
             kohde = session.get(Kohde, kohde_id)
             found_kohteet.append(kohde)
         else:
@@ -481,6 +471,7 @@ def _find_kohde_by_asiakastiedot(
         return None
 
     if not kohde_ids:
+        print("Ei löytynyt voimassaolevaa kohdetta, ohitetaan...")
         return None
 
     # 2 Kohteita kuuluu löytyä vain yksi, otetaan ensimmäinen ja lokitetaan määrä jos on useampi
@@ -971,7 +962,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
     try:
         if hasattr(rakennus, 'rakennuksenkayttotarkoitus_koodi'):
             if rakennus.rakennuksenkayttotarkoitus_koodi is not None:
-                kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus else None)       
+                kayttotarkoitus = int(rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus_koodi else None)       
                 if 11 <= kayttotarkoitus <= 41:
                     print(f"-> ASUINKIINTEISTO (käyttötarkoitus): {kayttotarkoitus} {rakennus.rakennuksenkayttotarkoitus_koodi}")
                     return KohdeTyyppi.ASUINKIINTEISTO
@@ -1019,7 +1010,7 @@ def determine_kohdetyyppi(session: "Session", rakennus: "Rakennus", asukkaat: "O
     else:
         print("- rakennusluokka_2018 ei ole annettu")
     if hasattr(rakennus, 'rakennuksenkayttotarkoitus_koodi'):
-        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus else None}")
+        print(f"- rakennuksenkayttotarkoitus: {rakennus.rakennuksenkayttotarkoitus_koodi if rakennus.rakennuksenkayttotarkoitus_koodi else None}")
     else:
         print("- rakennuksenkayttotarkoitus ei ole annettu")
     if hasattr(rakennus, 'huoneistomaara'):
