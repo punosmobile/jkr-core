@@ -1,5 +1,5 @@
 <!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
-<qgis version="3.34.12-Prizren" saveUser="TeroAndelin" saveUserFull="Tero Andelin" saveDateTime="2025-10-06T16:48:47" projectname="">
+<qgis version="3.34.12-Prizren" saveUser="TeroAndelin" saveUserFull="Tero Andelin" saveDateTime="2025-10-07T09:16:51" projectname="">
   <homePath path=""/>
   <title></title>
   <transaction mode="Disabled"/>
@@ -510,10 +510,10 @@
   <mapcanvas name="theMapCanvas" annotationsVisible="1">
     <units>meters</units>
     <extent>
-      <xmin>426943.48632641456788406</xmin>
-      <ymin>6760460.7643732400611043</ymin>
-      <xmax>427884.28632641717558727</xmax>
-      <ymax>6761401.56437328178435564</ymax>
+      <xmin>446874.50854952068766579</xmin>
+      <ymin>6786624.39722464047372341</ymin>
+      <xmax>447815.308549523295369</xmax>
+      <ymax>6787565.19722468219697475</ymax>
     </extent>
     <rotation>0</rotation>
     <destinationsrs>
@@ -17541,7 +17541,7 @@ def my_form_open(dialog, layer, feature):
       <customproperties>
         <Option type="Map">
           <Option name="dualview/previewExpressions" type="List">
-            <Option value="&quot;kompostori_id&quot;" type="QString"/>
+            <Option value="'[' || represent_value(&quot;kompostori_id&quot;) ||'] '|| format_date(&quot;alkupvm&quot;, 'd.M.yyyy') || ' - ' || format_date(&quot;loppupvm&quot;, 'd.M.yyyy')" type="QString"/>
           </Option>
         </Option>
       </customproperties>
@@ -17699,7 +17699,7 @@ def my_form_open(dialog, layer, feature):
       <reuseLastValue/>
       <dataDefinedFieldProperties/>
       <widgets/>
-      <previewExpression>"kompostori_id"</previewExpression>
+      <previewExpression>'[' || represent_value("kompostori_id") ||'] '|| format_date("alkupvm", 'd.M.yyyy') || ' - ' || format_date("loppupvm", 'd.M.yyyy')</previewExpression>
       <mapTip enabled="1"></mapTip>
     </maplayer>
     <maplayer maxScale="0" wkbType="NoGeometry" styleCategories="AllStyleCategories" refreshOnNotifyEnabled="0" hasScaleBasedVisibilityFlag="0" readOnly="0" autoRefreshMode="Disabled" minScale="1e+08" legendPlaceholderImage="" refreshOnNotifyMessage="" geometry="No geometry" type="vector" autoRefreshTime="0">
@@ -25776,7 +25776,7 @@ def my_form_open(dialog, layer, feature):
   <Sensors/>
   <ProjectViewSettings UseProjectScales="0" rotation="0">
     <Scales/>
-    <DefaultViewExtent xmin="426924.28632639418356121" ymax="6761401.56437328178435564" xmax="427903.48632643755991012" ymin="6760460.7643732400611043">
+    <DefaultViewExtent xmin="446754.82545770838623866" ymax="6787565.19722468219697475" xmax="447934.99164133559679613" ymin="6786624.39722464047372341">
       <spatialrefsys nativeFormat="Wkt">
         <wkt>PROJCRS["ETRS89 / TM35FIN(E,N)",BASEGEOGCRS["ETRS89",ENSEMBLE["European Terrestrial Reference System 1989 ensemble",MEMBER["European Terrestrial Reference Frame 1989"],MEMBER["European Terrestrial Reference Frame 1990"],MEMBER["European Terrestrial Reference Frame 1991"],MEMBER["European Terrestrial Reference Frame 1992"],MEMBER["European Terrestrial Reference Frame 1993"],MEMBER["European Terrestrial Reference Frame 1994"],MEMBER["European Terrestrial Reference Frame 1996"],MEMBER["European Terrestrial Reference Frame 1997"],MEMBER["European Terrestrial Reference Frame 2000"],MEMBER["European Terrestrial Reference Frame 2005"],MEMBER["European Terrestrial Reference Frame 2014"],MEMBER["European Terrestrial Reference Frame 2020"],ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1]],ENSEMBLEACCURACY[0.1]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4258]],CONVERSION["TM35FIN",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",0,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",27,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["Scale factor at natural origin",0.9996,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["False easting",500000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",0,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["(E)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["(N)",north,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Engineering survey, topographic mapping."],AREA["Finland - onshore and offshore."],BBOX[58.84,19.08,70.09,31.59]],ID["EPSG",3067]]</wkt>
         <proj4>+proj=utm +zone=35 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs</proj4>
