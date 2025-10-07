@@ -146,22 +146,22 @@
         <Option/>
       </customproperties>
     </layer-tree-layer>
-    <layer-tree-layer name="v_sopimus_tiedontuottajalla" providerKey="postgres" expanded="1" id="v_sopimus_tiedontuottajalla_a6d353c4_9a1a_48c2_9d08_4e0fb2b91b52" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="dbname='jatehuolto' service='jkr' key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_sopimus_tiedontuottajalla&quot;">
+    <layer-tree-layer name="v_sopimus_tiedontuottajalla" providerKey="postgres" expanded="1" id="v_sopimus_tiedontuottajalla_a6d353c4_9a1a_48c2_9d08_4e0fb2b91b52" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_sopimus_tiedontuottajalla&quot;">
       <customproperties>
         <Option/>
       </customproperties>
     </layer-tree-layer>
-    <layer-tree-layer name="v_kohteen_osapuolet_roolilla" providerKey="postgres" expanded="1" id="v_kohteen_osapuolet_roolilla_20225e73_ffb7_4091_80d5_f8e7822b246e" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="dbname='jatehuolto' service='jkr' key='gid' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_kohteen_osapuolet_roolilla&quot;">
+    <layer-tree-layer name="v_kohteen_osapuolet_roolilla" providerKey="postgres" expanded="1" id="v_kohteen_osapuolet_roolilla_20225e73_ffb7_4091_80d5_f8e7822b246e" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="service='jkr' authcfg=jkruser key='gid' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_kohteen_osapuolet_roolilla&quot;">
       <customproperties>
         <Option/>
       </customproperties>
     </layer-tree-layer>
-    <layer-tree-layer name="v_kohteen_kompostorin_tiedot" providerKey="postgres" expanded="1" id="v_kohteen_kompostorin_tiedot_e4f15f46_d5eb_4296_8be4_a1137af9eabe" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="dbname='jatehuolto' service='jkr' key='gid' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_kohteen_kompostorin_tiedot&quot;">
+    <layer-tree-layer name="v_kohteen_kompostorin_tiedot" providerKey="postgres" expanded="1" id="v_kohteen_kompostorin_tiedot_e4f15f46_d5eb_4296_8be4_a1137af9eabe" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="service='jkr' authcfg=jkruser key='gid' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_kohteen_kompostorin_tiedot&quot;">
       <customproperties>
         <Option/>
       </customproperties>
     </layer-tree-layer>
-    <layer-tree-layer name="v_ulkoinen_asiakastieto_tiedontuottajalla" providerKey="postgres" expanded="1" id="v_ulkoinen_asiakastieto_tiedontuottajalla_7c18782e_da41_4dbf_aed4_9d6bd9fad58d" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="dbname='jatehuolto' service='jkr' key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_ulkoinen_asiakastieto_tiedontuottajalla&quot;">
+    <layer-tree-layer name="v_ulkoinen_asiakastieto_tiedontuottajalla" providerKey="postgres" expanded="1" id="v_ulkoinen_asiakastieto_tiedontuottajalla_7c18782e_da41_4dbf_aed4_9d6bd9fad58d" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_ulkoinen_asiakastieto_tiedontuottajalla&quot;">
       <customproperties>
         <Option/>
       </customproperties>
@@ -171,7 +171,7 @@
         <Option/>
       </customproperties>
     </layer-tree-layer>
-    <layer-tree-layer name="v_kuljetukset_tiedontuottajalla" providerKey="postgres" expanded="1" id="v_kuljetukset_tiedontuottajalla_8cfbb6ce_5cdd_480b_8369_52177cad8a97" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="dbname='jatehuolto' service='jkr' key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_kuljetukset_tiedontuottajalla&quot;">
+    <layer-tree-layer name="v_kuljetukset_tiedontuottajalla" providerKey="postgres" expanded="1" id="v_kuljetukset_tiedontuottajalla_8cfbb6ce_5cdd_480b_8369_52177cad8a97" legend_exp="" checked="Qt::Checked" patch_size="-1,-1" legend_split_behavior="0" source="service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table=&quot;jkr&quot;.&quot;v_kuljetukset_tiedontuottajalla&quot;">
       <customproperties>
         <Option/>
       </customproperties>
@@ -17340,7 +17340,7 @@ def my_form_open(dialog, layer, feature):
     </maplayer>
     <maplayer maxScale="0" wkbType="NoGeometry" styleCategories="AllStyleCategories" refreshOnNotifyEnabled="0" hasScaleBasedVisibilityFlag="0" readOnly="0" autoRefreshMode="Disabled" minScale="1e+08" legendPlaceholderImage="" refreshOnNotifyMessage="" geometry="No geometry" type="vector" autoRefreshTime="0">
       <id>v_kohteen_kompostorin_tiedot_e4f15f46_d5eb_4296_8be4_a1137af9eabe</id>
-      <datasource>dbname='jatehuolto' service='jkr' key='gid' checkPrimaryKeyUnicity='1' table="jkr"."v_kohteen_kompostorin_tiedot"</datasource>
+      <datasource>service='jkr' authcfg=jkruser key='gid' checkPrimaryKeyUnicity='1' table="jkr"."v_kohteen_kompostorin_tiedot"</datasource>
       <keywordList>
         <value></value>
       </keywordList>
@@ -17704,7 +17704,7 @@ def my_form_open(dialog, layer, feature):
     </maplayer>
     <maplayer maxScale="0" wkbType="NoGeometry" styleCategories="AllStyleCategories" refreshOnNotifyEnabled="0" hasScaleBasedVisibilityFlag="0" readOnly="0" autoRefreshMode="Disabled" minScale="1e+08" legendPlaceholderImage="" refreshOnNotifyMessage="" geometry="No geometry" type="vector" autoRefreshTime="0">
       <id>v_kohteen_osapuolet_roolilla_20225e73_ffb7_4091_80d5_f8e7822b246e</id>
-      <datasource>dbname='jatehuolto' service='jkr' key='gid' checkPrimaryKeyUnicity='1' table="jkr"."v_kohteen_osapuolet_roolilla"</datasource>
+      <datasource>service='jkr' authcfg=jkruser key='gid' checkPrimaryKeyUnicity='1' table="jkr"."v_kohteen_osapuolet_roolilla"</datasource>
       <keywordList>
         <value></value>
       </keywordList>
@@ -18618,7 +18618,7 @@ def my_form_open(dialog, layer, feature):
     </maplayer>
     <maplayer maxScale="0" wkbType="NoGeometry" styleCategories="AllStyleCategories" refreshOnNotifyEnabled="0" hasScaleBasedVisibilityFlag="0" readOnly="0" autoRefreshMode="Disabled" minScale="1e+08" legendPlaceholderImage="" refreshOnNotifyMessage="" geometry="No geometry" type="vector" autoRefreshTime="0">
       <id>v_kuljetukset_tiedontuottajalla_8cfbb6ce_5cdd_480b_8369_52177cad8a97</id>
-      <datasource>dbname='jatehuolto' service='jkr' key='id' checkPrimaryKeyUnicity='1' table="jkr"."v_kuljetukset_tiedontuottajalla"</datasource>
+      <datasource>service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table="jkr"."v_kuljetukset_tiedontuottajalla"</datasource>
       <keywordList>
         <value></value>
       </keywordList>
@@ -19482,7 +19482,7 @@ def my_form_open(dialog, layer, feature):
     </maplayer>
     <maplayer maxScale="0" wkbType="NoGeometry" styleCategories="AllStyleCategories" refreshOnNotifyEnabled="0" hasScaleBasedVisibilityFlag="0" readOnly="0" autoRefreshMode="Disabled" minScale="1e+08" legendPlaceholderImage="" refreshOnNotifyMessage="" geometry="No geometry" type="vector" autoRefreshTime="0">
       <id>v_sopimus_tiedontuottajalla_a6d353c4_9a1a_48c2_9d08_4e0fb2b91b52</id>
-      <datasource>dbname='jatehuolto' service='jkr' key='id' checkPrimaryKeyUnicity='1' table="jkr"."v_sopimus_tiedontuottajalla"</datasource>
+      <datasource>service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table="jkr"."v_sopimus_tiedontuottajalla"</datasource>
       <keywordList>
         <value></value>
       </keywordList>
@@ -19899,7 +19899,7 @@ def my_form_open(dialog, layer, feature):
     </maplayer>
     <maplayer maxScale="0" wkbType="NoGeometry" styleCategories="AllStyleCategories" refreshOnNotifyEnabled="0" hasScaleBasedVisibilityFlag="0" readOnly="0" autoRefreshMode="Disabled" minScale="1e+08" legendPlaceholderImage="" refreshOnNotifyMessage="" geometry="No geometry" type="vector" autoRefreshTime="0">
       <id>v_ulkoinen_asiakastieto_tiedontuottajalla_7c18782e_da41_4dbf_aed4_9d6bd9fad58d</id>
-      <datasource>dbname='jatehuolto' service='jkr' key='id' checkPrimaryKeyUnicity='1' table="jkr"."v_ulkoinen_asiakastieto_tiedontuottajalla"</datasource>
+      <datasource>service='jkr' authcfg=jkruser key='id' checkPrimaryKeyUnicity='1' table="jkr"."v_ulkoinen_asiakastieto_tiedontuottajalla"</datasource>
       <keywordList>
         <value></value>
       </keywordList>
