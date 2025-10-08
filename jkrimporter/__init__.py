@@ -1,6 +1,6 @@
 import logging
 
-__version__ = "0.7.1"
+__version__ = "0.7.3"
 
 logFormatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
 rootLogger = logging.getLogger()

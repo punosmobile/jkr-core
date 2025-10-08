@@ -2,7 +2,7 @@ import csv
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
@@ -56,7 +56,6 @@ from .services.dvv_poimintapvm import (
 )
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
-    create_new_kohde,
     create_perusmaksurekisteri_kohteet,
     find_kohde_by_address,
     find_kohde_by_prt,
@@ -102,8 +101,8 @@ def insert_kuljetukset(
     session,
     kohde,
     tyhjennystapahtumat: List[JkrTyhjennystapahtuma],
-    raportointi_alkupvm: Optional[datetime.date],
-    raportointi_loppupvm: Optional[datetime.date],
+    raportointi_alkupvm: Optional[date],
+    raportointi_loppupvm: Optional[date],
     urakoitsija: Tiedontuottaja,
 ):
     for tyhjennys in tyhjennystapahtumat:
@@ -150,7 +149,7 @@ def insert_kuljetukset(
             session.add(db_kuljetus)
 
 
-def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_counts, kitu_counts, address_counts):
+def find_and_update_kohde(session, asiakas, do_update_kohde, prt_counts, kitu_counts, address_counts):
     """
     Etsii olemassa olevan kohteen asiakkaalle tai luo uuden.
     """
@@ -180,31 +179,20 @@ def find_and_update_kohde(session, asiakas, do_create, do_update_kohde, prt_coun
             kohde = find_kohde_by_address(session, asiakas)
             
         if kohde and do_update_kohde:
+            print("Kohde found, updating dates...")
             update_kohde(kohde, asiakas)
-        elif do_create:
-            print("Kohde not found, creating new one...")
-            kohde = create_new_kohde(session, asiakas)
             
         if kohde:
             add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
         else:
             print("Could not find kohde.")
 
-    # 4. Jos kohde luotu ilman rakennuksia, etsi sopivat rakennukset
-    if do_create and kohde and not kohde.rakennus_collection:
-        print("New kohde created. Looking for buildings...")
-        buildings = find_buildings_for_kohde(
-            session, asiakas, prt_counts, kitu_counts, address_counts
-        )
-        if buildings:
-            kohde.rakennus_collection = buildings
-
     return kohde
 
 
 def set_end_dates_to_kohteet(
     session: Session,
-    poimintapvm: datetime.date,
+    poimintapvm: date,
 ):
     previous_pvm = poimintapvm - timedelta(days=1)
     add_date_query = text(
@@ -217,10 +205,9 @@ def set_end_dates_to_kohteet(
 def import_asiakastiedot(
     session: Session,
     asiakas: Asiakas,
-    alkupvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date],
+    alkupvm: Optional[date],
+    loppupvm: Optional[date],
     urakoitsija: Tiedontuottaja,
-    do_create: bool,
     do_update_contact: bool,
     do_update_kohde: bool,
     prt_counts: Dict[str, IntervalCounter],
@@ -231,7 +218,6 @@ def import_asiakastiedot(
     kohde = find_and_update_kohde(
         session,
         asiakas,
-        do_create,
         do_update_kohde,
         prt_counts,
         kitu_counts,
@@ -260,8 +246,8 @@ def import_asiakastiedot(
 
 def import_dvv_kohteet(
     session: Session,
-    poimintapvm: Optional[datetime.date],
-    loppupvm: Optional[datetime.date] = None,
+    poimintapvm: Optional[date],
+    loppupvm: Optional[date] = None,
     perusmaksutiedosto: Optional[Path] = None,
 ) -> None:
     """
@@ -337,7 +323,7 @@ def import_dvv_kohteet(
 
     # Asukaspohjaiset päätökset
     pysyvat_rakennukset_asukastiedolla: list[RakennusData] = []
-    dvv_poimintapvm: datetime.date | None = None
+    dvv_poimintapvm: date | None = None
     if len(tarkistettava_rakennus_id_lists['asukasRakennukset'] + tarkistettava_rakennus_id_lists['omistajaRakennukset']) > 0:
         dvv_poimintapvm = find_last_dvv_poiminta(session)
 
@@ -365,9 +351,9 @@ def import_dvv_kohteet(
     print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} tarkastelluista rakennuksista pysyy kohteillaan")
 
     if len(poistettavat_rakennukset) > 0:
-        remove_buildings_from_kohde(session, poistettavat_rakennukset, 'asukas')
+        remove_buildings_from_kohde(session, poistettavat_rakennukset, 'asukas', poimintapvm)
     if len(poistettavat_rakennukset_omistaja) > 0:
-        remove_buildings_from_kohde(session, poistettavat_rakennukset_omistaja, 'omistaja')
+        remove_buildings_from_kohde(session, poistettavat_rakennukset_omistaja, 'omistaja', poimintapvm)
     
     session.commit()
 
@@ -420,7 +406,6 @@ class DbProvider:
         self,
         jkr_data: JkrData,
         tiedontuottaja_lyhenne: str,
-        ala_luo: bool,
         ala_paivita_yhteystietoja: bool,
         ala_paivita_kohdetta: bool,
         siirtotiedosto: Path,
@@ -479,7 +464,6 @@ class DbProvider:
                         jkr_data.alkupvm,
                         jkr_data.loppupvm,
                         tiedontuottajat[urakoitsija_tunnus],
-                        not ala_luo,
                         not ala_paivita_yhteystietoja,
                         not ala_paivita_kohdetta,
                         prt_counts,
@@ -736,6 +720,8 @@ class DbProvider:
                             session,
                             ilmoitus
                         )
+
+                        print(f"Käsiteltävän kompostorin id: {komposti.id}")
                         if kohteet:
                             for kohde in kohteet:
                                 existing_kohde = session.query(
@@ -744,9 +730,9 @@ class DbProvider:
                                         KompostorinKohteet.kohde_id == kohde.id
                                 ).first()
                                 if existing_kohde:
-                                    print("Kohde on jo kompostorin kohteissa...")
+                                    print(f"Kohde {kohde.id} on jo kompostorin {komposti.id} kohteissa...")
                                 else:
-                                    print("Lisätään kohde kompostorin kohteisiin...")
+                                    print(f"Lisätään kohde {kohde.id} kompostorin {komposti.id} kohteisiin...")
                                     session.add(
                                         KompostorinKohteet(
                                             kompostori=komposti,
@@ -755,10 +741,12 @@ class DbProvider:
                                     )
                         if kohdentumattomat_prt:
                             # Append rawdata dicts for each kohdentumaton kompostoija.
+                            print(f"Kohdentumatta jäi {len(kohdentumattomat_prt)} kompostoria")
                             for prt in kohdentumattomat_prt:
+                                print(prt)
                                 for rawdata in ilmoitus.rawdata:
                                     if rawdata.get(
-                                        "Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste"
+                                        "1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste"
                                     ) == prt:
                                         kohdentumattomat.append(rawdata)
                     else:

@@ -88,24 +88,11 @@ def import_data(
     tiedontuottajatunnus: str = typer.Argument(
         ..., help="Tiedon toimittajan tunnus. Esim. 'PJH', 'HKO', 'LSJ'"
     ),
-    luo_uudet: bool = typer.Option(
-        False,
-        "--luo_uudet",
-        help="Luo puuttuvat uudet kohteet tästä datasta.",
-    ),
-    ala_paivita_yhteystietoja: bool = typer.Option(
-        False,
-        "--ala_paivita_yhteystietoja",
-        help="Älä päivitä yhteystietoja tästä datasta.",
-    ),
-    ala_paivita_kohdetta:  bool = typer.Option(
-        True,
-        "--ala_paivita_kohdetta",
-        help="Älä päivitä kohteen voimassaoloaikaa tästä datasta.",
-    ),
     alkupvm: str = typer.Argument(None, help="Importoitavan datan alkupvm"),
     loppupvm: str = typer.Argument(None, help="Importoitavan datan loppupvm"),
 ):
+    ala_paivita_yhteystietoja = False
+    ala_paivita_kohdetta = True
     tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
     if not tiedontuottaja:
         typer.echo(
@@ -124,7 +111,7 @@ def import_data(
     jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
     print('writing to db...')
     db = DbProvider()
-    db.write(jkr_data, tiedontuottajatunnus, not luo_uudet, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
+    db.write(jkr_data, tiedontuottajatunnus, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
 
     print("VALMIS!")
 

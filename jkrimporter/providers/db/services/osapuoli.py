@@ -1,6 +1,6 @@
 from sqlalchemy import select, desc
 from sqlalchemy.exc import NoResultFound
-from datetime import datetime
+from datetime import datetime, date
 from jkrimporter.model import Asiakas, Jatelaji, JkrIlmoitukset, SopimusTyyppi
 from jkrimporter.providers.db.models import (
     Kohde,
@@ -180,7 +180,7 @@ def extract_identifier(rakennuksen_vanhin):
     return None
 
 def should_remove_from_kohde_via_asukas(
-    session, rakennus_id: int, poimintapvm: datetime.date, vanha_dvv_poimintapvm: datetime.date
+    session, rakennus_id: int, poimintapvm: date | None, vanha_dvv_poimintapvm: date | None
 ) -> bool:
     """
     Hae rakennuksen nykyiset ja menneet asukkaat 
@@ -272,8 +272,8 @@ def should_remove_from_kohde_via_asukas(
 
 def should_remove_from_kohde_via_omistaja(
     session, rakennus_id: int,
-    poimintapvm: datetime.date,
-    vanha_dvv_poimintapvm: datetime.date
+    poimintapvm: date | None,
+    vanha_dvv_poimintapvm: date | None
 ) -> bool:
     """
     Hae rakennuksen nykyiset omistajat, jotka ovat omistaneet sen
