@@ -3,6 +3,7 @@ DROP MATERIALIZED VIEW IF EXISTS jkr.v_velvoitteiden_kohteet;
 CREATE MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet AS
   SELECT
     k.id AS kohde_id,
+    k.kohdetyyppi_id,
     k.geom,
     vm.id AS velvoitemalli_id,
     vm.selite,
@@ -46,6 +47,7 @@ DROP MATERIALIZED VIEW IF EXISTS jkr.v_velvoiteyhteenvetojen_kohteet;
 CREATE MATERIALIZED VIEW jkr.v_velvoiteyhteenvetojen_kohteet AS
   SELECT
     k.id AS kohde_id,
+    k.kohdetyyppi_id,
     k.geom,
     vm.id AS velvoitemalli_id,
     vm.selite,
