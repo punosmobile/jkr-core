@@ -57,7 +57,6 @@ from .services.dvv_poimintapvm import (
 from .services.kohde import (
     add_ulkoinen_asiakastieto_for_kohde,
     create_perusmaksurekisteri_kohteet,
-    find_kohde_by_address,
     find_kohde_by_prt,
     find_kohteet_by_prt,
     get_or_create_multiple_and_uninhabited_kohteet,
@@ -154,38 +153,32 @@ def find_and_update_kohde(session, asiakas, do_update_kohde, prt_counts, kitu_co
     Etsii olemassa olevan kohteen asiakkaalle tai luo uuden.
     """
     kohde = None
-    ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
-    
-    # 1. Etsi kohde asiakasnumeron perusteella
-    if ulkoinen_asiakastieto:
-        print("Kohde found by customer id.")
-        update_ulkoinen_asiakastieto(ulkoinen_asiakastieto, asiakas)
 
-        kohde = ulkoinen_asiakastieto.kohde
-        if do_update_kohde:
-            update_kohde(kohde, asiakas)
+    # 1. Etsi kohde rakennustietojen perusteella
+    print("Searching for kohde by customer data...")
+    if asiakas.rakennukset:
+        kohde = find_kohde_by_prt(session, asiakas)
+
+    if kohde and do_update_kohde:
+        print("Kohde found, updating dates...")
+        update_kohde(kohde, asiakas)
+
+    if kohde:
+        add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
     else:
-        # 2. Etsi kohde rakennustietojen perusteella
-        print("Customer id not found. Searching for kohde by customer data...")
-        if asiakas.rakennukset:
-            kohde = find_kohde_by_prt(session, asiakas)
-            
-        # 3. Etsi kohde osoitteen perusteella
-        if (
-            not kohde
-            and asiakas.haltija.osoite.postinumero
-            and asiakas.haltija.osoite.katunimi
-        ):
-            kohde = find_kohde_by_address(session, asiakas)
-            
-        if kohde and do_update_kohde:
-            print("Kohde found, updating dates...")
-            update_kohde(kohde, asiakas)
-            
-        if kohde:
-            add_ulkoinen_asiakastieto_for_kohde(session, kohde, asiakas)
-        else:
-            print("Could not find kohde.")
+        print("Could not find kohde.")
+
+    if not kohde:
+        print("trying to find via customer id.")
+        ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
+
+        # 2. Etsi kohde asiakasnumeron perusteella
+        if ulkoinen_asiakastieto:
+            print("Kohde found by customer id.")
+
+            kohde = ulkoinen_asiakastieto.kohde
+            if do_update_kohde:
+                update_kohde(kohde, asiakas)
 
     return kohde
 
@@ -477,6 +470,7 @@ class DbProvider:
                 progress.complete()
 
                 if kohdentumattomat:
+                    kohdentumattomatRivit = 0
                     for kohdentumaton in kohdentumattomat:
 
                         # Rebuild rows to insert into the error .csv
@@ -610,6 +604,7 @@ class DbProvider:
                                     "ulkoinen_asiakastieto"
                                 ].Voimassaoloviikotasti[ii * 2 + 1]
                             rows.append(row_data)
+                            kohdentumattomatRivit = kohdentumattomatRivit + 1
 
                         csv_path = (
                             siirtotiedosto
@@ -627,7 +622,7 @@ class DbProvider:
                             for rd in rows:
                                 csv_writer.writerow(rd)
 
-                    print(f"Kohdentumattomat tiedot lisätty CSV-tiedostoon: {csv_path}")
+                    print(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
                 else:
                     print("Ei kohdentumattomia tietoja.")
 

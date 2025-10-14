@@ -21,6 +21,7 @@ from jkrimporter.model import Asiakas, JkrIlmoitukset, LopetusIlmoitus, Yhteysti
 from .. import codes
 from ..codes import KohdeTyyppi, OsapuolenrooliTyyppi, RakennuksenKayttotarkoitusTyyppi, RakennuksenOlotilaTyyppi
 from ..models import (
+    Katu,
     Kohde,
     KohteenOsapuolet,
     KohteenRakennukset,
@@ -229,6 +230,19 @@ def add_ulkoinen_asiakastieto_for_kohde(
     Returns:
         UlkoinenAsiakastieto: Luotu asiakastieto-objekti
     """
+
+    query = select(UlkoinenAsiakastieto).where(
+        UlkoinenAsiakastieto.tiedontuottaja_tunnus == asiakas.asiakasnumero.jarjestelma,
+        UlkoinenAsiakastieto.ulkoinen_id == asiakas.asiakasnumero.tunnus,
+    )
+    try:
+        vanha_tieto = session.execute(query).scalar_one()
+        if vanha_tieto:
+            print("UlkoinenAsiakastieto löytyi ennestään, palautetaan")
+            return vanha_tieto
+    except NoResultFound:
+        print("UlkoinenAsiakastieto ei löydy ennestään, luodaan uusi")
+
     asiakastieto = UlkoinenAsiakastieto(
         tiedontuottaja_tunnus=asiakas.asiakasnumero.jarjestelma,
         ulkoinen_id=asiakas.asiakasnumero.tunnus,
@@ -272,7 +286,7 @@ def find_kohde_by_prt(
     elif isinstance(asiakas, Asiakas):
         print(f'Haetaan rakennukset prt:n mukaan kuljetukselle {asiakas.rakennukset}')
         return _find_kohde_by_asiakastiedot(
-            session, Rakennus.prt.in_(asiakas.rakennukset), asiakas
+            session, and_(Rakennus.prt.in_(asiakas.rakennukset), Kohde.loppupvm.is_(None)), asiakas
         )
     else:
         raise ValueError(f"Invalid asiakas type: {type(asiakas)}")
@@ -387,17 +401,17 @@ def find_kohde_by_address(
 
     # TODO Using this filter WILL cause a seemingly infinite loop during kuljetustiedot import. Function should be fixed at a later time 15.5.2025 EK
     # If katunimi is also present, try to match it and return the result. Otherwise do not try to find it
-    # if asiakas.haltija.osoite.katunimi:
-    #     kohde_filter = and_(
-    #         Osoite.posti_numero == asiakas.haltija.osoite.postinumero,
-    #         or_(
-    #             Katu.katunimi_fi == asiakas.haltija.osoite.katunimi,
-    #             Katu.katunimi_sv == asiakas.haltija.osoite.katunimi,
-    #         ),
-    #         osoitenumero_filter,
-    #     )
+    """ if asiakas.haltija.osoite.katunimi:
+        kohde_filter = and_(
+            Osoite.posti_numero == asiakas.haltija.osoite.postinumero,
+            or_(
+                Katu.katunimi_fi == asiakas.haltija.osoite.katunimi,
+                Katu.katunimi_sv == asiakas.haltija.osoite.katunimi,
+            ),
+            osoitenumero_filter,
+        )
 
-    #     return _find_kohde_by_asiakastiedot(session, kohde_filter, asiakas)
+        return _find_kohde_by_asiakastiedot(session, kohde_filter, asiakas) """
 
     return None
 
@@ -453,18 +467,19 @@ def _find_kohde_by_asiakastiedot(
         .join(KohteenRakennukset)
         .join(Rakennus)
         .where(
-            filter, # Rakennus.prt.in_(...)
+            filter,
             Kohde.voimassaolo.overlaps(
                 DateRange(
                     asiakas.voimassa.lower or datetime.date.min,
                     asiakas.voimassa.upper or datetime.date.max,
                 )
-            )
+            ),
         )
         .distinct()
     )
 
     try:
+        print(f"query {kohde_ids_query.compile() }")
         kohde_ids = session.execute(kohde_ids_query).scalars().all()
     except Exception as e:
         print(f"Virhe kohde-ID:iden haussa: {e}")
@@ -479,7 +494,7 @@ def _find_kohde_by_asiakastiedot(
         if isinstance(asiakas, JkrIlmoitukset):
             print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.prt}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
         if isinstance(asiakas, Asiakas):
-            print(f"Löytyi {len(kohde_ids)} kohdetta rakennuksille {asiakas.rakennukset}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
+            print(f"Löytyi {len(kohde_ids)} kohdetta kuljetuksen rakennuksille {asiakas.rakennukset}. Käytetään ensimmäistä, ID: {kohde_ids[0]}")
 
     return session.get(Kohde, kohde_ids[0])
 
@@ -829,6 +844,19 @@ def update_old_kohde_data(
                     )
                 .execution_options(synchronize_session=False)
             )
+            
+            rows_to_update = session.execute(
+                select(Viranomaispaatokset.id, Viranomaispaatokset.rakennus_id)
+                .where(
+                    Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
+                    Viranomaispaatokset.alkupvm <= loppupvm
+                )
+            ).all()
+
+            for rivi in rows_to_update:
+                print(f"Ennen päivitystä: id={rivi[0]}, rakennus_id={rivi[1]}")
+
+            print(stmt.compile(compile_kwargs={"literal_binds": True}))
             result = session.execute(stmt)
             print(f"Päivitetty {result.rowcount} viranomaispäätöksen loppupvm")
 
@@ -1296,25 +1324,6 @@ def set_old_kohde_loppupvm(session: Session, kohde_id: int, loppupvm: datetime.d
     )
     session.commit()
 
-
-def set_paatos_loppupvm_for_old_kohde(
-    session: Session, kohde_id: int, loppupvm: datetime.date
-):
-    """
-    Asettaa päätösten loppupäivämäärän vanhan kohteen päätöksille.
-    """
-    # Muunnetaan subquery explisiittiseksi select-lauseeksi
-    rakennus_ids = select(KohteenRakennukset.rakennus_id).where(
-        KohteenRakennukset.kohde_id == kohde_id
-    )
-
-    session.query(Viranomaispaatokset).filter(
-        and_(
-            Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
-            Viranomaispaatokset.alkupvm <= loppupvm
-        )
-    ).update({Viranomaispaatokset.loppupvm: loppupvm}, synchronize_session=False)
-    session.commit()
 
 
 def update_kompostori(
