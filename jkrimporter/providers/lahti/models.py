@@ -222,7 +222,7 @@ class AsiakasRow(BaseModel):
         if tyhjennysvali is not None and tyhjennysvali != '':
             tyhjennysvali = int(tyhjennysvali)
         else:
-            tyhjennysvali = 1
+            tyhjennysvali = None
         # Check if tyyppiIdEWC is not "Aluekeräys" or "Aluekeräyspiste" tyhjennysvali must be > 0
         if tyyppiIdEWC not in ["Aluekeräys", "Aluekeräyspiste", "Aluekerï¿½yspiste"]:
             if tyhjennysvali is None or tyhjennysvali <= 0:

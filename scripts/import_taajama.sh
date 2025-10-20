@@ -38,7 +38,7 @@ export PGCLIENTENCODING=UTF8
 BASE_PATH="../data/Taajama-alueet_karttarajaukset"
 
 # Käsitellään 10000 asukkaan taajamat
-SHP_FILE_10000="$BASE_PATH/Hyötyjäteurakat yli 10 000 asukkaan taajamat.shp"
+SHP_FILE_10000="$BASE_PATH/Hyötyjäteurakat yli 10000 asukkaan taajamat.shp"
 if [ -f "$SHP_FILE_10000" ]; then
    echo "Käsitellään yli 10000 asukkaan taajamat..."
    SHP_TABLE=$(basename "$SHP_FILE_10000" .shp)
