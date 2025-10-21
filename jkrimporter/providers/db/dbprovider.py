@@ -605,6 +605,7 @@ class DbProvider:
                                 ].Voimassaoloviikotasti[ii * 2 + 1]
                             rows.append(row_data)
                             kohdentumattomatRivit = kohdentumattomatRivit + 1
+                            
 
                         csv_path = (
                             siirtotiedosto
@@ -620,6 +621,7 @@ class DbProvider:
                                 quotechar='"',
                             )
                             for rd in rows:
+                                kohdentumattomatRivit = kohdentumattomatRivit + 1
                                 csv_writer.writerow(rd)
 
                     print(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
