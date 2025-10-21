@@ -98,6 +98,7 @@ class LahtiSiirtotiedosto:
                     {key: value for key, value in data.items() if key in expected_headers}
                     for data in failed_validations
                 ]
+                print(f"validaatioon kaatuneita rivejä: {len(filtered_failed_validations)}")
 
                 csv_writer.writerows(filtered_failed_validations)
 

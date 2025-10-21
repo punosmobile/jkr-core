@@ -168,7 +168,7 @@ log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_j
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q1 päätösten tuonti"
 
-log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi_ilmoitus_2024$quarter.xlsx" \
+log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi-ilmoitus_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q1 ilmoitusten tuonti"
 
@@ -212,7 +212,7 @@ log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_j
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q3 päätösten tuonti"
 
-log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi_ilmoitus_2024$quarter.xlsx" \
+log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi-ilmoitus_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q3 ilmoitusten tuonti"
 
