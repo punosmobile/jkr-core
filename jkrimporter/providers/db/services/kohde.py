@@ -479,7 +479,6 @@ def _find_kohde_by_asiakastiedot(
     )
 
     try:
-        print(f"query {kohde_ids_query.compile() }")
         kohde_ids = session.execute(kohde_ids_query).scalars().all()
     except Exception as e:
         print(f"Virhe kohde-ID:iden haussa: {e}")
@@ -845,18 +844,6 @@ def update_old_kohde_data(
                 .execution_options(synchronize_session=False)
             )
             
-            rows_to_update = session.execute(
-                select(Viranomaispaatokset.id, Viranomaispaatokset.rakennus_id)
-                .where(
-                    Viranomaispaatokset.rakennus_id.in_(rakennus_ids.scalar_subquery()),
-                    Viranomaispaatokset.alkupvm <= loppupvm
-                )
-            ).all()
-
-            for rivi in rows_to_update:
-                print(f"Ennen päivitystä: id={rivi[0]}, rakennus_id={rivi[1]}")
-
-            print(stmt.compile(compile_kwargs={"literal_binds": True}))
             result = session.execute(stmt)
             print(f"Päivitetty {result.rowcount} viranomaispäätöksen loppupvm")
 
