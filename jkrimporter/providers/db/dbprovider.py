@@ -604,7 +604,6 @@ class DbProvider:
                                     "ulkoinen_asiakastieto"
                                 ].Voimassaoloviikotasti[ii * 2 + 1]
                             rows.append(row_data)
-                            kohdentumattomatRivit = kohdentumattomatRivit + 1
                             
 
                         csv_path = (
