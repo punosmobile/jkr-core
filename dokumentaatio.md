@@ -401,7 +401,7 @@ Kompostointi-ilmoitukset luetaan Excel-tiedostosta (.xlsx), jossa yksi rivi vast
 - Voimassaasti (kompostoinnin loppupäivä)
 - Onko kimppa (tieto siitä, onko kyseessä useamman kiinteistön yhteinen kompostori)
 - Vastuuhenkilön tiedot (sukunimi, etunimi, osoite, postinumero, postitoimipaikka)
-- PRT (kompostoria käyttävän rakennuksen rakennustunnus, käsittelijän lisäämä)
+- PRT (1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste)
 - Käyttäjän tiedot (sukunimi, etunimi) ja prt (rakennustunnus)
 
 ### 6.2 Kompostointi-ilmoitusten kohdentaminen

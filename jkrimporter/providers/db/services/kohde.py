@@ -272,9 +272,9 @@ def find_kohde_by_prt(
         Kohde object if found, None otherwise
     """
     if isinstance(asiakas, JkrIlmoitukset):
-        print(f'Haetaan rakennukset prt:n mukaan kompostorille {asiakas.prt}')
+        print(f'Haetaan rakennukset prt:n mukaan kompostorille {asiakas.prt} {asiakas.alkupvm}')
         return _find_kohde_by_asiakastiedot(
-            session, Rakennus.prt.in_(asiakas.prt), asiakas
+            session, and_(Rakennus.prt.in_(asiakas.prt), Kohde.alkupvm <= asiakas.alkupvm), asiakas
         )
     elif isinstance(asiakas, LopetusIlmoitus):
         # Lopetusilmoitukselle käytetään erikoiskäsittelyä
