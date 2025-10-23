@@ -2532,6 +2532,22 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
         if len(muut_rakennukset) > 0:
             print(f"\nPoistetaan vain rakennus {rakennuksen_kohde.rakennus.prt} kohteelta: {kohde_id}")
             session.delete(rakennuksen_kohde)
+            
+            # Aseta loppupvm vanhoille päätöksille ja irrota ne rakennuksesta
+            stmt = (
+                update(Viranomaispaatokset)
+                .where(
+                    Viranomaispaatokset.rakennus_id == rakennuksen_kohde.rakennus_id,
+                )
+                .values(
+                    loppupvm=poimintapvm,
+                    rakennus_id = None  # Irroita rakennuksesta
+                )
+                .execution_options(synchronize_session=False)
+            )
+            result = session.execute(stmt)
+            print(f"Päivitetty {result.rowcount} viranomaispäätöksen loppupvm")
+
         else:
             kohde_query = (
                 select(Kohde)
@@ -2548,7 +2564,7 @@ def remove_buildings_from_kohde(session: Session, rakennukset: list[RakennusData
             print(uusi_loppupvm)
             print(kohde.alkupvm)
 
-            if poimintapvm and uusi_loppupvm >= poimintapvm: # loppupvm tulee olla ennen poimintapvm:ää 
+            if poimintapvm and uusi_loppupvm >= poimintapvm: # loppupvm tulee olla ennen poimintapvm:ää
                 uusi_loppupvm = poimintapvm - timedelta(days=1)
             if kohde.alkupvm >= uusi_loppupvm: # alkupvm ei saa olla suurempi kuin loppupvm
                 print(f"alkupäivä asetettu tulos: {uusi_loppupvm}")
