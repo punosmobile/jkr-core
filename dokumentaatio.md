@@ -242,6 +242,7 @@ Kuljetustietojen tuonti tapahtuu seuraavasti:
 - Liete (harmaa- ja mustaliete)
 - Pahvi
 - Energia
+- Monilokero
 
 #### Sopimustyypit
 - Tyhjennyssopimus

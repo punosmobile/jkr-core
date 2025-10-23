@@ -23,6 +23,7 @@ class Jatelaji(str, Enum):
     liete = "Liete"
     musta_liete = "Musta liete"
     harmaa_liete = "Harmaa liete"
+    monilokero = "Monilokero"
 
 
 # AsiakasRow corresponds to one row in source data. In most cases,
