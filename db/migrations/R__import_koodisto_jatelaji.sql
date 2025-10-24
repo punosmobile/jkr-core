@@ -13,5 +13,6 @@ insert into jkr_koodistot.jatetyyppi(id, selite) values
     (12,'Perusmaksu'),
     (13,'Energia'),
     (14,'Aluekeräys'),
+    (15, 'Monilokero'),
     (99,'Muu')
 on conflict do nothing;

@@ -115,6 +115,7 @@ class Jatelaji(str, Enum):
     pahvi = "Pahvi"
     energia = "Energia"
     aluekerays = "Aluekeräys"
+    monilokero = "Monilokero"
     muu = "Muu"
 
 

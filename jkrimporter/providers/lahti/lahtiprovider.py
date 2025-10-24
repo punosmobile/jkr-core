@@ -162,6 +162,7 @@ jatelaji_map = {
     Jatelaji.lasi: JkrJatelaji.lasi,
     Jatelaji.paperi: JkrJatelaji.paperi,
     Jatelaji.muovi: JkrJatelaji.muovi,
+    Jatelaji.monilokero: JkrJatelaji.monilokero,
 }
 
 

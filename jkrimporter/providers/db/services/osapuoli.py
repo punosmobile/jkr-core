@@ -49,6 +49,8 @@ def create_or_update_haltija_osapuoli(
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAISANTA]
                 elif sopimus.jatelaji == Jatelaji.metalli:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAISANTA]
+                elif sopimus.jateli == Jatelaji.monilokero:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_KIMPPAOSAKAS]
                 elif sopimus.jatelaji == Jatelaji.muovi:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAISANTA]
                 else:
@@ -65,6 +67,8 @@ def create_or_update_haltija_osapuoli(
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAOSAKAS]
                 elif sopimus.jatelaji == Jatelaji.metalli:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAOSAKAS]
+                elif sopimus.jatelaji == Jatelaji.monilokero:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_KIMPPAOSAKAS]
                 elif sopimus.jatelaji == Jatelaji.muovi:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAOSAKAS]
                 else:
@@ -83,6 +87,8 @@ def create_or_update_haltija_osapuoli(
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LIETE_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.metalli:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.monilokero:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.muovi:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.aluekerays:
