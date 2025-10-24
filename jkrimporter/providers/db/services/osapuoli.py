@@ -85,6 +85,8 @@ def create_or_update_haltija_osapuoli(
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.muovi:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.aluekerays:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.ALUEKERAYS_TILAAJA]
             else:
                 print("Skipping sopimus with unknown jätelaji " + sopimus.jatelaji + " in sopimus")
                 continue
