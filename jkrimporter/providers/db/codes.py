@@ -72,6 +72,7 @@ class OsapuolenrooliTyyppi(Enum):
     METALLI_TILAAJA = "Tilaaja metalli"
     MONILOKERO_TILAAJA = "Tilaaja monilokero"
     LIETE_TILAAJA = "Tilaaja liete"
+    ALUEKERAYS_TILAAJA = "Tilaaja aluekeräyspiste"
     SEKAJATE_KIMPPAISANTA = "Kimppaisäntä sekajäte"
     BIOJATE_KIMPPAISANTA = "Kimppaisäntä biojäte"
     MUOVI_KIMPPAISANTA = "Kimppaisäntä muovipakkaus"
