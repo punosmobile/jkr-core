@@ -49,6 +49,8 @@ def create_or_update_haltija_osapuoli(
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAISANTA]
                 elif sopimus.jatelaji == Jatelaji.metalli:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAISANTA]
+                elif sopimus.jateli == Jatelaji.monilokero:
+                    asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_KIMPPAOSAKAS]
                 elif sopimus.jatelaji == Jatelaji.muovi:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAISANTA]
                 else:
