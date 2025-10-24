@@ -78,6 +78,7 @@ class OsapuolenrooliTyyppi(Enum):
     KARTONKI_KIMPPAISANTA = "Kimppaisäntä kartonkipakkaus"
     LASI_KIMPPAISANTA = "Kimppaisäntä lasipakkaus"
     METALLI_KIMPPAISANTA = "Kimppaisäntä metalli"
+    MONILOKERO_KIMPPAISANTA = "Kimppaisäntä monilokero"
     SEKAJATE_KIMPPAOSAKAS = "Kimppaosakas sekajäte"
     BIOJATE_KIMPPAOSAKAS = "Kimppaosakas biojäte"
     MUOVI_KIMPPAOSAKAS = "Kimppaosakas muovipakkaus"
@@ -85,6 +86,7 @@ class OsapuolenrooliTyyppi(Enum):
     LASI_KIMPPAOSAKAS = "Kimppaosakas lasipakkaus"
     METALLI_KIMPPAOSAKAS = "Kimppaosakas metalli"
     KOMPOSTI_YHTEYSHENKILO = "Yhteyshenkilö kompostointi"
+    MONILOKERO_KIMPPAOSAKAS = "Kimppaosakas monilokero"
 
 
 class RakennuksenKayttotarkoitusTyyppi(Enum):
