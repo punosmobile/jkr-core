@@ -83,6 +83,8 @@ def create_or_update_haltija_osapuoli(
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LIETE_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.metalli:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_TILAAJA]
+            elif sopimus.jatelaji == Jatelaji.monilokero:
+                asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.muovi:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
             else:
