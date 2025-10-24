@@ -82,7 +82,7 @@ def get_ilmoitustiedosto_headers():
         "Kompostoinnin vastuuhenkilön yhteystiedot:Postitoimipaikka",
         "Rakennuksen tiedot, jossa kompostori sijaitsee:Rakennuksen katuosoite",
         "Rakennuksen tiedot, jossa kompostori sijaitsee:Käsittelijän lisäämä tunniste",
-        "Kompostoria käyttävien rakennusten lukumäärä",
+        "Kompostoria käyttävien asuinhuoneistojen lukumäärä",
         "1. Kompostoria käyttävän rakennuksen tiedot:Haltijan etunimi",
         "1. Kompostoria käyttävän rakennuksen tiedot:Haltijan sukunimi",
         "1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne",
