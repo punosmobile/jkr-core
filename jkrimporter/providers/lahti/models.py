@@ -10,7 +10,7 @@ from jkrimporter.model import Paatostulos, Tapahtumalaji
 
 
 class Jatelaji(str, Enum):
-    aluekerays = "Aluekeräys"
+    aluekerays = "Aluekeräyspiste"
     seka = "Sekajäte"
     energia = "Energia"
     bio = "Bio"
@@ -128,7 +128,7 @@ class AsiakasRow(BaseModel):
     @validator("tyyppiIdEWC", pre=True)
     def parse_jatelaji(value: str):
         if value == "Aluekeräyspiste" or value == "Aluekerï¿½yspiste":
-            value = "Aluekeräys"
+            value = "AluekeräysPiste"
         if value == "Sekaj":
             value = "Sekajäte"
         if value == "Biojäte":
