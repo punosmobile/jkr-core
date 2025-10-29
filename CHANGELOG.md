@@ -245,3 +245,21 @@ All notable changes to this project will be documented in this file.
 
 - Kuljetusliike name is now visible in kuljetukset
 - Other small UI updates
+
+## [0.7.4] - 2025-10-31
+
+### Fixed
+
+- Fixed issue where Osapuolenrooli would not be shown in osapuoli lists in QGIS
+- Fixed issue where Viranomaispäätös would not correctly detach from Rakennus and thus Kohde when multiple buildings were removed at once
+- Fixes to several velvoite views and functions to ensure velvoiteyhteenveto-entries are generated correctly for Biohapa Kohde
+
+### Added
+
+- New Jätetyyppi "Monilokero"
+
+### Changed
+
+- Kompostori will now get on_kimppa value from "Kompostoria käyttää useampi asunto/rakennus" value
+- Kompostori-ilmoitus will now read column ”Kompostoria käyttävien asuinhuoneistojen lukumäärä” instead of ”Kompostoria käyttävien rakennusten lukumäärä”
+- Jätetyyppi "Aluekeräys" has been changed to "Aluekeräyspiste"
