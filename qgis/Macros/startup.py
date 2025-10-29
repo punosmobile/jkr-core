@@ -105,10 +105,9 @@ def openProject():
                     continue
                 
                 # Muut velvoitelayerit
-                min_id, max_id = id_range
                 
                 # Rakenna filter
-                base_filter = f'"velvoitemalli_id" >= {min_id} AND "velvoitemalli_id" <= {max_id}'
+                base_filter = f'"velvoitemalli_id" IN {id_range}'
                 
                 if active_ids:
                     kohde_filter = f'"kohdetyyppi_id" IN ({",".join(active_ids)})'
