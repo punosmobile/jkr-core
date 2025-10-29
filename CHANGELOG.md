@@ -257,6 +257,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - New Jätetyyppi "Monilokero"
+- AKP velvoite will now be shown on QGIS map
 
 ### Changed
 
