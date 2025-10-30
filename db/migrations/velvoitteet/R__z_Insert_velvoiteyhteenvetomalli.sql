@@ -151,7 +151,7 @@ VALUES
         'kohteet_joilla_bio_vaara_tvali_seka_voimassa',
         '2022-1-1',
         'Velvoiteyhteenveto biojäte puuttuu',
-        1
+        2
     ),
     (
         45,
@@ -160,6 +160,6 @@ VALUES
         'kohteet_joilla_bio_vaara_tvali_muut_voimassa',
         '2022-1-1',
         'Velvoiteyhteenveto biojäte puuttuu',
-        1
+        2
     )
 ON CONFLICT DO NOTHING;

@@ -10,7 +10,7 @@ from jkrimporter.model import Paatostulos, Tapahtumalaji
 
 
 class Jatelaji(str, Enum):
-    aluekerays = "Aluekeräys"
+    aluekerays = "Aluekeräyspiste"
     seka = "Sekajäte"
     energia = "Energia"
     bio = "Bio"
@@ -23,6 +23,7 @@ class Jatelaji(str, Enum):
     liete = "Liete"
     musta_liete = "Musta liete"
     harmaa_liete = "Harmaa liete"
+    monilokero = "Monilokero"
 
 
 # AsiakasRow corresponds to one row in source data. In most cases,
@@ -127,7 +128,7 @@ class AsiakasRow(BaseModel):
     @validator("tyyppiIdEWC", pre=True)
     def parse_jatelaji(value: str):
         if value == "Aluekeräyspiste" or value == "Aluekerï¿½yspiste":
-            value = "Aluekeräys"
+            value = "AluekeräysPiste"
         if value == "Sekaj":
             value = "Sekajäte"
         if value == "Biojäte":
@@ -483,7 +484,7 @@ class Ilmoitus(BaseModel):
     vastuuhenkilo_osoite: str = Field(
         alias="Kompostoinnin vastuuhenkilön yhteystiedot:Postiosoite"
     )
-    onko_kimppa: str = Field(alias="Kompostoria käyttävien rakennusten lukumäärä")
+    onko_kimppa: str = Field(alias="Kompostoria käyttävien asuinhuoneistojen lukumäärä")
     prt: List[str] = Field(
         alias="1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste"
     )

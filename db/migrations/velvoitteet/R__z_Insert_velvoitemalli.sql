@@ -248,7 +248,7 @@ VALUES
         'Sekajäte',
         'kohde',
         'kohteet_joilla_on_aluekerays_kuljetuksia_tai_sopimuksia',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Aluekeräys'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Aluekeräyspiste'),
         '2022-1-1',
         'Sekajäte kunnossa'
     )

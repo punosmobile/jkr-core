@@ -71,6 +71,7 @@ def create_haltija(row: "Asiakas"):
             kohteen_osoite.erikoisosoite = row.Kiinteistonkatuosoite
         else:
             o = osoite_from_parsed_address(parsed_address)
+            print(f"parsittu osoite {o}")
             kohteen_osoite.katunimi = o.katunimi
             kohteen_osoite.osoitenumero = o.osoitenumero
             kohteen_osoite.huoneistotunnus = o.huoneistotunnus
@@ -161,6 +162,7 @@ jatelaji_map = {
     Jatelaji.lasi: JkrJatelaji.lasi,
     Jatelaji.paperi: JkrJatelaji.paperi,
     Jatelaji.muovi: JkrJatelaji.muovi,
+    Jatelaji.monilokero: JkrJatelaji.monilokero,
 }
 
 
@@ -227,14 +229,14 @@ class LahtiTranslator:
             print("got asiakastiedot")
             print(row)
             if alkupvm:
-                print(alkupvm)
-                print(row.Pvmasti)
+                print(f"syötteen alkupvm {alkupvm}")
+                print(f"sopimuksen loppupvm {row.Pvmasti}")
                 if row.Pvmasti < alkupvm:
                     print("skipping, too early")
                     continue
             if loppupvm:
-                print(loppupvm)
-                print(row.Pvmalk)
+                print(f"syötteen loppupvm {loppupvm}")
+                print(f"sopimuksen alkupvm {row.Pvmalk}")
                 if row.Pvmalk > loppupvm:
                     print("skipping, too late")
                     continue
@@ -311,6 +313,7 @@ class LahtiTranslator:
                 )
 
             data.asiakkaat[tunnus].sopimukset.append(sopimus)
+            print(f"Lisätty tunnuksen {tunnus} sopimuksiin {sopimus}")
 
             keraysvaline = Keraysvaline(
                 maara=row.astiamaara,
@@ -475,7 +478,7 @@ class IlmoitusTranslator:
                         rakennus=row.prt,
                     )],
                     'onko_kimppa': (
-                        "Kompostori on useamman kiinteistön yhteinen kompostori (voit ilmoittaa enintään 5 rakennusta)"
+                        "Kompostoria käyttää useampi asunto/rakennus"
                         in row.onko_kimppa
                     ),
                     'prt': row.prt,
