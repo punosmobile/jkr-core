@@ -478,7 +478,7 @@ class IlmoitusTranslator:
                         rakennus=row.prt,
                     )],
                     'onko_kimppa': (
-                        "Kompostori on useamman kiinteistön yhteinen kompostori (voit ilmoittaa enintään 5 rakennusta)"
+                        "Kompostoria käyttää useampi asunto/rakennus"
                         in row.onko_kimppa
                     ),
                     'prt': row.prt,
