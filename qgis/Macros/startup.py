@@ -44,12 +44,12 @@ def openProject():
             
             # Tarkista velvoitelayereiden näkyvyys
             velvoite_layers = {
-                'Sekajätevelvoitteet': (3, 12),
-                'Biojätevelvoitteet': (13, 17),
-                'Muovivelvoitteet': (18, 20),
-                'Kartonkivelvoitteet': (21, 23),
-                'Lasipakkausvelvoitteet': (24, 26),
-                'Metallivelvoitteet': (27, 29),
+                'Sekajätevelvoitteet': (3,4,5,6,7,8,9,10,11,12,30),
+                'Biojätevelvoitteet': (13,14,15,16,17),
+                'Muovivelvoitteet': (18,19,20),
+                'Kartonkivelvoitteet': (21,22,23),
+                'Lasipakkausvelvoitteet': (24,25,26),
+                'Metallivelvoitteet': (27,28,29),
                 'Velvoiteyhteenvedot': None  # Ei velvoitemalli_id rajausta
             }
             
@@ -105,10 +105,9 @@ def openProject():
                     continue
                 
                 # Muut velvoitelayerit
-                min_id, max_id = id_range
                 
                 # Rakenna filter
-                base_filter = f'"velvoitemalli_id" >= {min_id} AND "velvoitemalli_id" <= {max_id}'
+                base_filter = f'"velvoitemalli_id" IN {id_range}'
                 
                 if active_ids:
                     kohde_filter = f'"kohdetyyppi_id" IN ({",".join(active_ids)})'
