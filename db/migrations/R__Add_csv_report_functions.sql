@@ -230,7 +230,7 @@ BEGIN
             CASE WHEN jt.selite = 'Biojäte' THEN k.loppupvm END AS biojate,
             CASE WHEN jt.selite = 'Monilokero' THEN k.loppupvm END AS monilokero,
             CASE WHEN jt.selite = 'Sekajäte' THEN k.loppupvm END AS sekajate,
-            CASE WHEN jt.selite = 'Muu' THEN k.loppupvm END AS akp
+            CASE WHEN jt.selite = 'Aluekeräyspiste' THEN k.loppupvm END AS akp
         FROM
             jkr.kuljetus k
         JOIN
