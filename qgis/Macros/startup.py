@@ -41,6 +41,12 @@ def openProject():
                                 active_ids.append(id_str)
                         except:
                             pass
+
+            # Kuljetus ja kompostori layerit
+            kuljetus_kompostori_layers = {
+                'Kuljetustiedot jätelajeittain': None,
+                'Kompostointi': None # Ei kompostori rajausta
+            }
             
             # Tarkista velvoitelayereiden näkyvyys
             velvoite_layers = {
@@ -55,7 +61,7 @@ def openProject():
             
             any_velvoite_active = False
             
-            for layer_name in velvoite_layers.keys():
+            for layer_name in {**velvoite_layers, **kuljetus_kompostori_layers}.keys():
                 layers = QgsProject.instance().mapLayersByName(layer_name)
                 if layers:
                     layer = layers[0]
@@ -121,6 +127,25 @@ def openProject():
                     layer.setSubsetString(full_filter)
                     layer.triggerRepaint()
             
+            # Tarkista kuljetuslayerien näkyvyys
+            # Päivitä kompostori ja kuljetus layerit
+            for layer_name, id_range in kuljetus_kompostori_layers.items():
+                layers = QgsProject.instance().mapLayersByName(layer_name)
+                if not layers:
+                    continue
+                
+                layer = layers[0]
+                
+                if active_ids:
+                    kuljetus_komposti_filter = f'"kohdetyyppi_id" IN ({",".join(active_ids)})'
+                else:
+                    kuljetus_komposti_filter = ''
+                
+                current_filter = layer.subsetString()
+                if current_filter != kuljetus_komposti_filter:
+                    layer.setSubsetString(kuljetus_komposti_filter)
+                    layer.triggerRepaint()
+
             # Säädä Kohteet-layerin läpinäkyvyys vain jos muuttunut
             current_opacity = kohteet_layer.opacity()
             target_opacity = 0.15 if any_velvoite_active else 1.0
