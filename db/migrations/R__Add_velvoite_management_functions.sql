@@ -257,6 +257,10 @@ BEGIN
 
   -- 4. Päivitetään yhteenvetojen materialisoitu näkymä
   REFRESH MATERIALIZED VIEW jkr.v_velvoiteyhteenvetojen_kohteet;
+
+  -- 5. Päivitetään kuljetus ja kompostointi-tietojen materialized view
+  REFRESH MATERIALIZED VIEW jkr.v_kuljetustietojen_kohteet_kolmeviimeista;
+  REFRESH MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista;
   
   RETURN 1;
 END;
