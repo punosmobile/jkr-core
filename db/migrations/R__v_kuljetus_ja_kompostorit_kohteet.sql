@@ -1,5 +1,9 @@
 DROP MATERIALIZED VIEW IF EXISTS jkr.v_kuljetustietojen_kohteet_kolmeviimeista;
 CREATE MATERIALIZED VIEW jkr.v_kuljetustietojen_kohteet_kolmeviimeista AS
+  WITH latest_kuljetus_date AS (
+    SELECT MAX(LOWER(aikavali)) AS latest_alkupvm
+    FROM jkr.kuljetus
+  )
   SELECT
     k.id AS kohde_id,
     k.kohdetyyppi_id,
@@ -14,21 +18,24 @@ CREATE MATERIALIZED VIEW jkr.v_kuljetustietojen_kohteet_kolmeviimeista AS
     yht.erikoisosoite
   FROM
     jkr.kohde k
-    JOIN jkr.kuljetus ku
-      ON k.id = ku.kohde_id
-    LEFT JOIN jkr.v_kohteen_yhteystiedot yht
-      ON k.id = yht.kohde_id
+    JOIN jkr.kuljetus ku ON k.id = ku.kohde_id
+    LEFT JOIN jkr.v_kohteen_yhteystiedot yht ON k.id = yht.kohde_id
+    CROSS JOIN latest_kuljetus_date d
   WHERE
     k.voimassaolo @> CURRENT_DATE
     AND ku.aikavali && daterange(
-      DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '9 months')::date,
-      DATE_TRUNC('quarter', CURRENT_DATE)::date,
+      DATE_TRUNC('quarter', d.latest_alkupvm - INTERVAL '9 months')::date,
+      DATE_TRUNC('quarter', d.latest_alkupvm)::date,
       '[)'
     );
 
 
 DROP MATERIALIZED VIEW IF EXISTS jkr.v_kompostorien_kohteet_kolmeviimeista;
 CREATE MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista AS
+  WITH latest_kompostori_date AS (
+    SELECT MAX(LOWER(voimassaolo)) AS latest_alkupvm
+    FROM jkr.kompostori
+  )
   SELECT
     k.id AS kohde_id,
     k.kohdetyyppi_id,
@@ -47,11 +54,12 @@ CREATE MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista AS
     JOIN jkr.kompostori ko ON kk.kompostori_id = ko.id
     LEFT JOIN jkr.v_kohteen_yhteystiedot yht
       ON k.id = yht.kohde_id
+ 	CROSS JOIN latest_kompostori_date d
   WHERE
     k.voimassaolo @> CURRENT_DATE
     AND ko.voimassaolo && daterange(
-      DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '9 months')::date,
-      DATE_TRUNC('quarter', CURRENT_DATE)::date,
+      DATE_TRUNC('quarter', d.latest_alkupvm - INTERVAL '9 months')::date,
+      DATE_TRUNC('quarter', d.latest_alkupvm)::date,
       '[)'
     );
 
