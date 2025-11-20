@@ -164,15 +164,6 @@ VALUES
     ),
     (
         46,
-        'Velvoiteyhteenveto ei tarvitse jätteenkuljetusta',
-        'kohde',
-        'kohteet_joilla_aluekeräys_tai_perusmaksu',
-        '2022-1-1',
-        'Velvoiteyhteenveto ei tarvitse jätteenkuljetusta',
-        1
-    ),
-    (
-        47,
         'Velvoiteyhteenveto biojäte puuttuu',
         'v_erilliskeraysalueet',
         'kohteet_joilla_seka_vaara_tvali_bio_puuttuu',
