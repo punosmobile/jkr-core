@@ -94,6 +94,17 @@ log_exec "jkr tiedontuottaja list | grep -q 'LSJ' || jkr tiedontuottaja add LSJ 
         "logs/tiedontuottaja_setup.log" \
         "Tiedontuottajan määritys"
 
+# Tuo muut tiedontuottajat
+export TIEDONTUOTTAJAT_PATH='../data/Tiedontuottajat.csv'
+
+if [ ! -f "$TIEDONTUOTTAJAT_PATH" ]; then
+    echo "Virhe: Tiedostoa $TIEDONTUOTTAJAT_PATH ei löydy" | tee logs/import_tiedontuottajat.log
+fi
+
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr_koodistot.tiedontuottaja(tunnus, nimi) FROM '${TIEDONTUOTTAJAT_PATH}' WITH (FORMAT CSV, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
+        "logs/import_tiedontuottajat.log" \
+        "Muiden tiedontuottajien tuonti"
+
 # Vaihe 1: Taajamarajaukset
 log_exec "sh import_taajama.sh 2026-01-01" \
         "logs/import_taajama.log" \
