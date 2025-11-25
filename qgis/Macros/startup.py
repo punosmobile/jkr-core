@@ -1,13 +1,92 @@
-from qgis.core import QgsProject, QgsExpressionContextUtils
+from qgis.core import QgsProject, QgsExpressionContextUtils, QgsApplication, QgsAuthMethodConfig
 from PyQt5.QtCore import QTimer
+import psycopg2
+import json
+import os
 
 # Globaalit muuttujat
 update_timer = None
 last_state = None
 
+def load_api_credentials():
+    """Lataa API-avaimet PostgreSQL-kannasta ja tallentaa QGIS auth manageriin"""
+    try:
+        conn = psycopg2.connect(service='jkr')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'jkr_qgis_projektit'
+                AND table_name = 'qgis_api_credentials'
+            )
+        """)
+        
+        if not cursor.fetchone()[0]:
+            print("jkr_qgis_projektit.qgis_api_credentials taulua ei löydy - ohitetaan API-avainten lataus")
+            cursor.close()
+            conn.close()
+            return
+        
+        cursor.execute("""
+            SELECT auth_id, service_name, auth_type, auth_config 
+            FROM jkr_qgis_projektit.qgis_api_credentials
+            ORDER BY auth_id ASC
+        """)
+        
+        auth_manager = QgsApplication.authManager()
+        
+        if not auth_manager.masterPasswordHashInDatabase():
+            master_pw = os.getenv('QGIS_MASTER_PASSWORD', 'jatehuolto_master')
+            auth_manager.setMasterPassword(master_pw, True)
+        
+        credentials_loaded = 0
+        
+        for auth_id, service_name, auth_type, auth_config in cursor.fetchall():
+            config_data = json.loads(auth_config) if isinstance(auth_config, str) else auth_config
+            
+            auth_cfg = QgsAuthMethodConfig()
+            auth_cfg.setId(auth_id)  # TÄMÄ on se ID joka näkyy QGIS:ssä!
+            auth_cfg.setName(service_name)
+            
+            if auth_type == 'basic':
+                auth_cfg.setMethod('Basic')
+                auth_cfg.setConfig('username', config_data.get('username', ''))
+                auth_cfg.setConfig('password', config_data.get('password', ''))
+            
+            elif auth_type == 'apikey':
+                auth_cfg.setMethod('Basic')
+                auth_cfg.setConfig('username', config_data.get('key', ''))
+                auth_cfg.setConfig('password', '')
+            
+            elif auth_type == 'bearer':
+                auth_cfg.setMethod('Basic')
+                auth_cfg.setConfig('username', 'Bearer')
+                auth_cfg.setConfig('password', config_data.get('token', ''))
+            
+            # Tallenna tai päivitä
+            if auth_id in auth_manager.configIds():
+                auth_manager.updateAuthenticationConfig(auth_cfg)
+            else:
+                auth_manager.storeAuthenticationConfig(auth_cfg)
+            
+            credentials_loaded += 1
+        
+        cursor.close()
+        conn.close()
+        
+        if credentials_loaded > 0:
+            print(f"✓ Ladattiin {credentials_loaded} API-credential(ia) kannasta")
+        
+    except Exception as e:
+        print(f"Virhe API-avainten latauksessa: {e}")
+
 def openProject():
     """Ajetaan kun projekti avataan"""
     global update_timer, last_state
+    
+    # UUSI: Lataa API-avaimet ensimmäisenä
+    load_api_credentials()
     
     def update_filters():
         """Päivittää velvoitelayerit Kohteet-layerin rule-valintojen perusteella"""
@@ -41,6 +120,12 @@ def openProject():
                                 active_ids.append(id_str)
                         except:
                             pass
+
+            # Kuljetus ja kompostori layerit
+            kuljetus_kompostori_layers = {
+                'Kuljetustiedot jätelajeittain': None,
+                'Kompostointi': None # Ei kompostori rajausta
+            }
             
             # Tarkista velvoitelayereiden näkyvyys
             velvoite_layers = {
@@ -55,7 +140,7 @@ def openProject():
             
             any_velvoite_active = False
             
-            for layer_name in velvoite_layers.keys():
+            for layer_name in {**velvoite_layers, **kuljetus_kompostori_layers}.keys():
                 layers = QgsProject.instance().mapLayersByName(layer_name)
                 if layers:
                     layer = layers[0]
@@ -121,6 +206,25 @@ def openProject():
                     layer.setSubsetString(full_filter)
                     layer.triggerRepaint()
             
+            # Tarkista kuljetuslayerien näkyvyys
+            # Päivitä kompostori ja kuljetus layerit
+            for layer_name, id_range in kuljetus_kompostori_layers.items():
+                layers = QgsProject.instance().mapLayersByName(layer_name)
+                if not layers:
+                    continue
+                
+                layer = layers[0]
+                
+                if active_ids:
+                    kuljetus_komposti_filter = f'"kohdetyyppi_id" IN ({",".join(active_ids)})'
+                else:
+                    kuljetus_komposti_filter = ''
+                
+                current_filter = layer.subsetString()
+                if current_filter != kuljetus_komposti_filter:
+                    layer.setSubsetString(kuljetus_komposti_filter)
+                    layer.triggerRepaint()
+
             # Säädä Kohteet-layerin läpinäkyvyys vain jos muuttunut
             current_opacity = kohteet_layer.opacity()
             target_opacity = 0.15 if any_velvoite_active else 1.0

@@ -161,5 +161,14 @@ VALUES
         '2022-1-1',
         'Velvoiteyhteenveto biojäte puuttuu',
         2
+    ),
+    (
+        46,
+        'Velvoiteyhteenveto biojäte puuttuu',
+        'v_erilliskeraysalueet',
+        'kohteet_joilla_seka_vaara_tvali_bio_puuttuu',
+        '2022-1-1',
+        'Velvoiteyhteenveto biojäte puuttuu',
+        1
     )
 ON CONFLICT DO NOTHING;
