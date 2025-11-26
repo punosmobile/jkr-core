@@ -264,3 +264,18 @@ All notable changes to this project will be documented in this file.
 - Kompostori will now get on_kimppa value from "Kompostoria käyttää useampi asunto/rakennus" value
 - Kompostori-ilmoitus will now read column ”Kompostoria käyttävien asuinhuoneistojen lukumäärä” instead of ”Kompostoria käyttävien rakennusten lukumäärä”
 - Jätetyyppi "Aluekeräys" has been changed to "Aluekeräyspiste"
+
+## [0.7.5] - 2025-11-26
+
+### Fixed
+
+- Fixed various issues related to velvoite and velvoiteyhteenveto results
+- Fixed Report AKP column
+- Fixes to QGIS object detail views
+
+### Added
+
+- New Jätetyyppi velvoiteyhteenveto for wrong sekajäte tyhjennysvali with missing Biojäte
+- Maanmittauslaitos map layers for QGIS
+- Streetview layer for QGIS
+- Kuljetustiedot and Kompostorit layers for QGIS
