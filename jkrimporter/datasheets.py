@@ -91,6 +91,19 @@ def get_ilmoitustiedosto_headers():
     ]
 
 
+def get_liete_ilmoitustiedosto_headers():
+    return [
+        "Vastausaika",
+        "Lietteen kompostoijan yhteystiedot:Etunimi",
+        "Lietteen kompostoijan yhteystiedot:Sukunimi",
+        "Lietteen kompostoijan yhteystiedot:Postiosoite",
+        "Lietteen kompostoijan yhteystiedot:Postinumero",
+        "Tiedot kiinteistöstä, jonka liete kompostoidaan:Käsittelijän lisäämä tunniste",
+        ":Voimassa alkaen",
+        ":Voimassa asti",
+    ]
+
+
 def get_lopetustiedosto_headers():
     return [
         "Vastausaika",

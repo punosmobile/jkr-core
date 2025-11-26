@@ -34,7 +34,7 @@ from jkrimporter.providers.lahti.models import Asiakas, Jatelaji
 from jkrimporter.utils.intervals import Interval
 from jkrimporter.utils.osoite import osoite_from_parsed_address
 
-from .ilmoitustiedosto import Ilmoitustiedosto, LopetusIlmoitustiedosto
+from .ilmoitustiedosto import Ilmoitustiedosto, LopetusIlmoitustiedosto, LieteIlmoitustiedosto
 from .paatostiedosto import Paatostiedosto
 from .siirtotiedosto import LahtiSiirtotiedosto
 
@@ -501,6 +501,69 @@ class IlmoitusTranslator:
         print(data)
         return data
 
+
+class LieteIlmoitusTranslator:
+    def __init__(self, lieteIlmoitustiedosto: LieteIlmoitustiedosto):
+        self._source = lieteIlmoitustiedosto
+
+    @staticmethod
+    def _get_name(sukunimi: Optional[str], etunimi: Optional[str]) -> Optional[str]:
+        if sukunimi is not None and etunimi is not None:
+            if sukunimi != etunimi:
+                return sukunimi + " " + etunimi
+
+            return sukunimi
+        if sukunimi is not None:
+            return sukunimi
+
+        if etunimi is not None:
+            return etunimi
+
+        return None
+
+    def as_jkr_data(self):
+        grouped_data = {}
+
+        for row in self._source.ilmoitukset:
+
+            key = (
+                row.Vastausaika,
+                row.kayttaja_etunimi,
+                row.kayttaja_sukunimi,
+                row.vastuuhenkilo_postinumero,
+                row.vastuuhenkilo_osoite,
+                tuple(row.prt)
+            )
+            if key not in grouped_data:
+                grouped_data[key] = {
+                    'alkupvm': row.voimassaalkaen,
+                    'loppupvm': row.voimassaasti,
+                    'voimassa': Interval(row.voimassaalkaen, row.voimassaasti),
+                    'vastuuhenkilo': IlmoituksenHenkilo(
+                        nimi=self._get_name(
+                            row.kayttaja_etunimi,
+                            row.kayttaja_sukunimi
+                        ),
+                        postinumero=row.vastuuhenkilo_postinumero,
+                        osoite=row.vastuuhenkilo_osoite,
+                    ),
+                    'prt': row.prt,
+                    'rawdata': [row.rawdata]
+                }
+            else:
+                grouped_data[key]['kompostoijat'].append(IlmoituksenHenkilo(
+                    nimi=self._get_name(
+                        row.kayttaja_sukunimi,
+                        row.kayttaja_etunimi
+                    ),
+                    rakennus=row.prt
+                ))
+                grouped_data[key]['rawdata'].append(row.rawdata)
+
+        # Convert grouped data to list
+        data = [JkrIlmoitukset(**values) for values in grouped_data.values()]
+        print(data)
+        return data
 
 class LopetusIlmoitusTranslator:
 
