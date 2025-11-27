@@ -128,9 +128,51 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"SELECT jkr.update_vel
         "logs/kohteet/velvoitteet.log" \
         "Velvoitteiden päivitys"
 
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2025-03-11');\"" \
+# Q1 2025 tietojen tuonti (jos saatavilla)
+quarter="Q1"
+echo "=== Q1 2025 tietovirtojen tuonti ==="
+
+# LIETE-tiedot (jos saatavilla)
+if [ -f "../data/Liete/Liete_kuljetustiedot_2025$quarter.xlsx" ]; then
+    log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2025$quarter.xlsx LSJ 1.1.2025 31.3.2025" \
+            "logs/tietovirrat/2025_$quarter/liete_kuljetukset.log" \
+            "Q1 2025 LIETE-kuljetustietojen tuonti"
+fi
+
+if [ -f "../data/Liete/Paatokset_2025$quarter.xlsx" ]; then
+    log_exec "jkr import_paatokset ../data/Liete/Paatokset_2025$quarter.xlsx" \
+            "logs/tietovirrat/2025_$quarter/liete_paatokset.log" \
+            "Q1 2025 LIETE-päätösten tuonti"
+fi
+
+# Tavalliset tietovirrat (jos saatavilla)
+if [ -f "../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2025/$quarter/Paatokset_2025$quarter.xlsx" ]; then
+    log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2025/$quarter/Paatokset_2025$quarter.xlsx" \
+            "logs/tietovirrat/2025_$quarter/paatokset.log" \
+            "Q1 2025 päätösten tuonti"
+fi
+
+if [ -f "../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2025/$quarter/Kompostointi-ilmoitus_2025$quarter.xlsx" ]; then
+    log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2025/$quarter/Kompostointi-ilmoitus_2025$quarter.xlsx" \
+            "logs/tietovirrat/2025_$quarter/ilmoitukset.log" \
+            "Q1 2025 ilmoitusten tuonti"
+fi
+
+if [ -f "../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2025/$quarter/Kompostoinnin_lopettaminen_2025$quarter.xlsx" ]; then
+    log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2025/$quarter/Kompostoinnin_lopettaminen_2025$quarter.xlsx" \
+            "logs/tietovirrat/2025_$quarter/lopetusilmoitukset.log" \
+            "Q1 2025 lopetusilmoitusten tuonti"
+fi
+
+if [ -d "../data/Kuljetustiedot/Kuljetustiedot_2025/$quarter" ]; then
+    log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2025/$quarter LSJ 1.1.2025 31.3.2025" \
+            "logs/tietovirrat/2025_$quarter/kuljetukset.log" \
+            "Q1 2025 kuljetustietojen tuonti"
+fi
+
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2025-03-31');\"" \
         "logs/tietovirrat/2025_$quarter/velvoitteet.log" \
-        "Q4 velvoitteiden tallennus"
+        "Q1 2025 velvoitteiden tallennus"
 
 # Lopetusaika ja keston laskeminen
 END_TIME=$(date +%s)

@@ -29,6 +29,11 @@ def process_directory(dir_path: Path, cipher: Cipher, pseudo_fields: set[str], d
     try:
         # Recursively iterate through all files in directory and subdirectories
         for file_path in dir_path.rglob('*'):
+            # Ohita Excel-väliaikaiset lukitustiedostot (alkavat ~$)
+            if file_path.name.startswith('~$'):
+                print(f"Ohitetaan Excel-väliaikaistiedosto: {file_path}")
+                continue
+            
             if file_path.is_file() and file_path.suffix.lower() in ['.xlsx', '.xls']:
                 process_excel(file_path, cipher, pseudo_fields, de_crypt, output_suffix)
             elif file_path.is_file() and file_path.suffix.lower() == '.csv':

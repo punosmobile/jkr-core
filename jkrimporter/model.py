@@ -167,6 +167,7 @@ class Tyhjennystapahtuma:
     tyhjennyskerrat: int
     tilavuus: Optional[int]
     massa: Optional[int] = None
+    lietteentyhjennyspaiva: Optional[date] = None  # LIETE-aineisto: erillinen tyhjennyspäivä
 
 
 class SopimusTyyppi(str, Enum):
