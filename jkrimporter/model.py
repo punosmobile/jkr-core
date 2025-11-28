@@ -123,24 +123,20 @@ class Jatelaji(str, Enum):
 class KeraysvalineTyyppi(str, Enum):
     PINTA = "PINTA"                    # 1
     SYVA = "SYVÄ"                      # 2
-    SAKO = "SAKO"                      # 3
-    UMPI = "UMPI"                      # 4
+    SAOSTUSSAILIO = "Saostussäiliö"    # 3 (uudelleennimetty: oli "SAKO")
+    UMPISAILIO = "Umpisäiliö"          # 4 (uudelleennimetty: oli "UMPI")
     RULLAKKO = "RULLAKKO"              # 5
     SAILIO = "SÄILIÖ"                  # 6
-    PIENPUHDISTAMO = "PIENPUHDISTAMO"  # 7
+    PIENPUHDISTAMO = "Pienpuhdistamo"  # 7 (uudelleennimetty: oli "PIENPUHDISTAMO")
     PIKAKONTTI = "PIKAKONTTI"          # 8
     NOSTOKONTTI = "NOSTOKONTTI"        # 9
     VAIHTOLAVA = "VAIHTOLAVA"          # 10
     JATESAKKI = "JÄTESÄKKI"            # 11
     PURISTINSAILIO = "PURISTINSÄILIÖ"  # 12
-    PURISTIN = "PURISTIN"              # 13 (oli tyhjä)
+    PURISTIN = "PURISTIN"              # 13
     VAIHTOLAVASAILIO = "VAIHTOLAVASÄILIÖ"  # 14
     PAALI = "PAALI"                    # 15
     MONILOKERO = "MONILOKERO"          # 16
-    # LIETE-määrittelyn mukaiset säiliötyypit (lisätty ennen 99):
-    UMPISAILIO = "Umpisäiliö"          # 17
-    SAOSTUSSAILIO = "Saostussäiliö"    # 18
-    LIETE_PIENPUHDISTAMO = "Pienpuhdistamo"  # 19
     MUU = "Muu"                        # 99
 
 
