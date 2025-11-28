@@ -24,6 +24,7 @@ from jkrimporter.utils.ilmoitus import (
     export_kohdentumattomat_lopetusilmoitukset
 )
 from jkrimporter.utils.intervals import IntervalCounter
+from jkrimporter.utils.liete import export_kohdentumattomat_liete_kuljetukset
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
 
@@ -144,6 +145,7 @@ def insert_kuljetukset(
                 massa=massa,
                 tilavuus=tyhjennys.tilavuus,
                 tiedontuottaja=urakoitsija,
+                lietteentyhjennyspaiva=tyhjennys.lietteentyhjennyspaiva,
             )
             session.add(db_kuljetus)
 
@@ -471,10 +473,34 @@ class DbProvider:
 
                 if kohdentumattomat:
                     kohdentumattomatRivit = 0
+                    csv_path = None
+                    
                     for kohdentumaton in kohdentumattomat:
 
                         # Rebuild rows to insert into the error .csv
                         rows = []
+                        
+                        # Tarkista onko ulkoinen_asiakastieto dict vai LIETE-data
+                        ulkoinen = kohdentumaton["ulkoinen_asiakastieto"]
+                        if isinstance(ulkoinen, dict):
+                            # Dict-muotoinen data
+                            # Ohitetaan kohdentumattomien tallennus, koska rakenne on erilainen
+                            logger.warning(
+                                f"Ohitetaan kohdentumattoman tiedon tallennus: "
+                                f"ulkoinen_asiakastieto on dict-muodossa"
+                            )
+                            continue
+                        
+                        # Tarkista onko Lahden siirtotiedoston rivi (jolla on kaynnit-attribuutti)
+                        if not hasattr(ulkoinen, 'kaynnit'):
+                            # LIETE-data tai muu data jolla ei ole kaynnit-attribuuttia
+                            logger.warning(
+                                f"Ohitetaan kohdentumattoman tiedon tallennus: "
+                                f"ulkoinen_asiakastieto ei ole Lahden siirtotiedoston rivi "
+                                f"(tyyppi: {type(ulkoinen).__name__})"
+                            )
+                            continue
+                        
                         for ii, _ in enumerate(
                             kohdentumaton["ulkoinen_asiakastieto"].kaynnit
                         ):
@@ -623,7 +649,19 @@ class DbProvider:
                                 kohdentumattomatRivit = kohdentumattomatRivit + 1
                                 csv_writer.writerow(rd)
 
-                    print(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
+                    if csv_path and kohdentumattomatRivit > 0:
+                        print(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
+                    elif kohdentumattomatRivit == 0 and kohdentumattomat:
+                        # LIETE-data tai muu data jota ei voitu tallentaa Lahden muodossa
+                        print(f"Kohdentumattomia tietoja ({len(kohdentumattomat)}) kpl, tallennetaan erilliseen tiedostoon")
+                        try:
+                            # Käytä siirtotiedoston hakemistoa, ei tiedostoa itseään
+                            output_dir = os.path.dirname(str(siirtotiedosto)) if siirtotiedosto else "."
+                            export_kohdentumattomat_liete_kuljetukset(
+                                output_dir, kohdentumattomat
+                            )
+                        except Exception as export_error:
+                            logger.exception(f"LIETE-kohdentumattomien tallennus epäonnistui: {export_error}")
                 else:
                     print("Ei kohdentumattomia tietoja.")
 

@@ -175,6 +175,17 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"SELECT jkr.update_vel
 
 # Q1 2024 tietojen tuonti
 quarter="Q1"
+
+# LIETE-tiedot ensin (perustiedot)
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2024$quarter.xlsx LSJ 1.1.2024 31.3.2024" \
+        "logs/tietovirrat/2024_$quarter/liete_kuljetukset.log" \
+        "Q1 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_paatokset ../data/Liete/Paatokset_2024$quarter.xlsx" \
+        "logs/tietovirrat/2024_$quarter/liete_paatokset.log" \
+        "Q1 LIETE-päätösten tuonti"
+
+# Tavalliset päätökset ja ilmoitukset
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q1 päätösten tuonti"
@@ -197,6 +208,17 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_v
 
 # Q2 2024 tietojen tuonti
 quarter="Q2"
+
+# LIETE-tiedot ensin (perustiedot)
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2024$quarter.xlsx LSJ 1.4.2024 30.6.2024" \
+        "logs/tietovirrat/2024_$quarter/liete_kuljetukset.log" \
+        "Q2 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_paatokset ../data/Liete/Paatokset_2024$quarter.xlsx" \
+        "logs/tietovirrat/2024_$quarter/liete_paatokset.log" \
+        "Q2 LIETE-päätösten tuonti"
+
+# Tavalliset päätökset ja ilmoitukset
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
         "Q2 päätösten tuonti"

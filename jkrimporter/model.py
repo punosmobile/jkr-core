@@ -102,41 +102,42 @@ class Tunnus(NamedTuple):
 
 
 class Jatelaji(str, Enum):
-    sekajate = "Sekajäte"
-    bio = "Biojäte"
-    lasi = "Lasi"
-    paperi = "Paperi"
-    kartonki = "Kartonki"
-    muovi = "Muovi"
-    metalli = "Metalli"
-    liete = "Liete"
-    harmaaliete = "Harmaaliete"
-    mustaliete = "Mustaliete"
-    pahvi = "Pahvi"
-    energia = "Energia"
-    aluekerays = "Aluekeräyspiste"
-    monilokero = "Monilokero"
-    muu = "Muu"
+    bio = "Biojäte"                    # 1
+    sekajate = "Sekajäte"              # 2
+    kartonki = "Kartonki"              # 3
+    lasi = "Lasi"                      # 4
+    liete = "Liete"                    # 5
+    mustaliete = "Musta liete"         # 6
+    harmaaliete = "Harmaa liete"       # 7
+    metalli = "Metalli"                # 8
+    muovi = "Muovi"                    # 9
+    pahvi = "Pahvi"                    # 10
+    paperi = "Paperi"                  # 11
+    perusmaksu = "Perusmaksu"          # 12
+    energia = "Energia"                # 13
+    aluekerays = "Aluekeräyspiste"     # 14
+    monilokero = "Monilokero"          # 15
+    muu = "Muu"                        # 99
 
 
 class KeraysvalineTyyppi(str, Enum):
-    PINTA = "PINTA"
-    SYVA = "SYVÄ"
-    SAKO = "SAKO"
-    UMPI = "UMPI"
-    RULLAKKO = "RULLAKKO"
-    SAILIO = "SÄILIÖ"
-    PIENPUHDISTAMO = "PIENPUHDISTAMO"
-    PIKAKONTTI = "PIKAKONTTI"
-    NOSTOKONTTI = "NOSTOKONTTI"
-    VAIHTOLAVA = "VAIHTOLAVA"
-    JATESAKKI = "JÄTESÄKKI"
-    PURISTINSAILIO = "PURISTINSÄILIÖ"
-    PURISTIN = "PURISTIN"
-    VAIHTOLAVASAILIO = "VAIHTOLAVASÄILIÖ"
-    PAALI = "PAALI"
-    MONILOKERO = "MONILOKERO"
-    MUU = "Muu"
+    PINTA = "PINTA"                    # 1
+    SYVA = "SYVÄ"                      # 2
+    SAOSTUSSAILIO = "Saostussäiliö"    # 3 (uudelleennimetty: oli "SAKO")
+    UMPISAILIO = "Umpisäiliö"          # 4 (uudelleennimetty: oli "UMPI")
+    RULLAKKO = "RULLAKKO"              # 5
+    SAILIO = "SÄILIÖ"                  # 6
+    PIENPUHDISTAMO = "Pienpuhdistamo"  # 7 (uudelleennimetty: oli "PIENPUHDISTAMO")
+    PIKAKONTTI = "PIKAKONTTI"          # 8
+    NOSTOKONTTI = "NOSTOKONTTI"        # 9
+    VAIHTOLAVA = "VAIHTOLAVA"          # 10
+    JATESAKKI = "JÄTESÄKKI"            # 11
+    PURISTINSAILIO = "PURISTINSÄILIÖ"  # 12
+    PURISTIN = "PURISTIN"              # 13
+    VAIHTOLAVASAILIO = "VAIHTOLAVASÄILIÖ"  # 14
+    PAALI = "PAALI"                    # 15
+    MONILOKERO = "MONILOKERO"          # 16
+    MUU = "Muu"                        # 99
 
 
 class Keskeytys(NamedTuple):
@@ -167,6 +168,7 @@ class Tyhjennystapahtuma:
     tyhjennyskerrat: int
     tilavuus: Optional[int]
     massa: Optional[int] = None
+    lietteentyhjennyspaiva: Optional[date] = None  # LIETE-aineisto: erillinen tyhjennyspäivä
 
 
 class SopimusTyyppi(str, Enum):

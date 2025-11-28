@@ -35,6 +35,8 @@ from jkrimporter.providers.lahti.ilmoitustiedosto import (
 )
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
+from jkrimporter.providers.lahti.liete_kuljetustiedosto import LieteKuljetustiedosto
+from jkrimporter.providers.lahti.liete_translator import LieteTranslator
 from jkrimporter.providers.nokia.nokiaprovider import NokiaTranslator
 from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
@@ -210,6 +212,60 @@ def import_lopetusilmoitukset(
     db = DbProvider()
     db.write_lopetusilmoitukset(lopetusilmoitus_data, siirtotiedosto)
 
+    print("VALMIS!")
+
+
+@app.command("import_liete", help="Import LIETE transportation data to JKR.")
+def import_liete(
+    siirtotiedosto: Path = typer.Argument(..., help="LIETE-kuljetustiedoston sijainti (Excel)"),
+    tiedontuottajatunnus: str = typer.Argument(..., help="Tiedon toimittajan tunnus. Esim. 'LSJ'"),
+    alkupvm: str = typer.Argument(None, help="Importoitavan datan alkupvm (esim. 1.1.2024)"),
+    loppupvm: str = typer.Argument(None, help="Importoitavan datan loppupvm (esim. 31.3.2024)"),
+):
+    """
+    Tuo LIETE-rekisterin kuljetustiedot JKR-järjestelmään.
+    
+    LIETE-kuljetustiedot sisältävät:
+    - Kuljetustapahtumat (siirron alkamis- ja päättymisajat)
+    - Jätteen tuottajan tiedot
+    - Pysyvän rakennustunnuksen (PRT) kohdentamiseen
+    - Kuljettajan ja vastaanottajan tiedot
+    - Jätteen määrän ja tyypin
+    """
+    ala_paivita_yhteystietoja = False
+    ala_paivita_kohdetta = True
+    
+    # Tarkista että tiedontuottaja on olemassa
+    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
+    if not tiedontuottaja:
+        typer.echo(
+            f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
+            f"Lisää komennolla `jkr tiedontuottaja add`"
+        )
+        raise typer.Exit()
+    
+    # Parsii päivämäärät
+    if alkupvm:
+        alkupvm = parse_date_string(alkupvm)
+    if loppupvm:
+        loppupvm = parse_date_string(loppupvm)
+    
+    print(f"Luetaan LIETE-kuljetustiedot: {siirtotiedosto}")
+    print(f"Kausi: {alkupvm} - {loppupvm}")
+    
+    # Lue LIETE-tiedosto
+    liete_tiedosto = LieteKuljetustiedosto(siirtotiedosto)
+    
+    # Käännä JKR-muotoon
+    translator = LieteTranslator(liete_tiedosto, tiedontuottajatunnus)
+    jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
+    
+    print(f"Kirjoitetaan tietokantaan...")
+    
+    # Kirjoita tietokantaan
+    db = DbProvider()
+    db.write(jkr_data, tiedontuottajatunnus, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
+    
     print("VALMIS!")
 
 
