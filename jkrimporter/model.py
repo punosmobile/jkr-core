@@ -102,41 +102,46 @@ class Tunnus(NamedTuple):
 
 
 class Jatelaji(str, Enum):
-    sekajate = "Sekajäte"
-    bio = "Biojäte"
-    lasi = "Lasi"
-    paperi = "Paperi"
-    kartonki = "Kartonki"
-    muovi = "Muovi"
-    metalli = "Metalli"
-    liete = "Liete"
-    harmaaliete = "Harmaaliete"
-    mustaliete = "Mustaliete"
-    pahvi = "Pahvi"
-    energia = "Energia"
-    aluekerays = "Aluekeräyspiste"
-    monilokero = "Monilokero"
-    muu = "Muu"
+    bio = "Biojäte"                    # 1
+    sekajate = "Sekajäte"              # 2
+    kartonki = "Kartonki"              # 3
+    lasi = "Lasi"                      # 4
+    liete = "Liete"                    # 5
+    mustaliete = "Musta liete"         # 6
+    harmaaliete = "Harmaa liete"       # 7
+    metalli = "Metalli"                # 8
+    muovi = "Muovi"                    # 9
+    pahvi = "Pahvi"                    # 10
+    paperi = "Paperi"                  # 11
+    perusmaksu = "Perusmaksu"          # 12
+    energia = "Energia"                # 13
+    aluekerays = "Aluekeräyspiste"     # 14
+    monilokero = "Monilokero"          # 15
+    muu = "Muu"                        # 99
 
 
 class KeraysvalineTyyppi(str, Enum):
-    PINTA = "PINTA"
-    SYVA = "SYVÄ"
-    SAKO = "SAKO"
-    UMPI = "UMPI"
-    RULLAKKO = "RULLAKKO"
-    SAILIO = "SÄILIÖ"
-    PIENPUHDISTAMO = "PIENPUHDISTAMO"
-    PIKAKONTTI = "PIKAKONTTI"
-    NOSTOKONTTI = "NOSTOKONTTI"
-    VAIHTOLAVA = "VAIHTOLAVA"
-    JATESAKKI = "JÄTESÄKKI"
-    PURISTINSAILIO = "PURISTINSÄILIÖ"
-    PURISTIN = "PURISTIN"
-    VAIHTOLAVASAILIO = "VAIHTOLAVASÄILIÖ"
-    PAALI = "PAALI"
-    MONILOKERO = "MONILOKERO"
-    MUU = "Muu"
+    PINTA = "PINTA"                    # 1
+    SYVA = "SYVÄ"                      # 2
+    SAKO = "SAKO"                      # 3
+    UMPI = "UMPI"                      # 4
+    RULLAKKO = "RULLAKKO"              # 5
+    SAILIO = "SÄILIÖ"                  # 6
+    PIENPUHDISTAMO = "PIENPUHDISTAMO"  # 7
+    PIKAKONTTI = "PIKAKONTTI"          # 8
+    NOSTOKONTTI = "NOSTOKONTTI"        # 9
+    VAIHTOLAVA = "VAIHTOLAVA"          # 10
+    JATESAKKI = "JÄTESÄKKI"            # 11
+    PURISTINSAILIO = "PURISTINSÄILIÖ"  # 12
+    PURISTIN = "PURISTIN"              # 13 (oli tyhjä)
+    VAIHTOLAVASAILIO = "VAIHTOLAVASÄILIÖ"  # 14
+    PAALI = "PAALI"                    # 15
+    MONILOKERO = "MONILOKERO"          # 16
+    # LIETE-määrittelyn mukaiset säiliötyypit (lisätty ennen 99):
+    UMPISAILIO = "Umpisäiliö"          # 17
+    SAOSTUSSAILIO = "Saostussäiliö"    # 18
+    LIETE_PIENPUHDISTAMO = "Pienpuhdistamo"  # 19
+    MUU = "Muu"                        # 99
 
 
 class Keskeytys(NamedTuple):

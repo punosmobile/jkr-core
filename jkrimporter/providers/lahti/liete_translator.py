@@ -25,11 +25,18 @@ logger = logging.getLogger(__name__)
 
 
 # Kartoitus LIETE-jätetyypeistä JKR-jätelajeihin
+# Määrittely 17.11.2025
+# Huom: "Jätteen kuvaus" (Umpisäiliö, Saostussäiliö, Pienpuhdistamo) on keräysvälinetyyppi, ei jätelaji
 LIETE_JATELAJI_MAP = {
+    # Lietteen tyyppi (jätetyyppi) -> Jätelaji:
+    "Musta": JkrJatelaji.mustaliete,
+    "Harmaa": JkrJatelaji.harmaaliete,
+    "Ei tietoa": JkrJatelaji.liete,  # Fallback yleiseen lietteeseen
+    
+    # Vanhat nimitykset (yhteensopivuus):
     "Liete": JkrJatelaji.liete,
     "Musta liete": JkrJatelaji.mustaliete,
     "Harmaa liete": JkrJatelaji.harmaaliete,
-    # Lisää tarvittaessa muita kartoituksia
 }
 
 
@@ -281,23 +288,21 @@ class LieteTranslator:
         """
         Kartoittaa LIETE-jätetyypin JKR-jätelajiksi.
         
+        Määrittelyn mukaan (17.11.2025):
+        - Jätelaji määräytyy "Lietteen tyyppi" -kentästä (Musta, Harmaa, Ei tietoa)
+        - "Jätteen kuvaus" (Umpisäiliö, Saostussäiliö, Pienpuhdistamo) on keräysvälinetyyppi
+        
         Args:
             kuljetus_row: LIETE-kuljetusrivi
             
         Returns:
-            JkrJatelaji tai None
+            JkrJatelaji
         """
-        # Yritä ensin lietteen tyyppiä
+        # Käytä lietteen tyyppiä jätelajin määrittämiseen
         if kuljetus_row.lietteen_tyyppi:
             jatelaji = LIETE_JATELAJI_MAP.get(kuljetus_row.lietteen_tyyppi)
             if jatelaji:
                 return jatelaji
         
-        # Sitten jätteen kuvausta
-        if kuljetus_row.jatteen_kuvaus:
-            jatelaji = LIETE_JATELAJI_MAP.get(kuljetus_row.jatteen_kuvaus)
-            if jatelaji:
-                return jatelaji
-        
-        # Oletus: liete
+        # Oletus: yleinen liete
         return JkrJatelaji.liete
