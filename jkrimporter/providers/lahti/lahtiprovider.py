@@ -546,7 +546,13 @@ class LieteIlmoitusTranslator:
                         ),
                         postinumero=row.vastuuhenkilo_postinumero,
                         osoite=row.vastuuhenkilo_osoite,
+                        rakennus=row.prt,
                     ),
+                    'kompostoijat': None,
+                    'sijainti_prt': None,
+                    'onko_kimppa': None,
+                    'tiedontuottaja': "ilmoitus",
+                    'pienpuhdistamo_alkupwm': row.Vastausaika,
                     'prt': row.prt,
                     'rawdata': [row.rawdata]
                 }

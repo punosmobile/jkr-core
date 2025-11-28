@@ -13,6 +13,7 @@ from jkrimporter.datasheets import (
 from jkrimporter.providers.lahti.models import Ilmoitus, LieteIlmoitus, LopetusIlmoitus
 from jkrimporter.utils.ilmoitus import (
     export_kohdentumattomat_ilmoitukset,
+    export_kohdentumattomat_lieteIlmoitukset,
     export_kohdentumattomat_lopetusilmoitukset,
 )
 
@@ -116,16 +117,16 @@ class LieteIlmoitustiedosto:
             try:
                 headerstrings = [str(header) for header in headers]
                 data = dict(zip(headerstrings, row))
-                ilmoitus_obj = LieteIlmoitus.model_validate(data)
+                ilmoitus_obj = LieteIlmoitus.parse_obj(data)
                 ilmoitus_obj.rawdata = data
                 ilmoitus_list.append(ilmoitus_obj)
             except ValidationError as e:
                 logger.warning(
-                    f"Ilmoitus-olion luonti epäonnistui datalla: {row}. Virhe: {e}"
+                    f"Liete ilmoitus-olion luonti epäonnistui datalla: {row}. Virhe: {e}"
                 )
                 failed_validations.append(data)
 
-        export_kohdentumattomat_ilmoitukset(
+        export_kohdentumattomat_lieteIlmoitukset(
             os.path.dirname(self._path), failed_validations
         )
 

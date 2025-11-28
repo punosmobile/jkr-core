@@ -256,7 +256,7 @@ def add_ulkoinen_asiakastieto_for_kohde(
 
 def find_kohde_by_prt(
     session: "Session", 
-    asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus]"
+    asiakas: "Union[Asiakas, JkrIlmoitukset, LopetusIlmoitus, LieteIlmoitus]"
 ) -> "Union[Kohde, None]":
     """
     Finds a kohde based on PRT identifiers from different source types.
@@ -299,7 +299,14 @@ def find_kohteet_by_prt(
     found_kohteet = []
     not_found_prts = []
 
-    for kompostoija in asiakas.kompostoijat:
+    kompostoijat = asiakas.kompostoijat
+    if not kompostoijat:
+
+        # If no kompostoija exists, it is likely a liete ilmoitus. Use vastuuhenkilo as kompostoija.
+        kompostoijat = [asiakas.vastuuhenkilo]
+
+    for kompostoija in kompostoijat:
+        print(kompostoija)
         kompostoija_info = f"Nimi: {kompostoija.nimi}, Rakennus: {kompostoija.rakennus}"
         print(f"Kompostoija: {kompostoija_info}")
         query = (

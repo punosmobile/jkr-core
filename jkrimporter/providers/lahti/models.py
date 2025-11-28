@@ -4,7 +4,7 @@ from datetime import date
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, ValidationError, root_validator, model_validator, validator, field_validator
+from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
 from jkrimporter.model import Paatostulos, Tapahtumalaji
 
@@ -589,19 +589,20 @@ class LieteIlmoitus(BaseModel):
     # Store the original row.
     rawdata: Optional[Dict[str, str]]
 
-    @field_validator("Vastausaika", mode='before')
-    def parse_vastausaika(value: Union[date, str]) -> Union[date, str]:
+    @validator("Vastausaika", pre=True)
+    def parse_vastausaika(value: Union[date, str]):
         if isinstance(value, str) and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
 
-    @field_validator("vastuuhenkilo_postinumero", mode='before')
+    @validator("vastuuhenkilo_postinumero", pre=True)
     def add_zeros(value: str):
-        if len(value) < 5:
-            return "0" * (5 - len(value)) + value
+        print()
+        if len(str(value)) < 5:
+            return "0" * (5 - len(str(value))) + value
         return value
     
-    @field_validator("voimassaalkaen", mode='before')
+    @validator("voimassaalkaen", pre=True)
     def parse_voimassaalkaen(value: Union[date, str]):
         if isinstance(value, str):
             try:
@@ -614,7 +615,7 @@ class LieteIlmoitus(BaseModel):
             return reformatted_date
         return value
 
-    @field_validator("voimassaasti", mode='before')
+    @validator("voimassaasti", pre=True)
     def parse_voimassaasti(value: Union[date, str]):
         if isinstance(value, str):
             try:
@@ -627,13 +628,13 @@ class LieteIlmoitus(BaseModel):
             return reformatted_date
         return value
 
-    @field_validator('prt', mode='before')
+    @validator('prt', pre=True)
     def parse_prts(value: str):
         if isinstance(value, str):
             return value.split(',')
         return [value]
 
-    @model_validator(mode='after')
+    @root_validator()
     def check_vastuuhenkilo_names(cls, values):
         etunimi = values.get('kayttaja_etunimi')
         sukunimi = values.get('kayttaja_sukunimi')
@@ -643,7 +644,7 @@ class LieteIlmoitus(BaseModel):
             )
         return values
 
-    @model_validator(mode='after')
+    @root_validator()
     def validate_dates(cls, values):
         voimassaalkaen = values.get("Vastausaika")
         voimassaasti = values.get("voimassaasti")
