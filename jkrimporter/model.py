@@ -295,6 +295,7 @@ class JkrIlmoitukset:
     kompostoijat: List[IlmoituksenHenkilo]
     pienpuhdistamo_alkupwm: date
     onko_kimppa: str
+    onko_liete: bool
     tiedontuottaja: str
     sijainti_prt: List[str]
     prt: List[str]

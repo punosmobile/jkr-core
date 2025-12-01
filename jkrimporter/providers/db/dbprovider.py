@@ -799,7 +799,8 @@ class DbProvider:
                             Kompostori.alkupvm == ilmoitus.alkupvm,
                             Kompostori.loppupvm == ilmoitus.loppupvm,
                             Kompostori.osoite_id == osoite_id,
-                            Kompostori.osapuoli_id == osapuoli.id
+                            Kompostori.osapuoli_id == osapuoli.id,
+                            Kompostori.onko_liete is True,
                         ).first()
                         if existing_kompostori:
                             print("Vastaava liete kompostori löydetty, ohitetaan luonti...")
@@ -814,6 +815,7 @@ class DbProvider:
                                 alkupvm=ilmoitus.alkupvm,
                                 loppupvm=ilmoitus.loppupvm,
                                 osoite_id=osoite_id,
+                                onko_liete=True,
                                 osapuoli=osapuoli,
                             )
                             session.add(komposti)
@@ -852,7 +854,7 @@ class DbProvider:
                                 ).first()
 
                                 if existing_keraysvaline:
-                                    print(f"Kohteelle {kohde.id} on jo PIENPUHDISTAMO, ohitetaan luonti...")
+                                    print(f"Kohteella {kohde.id} on jo PIENPUHDISTAMO, ohitetaan luonti...")
                                     continue
 
                                 db_keraysvaline = Keraysvaline(
@@ -860,6 +862,7 @@ class DbProvider:
                                     keraysvalinetyyppi=keraysvaline_id,
                                     tilavuus=0,
                                     maara=0,
+                                    kohde_id=kohde.id,
                                 )
                                 print(f"Kohteelle {kohde.id} lisätty PIENPUHDISTAMO")
 

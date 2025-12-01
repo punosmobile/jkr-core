@@ -172,6 +172,10 @@ log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q1 ilmoitusten tuonti"
 
+log_exec "jkr import_liete_ilmoitukset ../data/Liete/Lietteen_kompostointi_2023$quarter.xlsx" \
+        "logs/tietovirrat/2024_$quarter/liete_ilmoitukset.log" \
+        "Q1 Liete ilmoitusten tuonti"
+
 log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostoinnin_lopettaminen_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/lopetusilmoitukset.log" \
         "Q1 lopetusilmoitusten tuonti"
@@ -215,6 +219,10 @@ log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_j
 log_exec "jkr import_ilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostointi-ilmoitus_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/ilmoitukset.log" \
         "Q3 ilmoitusten tuonti"
+
+log_exec "jkr import_liete_ilmoitukset ../data/Liete/Lietteen_kompostointi_2023$quarter.xlsx" \
+        "logs/tietovirrat/2024_$quarter/liete_ilmoitukset.log" \
+        "Q3 Liete ilmoitusten tuonti"
 
 log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Kompostoinnin_lopettaminen_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/lopetusilmoitukset.log" \

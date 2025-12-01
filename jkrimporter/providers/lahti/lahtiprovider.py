@@ -484,6 +484,8 @@ class IlmoitusTranslator:
                     'prt': row.prt,
                     'sijainti_prt': row.sijainti_prt,
                     'tiedontuottaja': "ilmoitus",
+                    'pienpuhdistamo_alkupwm': None,
+                    'onko_liete': False,
                     'rawdata': [row.rawdata]
                 }
             else:
@@ -551,6 +553,7 @@ class LieteIlmoitusTranslator:
                     'kompostoijat': None,
                     'sijainti_prt': None,
                     'onko_kimppa': None,
+                    'onko_liete': True,
                     'tiedontuottaja': "ilmoitus",
                     'pienpuhdistamo_alkupwm': row.Vastausaika,
                     'prt': row.prt,
