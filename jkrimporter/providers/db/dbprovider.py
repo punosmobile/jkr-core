@@ -26,6 +26,10 @@ from jkrimporter.utils.ilmoitus import (
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.liete import export_kohdentumattomat_liete_kuljetukset
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
+from jkrimporter.utils.kaivotieto import (
+    export_kohdentumattomat_kaivotiedot,
+    export_kohdentumattomat_kaivotiedon_lopetukset,
+)
 from jkrimporter.utils.progress import Progress
 
 from . import codes
@@ -67,6 +71,13 @@ from .services.kohde import (
     remove_buildings_from_kohde,
     update_kohde,
     update_ulkoinen_asiakastieto,
+)
+from .services.kaivotieto import (
+    find_kohde_by_single_prt,
+    find_existing_kaivotieto_by_type,
+    get_kaivotietotyyppi_id,
+    insert_kaivotieto,
+    update_kaivotieto_loppupvm,
 )
 from .services.osapuoli import (
     create_or_update_haltija_osapuoli,
@@ -911,4 +922,191 @@ class DbProvider:
             )
             export_kohdentumattomat_paatokset(
                 os.path.dirname(paatostiedosto), kohdentumattomat
+            )
+
+    def write_kaivotiedot(
+        self,
+        kaivotiedot_list,
+        tiedontuottaja_tunnus: str,
+        kaivotiedosto_path: Path,
+    ):
+        """
+        Tuo kaivotiedot (aloitus) JKR-järjestelmään.
+        
+        LAH-415: Kaivotiedot ja kaivotiedon lopetus tietojen vienti kantaan.
+        
+        Määrittelyn mukaan:
+        - Kohdentaminen PRT:llä kohteelle
+        - Jos kohteella on jo sama tieto, sitä ei viedä päälle ja se jää kohdentumatta
+        - Vastausaika -> alkupvm
+        - Yksi rivi voi sisältää useita kaivotietotyyppejä
+        
+        Args:
+            kaivotiedot_list: Lista KaivotiedotRow-objekteista
+            tiedontuottaja_tunnus: Tiedontuottajan tunnus
+            kaivotiedosto_path: Polku alkuperäiseen tiedostoon (virheraporttia varten)
+        """
+        kohdentumattomat = []
+        inserted_count = 0
+        skipped_existing_count = 0
+        skipped_no_kohde_count = 0
+        
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print(f"Importoidaan kaivotiedot ({len(kaivotiedot_list)} riviä)")
+                
+                for row in kaivotiedot_list:
+                    # Etsi kohde PRT:n perusteella
+                    kohde = find_kohde_by_single_prt(session, row.prt)
+                    
+                    if not kohde:
+                        logger.warning(f"Kohdetta ei löytynyt PRT:llä {row.prt}")
+                        skipped_no_kohde_count += 1
+                        if row.rawdata:
+                            kohdentumattomat.append(row.rawdata)
+                        continue
+                    
+                    # Käsittele jokainen kaivotietotyyppi erikseen
+                    kaivotietotyypit = row.get_kaivotietotyypit()
+                    
+                    if not kaivotietotyypit:
+                        logger.warning(f"Rivillä PRT {row.prt} ei ole yhtään kaivotietotyyppiä valittuna")
+                        continue
+                    
+                    row_has_uninserted = False
+                    
+                    for tyyppi in kaivotietotyypit:
+                        # Tarkista onko jo olemassa (millään alkupvm:llä)
+                        tyyppi_id = get_kaivotietotyyppi_id(tyyppi)
+                        if find_existing_kaivotieto_by_type(session, kohde.id, tyyppi_id):
+                            logger.info(
+                                f"Kaivotieto {tyyppi.value} on jo olemassa kohteella {kohde.id}, "
+                                f"ohitetaan (ei viedä päälle)"
+                            )
+                            skipped_existing_count += 1
+                            row_has_uninserted = True
+                            continue
+                        
+                        # Lisää kaivotieto
+                        success, msg = insert_kaivotieto(
+                            session,
+                            kohde.id,
+                            tyyppi,
+                            row.vastausaika,
+                            row.tietolahde,
+                            tiedontuottaja_tunnus
+                        )
+                        
+                        if success:
+                            inserted_count += 1
+                            logger.info(msg)
+                        else:
+                            logger.warning(msg)
+                            row_has_uninserted = True
+                    
+                    # Jos rivillä oli kaivotietoja joita ei voitu lisätä, 
+                    # EI lisätä virheraporttiin (määrittelyn mukaan)
+                    # Virheraporttiin vain ne joita ei voitu kohdentaa
+                
+                session.commit()
+                
+        except Exception as e:
+            logger.exception(e)
+        
+        # Yhteenveto
+        print(f"\nKaivotietojen tuonti valmis:")
+        print(f"  - Lisätty: {inserted_count}")
+        print(f"  - Ohitettu (jo olemassa): {skipped_existing_count}")
+        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
+        
+        if kohdentumattomat:
+            print(f"\nTallennetaan kohdentumattomat kaivotiedot ({len(kohdentumattomat)}) tiedostoon")
+            export_kohdentumattomat_kaivotiedot(
+                os.path.dirname(kaivotiedosto_path), kohdentumattomat
+            )
+
+    def write_kaivotiedon_lopetukset(
+        self,
+        lopetukset_list,
+        tiedontuottaja_tunnus: str,
+        lopetustiedosto_path: Path,
+    ):
+        """
+        Tuo kaivotiedon lopetukset JKR-järjestelmään.
+        
+        LAH-415: Kaivotiedot ja kaivotiedon lopetus tietojen vienti kantaan.
+        
+        Määrittelyn mukaan:
+        - Lopetus edellyttää että samalla kohteella on vastaava tieto alkanut
+        - Tieto kohdennetaan PRT:llä kohteelle
+        - Mikäli kohteella on useita samoja alkaneita kaivotietoja, 
+          lopetuspäivämäärä lopettaa kaikki vastaavat samannimiset kaivotiedot
+        
+        Args:
+            lopetukset_list: Lista KaivotiedonLopetusRow-objekteista
+            tiedontuottaja_tunnus: Tiedontuottajan tunnus
+            lopetustiedosto_path: Polku alkuperäiseen tiedostoon (virheraporttia varten)
+        """
+        kohdentumattomat = []
+        updated_count = 0
+        skipped_no_kohde_count = 0
+        skipped_no_kaivotieto_count = 0
+        
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print(f"Importoidaan kaivotiedon lopetukset ({len(lopetukset_list)} riviä)")
+                
+                for row in lopetukset_list:
+                    # Etsi kohde PRT:n perusteella
+                    kohde = find_kohde_by_single_prt(session, row.prt)
+                    
+                    if not kohde:
+                        logger.warning(f"Kohdetta ei löytynyt PRT:llä {row.prt}")
+                        skipped_no_kohde_count += 1
+                        if row.rawdata:
+                            kohdentumattomat.append(row.rawdata)
+                        continue
+                    
+                    # Käsittele jokainen kaivotietotyyppi erikseen
+                    kaivotietotyypit = row.get_kaivotietotyypit()
+                    
+                    if not kaivotietotyypit:
+                        logger.warning(f"Rivillä PRT {row.prt} ei ole yhtään kaivotietotyyppiä valittuna")
+                        continue
+                    
+                    for tyyppi in kaivotietotyypit:
+                        # Päivitä loppupvm
+                        count, msg = update_kaivotieto_loppupvm(
+                            session,
+                            kohde.id,
+                            tyyppi,
+                            row.vastausaika  # Vastausaika on loppupvm
+                        )
+                        
+                        if count > 0:
+                            updated_count += count
+                            logger.info(msg)
+                        else:
+                            logger.warning(msg)
+                            skipped_no_kaivotieto_count += 1
+                            # Ei lisätä virheraporttiin - määrittelyn mukaan
+                            # virheraportti vain kohdentumattomista
+                
+                session.commit()
+                
+        except Exception as e:
+            logger.exception(e)
+        
+        # Yhteenveto
+        print(f"\nKaivotiedon lopetusten tuonti valmis:")
+        print(f"  - Päivitetty: {updated_count}")
+        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
+        print(f"  - Ohitettu (ei aktiivista kaivotietoa): {skipped_no_kaivotieto_count}")
+        
+        if kohdentumattomat:
+            print(f"\nTallennetaan kohdentumattomat lopetukset ({len(kohdentumattomat)}) tiedostoon")
+            export_kohdentumattomat_kaivotiedon_lopetukset(
+                os.path.dirname(lopetustiedosto_path), kohdentumattomat
             )

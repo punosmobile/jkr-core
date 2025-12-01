@@ -173,6 +173,11 @@ log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"SELECT jkr.update_vel
         "logs/kohteet/velvoitteet.log" \
         "Velvoitteiden päivitys"
 
+# Kaivotietojen aloitus (tuodaan kerran, ennen kvartaalitietoja)
+log_exec "jkr import_kaivotiedot ../data/Liete/Kaivotiedot_aloitus.xlsx LSJ" \
+        "logs/tietovirrat/kaivotiedot_aloitus.log" \
+        "Kaivotietojen aloitustietojen tuonti"
+
 # Q1 2024 tietojen tuonti
 quarter="Q1"
 
@@ -201,6 +206,11 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
 log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.1.2024 31.3.2024" \
         "logs/tietovirrat/2024_$quarter/kuljetukset.log" \
         "Q1 kuljetustietojen tuonti"
+
+# Q1 Kaivotiedon lopetukset
+log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2024Q1.xlsx LSJ" \
+        "logs/tietovirrat/2024_$quarter/kaivotiedot_lopetus.log" \
+        "Q1 kaivotiedon lopetusten tuonti"
 
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2024-03-31');\"" \
         "logs/tietovirrat/2024_$quarter/velvoitteet.log" \
@@ -234,6 +244,11 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
 log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.4.2024 30.6.2024" \
         "logs/tietovirrat/2024_$quarter/kuljetukset.log" \
         "Q2 kuljetustietojen tuonti"
+
+# Q2 Kaivotiedon lopetukset
+log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2024Q2.xlsx LSJ" \
+        "logs/tietovirrat/2024_$quarter/kaivotiedot_lopetus.log" \
+        "Q2 kaivotiedon lopetusten tuonti"
 
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2024-06-30');\"" \
         "logs/tietovirrat/2024_$quarter/velvoitteet.log" \

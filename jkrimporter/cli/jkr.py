@@ -37,6 +37,7 @@ from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
 from jkrimporter.providers.lahti.liete_kuljetustiedosto import LieteKuljetustiedosto
 from jkrimporter.providers.lahti.liete_translator import LieteTranslator
+from jkrimporter.providers.lahti.kaivotiedosto import Kaivotiedosto, KaivotiedonLopetusTiedosto
 from jkrimporter.providers.nokia.nokiaprovider import NokiaTranslator
 from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
@@ -492,6 +493,98 @@ def import_hapa(
     except Exception as e:
         typer.echo(f"Error importing HAPA data: {str(e)}", err=True)
         raise typer.Exit(1)
+
+
+@app.command("import_kaivotiedot", help="Import kaivotiedot (well data) to JKR.")
+def import_kaivotiedot(
+    siirtotiedosto: Path = typer.Argument(..., help="Kaivotiedot Excel-tiedoston sijainti (.xlsx)"),
+    tiedontuottajatunnus: str = typer.Argument(..., help="Tiedon toimittajan tunnus. Esim. 'LSJ'"),
+):
+    """
+    Tuo kaivotiedot (aloitus) JKR-järjestelmään.
+    
+    LAH-415: Kaivotiedot ja kaivotiedon lopetus tietojen vienti kantaan.
+    
+    Kaivotiedot sisältävät:
+    - Kantovesi-ilmoitus
+    - Saostussäiliö
+    - Pienpuhdistamo
+    - Umpisäiliö
+    - Vain harmaat vedet
+    
+    Kohdentaminen tehdään PRT:n (pysyvä rakennustunnus) perusteella.
+    Jos kohteella on jo sama tieto, sitä ei viedä päälle.
+    """
+    # Tarkista että tiedontuottaja on olemassa
+    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
+    if not tiedontuottaja:
+        typer.echo(
+            f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
+            f"Lisää komennolla `jkr tiedontuottaja add`"
+        )
+        raise typer.Exit(1)
+    
+    # Tarkista tiedosto
+    if not siirtotiedosto.exists():
+        typer.echo(f"Tiedostoa ei löydy: {siirtotiedosto}", err=True)
+        raise typer.Exit(1)
+    
+    print(f"Luetaan kaivotiedot: {siirtotiedosto}")
+    
+    # Lue kaivotiedot
+    kaivotiedosto = Kaivotiedosto(siirtotiedosto)
+    kaivotiedot_list = list(kaivotiedosto.kaivotiedot)
+    
+    print(f"Luettu {len(kaivotiedot_list)} kaivotietoriviä")
+    
+    # Kirjoita tietokantaan
+    db = DbProvider()
+    db.write_kaivotiedot(kaivotiedot_list, tiedontuottajatunnus, siirtotiedosto)
+    
+    print("VALMIS!")
+
+
+@app.command("import_kaivotiedon_lopetukset", help="Import kaivotiedon lopetukset (well data endings) to JKR.")
+def import_kaivotiedon_lopetukset(
+    siirtotiedosto: Path = typer.Argument(..., help="Kaivotiedon lopetus Excel-tiedoston sijainti (.xlsx)"),
+    tiedontuottajatunnus: str = typer.Argument(..., help="Tiedon toimittajan tunnus. Esim. 'LSJ'"),
+):
+    """
+    Tuo kaivotiedon lopetukset JKR-järjestelmään.
+    
+    LAH-415: Kaivotiedot ja kaivotiedon lopetus tietojen vienti kantaan.
+    
+    Lopetus edellyttää, että samalla kohteella on vastaava tieto alkanut.
+    Mikäli kohteella on useita samoja alkaneita kaivotietoja, 
+    lopetuspäivämäärä lopettaa kaikki vastaavat samannimiset kaivotiedot.
+    """
+    # Tarkista että tiedontuottaja on olemassa
+    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
+    if not tiedontuottaja:
+        typer.echo(
+            f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
+            f"Lisää komennolla `jkr tiedontuottaja add`"
+        )
+        raise typer.Exit(1)
+    
+    # Tarkista tiedosto
+    if not siirtotiedosto.exists():
+        typer.echo(f"Tiedostoa ei löydy: {siirtotiedosto}", err=True)
+        raise typer.Exit(1)
+    
+    print(f"Luetaan kaivotiedon lopetukset: {siirtotiedosto}")
+    
+    # Lue lopetukset
+    lopetustiedosto = KaivotiedonLopetusTiedosto(siirtotiedosto)
+    lopetukset_list = list(lopetustiedosto.lopetukset)
+    
+    print(f"Luettu {len(lopetukset_list)} lopetusriviä")
+    
+    # Kirjoita tietokantaan
+    db = DbProvider()
+    db.write_kaivotiedon_lopetukset(lopetukset_list, tiedontuottajatunnus, siirtotiedosto)
+    
+    print("VALMIS!")
 
 
 if __name__ == "__main__":
