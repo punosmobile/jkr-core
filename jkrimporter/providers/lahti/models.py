@@ -566,6 +566,96 @@ class Ilmoitus(BaseModel):
                 )
         return values
 
+class LieteIlmoitus(BaseModel):
+    Vastausaika: datetime.date
+    kayttaja_etunimi: Optional[str] = Field(
+        None, alias="Lietteen kompostoijan yhteystiedot:Etunimi"
+    )
+    kayttaja_sukunimi: Optional[str] = Field(
+        None, alias="Lietteen kompostoijan yhteystiedot:Sukunimi"
+    )
+    vastuuhenkilo_postinumero: str = Field(
+        alias="Lietteen kompostoijan yhteystiedot:Postinumero"
+    )  # Note, etunollat pitäisi lisätä. Pitäisi olla 5 numeroinen numerosarja.
+    vastuuhenkilo_osoite: str = Field(
+        alias="Lietteen kompostoijan yhteystiedot:Postiosoite"
+    )
+    prt: List[str] = Field(
+        alias="Tiedot kiinteistöstä, jonka liete kompostoidaan:Käsittelijän lisäämä tunniste"
+    )
+    voimassaalkaen: Union[datetime.date, str] = Field(alias=":Voimassa alkaen")
+    voimassaasti: Union[datetime.date, str] = Field(alias=":Voimassa asti")
+
+    # Store the original row.
+    rawdata: Optional[Dict[str, str]]
+
+    @validator("Vastausaika", pre=True)
+    def parse_vastausaika(value: Union[date, str]):
+        if isinstance(value, str) and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        return value
+
+    @validator("vastuuhenkilo_postinumero", pre=True)
+    def add_zeros(value: str):
+        print()
+        if len(str(value)) < 5:
+            return "0" * (5 - len(str(value))) + value
+        return value
+    
+    @validator("voimassaalkaen", pre=True)
+    def parse_voimassaalkaen(value: Union[date, str]):
+        if isinstance(value, str):
+            try:
+                # Some rows come with milliseconds included
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                # Most come without milliseconds.
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            reformatted_date = parsed_date.strftime("%Y-%m-%d")
+            return reformatted_date
+        return value
+
+    @validator("voimassaasti", pre=True)
+    def parse_voimassaasti(value: Union[date, str]):
+        if isinstance(value, str):
+            try:
+                # Some rows come with milliseconds included
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                # Most come without milliseconds.
+                parsed_date = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+            reformatted_date = parsed_date.strftime("%Y-%m-%d")
+            return reformatted_date
+        return value
+
+    @validator('prt', pre=True)
+    def parse_prts(value: str):
+        if isinstance(value, str):
+            return value.split(',')
+        return [value]
+
+    @root_validator()
+    def check_vastuuhenkilo_names(cls, values):
+        etunimi = values.get('kayttaja_etunimi')
+        sukunimi = values.get('kayttaja_sukunimi')
+        if etunimi is None and sukunimi is None:
+            raise ValueError(
+                "Suku- ja etunimi eivät saa olla tyhjiä."
+            )
+        return values
+
+    @root_validator()
+    def validate_dates(cls, values):
+        voimassaalkaen = values.get("Vastausaika")
+        voimassaasti = values.get("voimassaasti")
+        if voimassaalkaen is not None and voimassaasti is not None:
+            if voimassaalkaen >= voimassaasti:
+                raise ValueError(
+                    "Vastausaika-päivämäärän on oltava ennen voimassaolopäivä-päivämäärää."
+                )
+        return values
+
+
 
 class LopetusIlmoitus(BaseModel):
     Vastausaika: datetime.date  # Kompostoinnin päättymisen ajankohta.

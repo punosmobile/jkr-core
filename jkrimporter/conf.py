@@ -56,5 +56,9 @@ def get_kohdentumattomat_ilmoitus_filename():
     return f"{kohdentumattomat_filename}_ilmoitukset{excel_fileext}"
 
 
+def get_kohdentumattomat_lieteilmoitus_filename():
+    return f"{kohdentumattomat_filename}_lieteilmoitukset{excel_fileext}"
+
+
 def get_kohdentumattomat_lopetusilmoitus_filename():
     return f"{kohdentumattomat_filename}_lopetusilmoitukset{excel_fileext}"

@@ -151,6 +151,7 @@ class Keraysvaline:
     maara: int
     tilavuus: Optional[int] = None
     tyyppi: Optional[KeraysvalineTyyppi] = None
+    kohde_id: Optional[int] = None
 
 
 class Tyhjennysvali(NamedTuple):
@@ -294,7 +295,9 @@ class JkrIlmoitukset:
     voimassa: Interval
     vastuuhenkilo: IlmoituksenHenkilo
     kompostoijat: List[IlmoituksenHenkilo]
+    pienpuhdistamo_alkupwm: date
     onko_kimppa: str
+    onko_liete: bool
     tiedontuottaja: str
     sijainti_prt: List[str]
     prt: List[str]

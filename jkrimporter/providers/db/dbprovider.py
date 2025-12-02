@@ -17,10 +17,12 @@ from jkrimporter.model import (
     JkrIlmoitukset,
     Paatos,
     LopetusIlmoitus,
+    KeraysvalineTyyppi,
 )
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.ilmoitus import (
     export_kohdentumattomat_ilmoitukset,
+    export_kohdentumattomat_lieteIlmoitukset,
     export_kohdentumattomat_lopetusilmoitukset
 )
 from jkrimporter.utils.intervals import IntervalCounter
@@ -29,7 +31,7 @@ from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 from jkrimporter.utils.progress import Progress
 
 from . import codes
-from .codes import get_code_id, init_code_objects
+from .codes import get_code_id, init_code_objects, keraysvalinetyypit
 from .database import engine
 from .models import (
     AKPPoistoSyy,
@@ -41,7 +43,8 @@ from .models import (
     Tapahtumalaji,
     Tiedontuottaja,
     Viranomaispaatokset,
-    DVVPoimintaPvm
+    DVVPoimintaPvm,
+    Keraysvaline
 )
 from .services.buildings import counts as building_counts
 from .services.buildings import (
@@ -799,6 +802,132 @@ class DbProvider:
                 os.path.dirname(ilmoitustiedosto), kohdentumattomat
             )
 
+
+    def write_lieteIlmoitukset(
+            self,
+            lieteIlmoitus_list: List[JkrIlmoitukset],
+            ilmoitustiedosto: Path
+    ):
+        """
+        This method creates new liete kompostori entries based on data.
+        The method also stores kohdentumattomat rows.
+        """
+        kohdentumattomat = []
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print("Importoidaan lieteilmoitukset")
+                for ilmoitus in lieteIlmoitus_list:
+                    kompostorin_kohde = find_kohde_by_prt(session, ilmoitus)
+
+                    if kompostorin_kohde:
+                        print(f"Liete kompostorin kohde: {kompostorin_kohde.id} prt: {ilmoitus.prt}")
+                        osapuoli = create_or_update_komposti_yhteyshenkilo(
+                            session, kompostorin_kohde, ilmoitus
+                        )
+                        osoite_id = find_osoite_by_prt(session, ilmoitus)
+                        if not osoite_id:
+                            print(
+                                "Ei löytynyt osoite_id:tä rakennus: "
+                                + f"{ilmoitus.prt}"
+                            )
+
+                        # There should never be identical Kompostori
+                        existing_kompostori = session.query(Kompostori).filter(
+                            Kompostori.alkupvm == ilmoitus.alkupvm,
+                            Kompostori.loppupvm == ilmoitus.loppupvm,
+                            Kompostori.osoite_id == osoite_id,
+                            Kompostori.osapuoli_id == osapuoli.id,
+                            Kompostori.onko_liete is True,
+                        ).first()
+                        if existing_kompostori:
+                            print("Vastaava liete kompostori löydetty, ohitetaan luonti...")
+                            komposti = existing_kompostori
+                        # Based on the comments on 23.2.2024, do not set ending dates
+                        # for Kompostori if new ilmoitus with the same vastuuhenkilo and
+                        # sijainti is added, even if the dates are different. Only set
+                        # end dates when lopetus ilmoitus is added.
+                        else:
+                            print("Lisätään uusi liete kompostori...")
+                            komposti = Kompostori(
+                                alkupvm=ilmoitus.alkupvm,
+                                loppupvm=ilmoitus.loppupvm,
+                                osoite_id=osoite_id,
+                                onko_liete=True,
+                                osapuoli=osapuoli,
+                            )
+                            session.add(komposti)
+                        # Look for kohde for each kompostoija.
+                        kohteet, kohdentumattomat_prt = find_kohteet_by_prt(
+                            session,
+                            ilmoitus
+                        )
+
+                        print(f"Käsiteltävän kompostorin id: {komposti.id}")
+                        if kohteet:
+                            for kohde in kohteet:
+                                existing_kohde = session.query(
+                                    KompostorinKohteet).filter(
+                                        KompostorinKohteet.kompostori_id == komposti.id,
+                                        KompostorinKohteet.kohde_id == kohde.id
+                                ).first()
+                                if existing_kohde:
+                                    print(f"Kohde {kohde.id} on jo kompostorin {komposti.id} kohteissa...")
+                                else:
+                                    print(f"Lisätään kohde {kohde.id} kompostorin {komposti.id} kohteisiin...")
+                                    session.add(
+                                        KompostorinKohteet(
+                                            kompostori=komposti,
+                                            kohde=kohde
+                                        ),
+                                    )
+                                
+                                print("creating new väline")
+                                keraysvaline_id = codes.keraysvalinetyypit.get(KeraysvalineTyyppi.PIENPUHDISTAMO)
+
+                                existing_keraysvaline = session.query(
+                                    Keraysvaline).filter(
+                                        Keraysvaline.kohde_id == kohde.id,
+                                        Keraysvaline.keraysvalinetyyppi_id == keraysvaline_id.id
+                                ).first()
+
+                                if existing_keraysvaline:
+                                    print(f"Kohteella {kohde.id} on jo PIENPUHDISTAMO, ohitetaan luonti...")
+                                    continue
+
+                                db_keraysvaline = Keraysvaline(
+                                    pvm=ilmoitus.pienpuhdistamo_alkupwm,
+                                    keraysvalinetyyppi=keraysvaline_id,
+                                    tilavuus=0,
+                                    maara=0,
+                                    kohde_id=kohde.id,
+                                )
+                                print(f"Kohteelle {kohde.id} lisätty PIENPUHDISTAMO")
+
+                                session.add(db_keraysvaline)
+
+                        if kohdentumattomat_prt:
+                            # Append rawdata dicts for each kohdentumaton kompostoija.
+                            print(f"Kohdentumatta jäi {len(kohdentumattomat_prt)} liete kompostoria")
+                            for prt in kohdentumattomat_prt:
+                                print(prt)
+                                for rawdata in ilmoitus.rawdata:
+                                    if rawdata.get(
+                                        "Tiedot kiinteistöstä, jonka liete kompostoidaan:Käsittelijän lisäämä tunniste"
+                                    ) == prt:
+                                        kohdentumattomat.append(rawdata)
+
+                session.commit()
+        except Exception as e:
+            logger.exception(e)
+
+        if kohdentumattomat:
+            print(
+                f"Tallennetaan kohdentumattomat lieteilmoitukset ({len(kohdentumattomat)}) tiedostoon"
+            )
+            export_kohdentumattomat_lieteIlmoitukset(
+                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+            )
 
     def write_lopetusilmoitukset(
             self,

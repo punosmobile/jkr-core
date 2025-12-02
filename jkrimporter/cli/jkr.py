@@ -25,12 +25,14 @@ from jkrimporter.providers.db.services.tiedontuottaja import (
 
 from jkrimporter.providers.lahti.lahtiprovider import (
     IlmoitusTranslator,
+    LieteIlmoitusTranslator,
     LahtiTranslator,
     LopetusIlmoitusTranslator,
     PaatosTranslator,
 )
 from jkrimporter.providers.lahti.ilmoitustiedosto import (
     Ilmoitustiedosto,
+    LieteIlmoitustiedosto,
     LopetusIlmoitustiedosto,
 )
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
@@ -199,6 +201,18 @@ def import_ilmoitukset(
     ilmoitus_data = translator.as_jkr_data()
     db = DbProvider()
     db.write_ilmoitukset(ilmoitus_data, siirtotiedosto)
+
+    print("VALMIS!")
+
+
+@app.command("import_liete_ilmoitukset", help="Import Liete compost notices to JKR.")
+def import_liete_ilmoitukset(
+    siirtotiedosto: Path = typer.Argument(..., help="Liete Kompostointi ilmoitus-tiedoston sijainti.")
+):
+    translator = LieteIlmoitusTranslator(LieteIlmoitustiedosto(siirtotiedosto))
+    ilmoitus_data = translator.as_jkr_data()
+    db = DbProvider()
+    db.write_lieteIlmoitukset(ilmoitus_data, siirtotiedosto)
 
     print("VALMIS!")
 
