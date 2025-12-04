@@ -324,7 +324,17 @@ VALUES
         35,
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
-        'kohteet_joilla_kantovesi_tieto',
+        'kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        '2022-1-1',
+        'Kantovesi',
+        1
+    ),
+    (
+        36,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
         '2022-1-1',
         'Kantovesi',

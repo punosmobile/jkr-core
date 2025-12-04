@@ -104,3 +104,123 @@ $BODY$;
 
 ALTER FUNCTION jkr.kohteet_joilla_kantovesi_tieto(daterange)
     OWNER TO jkr_admin;
+
+-- FUNCTION: jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett(daterange)
+
+-- DROP FUNCTION IF EXISTS jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett(daterange);
+
+CREATE OR REPLACE FUNCTION jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett(
+	daterange)
+    RETURNS TABLE(kohde_id integer) 
+    LANGUAGE 'sql'
+    COST 100
+    STABLE PARALLEL UNSAFE
+    ROWS 1000
+	
+AS $BODY$
+SELECT 
+	DISTINCT (id) 
+FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen viiden kvartaalin aikana ei harmaita vesiä
+	SELECT k.id
+	FROM jkr.kohde k
+	WHERE EXISTS (
+		SELECT 1 FROM jkr.kaivotieto 
+		WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2, 3)
+	) AND EXISTS (
+			SELECT 1 
+			FROM jkr.kuljetus
+			WHERE jatetyyppi_id IN (5, 6, 7) 
+			AND daterange(
+				(LOWER($1) - INTERVAL '6 months')::date,
+				UPPER($1) 
+			) @> lietteentyhjennyspaiva
+	) AND NOT EXISTS (
+			SELECT 1 FROM jkr.kaivotieto 
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (5)
+	) AND NOT EXISTS (
+	        SELECT 1
+	        FROM jkr.kohteen_rakennukset kr
+	        WHERE kr.kohde_id = k.id
+	        AND EXISTS (
+	            SELECT 1
+	            FROM jkr.viranomaispaatokset vp
+	            WHERE vp.rakennus_id = kr.rakennus_id
+	            AND vp.voimassaolo && $1
+	            AND EXISTS (
+	                SELECT 1
+	                FROM jkr_koodistot.tapahtumalaji tl
+	                WHERE vp.tapahtumalaji_koodi = tl.koodi
+	                AND tl.selite IN ('AKP', 'Perusmaksu')
+	            )
+	            AND EXISTS (
+	                SELECT 1
+	                FROM jkr_koodistot.paatostulos pt
+	                WHERE vp.paatostulos_koodi = pt.koodi
+	                AND pt.selite = 'myönteinen'
+	            )
+	        )
+	)
+);
+$BODY$;
+
+ALTER FUNCTION jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett(daterange)
+    OWNER TO jkr_admin;
+
+
+-- FUNCTION: jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint(daterange)
+
+-- DROP FUNCTION IF EXISTS jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint(daterange);
+
+CREATE OR REPLACE FUNCTION jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint(
+	daterange)
+    RETURNS TABLE(kohde_id integer) 
+    LANGUAGE 'sql'
+    COST 100
+    STABLE PARALLEL UNSAFE
+    ROWS 1000
+
+AS $BODY$
+SELECT 
+	DISTINCT (id) 
+FROM (
+	SELECT k.id
+	FROM jkr.kohde k
+	WHERE  -- Pienpuhdistamo muttei saostussäiliötä tai umpisäiliötä ja voimassaoleva kompostointi-ilmoitus
+		EXISTS (
+			SELECT 1 FROM jkr.kaivotieto
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2)
+		) AND NOT EXISTS (
+			SELECT 1 FROM jkr.kaivotieto
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (3,4)
+		) AND EXISTS (
+			SELECT 1
+			FROM jkr.kompostori
+			WHERE voimassaolo && $1 AND onko_liete IS true
+		) AND NOT EXISTS (
+			SELECT 1
+			FROM jkr.kohteen_rakennukset kr
+			WHERE kr.kohde_id = k.id
+			AND EXISTS (
+				SELECT 1
+				FROM jkr.viranomaispaatokset vp
+				WHERE vp.rakennus_id = kr.rakennus_id
+				AND vp.voimassaolo && $1
+				AND EXISTS (
+					SELECT 1
+					FROM jkr_koodistot.tapahtumalaji tl
+					WHERE vp.tapahtumalaji_koodi = tl.koodi
+					AND tl.selite IN ('AKP', 'Perusmaksu')
+				)
+				AND EXISTS (
+					SELECT 1
+					FROM jkr_koodistot.paatostulos pt
+					WHERE vp.paatostulos_koodi = pt.koodi
+					AND pt.selite = 'myönteinen'
+				)
+			)
+		)
+);
+$BODY$;
+
+ALTER FUNCTION jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo(daterange)
+    OWNER TO jkr_admin;
