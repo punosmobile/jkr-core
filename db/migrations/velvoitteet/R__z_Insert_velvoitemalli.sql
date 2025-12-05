@@ -344,7 +344,7 @@ VALUES
         37,
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
-        'kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint',
+        'kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
         '2022-1-1',
         'Kantovesi',
