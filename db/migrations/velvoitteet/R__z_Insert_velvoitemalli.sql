@@ -339,5 +339,15 @@ VALUES
         '2022-1-1',
         'Kantovesi',
         1
+    ),
+    (
+        37,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        '2022-1-1',
+        'Kantovesi',
+        1
     )
 ON CONFLICT DO NOTHING;

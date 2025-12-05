@@ -224,3 +224,55 @@ $BODY$;
 
 ALTER FUNCTION jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo(daterange)
     OWNER TO jkr_admin;
+
+
+-- FUNCTION: jkr.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa(daterange)
+-- DROP FUNCTION IF EXISTS jkr.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa(daterange);
+CREATE OR REPLACE FUNCTION JKR.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa (DATERANGE) RETURNS TABLE (KOHDE_ID INTEGER) LANGUAGE 'sql' COST 100 STABLE PARALLEL UNSAFE ROWS 1000 AS $BODY$
+SELECT 
+	DISTINCT (id) 
+FROM (
+	SELECT k.id
+	FROM jkr.kohde k
+	WHERE  -- Lietteenkuljetus kunnossa
+		EXISTS (
+			SELECT 1 FROM jkr.kaivotieto
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2)
+		) AND NOT EXISTS (
+			SELECT 1 FROM jkr.kaivotieto
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,3,5)
+		) EXISTS (
+			SELECT 1 
+			FROM jkr.kuljetus
+			WHERE jatetyyppi_id IN (5, 6, 7) 
+			AND daterange(
+				(LOWER($1) - INTERVAL '18 months')::date,
+				UPPER($1) 
+			) @> lietteentyhjennyspaiva
+		) AND NOT EXISTS (
+			SELECT 1
+			FROM jkr.kohteen_rakennukset kr
+			WHERE kr.kohde_id = k.id
+			AND EXISTS (
+				SELECT 1
+				FROM jkr.viranomaispaatokset vp
+				WHERE vp.rakennus_id = kr.rakennus_id
+				AND vp.voimassaolo && $1
+				AND EXISTS (
+					SELECT 1
+					FROM jkr_koodistot.tapahtumalaji tl
+					WHERE vp.tapahtumalaji_koodi = tl.koodi
+					AND tl.selite IN ('AKP', 'Perusmaksu')
+				)
+				AND EXISTS (
+					SELECT 1
+					FROM jkr_koodistot.paatostulos pt
+					WHERE vp.paatostulos_koodi = pt.koodi
+					AND pt.selite = 'myönteinen'
+				)
+			)
+		)
+);
+$BODY$;
+
+ALTER FUNCTION JKR.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa (DATERANGE) OWNER TO JKR_ADMIN;
