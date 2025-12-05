@@ -29,11 +29,17 @@ from jkrimporter.providers.lahti.lahtiprovider import (
     LahtiTranslator,
     LopetusIlmoitusTranslator,
     PaatosTranslator,
+    ViemariIlmoitusTranslator,
+    ViemariLopetusTranslator,
 )
 from jkrimporter.providers.lahti.ilmoitustiedosto import (
     Ilmoitustiedosto,
     LieteIlmoitustiedosto,
     LopetusIlmoitustiedosto,
+)
+from jkrimporter.providers.lahti.viemaritiedosto import (
+    ViemariIlmoitustiedosto,
+    ViemariLopetustiedosto,
 )
 from jkrimporter.providers.lahti.paatostiedosto import Paatostiedosto
 from jkrimporter.providers.lahti.siirtotiedosto import LahtiSiirtotiedosto
@@ -283,6 +289,41 @@ def import_liete(
     
     print("VALMIS!")
 
+@app.command("import_viemarit", help="Import viemari notices to JKR.")
+def import_viemarointi(
+    siirtotiedosto: Path = typer.Argument(..., help="Viemäroinnin-tiedoston sijainti.")
+):
+    """
+    Tuo Viemäriliitostiedot JKR-järjestelmään.
+    
+    Viemäriliitosrivit sisältävät:
+    - PRT:n
+    - Viemäriverkoston alkamispäivämäärän
+    """
+    translator = ViemariIlmoitusTranslator(ViemariIlmoitustiedosto(siirtotiedosto))
+    lopetusilmoitus_data = translator.as_jkr_data()
+    db = DbProvider()
+    db.write_viemari_ilmoitukset(lopetusilmoitus_data, siirtotiedosto)
+
+    print("VALMIS!")
+
+@app.command("import_lopeta_viemarit", help="Import viemari ending notices to JKR.")
+def import_viemari_lopetusilmoitukset(
+    siirtotiedosto: Path = typer.Argument(..., help="Viemärin lopetusilmoitus-tiedoston sijainti.")
+):
+    """
+    Tuo Viemäriliitos lopetustiedot JKR-järjestelmään.
+    
+    Viemäriliitosrivit sisältävät:
+    - PRT:n
+    - Viemäriverkoston loppumispäivämäärän
+    """
+    translator = ViemariLopetusTranslator(ViemariLopetustiedosto(siirtotiedosto))
+    lopetusilmoitus_data = translator.as_jkr_data()
+    db = DbProvider()
+    db.write_viemarilopetus_ilmoitukset(lopetusilmoitus_data, siirtotiedosto)
+
+    print("VALMIS!")
 
 @app.command("raportti")
 def raportti(

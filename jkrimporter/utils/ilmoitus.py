@@ -12,7 +12,9 @@ from jkrimporter.conf import (
 from jkrimporter.datasheets import (
     get_ilmoitustiedosto_headers,
     get_liete_ilmoitustiedosto_headers,
-    get_lopetustiedosto_headers
+    get_lopetustiedosto_headers,
+    get_viemari_ilmoitustiedosto_headers,
+    get_viemari_lopetustiedosto_headers,
 )
 
 
@@ -99,6 +101,62 @@ def export_kohdentumattomat_lopetusilmoitukset(
 
     output_file_path_failed = os.path.join(
         folder, get_kohdentumattomat_lopetusilmoitus_filename()
+    )
+
+    if os.path.exists(output_file_path_failed):
+        workbook_failed = openpyxl.load_workbook(output_file_path_failed)
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+    else:
+        workbook_failed = openpyxl.Workbook()
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+        sheet_failed.append(expected_headers)
+
+    filtered_kohdentumattomat = [
+        {key: value for key, value in data.items() if key in expected_headers}
+        for data in kohdentumattomat
+    ]
+    for row in filtered_kohdentumattomat:
+        sheet_failed.append([row.get(header, "") for header in expected_headers])
+
+    workbook_failed.save(output_file_path_failed)
+
+
+def export_kohdentumattomat_viemariilmoitukset(
+        folder: Path,
+        kohdentumattomat: List[Dict[str, str]]
+):
+    expected_headers = get_viemari_ilmoitustiedosto_headers()
+
+    output_file_path_failed = os.path.join(
+        folder, get_kohdentumattomat_lieteilmoitus_filename()
+    )
+
+    if os.path.exists(output_file_path_failed):
+        workbook_failed = openpyxl.load_workbook(output_file_path_failed)
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+    else:
+        workbook_failed = openpyxl.Workbook()
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+        sheet_failed.append(expected_headers)
+
+    filtered_kohdentumattomat = [
+        {key: value for key, value in data.items() if key in expected_headers}
+        for data in kohdentumattomat
+    ]
+    for row in filtered_kohdentumattomat:
+        sheet_failed.append([row.get(header, "") for header in expected_headers])
+
+    workbook_failed.save(output_file_path_failed)
+
+
+def export_kohdentumattomat_viemarilopetusilmoitukset(
+        folder: Path,
+        kohdentumattomat: List[Dict[str, str]]
+):
+    expected_headers = get_viemari_lopetustiedosto_headers()
+
+    output_file_path_failed = os.path.join(
+        folder, get_kohdentumattomat_lieteilmoitus_filename()
     )
 
     if os.path.exists(output_file_path_failed):
