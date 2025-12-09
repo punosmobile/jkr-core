@@ -27,15 +27,15 @@ def find_existing_viemariliitos(
         True jos löytyy, False muuten
     """
     from jkrimporter.providers.db.models import Base
-    
+
     # Haetaan Kaivotieto-taulu reflektoimalla
-    Viemariliitos = Base.classes.viemariliitos
-    
+    Viemariliitos = Base.classes.viemari_liitos
+
     query = select(Viemariliitos.id).where(
         and_(
             Viemariliitos.kohde_id == kohde_id,
-            Viemariliitos.prt == prt,
-            Viemariliitos.alkupvm == alkupvm
+            Viemariliitos.rakennus_prt == prt,
+            Viemariliitos.viemariverkosto_alkupvm == alkupvm
         )
     )
 
@@ -65,23 +65,23 @@ def insert_viemariliitos(
         Tuple (onnistui: bool, viesti: str)
     """
     from jkrimporter.providers.db.models import Base
-    
-    Viemariliitos = Base.classes.viemariliitos
-    
+
+    Viemariliitos = Base.classes.viemari_liitos
+
     # Tarkista onko jo olemassa
     if find_existing_viemariliitos(session, kohde_id, prt, alkupvm):
         return False, f"Viemäriliitos {prt} alkupvm {alkupvm} on jo olemassa kohteella {kohde_id}"
-    
+
     # Luo uusi viemariliitos
     viemariliitos = Viemariliitos(
         kohde_id=kohde_id,
         viemariverkosto_alkupvm=alkupvm,
-        prt=prt,
+        rakennus_prt=prt,
     )
-    
+
     session.add(viemariliitos)
-    
-    return True, f"Lisätty viemäriliitos {viemariliitos.alkupvm} {viemariliitos.prt} kohteelle {kohde_id}"
+
+    return True, f"Lisätty viemäriliitos {viemariliitos.viemariverkosto_alkupvm} {viemariliitos.rakennus_prt} kohteelle {kohde_id}"
 
 def update_viemariliitos_loppupvm(
     session: Session,
@@ -104,9 +104,9 @@ def update_viemariliitos_loppupvm(
         Tuple (päivitettyjen määrä: int, viesti: str)
     """
     from jkrimporter.providers.db.models import Base
-    
-    Viemariliitos = Base.classes.viemariliitos
-    
+
+    Viemariliitos = Base.classes.viemari_liitos
+
     # Etsi kaikki aktiiviset viemäriliitokset kohteessa
     query = select(Viemariliitos).where(
         and_(
@@ -114,18 +114,18 @@ def update_viemariliitos_loppupvm(
             Viemariliitos.viemariverkosto_loppupvm.is_(None)  # Vain aktiiviset
         )
     )
-    
+
     viemariliitokset = session.execute(query).scalars().all()
-    
+
     if not viemariliitokset:
         return 0, f"Ei löytynyt aktiivista viemariliitosta kohteelta {kohde_id}"
-    
+
     # Päivitä loppupvm kaikille
     updated_count = 0
     for viemariliitos in viemariliitokset:
         viemariliitos.viemariverkosto_loppupvm = loppupvm
         updated_count += 1
-    
+
     return updated_count, f"Päivitetty {updated_count} viemäriliitoksen loppupvm kohteelle {kohde_id}"
 
 
@@ -146,12 +146,12 @@ def get_viemariliitokset_for_kohde(
         Lista viemäriliitoksista
     """
     from jkrimporter.providers.db.models import Base
-    
-    Viemariliitos = Base.classes.viemariliitos
-    
+
+    Viemariliitos = Base.classes.viemari_liitos
+
     query = select(Viemariliitos).where(Viemariliitos.kohde_id == kohde_id)
-    
+
     if only_active:
         query = query.where(Viemariliitos.viemariverkosto_loppupvm.is_(None))
-    
+
     return session.execute(query).scalars().all()

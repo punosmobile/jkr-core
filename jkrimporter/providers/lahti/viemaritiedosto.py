@@ -1,19 +1,23 @@
 import logging
 import os
 from pathlib import Path
+from typing import Dict, List
+
+import openpyxl
 
 from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
+
+from jkrimporter.conf import (
+    get_kohdentumattomat_viemari_ilmoitus_filename,
+    get_kohdentumattomat_viemarin_lopetus_filename
+)
 from jkrimporter.datasheets import (
     get_viemari_lopetustiedosto_headers,
     get_viemari_ilmoitustiedosto_headers
 )
 from jkrimporter.providers.lahti.models import ViemariIlmoitus, ViemariLopetusIlmoitus
-from jkrimporter.utils.ilmoitus import (
-    export_kohdentumattomat_viemariilmoitukset,
-    export_kohdentumattomat_viemarilopetusilmoitukset,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +56,7 @@ class ViemariIlmoitustiedosto:
             print(
                 f"Tiedosto: {self._path}, puuttuvat sarakeotsikot: {missing_headers_list}"
             )
-            raise RuntimeError("Lopetus lopetusilmoitustiedostosta puuttuu oletettuja sarakeotsikoita.")
+            raise RuntimeError("Viemäri-ilmoitustiedostosta puuttuu oletettuja sarakeotsikoita.")
 
         for row in sheet.iter_rows(min_row=2, values_only=True):
             try:
@@ -67,7 +71,7 @@ class ViemariIlmoitustiedosto:
                 failed_validations.append(data)
 
         export_kohdentumattomat_viemariilmoitukset(
-            os.path.dirname(self._path), failed_validations
+            os.path.dirname(self._path), failed_validations, self._path
         )
 
         return lopetus_list
@@ -126,3 +130,68 @@ class ViemariLopetustiedosto:
         )
 
         return lopetus_list
+    
+
+
+def export_kohdentumattomat_viemariilmoitukset(
+        folder: Path,
+        kohdentumattomat: List[Dict[str, str]],
+        fullpath: str
+):
+    print(folder)
+    expected_headers = get_viemari_ilmoitustiedosto_headers()
+    if '_' in str(fullpath):
+        lahettaja = str(fullpath).split('_')[1].split('.')[0]
+    else:
+        lahettaja = str(fullpath).split('.',maxsplit=1)[0]
+
+    print(lahettaja)
+
+    output_file_path_failed = os.path.join(
+        folder, get_kohdentumattomat_viemari_ilmoitus_filename(lahettaja)
+    )
+
+    if os.path.exists(output_file_path_failed):
+        workbook_failed = openpyxl.load_workbook(output_file_path_failed)
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+    else:
+        workbook_failed = openpyxl.Workbook()
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+        sheet_failed.append(expected_headers)
+
+    filtered_kohdentumattomat = [
+        {key: value for key, value in data.items() if key in expected_headers}
+        for data in kohdentumattomat
+    ]
+    for row in filtered_kohdentumattomat:
+        sheet_failed.append([row.get(header, "") for header in expected_headers])
+
+    workbook_failed.save(output_file_path_failed)
+
+
+def export_kohdentumattomat_viemarilopetusilmoitukset(
+        folder: Path,
+        kohdentumattomat: List[Dict[str, str]]
+):
+    expected_headers = get_viemari_lopetustiedosto_headers()
+
+    output_file_path_failed = os.path.join(
+        folder, get_kohdentumattomat_viemarin_lopetus_filename()
+    )
+
+    if os.path.exists(output_file_path_failed):
+        workbook_failed = openpyxl.load_workbook(output_file_path_failed)
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+    else:
+        workbook_failed = openpyxl.Workbook()
+        sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
+        sheet_failed.append(expected_headers)
+
+    filtered_kohdentumattomat = [
+        {key: value for key, value in data.items() if key in expected_headers}
+        for data in kohdentumattomat
+    ]
+    for row in filtered_kohdentumattomat:
+        sheet_failed.append([row.get(header, "") for header in expected_headers])
+
+    workbook_failed.save(output_file_path_failed)

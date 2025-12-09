@@ -29,8 +29,11 @@ from jkrimporter.providers.lahti.lahtiprovider import (
     LahtiTranslator,
     LopetusIlmoitusTranslator,
     PaatosTranslator,
+)
+
+from jkrimporter.providers.lahti.viemariprovider import (
     ViemariIlmoitusTranslator,
-    ViemariLopetusTranslator,
+    ViemariLopetusIlmoitusTranslator,
 )
 from jkrimporter.providers.lahti.ilmoitustiedosto import (
     Ilmoitustiedosto,
@@ -301,9 +304,9 @@ def import_viemarointi(
     - Viemäriverkoston alkamispäivämäärän
     """
     translator = ViemariIlmoitusTranslator(ViemariIlmoitustiedosto(siirtotiedosto))
-    lopetusilmoitus_data = translator.as_jkr_data()
+    viemari_ilmoitus_data = translator.as_jkr_data()
     db = DbProvider()
-    db.write_viemari_ilmoitukset(lopetusilmoitus_data, siirtotiedosto)
+    db.write_viemariliitos(viemari_ilmoitus_data, siirtotiedosto)
 
     print("VALMIS!")
 
@@ -318,10 +321,10 @@ def import_viemari_lopetusilmoitukset(
     - PRT:n
     - Viemäriverkoston loppumispäivämäärän
     """
-    translator = ViemariLopetusTranslator(ViemariLopetustiedosto(siirtotiedosto))
+    translator = ViemariLopetusIlmoitusTranslator(ViemariLopetustiedosto(siirtotiedosto))
     lopetusilmoitus_data = translator.as_jkr_data()
     db = DbProvider()
-    db.write_viemarilopetus_ilmoitukset(lopetusilmoitus_data, siirtotiedosto)
+    db.write_viermariliitosten_lopetukset(lopetusilmoitus_data, siirtotiedosto)
 
     print("VALMIS!")
 

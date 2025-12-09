@@ -695,15 +695,15 @@ class LopetusIlmoitus(BaseModel):
 
 class ViemariIlmoitus(BaseModel):
     viemariverkosto_alkupvm: datetime.date = Field(alias="Viemäriverkosto alkupvm")
-    prt: List[str] = Field(
+    prt: str = Field(
         alias="PRT"
     )
 
     # Store the original row.
     rawdata: Optional[Dict[str, str]]
 
-    @validator("Viemäriverkosto alkupvm", pre=True)
-    def parse_viemariverkosto_alkupvm(value: Union[date, str]):
+    @validator("viemariverkosto_alkupvm", pre=True)
+    def parse_viemariverkosto_alkupvm(cls, value: Union[date, str]):
         if isinstance(value, str) and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value
@@ -711,15 +711,15 @@ class ViemariIlmoitus(BaseModel):
 
 class ViemariLopetusIlmoitus(BaseModel):
     viemariverkosto_loppupvm: datetime.date = Field(alias="Viemäriverkosto loppupvm")
-    prt: List[str] = Field(
+    prt: str = Field(
         alias="PRT"
     )
 
     # Store the original row.
     rawdata: Optional[Dict[str, str]]
 
-    @validator("Viemäriverkosto loppupvm", pre=True)
-    def parse_viemariverkosto_alkupvm(value: Union[date, str]):
+    @validator("viemariverkosto_loppupvm", pre=True)
+    def parse_viemariverkosto_alkupvm(cls, value: Union[date, str]):
         if isinstance(value, str) and "." in value:
             return datetime.datetime.strptime(value, "%d.%m.%Y").date()
         return value

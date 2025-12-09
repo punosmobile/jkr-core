@@ -62,3 +62,10 @@ def get_kohdentumattomat_lieteilmoitus_filename():
 
 def get_kohdentumattomat_lopetusilmoitus_filename():
     return f"{kohdentumattomat_filename}_lopetusilmoitukset{excel_fileext}"
+
+def get_kohdentumattomat_viemari_ilmoitus_filename(lahettaja: str = ""):
+    return f"{kohdentumattomat_filename}_viemari_ilmoitukset_{lahettaja}{excel_fileext}"
+
+
+def get_kohdentumattomat_viemarin_lopetus_filename():
+    return f"{kohdentumattomat_filename}_viemarin_lopetusilmoitukset{excel_fileext}"

@@ -82,6 +82,11 @@ from .services.kaivotieto import (
     insert_kaivotieto,
     update_kaivotieto_loppupvm,
 )
+from ..lahti.viemaritiedosto import (
+    export_kohdentumattomat_viemariilmoitukset,
+    export_kohdentumattomat_viemarilopetusilmoitukset
+)
+
 from .services.viemariliitos import (
     insert_viemariliitos,
     update_viemariliitos_loppupvm,
@@ -1289,8 +1294,8 @@ class DbProvider:
                     success, msg = insert_viemariliitos(
                         session,
                         kohde.id,
+                        row.viemariverkosto_alkupvm,
                         row.prt,
-                        row.viemariverkosto_alkupvm
                     )
                     
                     if success:
@@ -1315,8 +1320,8 @@ class DbProvider:
         
         if kohdentumattomat:
             print(f"\nTallennetaan kohdentumattomat viemäriliitokset ({len(kohdentumattomat)}) tiedostoon")
-            export_kohdentumattomat_kaivotiedot(
-                os.path.dirname(viemaritiedosto_path), kohdentumattomat
+            export_kohdentumattomat_viemariilmoitukset(
+                os.path.dirname(viemaritiedosto_path), kohdentumattomat, viemaritiedosto_path
             )
 
 
@@ -1388,6 +1393,6 @@ class DbProvider:
         
         if kohdentumattomat:
             print(f"\nTallennetaan kohdentumattomat lopetukset ({len(kohdentumattomat)}) tiedostoon")
-            export_kohdentumattomat_kaivotiedon_lopetukset(
+            export_kohdentumattomat_viemarilopetusilmoitukset(
                 os.path.dirname(lopetustiedosto_path), kohdentumattomat
             )
