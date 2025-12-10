@@ -71,6 +71,17 @@ def get_paatostiedosto_headers():
         "Postitoimipaikka",
     ]
 
+def get_viemari_ilmoitustiedosto_headers():
+    return [
+        "Viemäriverkosto alkupvm",
+        "PRT",
+    ]
+
+def get_viemari_lopetustiedosto_headers():
+    return [
+        "Viemäriverkosto loppupvm",
+        "PRT",
+    ]
 
 def get_ilmoitustiedosto_headers():
     return [

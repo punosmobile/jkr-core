@@ -12,7 +12,7 @@ from jkrimporter.conf import (
 from jkrimporter.datasheets import (
     get_ilmoitustiedosto_headers,
     get_liete_ilmoitustiedosto_headers,
-    get_lopetustiedosto_headers
+    get_lopetustiedosto_headers,
 )
 
 

@@ -566,6 +566,7 @@ class Ilmoitus(BaseModel):
                 )
         return values
 
+
 class LieteIlmoitus(BaseModel):
     Vastausaika: datetime.date
     kayttaja_etunimi: Optional[str] = Field(
@@ -656,7 +657,6 @@ class LieteIlmoitus(BaseModel):
         return values
 
 
-
 class LopetusIlmoitus(BaseModel):
     Vastausaika: datetime.date  # Kompostoinnin päättymisen ajankohta.
     prt: List[str] = Field(
@@ -691,3 +691,35 @@ class LopetusIlmoitus(BaseModel):
                 "Suku- ja etunimi eivät saa olla tyhjiä."
             )
         return values
+
+
+class ViemariIlmoitus(BaseModel):
+    viemariverkosto_alkupvm: datetime.date = Field(alias="Viemäriverkosto alkupvm")
+    prt: str = Field(
+        alias="PRT"
+    )
+
+    # Store the original row.
+    rawdata: Optional[Dict[str, str]]
+
+    @validator("viemariverkosto_alkupvm", pre=True)
+    def parse_viemariverkosto_alkupvm(cls, value: Union[date, str]):
+        if isinstance(value, str) and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        return value
+
+
+class ViemariLopetusIlmoitus(BaseModel):
+    viemariverkosto_loppupvm: datetime.date = Field(alias="Viemäriverkosto loppupvm")
+    prt: str = Field(
+        alias="PRT"
+    )
+
+    # Store the original row.
+    rawdata: Optional[Dict[str, str]]
+
+    @validator("viemariverkosto_loppupvm", pre=True)
+    def parse_viemariverkosto_alkupvm(cls, value: Union[date, str]):
+        if isinstance(value, str) and "." in value:
+            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
+        return value

@@ -310,3 +310,16 @@ class LopetusIlmoitus:
     nimi: str
     prt: List[str]
     rawdata: Optional[Dict[str, str]] = None
+
+
+@dataclass
+class ViemariIlmoitus:
+    viemariverkosto_alkupvm: date
+    prt: List[str]
+    rawdata: Optional[List[Dict[str, str]]] = None
+
+@dataclass
+class ViemariLopetusIlmoitus:
+    viemariverkosto_loppupvm: date
+    prt: List[str]
+    rawdata: Optional[List[Dict[str, str]]] = None

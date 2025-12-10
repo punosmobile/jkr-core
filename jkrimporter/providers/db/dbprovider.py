@@ -82,6 +82,16 @@ from .services.kaivotieto import (
     insert_kaivotieto,
     update_kaivotieto_loppupvm,
 )
+from ..lahti.viemaritiedosto import (
+    export_kohdentumattomat_viemariilmoitukset,
+    export_kohdentumattomat_viemarilopetusilmoitukset
+)
+
+from .services.viemariliitos import (
+    insert_viemariliitos,
+    update_viemariliitos_loppupvm,
+    find_existing_viemariliitos
+)
 from .services.osapuoli import (
     create_or_update_haltija_osapuoli,
     create_or_update_komposti_yhteyshenkilo,
@@ -1144,7 +1154,7 @@ class DbProvider:
             logger.exception(e)
         
         # Yhteenveto
-        print(f"\nKaivotietojen tuonti valmis:")
+        print("\nKaivotietojen tuonti valmis:")
         print(f"  - Lisätty: {inserted_count}")
         print(f"  - Ohitettu (jo olemassa): {skipped_existing_count}")
         print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
@@ -1207,15 +1217,15 @@ class DbProvider:
                     
                     for tyyppi in kaivotietotyypit:
                         # Päivitä loppupvm
-                        count, msg = update_kaivotieto_loppupvm(
+                        kaivocount, msg = update_kaivotieto_loppupvm(
                             session,
                             kohde.id,
                             tyyppi,
                             row.vastausaika  # Vastausaika on loppupvm
                         )
                         
-                        if count > 0:
-                            updated_count += count
+                        if kaivocount > 0:
+                            updated_count += kaivocount
                             logger.info(msg)
                         else:
                             logger.warning(msg)
@@ -1229,7 +1239,7 @@ class DbProvider:
             logger.exception(e)
         
         # Yhteenveto
-        print(f"\nKaivotiedon lopetusten tuonti valmis:")
+        print("\nKaivotiedon lopetusten tuonti valmis:")
         print(f"  - Päivitetty: {updated_count}")
         print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
         print(f"  - Ohitettu (ei aktiivista kaivotietoa): {skipped_no_kaivotieto_count}")
@@ -1237,5 +1247,152 @@ class DbProvider:
         if kohdentumattomat:
             print(f"\nTallennetaan kohdentumattomat lopetukset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_kaivotiedon_lopetukset(
+                os.path.dirname(lopetustiedosto_path), kohdentumattomat
+            )
+
+    def write_viemariliitos(
+        self,
+        viemariliitos_list,
+        viemaritiedosto_path: Path,
+    ):
+        """
+        Tuo viemäritiedot JKR-järjestelmään.
+        
+        LAH-433: Viemäritiedot ja viemäriliitostiedon vienti kantaan.
+        
+        Määrittelyn mukaan:
+        - Kohdentaminen PRT:llä kohteelle
+        - Jos kohteella on jo sama tieto, sitä ei viedä päälle ja se jää kohdentumatta
+        
+        Args:
+            viemäritiedot_list: Lista ViemäritiedotRow-objekteista
+            viemäritiedosto_path: Polku alkuperäiseen tiedostoon (virheraporttia varten)
+        """
+        kohdentumattomat = []
+        inserted_count = 0
+        error_count = 0
+        skipped_no_kohde_count = 0
+        
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print(f"Importoidaan viemäriliitokset ({len(viemariliitos_list)} riviä)")
+                
+                for row in viemariliitos_list:
+                    # Etsi kohde PRT:n perusteella
+                    kohde = find_kohde_by_single_prt(session, row.prt)
+                    
+                    if not kohde:
+                        logger.warning(f"Kohdetta ei löytynyt PRT:llä {row.prt}")
+                        skipped_no_kohde_count += 1
+                        if row.rawdata:
+                            kohdentumattomat.append(row.rawdata)
+                        continue
+                
+
+                    # Lisää viemäriliitos
+                    success, msg = insert_viemariliitos(
+                        session,
+                        kohde.id,
+                        row.viemariverkosto_alkupvm,
+                        row.prt,
+                    )
+                    
+                    if success:
+                        inserted_count += 1
+                        logger.info(msg)
+                    else:
+                        logger.warning(msg)
+                        error_count += 1
+                        kohdentumattomat.append(row.rawdata)
+                
+                
+                session.commit()
+                
+        except Exception as e:
+            logger.exception(e)
+        
+        # Yhteenveto
+        print("\nViemäriliitosten tuonti valmis:")
+        print(f"  - Lisätty: {inserted_count}")
+        print(f"  - Kohdentumatta (muu virhe): {error_count}")
+        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
+        
+        if kohdentumattomat:
+            print(f"\nTallennetaan kohdentumattomat viemäriliitokset ({len(kohdentumattomat)}) tiedostoon")
+            export_kohdentumattomat_viemariilmoitukset(
+                os.path.dirname(viemaritiedosto_path), kohdentumattomat, viemaritiedosto_path
+            )
+
+
+    def write_viermariliitosten_lopetukset(
+        self,
+        lopetukset_list,
+        lopetustiedosto_path: Path,
+    ):
+        """
+        Tuo viemäritiedon lopetukset JKR-järjestelmään.
+        
+        LAH-433: Viemäriliitosten lopetus tietojen vienti kantaan.
+        
+        Määrittelyn mukaan:
+        - Lopetus edellyttää että samalla kohteella on vastaava tieto alkanut
+        - Tieto kohdennetaan PRT:llä kohteelle
+        - Lopetuspäivämäärä lopettaa kaikki samalle kohteelle kuuluvat viemäriliitokset
+        
+        Args:
+            lopetukset_list: Lista ViemäriLopetusRow-objekteista
+            lopetustiedosto_path: Polku alkuperäiseen tiedostoon (virheraporttia varten)
+        """
+        kohdentumattomat = []
+        updated_count = 0
+        skipped_no_kohde_count = 0
+        skipped_no_viemari_count = 0
+        
+        try:
+            with Session(engine) as session:
+                init_code_objects(session)
+                print(f"Importoidaan viemariliitosten lopetukset ({len(lopetukset_list)} riviä)")
+                
+                for row in lopetukset_list:
+                    # Etsi kohde PRT:n perusteella
+                    kohde = find_kohde_by_single_prt(session, row.prt)
+                    
+                    if not kohde:
+                        logger.warning(f"Kohdetta ei löytynyt PRT:llä {row.prt}")
+                        skipped_no_kohde_count += 1
+                        if row.rawdata:
+                            kohdentumattomat.append(row.rawdata)
+                        continue
+                    
+                    # Päivitä loppupvm
+                    viemaricount, msg = update_viemariliitos_loppupvm(
+                        session,
+                        kohde.id,
+                        row.viemariverkosto_loppupvm,
+                    )
+                    
+                    if viemaricount > 0:
+                        updated_count += viemaricount
+                        logger.info(msg)
+                    else:
+                        logger.warning(msg)
+                        skipped_no_viemari_count += 1
+                        kohdentumattomat.append(row.rawdata)
+                
+                session.commit()
+                
+        except Exception as e:
+            logger.exception(e)
+        
+        # Yhteenveto
+        print("\nViemäriliitoksen lopetusten tuonti valmis:")
+        print(f"  - Päivitetty: {updated_count}")
+        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
+        print(f"  - Ohitettu (ei aktiivista viemäritietoa): {skipped_no_viemari_count}")
+        
+        if kohdentumattomat:
+            print(f"\nTallennetaan kohdentumattomat lopetukset ({len(kohdentumattomat)}) tiedostoon")
+            export_kohdentumattomat_viemarilopetusilmoitukset(
                 os.path.dirname(lopetustiedosto_path), kohdentumattomat
             )

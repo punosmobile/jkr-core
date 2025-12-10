@@ -159,6 +159,7 @@ Tyhjennysvali = Base.classes.tyhjennysvali
 UlkoinenAsiakastieto = Base.classes.ulkoinen_asiakastieto
 Velvoite = Base.classes.velvoite
 Velvoitemalli = Base.classes.velvoitemalli
+ViemariLiitos = Base.classes.viemari_liitos
 Viranomaispaatokset = Base.classes.viranomaispaatokset
 
 # Let SQLAlchemy handle all relationships through reflection

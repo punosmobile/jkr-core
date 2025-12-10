@@ -178,6 +178,15 @@ log_exec "jkr import_kaivotiedot ../data/Liete/Kaivotiedot_aloitus.xlsx LSJ" \
         "logs/tietovirrat/kaivotiedot_aloitus.log" \
         "Kaivotietojen aloitustietojen tuonti"
 
+# Viemäritietojen tuonti
+log_exec "jkr import_viemarit ../data/Liete/Viemariverkosto_Asikkala.xlsx" \
+        "logs/viemaritAsikkala.log" \
+        "Asikkalan viemärien tuonti"
+
+log_exec "jkr import_viemarit ../data/Liete/Viemariverkosto_Heinola.xlsx" \
+        "logs/viemaritHeinola.log" \
+        "Heinola viemärien tuonti"
+
 # Q1 2024 tietojen tuonti
 quarter="Q1"
 
@@ -253,6 +262,10 @@ log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.4
 log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2024Q2.xlsx LSJ" \
         "logs/tietovirrat/2024_$quarter/kaivotiedot_lopetus.log" \
         "Q2 kaivotiedon lopetusten tuonti"
+
+log_exec "jkr import_lopeta_viemarit ../data/Liete/Viemariverkosto_lopetus_2023/$quarter.xlsx" \
+        "logs/tietovirrat/2024_$quarter/viemarilopetus.log" \
+        "Q2 viemarin lopetusten tuonti"
 
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"select jkr.tallenna_velvoite_status('2024-06-30');\"" \
         "logs/tietovirrat/2024_$quarter/velvoitteet.log" \
