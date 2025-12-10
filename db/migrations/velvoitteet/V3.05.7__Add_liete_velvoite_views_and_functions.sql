@@ -30,15 +30,18 @@ AS $BODY$
 SELECT DISTINCT k.id
 FROM
     jkr.kohde k
-WHERE EXISTS
-        (
-            SELECT 1
-            FROM jkr.kohteen_rakennukset kr
-			JOIN jkr.rakennus r ON r.id = kr.rakennus_id
-            WHERE kr.kohde_id = k.id
-            AND (daterange(r.kayttoonotto_pvm, r.kaytostapoisto_pvm) && $1 OR r.kaytostapoisto_pvm IS NOT NULL)
-            AND r.onko_viemari IS TRUE
-        )
+WHERE EXISTS(
+		SELECT 1
+		FROM jkr.viemari_liitos vl
+		WHERE k.id = vl.kohde_id 
+			AND (
+				vl.voimassaolo && $1 
+				OR vl.viemariverkosto_loppupvm IS NOT NULL
+			)
+	) AND NOT EXISTS (
+		SELECT 1 FROM jkr.kaivotieto
+		WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,3,4,5)
+	)
 $BODY$;
 
 ALTER FUNCTION jkr.kohteet_jotka_ovat_viemariverkossa(daterange)
@@ -64,8 +67,21 @@ SELECT DISTINCT (id) FROM (
 	SELECT k.id
 	FROM jkr.kohde k
 	JOIN jkr.kohteen_rakennukset kr ON kr.kohde_id = k.id
+	JOIN jkr.rakennus r ON r.id = kr.rakennus_id 
+		AND (
+			R.HUONEISTOMAARA > 0
+			OR (
+				R.RAKENNUKSENKAYTTOTARKOITUS_KOODI::INTEGER >= 010
+				AND R.RAKENNUKSENKAYTTOTARKOITUS_KOODI::INTEGER <= 041
+			)
+			OR (
+				R.RAKENNUSLUOKKA_2018::INTEGER >= 0110
+				AND R.RAKENNUSLUOKKA_2018::INTEGER <= 0211
+			)
+			OR R.RAKENNUKSENOLOTILA_KOODI::INTEGER = 1
+		) WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1))
 	GROUP BY k.id
-	HAVING COUNT(kr.rakennus_id) = (
+	HAVING COUNT(kr.rakennus_id) <= (
 	    SELECT COUNT(DISTINCT kr2.rakennus_id)
 	    FROM jkr.kohteen_rakennukset kr2
 	    JOIN jkr.viranomaispaatokset vp ON vp.rakennus_id = kr2.rakennus_id
@@ -74,7 +90,7 @@ SELECT DISTINCT (id) FROM (
 	    WHERE kr2.kohde_id = k.id
 	      AND vp.voimassaolo && $1
 	      AND tl.selite IN ('AKP', 'Perusmaksu')
-	      AND pt.selite = 'myönteinen'
+	      AND pt.selite = 'myönteinen' 
 	)
 );
 $BODY$;
@@ -99,7 +115,36 @@ AS $BODY$
 SELECT k.id
 FROM jkr.kohde k
 JOIN jkr.kaivotieto kt ON kt.kohde_id = k.id
-WHERE kt.kaivotietotyyppi_id = 1 AND kt.voimassaolo && $1
+WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1)) 
+	AND kt.kaivotietotyyppi_id = 1 
+	AND kt.voimassaolo && $1 
+	AND NOT EXISTS (
+		SELECT 1 FROM jkr.kaivotieto
+		WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,3,4,5)
+	)
+	AND NOT EXISTS (
+	        SELECT 1
+	        FROM jkr.kohteen_rakennukset kr
+	        WHERE kr.kohde_id = k.id
+	        AND EXISTS (
+	            SELECT 1
+	            FROM jkr.viranomaispaatokset vp
+	            WHERE vp.rakennus_id = kr.rakennus_id
+	            AND vp.voimassaolo && $1
+	            AND EXISTS (
+	                SELECT 1
+	                FROM jkr_koodistot.tapahtumalaji tl
+	                WHERE vp.tapahtumalaji_koodi = tl.koodi
+	                AND tl.selite IN ('AKP', 'Perusmaksu')
+	            )
+	            AND EXISTS (
+	                SELECT 1
+	                FROM jkr_koodistot.paatostulos pt
+	                WHERE vp.paatostulos_koodi = pt.koodi
+	                AND pt.selite = 'myönteinen'
+	            )
+	        )
+		)
 $BODY$;
 
 ALTER FUNCTION jkr.kohteet_joilla_kantovesi_tieto(daterange)
@@ -123,10 +168,11 @@ SELECT
 FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen viiden kvartaalin aikana ei harmaita vesiä
 	SELECT k.id
 	FROM jkr.kohde k
-	WHERE EXISTS (
-		SELECT 1 FROM jkr.kaivotieto 
-		WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2, 3)
-	) AND EXISTS (
+	WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1))
+		AND EXISTS (
+			SELECT 1 FROM jkr.kaivotieto 
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2, 3)
+		) AND EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
 			WHERE jatetyyppi_id IN (5, 6, 7) 
@@ -134,10 +180,10 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen viiden kvartaa
 				(LOWER($1) - INTERVAL '6 months')::date,
 				UPPER($1) 
 			) @> lietteentyhjennyspaiva
-	) AND NOT EXISTS (
+		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto 
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (5)
-	) AND NOT EXISTS (
+		) AND NOT EXISTS (
 	        SELECT 1
 	        FROM jkr.kohteen_rakennukset kr
 	        WHERE kr.kohde_id = k.id
@@ -159,7 +205,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen viiden kvartaa
 	                AND pt.selite = 'myönteinen'
 	            )
 	        )
-	)
+		)
 );
 $BODY$;
 
@@ -182,16 +228,16 @@ CREATE OR REPLACE FUNCTION jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdista
 AS $BODY$
 SELECT 
 	DISTINCT (id) 
-FROM (
+FROM ( -- Pienpuhdistamo muttei saostussäiliötä tai umpisäiliötä ja voimassaoleva kompostointi-ilmoitus
 	SELECT k.id
 	FROM jkr.kohde k
-	WHERE  -- Pienpuhdistamo muttei saostussäiliötä tai umpisäiliötä ja voimassaoleva kompostointi-ilmoitus
-		EXISTS (
+	WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1)) 
+		AND EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
-			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2)
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (3)
 		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
-			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (3,4)
+			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,4)
 		) AND EXISTS (
 			SELECT 1
 			FROM jkr.kompostori
@@ -222,7 +268,7 @@ FROM (
 );
 $BODY$;
 
-ALTER FUNCTION jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo(daterange)
+ALTER FUNCTION jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint(daterange)
     OWNER TO jkr_admin;
 
 
@@ -231,17 +277,14 @@ ALTER FUNCTION jkr.kohteet_joilla_saostusailio_tai_pienpuhdistamo(daterange)
 CREATE OR REPLACE FUNCTION JKR.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa (DATERANGE) RETURNS TABLE (KOHDE_ID INTEGER) LANGUAGE 'sql' COST 100 STABLE PARALLEL UNSAFE ROWS 1000 AS $BODY$
 SELECT 
 	DISTINCT (id) 
-FROM (
+FROM ( -- Lietteenkuljetus kunnossa
 	SELECT k.id
 	FROM jkr.kohde k
-	WHERE  -- Lietteenkuljetus kunnossa
-		EXISTS (
-			SELECT 1 FROM jkr.kaivotieto
-			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2)
-		) AND NOT EXISTS (
+	WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1))
+		AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,3,5)
-		) EXISTS (
+		) AND EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
 			WHERE jatetyyppi_id IN (5, 6, 7) 

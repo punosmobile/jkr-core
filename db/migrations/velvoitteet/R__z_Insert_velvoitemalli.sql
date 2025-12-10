@@ -285,7 +285,7 @@ VALUES
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
         'kohteet_jotka_ovat_viemariverkossa',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Viemäriverkostossa',
         1
@@ -295,7 +295,7 @@ VALUES
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
         'kohteet_joiden_rakennukset_vapautettu',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Vapautettu',
         1
@@ -305,7 +305,7 @@ VALUES
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
         'kohteet_joilla_kantovesi_tieto',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Kantovesi',
         1
@@ -315,7 +315,7 @@ VALUES
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
         'kohteet_joilla_kantovesi_tieto',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Kantovesi',
         1
@@ -325,7 +325,7 @@ VALUES
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
         'kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Kantovesi',
         1
@@ -335,7 +335,7 @@ VALUES
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
         'kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Kantovesi',
         1
@@ -345,7 +345,7 @@ VALUES
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
         'kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muu'),
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Kantovesi',
         1
