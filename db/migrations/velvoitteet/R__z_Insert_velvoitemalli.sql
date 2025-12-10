@@ -339,5 +339,15 @@ VALUES
         '2022-1-1',
         'Lietteenkuljetus kunnossa umpisäiliö tai ei tietoa',
         1
+    ),
+    (
+        37,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteet_joilla_vain_harmaat_vedet',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
+        '2022-1-1',
+        'Lietteenkuljetus kunnossa harmaat vedet',
+        1
     )
 ON CONFLICT DO NOTHING;
