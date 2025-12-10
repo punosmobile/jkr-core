@@ -314,40 +314,30 @@ VALUES
         34,
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
-        'kohteet_joilla_kantovesi_tieto',
+        'kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
-        'Kantovesi',
+        'Lietteenkuljetus kunnossa saostussäiliö tai pienpuhdistamo',
         1
     ),
     (
         35,
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
-        'kohteet_joilla_saostusailio_tai_pienpuhdistamo_ei_harmaata_vett',
+        'kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
-        'Kantovesi',
+        'Lietteenkuljetus kunnossa saostussäiliö tai pienpuhdistamo',
         1
     ),
     (
         36,
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
-        'kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
-        '2022-1-1',
-        'Kantovesi',
-        1
-    ),
-    (
-        37,
-        'Lietevelvoite',
-        'v_bio_hapa_asuinkiinteisto',
         'kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
-        'Kantovesi',
+        'Lietteenkuljetus kunnossa umpisäiliö tai ei tietoa',
         1
     )
 ON CONFLICT DO NOTHING;
