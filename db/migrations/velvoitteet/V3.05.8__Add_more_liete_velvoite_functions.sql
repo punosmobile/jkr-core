@@ -18,7 +18,7 @@ FROM ( -- Ei ole viemäriliitosta, on harmaavesikaivo ja kuljetus 13 kvartaalin 
 		) AND EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id = 5
-		)AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		)AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -55,7 +55,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen 6 - 9 kvartaal
 		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto 
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (5)
-		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -87,7 +87,7 @@ FROM ( -- Lietteenkuljetus väärä tyhjennysväli umpisäiliö tai ei tietoa 10
 				(LOWER($1) - INTERVAL '30 months')::date,
 				(UPPER($1) - INTERVAL '27 months')::date 
 			) @> lietteentyhjennyspaiva
-		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -113,7 +113,7 @@ FROM ( -- Ei ole viemäriliitosta, on harmaavesikaivo ja kuljetus 13 kvartaalin 
 		) AND EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id = 5
-		)AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		)AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -150,7 +150,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen 6 - 9 kvartaal
 		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto 
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (5)
-		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -182,7 +182,7 @@ FROM ( -- Lietteenkuljetus väärä tyhjennysväli umpisäiliö tai ei tietoa 1-
 				(LOWER($1) - INTERVAL '30 months')::date,
 				UPPER($1) 
 			) @> lietteentyhjennyspaiva
-		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -208,7 +208,7 @@ FROM ( -- Ei ole viemäriliitosta, on harmaavesikaivo ja kuljetus 13 kvartaalin 
 		) AND EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id = 5
-		)AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		)AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
