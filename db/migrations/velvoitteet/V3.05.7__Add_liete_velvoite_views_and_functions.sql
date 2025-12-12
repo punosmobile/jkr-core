@@ -115,7 +115,7 @@ SELECT DISTINCT (id) FROM (
 	WHERE k.id NOT IN (
 		SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1)
 	)
-	AND k.id IN kohteet_joiden_rakennukset_vapautettu($1)
+	AND k.id IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 	GROUP BY k.id
 	
 );
@@ -148,7 +148,7 @@ WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1))
 		SELECT 1 FROM jkr.kaivotieto
 		WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,3,4,5)
 	)
-	AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+	AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 $BODY$;
 
 ALTER FUNCTION jkr.kohteet_joilla_kantovesi_tieto(daterange)
@@ -187,7 +187,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen viiden kvartaa
 		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto 
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (5)
-		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -224,7 +224,7 @@ FROM ( -- Pienpuhdistamo muttei saostussäiliötä tai umpisäiliötä ja voimas
 			SELECT 1
 			FROM jkr.kompostori
 			WHERE voimassaolo && $1 AND onko_liete IS true
-		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
@@ -257,7 +257,7 @@ FROM ( -- Lietteenkuljetus kunnossa
 				(LOWER($1) - INTERVAL '18 months')::date,
 				UPPER($1) 
 			) @> lietteentyhjennyspaiva
-		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
+		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
 
