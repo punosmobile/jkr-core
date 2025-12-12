@@ -294,7 +294,7 @@ VALUES
         32,
         'Lietevelvoite',
         'v_bio_hapa_asuinkiinteisto',
-        'kohteet_joiden_rakennukset_vapautettu',
+        'kohteet_joiden_rakennukset_vapautettu_eivat_viemariverkossa',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Vapautettu',
@@ -349,5 +349,66 @@ VALUES
         '2022-1-1',
         'Lietteenkuljetus kunnossa harmaat vedet',
         1
+    ),
+    (
+        38,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteet_joilla_saostusai_tai_pienpuh_vaara_vali_ei_harmaata_vet',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
+        '2022-1-1',
+        'Väärä tyhjennysväli saostussäiliö tai pienpuhdistamo',
+        1
+    ),
+    (
+        39,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteella_lietekuljetus_vaara_vali_umpisailio_tai_ei_tietoa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
+        '2022-1-1',
+        'Väärä tyhjennysväli umpisäiliö tai ei tietoa',
+        1
+    ),
+    (
+        40,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteet_joilla_vaara_tyhjennysvali_vain_harmaat_vedet',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
+        '2022-1-1',
+        'Väärä tyhjennysväli harmaat vedet',
+        1
+    ),
+    (
+        41,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteet_joilla_saostusai_tai_pienpuh_ei_lietekuljetus_harmaata',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
+        '2022-1-1',
+        'Ei lietteenkuljetusta saostussäiliö tai pienpuhdistamo',
+        1
+    ),
+    (
+        42,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteella_ei_lietteenkuljetusta_umpisailio_tai_ei_tietoa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
+        '2022-1-1',
+        'Ei lietteenkuljetusta umpisäiliö tai ei tietoa',
+        1
+    ),
+    (
+        43,
+        'Lietevelvoite',
+        'v_bio_hapa_asuinkiinteisto',
+        'kohteet_joilla_ei_lietteenkuljetusta_harmaat_vedet',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
+        '2022-1-1',
+        'Ei lietteenkuljetusta harmaat vedet',
+        1
     )
+
 ON CONFLICT DO NOTHING;
