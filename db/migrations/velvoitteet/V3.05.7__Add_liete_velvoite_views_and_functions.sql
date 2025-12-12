@@ -79,7 +79,8 @@ SELECT DISTINCT (id) FROM (
 				AND R.RAKENNUSLUOKKA_2018::INTEGER <= 0211
 			)
 			OR R.RAKENNUKSENOLOTILA_KOODI::INTEGER = 1
-		) WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1))
+		)
+	WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1))
 	GROUP BY k.id
 	HAVING COUNT(kr.rakennus_id) <= (
 	    SELECT COUNT(DISTINCT kr2.rakennus_id)
@@ -92,6 +93,31 @@ SELECT DISTINCT (id) FROM (
 	      AND tl.selite IN ('AKP', 'Perusmaksu')
 	      AND pt.selite = 'myönteinen' 
 	)
+);
+$BODY$;
+
+-- FUNCTION: jkr.kohteet_joiden_rakennukset_vapautettu(daterange)
+
+-- DROP FUNCTION IF EXISTS jkr.kohteet_joiden_rakennukset_vapautettu(daterange);
+
+CREATE OR REPLACE FUNCTION jkr.kohteet_joiden_rakennukset_vapautettu_eivat_viemariverkossa(
+	daterange)
+    RETURNS TABLE(kohde_id integer) 
+    LANGUAGE 'sql'
+    COST 100
+    STABLE PARALLEL UNSAFE
+    ROWS 1000
+
+AS $BODY$
+SELECT DISTINCT (id) FROM (
+	SELECT k.id
+	FROM jkr.kohde k 	
+	WHERE k.id NOT IN (
+		SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1)
+	)
+	AND k.id IN kohteet_joiden_rakennukset_vapautettu($1)
+	GROUP BY k.id
+	
 );
 $BODY$;
 
@@ -122,29 +148,7 @@ WHERE k.id NOT IN (SELECT jkr.kohteet_jotka_ovat_viemariverkossa($1))
 		SELECT 1 FROM jkr.kaivotieto
 		WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,3,4,5)
 	)
-	AND NOT EXISTS (
-	        SELECT 1
-	        FROM jkr.kohteen_rakennukset kr
-	        WHERE kr.kohde_id = k.id
-	        AND EXISTS (
-	            SELECT 1
-	            FROM jkr.viranomaispaatokset vp
-	            WHERE vp.rakennus_id = kr.rakennus_id
-	            AND vp.voimassaolo && $1
-	            AND EXISTS (
-	                SELECT 1
-	                FROM jkr_koodistot.tapahtumalaji tl
-	                WHERE vp.tapahtumalaji_koodi = tl.koodi
-	                AND tl.selite IN ('AKP', 'Perusmaksu')
-	            )
-	            AND EXISTS (
-	                SELECT 1
-	                FROM jkr_koodistot.paatostulos pt
-	                WHERE vp.paatostulos_koodi = pt.koodi
-	                AND pt.selite = 'myönteinen'
-	            )
-	        )
-		)
+	AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
 $BODY$;
 
 ALTER FUNCTION jkr.kohteet_joilla_kantovesi_tieto(daterange)
@@ -183,29 +187,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen viiden kvartaa
 		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto 
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (5)
-		) AND NOT EXISTS (
-	        SELECT 1
-	        FROM jkr.kohteen_rakennukset kr
-	        WHERE kr.kohde_id = k.id
-	        AND EXISTS (
-	            SELECT 1
-	            FROM jkr.viranomaispaatokset vp
-	            WHERE vp.rakennus_id = kr.rakennus_id
-	            AND vp.voimassaolo && $1
-	            AND EXISTS (
-	                SELECT 1
-	                FROM jkr_koodistot.tapahtumalaji tl
-	                WHERE vp.tapahtumalaji_koodi = tl.koodi
-	                AND tl.selite IN ('AKP', 'Perusmaksu')
-	            )
-	            AND EXISTS (
-	                SELECT 1
-	                FROM jkr_koodistot.paatostulos pt
-	                WHERE vp.paatostulos_koodi = pt.koodi
-	                AND pt.selite = 'myönteinen'
-	            )
-	        )
-		)
+		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
 );
 $BODY$;
 
@@ -242,29 +224,7 @@ FROM ( -- Pienpuhdistamo muttei saostussäiliötä tai umpisäiliötä ja voimas
 			SELECT 1
 			FROM jkr.kompostori
 			WHERE voimassaolo && $1 AND onko_liete IS true
-		) AND NOT EXISTS (
-			SELECT 1
-			FROM jkr.kohteen_rakennukset kr
-			WHERE kr.kohde_id = k.id
-			AND EXISTS (
-				SELECT 1
-				FROM jkr.viranomaispaatokset vp
-				WHERE vp.rakennus_id = kr.rakennus_id
-				AND vp.voimassaolo && $1
-				AND EXISTS (
-					SELECT 1
-					FROM jkr_koodistot.tapahtumalaji tl
-					WHERE vp.tapahtumalaji_koodi = tl.koodi
-					AND tl.selite IN ('AKP', 'Perusmaksu')
-				)
-				AND EXISTS (
-					SELECT 1
-					FROM jkr_koodistot.paatostulos pt
-					WHERE vp.paatostulos_koodi = pt.koodi
-					AND pt.selite = 'myönteinen'
-				)
-			)
-		)
+		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
 );
 $BODY$;
 
@@ -274,7 +234,12 @@ ALTER FUNCTION jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoi
 
 -- FUNCTION: jkr.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa(daterange)
 -- DROP FUNCTION IF EXISTS jkr.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa(daterange);
-CREATE OR REPLACE FUNCTION JKR.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa (DATERANGE) RETURNS TABLE (KOHDE_ID INTEGER) LANGUAGE 'sql' COST 100 STABLE PARALLEL UNSAFE ROWS 1000 AS $BODY$
+CREATE OR REPLACE FUNCTION JKR.kohteella_lietekuljetus_ok_umpisailio_tai_ei_tietoa (DATERANGE) RETURNS TABLE (KOHDE_ID INTEGER) 
+LANGUAGE 'sql' 
+COST 100 
+STABLE PARALLEL UNSAFE 
+ROWS 1000 
+AS $BODY$
 SELECT 
 	DISTINCT (id) 
 FROM ( -- Lietteenkuljetus kunnossa
@@ -292,29 +257,7 @@ FROM ( -- Lietteenkuljetus kunnossa
 				(LOWER($1) - INTERVAL '18 months')::date,
 				UPPER($1) 
 			) @> lietteentyhjennyspaiva
-		) AND NOT EXISTS (
-			SELECT 1
-			FROM jkr.kohteen_rakennukset kr
-			WHERE kr.kohde_id = k.id
-			AND EXISTS (
-				SELECT 1
-				FROM jkr.viranomaispaatokset vp
-				WHERE vp.rakennus_id = kr.rakennus_id
-				AND vp.voimassaolo && $1
-				AND EXISTS (
-					SELECT 1
-					FROM jkr_koodistot.tapahtumalaji tl
-					WHERE vp.tapahtumalaji_koodi = tl.koodi
-					AND tl.selite IN ('AKP', 'Perusmaksu')
-				)
-				AND EXISTS (
-					SELECT 1
-					FROM jkr_koodistot.paatostulos pt
-					WHERE vp.paatostulos_koodi = pt.koodi
-					AND pt.selite = 'myönteinen'
-				)
-			)
-		)
+		) AND k.id NOT IN kohteet_joiden_rakennukset_vapautettu($1)
 );
 $BODY$;
 
