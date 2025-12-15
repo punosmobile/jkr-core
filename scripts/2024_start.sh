@@ -263,7 +263,7 @@ log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_20
         "logs/tietovirrat/2024_$quarter/kaivotiedot_lopetus.log" \
         "Q2 kaivotiedon lopetusten tuonti"
 
-log_exec "jkr import_lopeta_viemarit ../data/Liete/Viemariverkosto_lopetus_2023/$quarter.xlsx" \
+log_exec "jkr import_lopeta_viemarit ../data/Liete/Viemariverkosto_lopetus_2023$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/viemarilopetus.log" \
         "Q2 viemarin lopetusten tuonti"
 
