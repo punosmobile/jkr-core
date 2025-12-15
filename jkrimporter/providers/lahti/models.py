@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 
 from jkrimporter.model import Paatostulos, Tapahtumalaji
+from jkrimporter.providers.lahti.kaivotiedosto import _parse_date
 
 
 class Jatelaji(str, Enum):
@@ -700,13 +701,11 @@ class ViemariIlmoitus(BaseModel):
     )
 
     # Store the original row.
-    rawdata: Optional[Dict[str, str]]
+    rawdata: Optional[Dict[str, str]] = None
 
     @validator("viemariverkosto_alkupvm", pre=True)
     def parse_viemariverkosto_alkupvm(cls, value: Union[date, str]):
-        if isinstance(value, str) and "." in value:
-            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
-        return value
+        return _parse_date(value)
 
 
 class ViemariLopetusIlmoitus(BaseModel):
@@ -716,10 +715,8 @@ class ViemariLopetusIlmoitus(BaseModel):
     )
 
     # Store the original row.
-    rawdata: Optional[Dict[str, str]]
+    rawdata: Optional[Dict[str, str]] = None
 
     @validator("viemariverkosto_loppupvm", pre=True)
-    def parse_viemariverkosto_alkupvm(cls, value: Union[date, str]):
-        if isinstance(value, str) and "." in value:
-            return datetime.datetime.strptime(value, "%d.%m.%Y").date()
-        return value
+    def parse_viemariverkosto_loppupvm(cls, value: Union[date, str]):
+        return _parse_date(value)

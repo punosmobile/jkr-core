@@ -38,7 +38,7 @@ class ViemariIlmoitustiedosto:
         return False
 
     @property
-    def viemariilmoitukset(self):
+    def viemariilmoitukset(self) -> List[ViemariIlmoitus]:
         lopetus_list = []
         missing_headers_list = []
         failed_validations = []
@@ -93,7 +93,7 @@ class ViemariLopetustiedosto:
         return False
 
     @property
-    def lopetusilmoitukset(self):
+    def lopetusilmoitukset(self)-> List[ViemariLopetusIlmoitus]:
         lopetus_list = []
         missing_headers_list = []
         failed_validations = []
