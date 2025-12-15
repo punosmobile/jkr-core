@@ -8,7 +8,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte puuttuu',
-        11
+        16
     ),
     (
         4,
@@ -18,7 +18,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte väärä tyhjennysväli',
-        6
+        11
     ),
     (
         5,
@@ -28,7 +28,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte väärä tyhjennysväli',
-        6
+        11
     ),
     (
         6,
@@ -38,7 +38,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte väärä tyhjennysväli',
-        6
+        11
     ),
     (
         7,
@@ -48,7 +48,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte väärä tyhjennysväli',
-        6
+        11
     ),
     (
         8,
@@ -58,7 +58,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte kunnossa',
-        1
+        6
     ),
     (
         9,
@@ -68,7 +68,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte kunnossa',
-        1
+        6
     ),
     (
         10,
@@ -78,7 +78,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte kunnossa',
-        1
+        6
     ),
     (
         11,
@@ -88,7 +88,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte kunnossa',
-        1
+        6
     ),
     (
         12,
@@ -98,7 +98,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Sekajäte'),
         '2022-1-1',
         'Sekajäte kunnossa',
-        1
+        6
     ),
     (
         13,
@@ -108,7 +108,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2022-1-1',
         'Biojäte puuttuu',
-        11
+        16
     ),
     (
         14,
@@ -118,7 +118,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2022-1-1',
         'Biojäte puuttuu',
-        11
+        16
     ),
     (
         15,
@@ -128,7 +128,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2022-1-1',
         'Biojäte väärä tyhjennysväli',
-        6
+        11
     ),
     (
         16,
@@ -138,7 +138,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2022-1-1',
         'Biojäte kunnossa',
-        1
+        6
     ),
     (
         17,
@@ -148,7 +148,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2022-1-1',
         'Biojäte kunnossa',
-        1
+        6
     ),
     (
         18,
@@ -158,7 +158,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muovi'),
         '2022-1-1',
         'Muovipakkaus puuttuu',
-        11
+        16
     ),
     (
         19,
@@ -168,7 +168,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muovi'),
         '2022-1-1',
         'Muovi väärä tyhjennysväli',
-        6
+        11
     ),
     (
         20,
@@ -178,7 +178,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Muovi'),
         '2022-1-1',
         'Muovi kunnossa',
-        1
+        6
     ),
     (
         21,
@@ -188,7 +188,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Kartonki'),
         '2022-1-1',
         'Kartonkipakkaus puuttuu',
-        11
+        16
     ),
     (
         22,
@@ -198,7 +198,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Kartonki'),
         '2022-1-1',
         'Kartonkipakkaus väärä tyhjennysväli',
-        6
+        11
     ),
     (
         23,
@@ -208,7 +208,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Kartonki'),
         '2022-1-1',
         'Kartonkipakkaus kunnossa',
-        1
+        6
     ),
     (
         24,
@@ -218,7 +218,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Lasi'),
         '2022-1-1',
         'Lasipakkaus puuttuu',
-        11
+        16
     ),
     (
         25,
@@ -228,7 +228,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Lasi'),
         '2022-1-1',
         'Lasipakkaus väärä tyhjennysväli',
-        6
+        11
     ),
     (
         26,
@@ -238,7 +238,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Lasi'),
         '2022-1-1',
         'Lasipakkaus kunnossa',
-        1
+        6
     ),
     (
         27,
@@ -248,7 +248,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
         '2022-1-1',
         'Metalli puuttuu',
-        11
+        16
     ),
     (
         28,
@@ -258,7 +258,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
         '2022-1-1',
         'Metalli väärä tyhjennysväli',
-        6
+        11
     ),
     (
         29,
@@ -268,7 +268,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Metalli'),
         '2022-1-1',
         'Metalli kunnossa',
-        1
+        6
     ),
     (
         30,
@@ -278,7 +278,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Aluekeräyspiste'),
         '2022-1-1',
         'Sekajäte kunnossa',
-        1
+        6
     ),
     (
         31,
@@ -298,7 +298,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Vapautettu',
-        1
+        6
     ),
     (
         33,
@@ -308,7 +308,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Kantovesi',
-        1
+        6
     ),
     (
         34,
@@ -318,7 +318,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Lietteenkuljetus kunnossa saostussäiliö tai pienpuhdistamo',
-        1
+        6
     ),
     (
         35,
@@ -328,7 +328,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Lietteenkuljetus kunnossa saostussäiliö tai pienpuhdistamo',
-        1
+        6
     ),
     (
         36,
@@ -338,7 +338,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Lietteenkuljetus kunnossa umpisäiliö tai ei tietoa',
-        1
+        6
     ),
     (
         37,
@@ -348,7 +348,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Lietteenkuljetus kunnossa harmaat vedet',
-        1
+        6
     ),
     (
         38,
@@ -358,7 +358,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Väärä tyhjennysväli saostussäiliö tai pienpuhdistamo',
-        1
+        11
     ),
     (
         39,
@@ -368,7 +368,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Väärä tyhjennysväli umpisäiliö tai ei tietoa',
-        1
+        11
     ),
     (
         40,
@@ -378,7 +378,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Väärä tyhjennysväli harmaat vedet',
-        1
+        11
     ),
     (
         41,
@@ -388,7 +388,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Ei lietteenkuljetusta saostussäiliö tai pienpuhdistamo',
-        1
+        16
     ),
     (
         42,
@@ -398,7 +398,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Ei lietteenkuljetusta umpisäiliö tai ei tietoa',
-        1
+        16
     ),
     (
         43,
@@ -408,7 +408,7 @@ VALUES
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Liete'),
         '2022-1-1',
         'Ei lietteenkuljetusta harmaat vedet',
-        1
+        16
     )
 
 ON CONFLICT DO NOTHING;
