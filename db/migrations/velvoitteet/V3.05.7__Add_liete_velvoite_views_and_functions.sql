@@ -222,8 +222,9 @@ FROM ( -- Pienpuhdistamo muttei saostussäiliötä tai umpisäiliötä ja voimas
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (2,4)
 		) AND EXISTS (
 			SELECT 1
-			FROM jkr.kompostori
-			WHERE voimassaolo && $1 AND onko_liete IS true AND kohde_id = k.id
+			FROM jkr.kompostori ko
+			JOIN jkr.kompostorin_kohteet kk ON ko.id = kk.kompostori_id
+			WHERE ko.voimassaolo && $1 AND ko.onko_liete IS true AND kk.kohde_id = k.id
 		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
