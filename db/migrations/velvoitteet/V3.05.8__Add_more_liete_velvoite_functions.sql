@@ -50,7 +50,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen 6 - 9 kvartaal
 			WHERE jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
 				(LOWER($1) - INTERVAL '18 months')::date,
-				(UPPER($1) - INTERVAL '15 months')::date
+				(UPPER($1) - INTERVAL '18 months')::date
 			) @> lietteentyhjennyspaiva
 		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto 
@@ -85,7 +85,7 @@ FROM ( -- Lietteenkuljetus väärä tyhjennysväli umpisäiliö tai ei tietoa 10
 			WHERE jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
 				(LOWER($1) - INTERVAL '30 months')::date,
-				(UPPER($1) - INTERVAL '27 months')::date 
+				(UPPER($1) - INTERVAL '30 months')::date 
 			) @> lietteentyhjennyspaiva
 		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
@@ -108,7 +108,7 @@ FROM ( -- Ei ole viemäriliitosta, on harmaavesikaivo ja kuljetus 13 kvartaalin 
 			WHERE jatetyyppi_id IN (7)
 			AND daterange(
 				(LOWER($1) - INTERVAL '45 months')::date,
-				(UPPER($1) - INTERVAL '39 months')::date
+				(UPPER($1) - INTERVAL '45 months')::date
 			) @> lietteentyhjennyspaiva
 		) AND EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
