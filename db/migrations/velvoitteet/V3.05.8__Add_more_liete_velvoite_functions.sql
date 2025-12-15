@@ -10,7 +10,7 @@ FROM ( -- Ei ole viemäriliitosta, on harmaavesikaivo ja kuljetus 13 kvartaalin 
 		AND EXISTS (
 			SELECT 1
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (7)
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (7)
 			AND daterange(
 				(LOWER($1) - INTERVAL '33 months')::date,
 				UPPER($1)
@@ -47,7 +47,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen 6 - 9 kvartaal
 		) AND EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (5, 6, 7) 
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
 				(LOWER($1) - INTERVAL '18 months')::date,
 				(UPPER($1) - INTERVAL '18 months')::date
@@ -82,7 +82,7 @@ FROM ( -- Lietteenkuljetus väärä tyhjennysväli umpisäiliö tai ei tietoa 10
 		) AND EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (5, 6, 7) 
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
 				(LOWER($1) - INTERVAL '30 months')::date,
 				(UPPER($1) - INTERVAL '30 months')::date 
@@ -105,7 +105,7 @@ FROM ( -- Ei ole viemäriliitosta, on harmaavesikaivo ja kuljetus 13 kvartaalin 
 		AND EXISTS (
 			SELECT 1
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (7)
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (7)
 			AND daterange(
 				(LOWER($1) - INTERVAL '45 months')::date,
 				(UPPER($1) - INTERVAL '45 months')::date
@@ -142,7 +142,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen 6 - 9 kvartaal
 		) AND NOT EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (5, 6, 7) 
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
 				(LOWER($1) - INTERVAL '18 months')::date,
 				UPPER($1)
@@ -177,7 +177,7 @@ FROM ( -- Lietteenkuljetus väärä tyhjennysväli umpisäiliö tai ei tietoa 1-
 		) AND NOT EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (5, 6, 7) 
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
 				(LOWER($1) - INTERVAL '30 months')::date,
 				UPPER($1) 
@@ -200,7 +200,7 @@ FROM ( -- Ei ole viemäriliitosta, on harmaavesikaivo ja kuljetus 13 kvartaalin 
 		AND NOT EXISTS (
 			SELECT 1
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (7)
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (7)
 			AND daterange(
 				(LOWER($1) - INTERVAL '45 months')::date,
 				UPPER($1)

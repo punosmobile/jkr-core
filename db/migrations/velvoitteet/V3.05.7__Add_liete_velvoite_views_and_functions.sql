@@ -90,7 +90,7 @@ SELECT DISTINCT (id) FROM (
 	    JOIN jkr_koodistot.paatostulos pt ON vp.paatostulos_koodi = pt.koodi
 	    WHERE kr2.kohde_id = k.id
 	      AND vp.voimassaolo && $1
-	      AND tl.selite IN ('AKP', 'Perusmaksu')
+	      AND tl.selite IN ('Keskeyttäminen', 'Perusmaksu')
 	      AND pt.selite = 'myönteinen' 
 	)
 );
@@ -179,7 +179,7 @@ FROM ( -- Saostussäiliö tai pienpuhdistamo, tyhjennys edellisen viiden kvartaa
 		) AND EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (5, 6, 7) 
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7)
 			AND daterange(
 				(LOWER($1) - INTERVAL '6 months')::date,
 				UPPER($1) 
@@ -223,7 +223,7 @@ FROM ( -- Pienpuhdistamo muttei saostussäiliötä tai umpisäiliötä ja voimas
 		) AND EXISTS (
 			SELECT 1
 			FROM jkr.kompostori
-			WHERE voimassaolo && $1 AND onko_liete IS true
+			WHERE voimassaolo && $1 AND onko_liete IS true AND kohde_id = k.id
 		) AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 );
 $BODY$;
@@ -252,7 +252,7 @@ FROM ( -- Lietteenkuljetus kunnossa
 		) AND EXISTS (
 			SELECT 1 
 			FROM jkr.kuljetus
-			WHERE jatetyyppi_id IN (5, 6, 7) 
+			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7)
 			AND daterange(
 				(LOWER($1) - INTERVAL '18 months')::date,
 				UPPER($1) 
