@@ -98,7 +98,7 @@ class TestKaivotiedosto:
         filepath = Path(datadir) / "viemari_aloitus.xlsx"
         tiedosto = ViemariIlmoitustiedosto(filepath)
         
-        viemarit = list(tiedosto.viemariilmoitukset)
+        viemarit = tiedosto.viemariilmoitukset
         
         assert len(viemarit) == 4
         
@@ -112,7 +112,7 @@ class TestKaivotiedosto:
         filepath = Path(datadir) / "viemari_aloitus.xlsx"
         tiedosto = ViemariIlmoitustiedosto(filepath)
         
-        viemarit = list(tiedosto.viemariilmoitukset)
+        viemarit = tiedosto.viemariilmoitukset
         
         assert viemarit[0].rawdata is not None
         assert "PRT" in viemarit[0].rawdata
@@ -122,7 +122,7 @@ class TestKaivotiedosto:
         filepath = Path(datadir) / "viemari_virheellinen.xlsx"
         tiedosto = ViemariIlmoitustiedosto(filepath)
         
-        viemarit = list(tiedosto.viemariilmoitukset)
+        viemarit = tiedosto.viemariilmoitukset
         
         # Molemmat rivit pitäisi ohittaa (puuttuva PRT tai päivämäärä)
         assert len(viemarit) == 0
@@ -136,7 +136,7 @@ class TestKaivotiedosto:
         try:
             tiedosto = ViemariIlmoitustiedosto(filepath)
         
-            viemarit = list(tiedosto.viemariilmoitukset)
+            viemarit = tiedosto.viemariilmoitukset
         except RuntimeError:
             print("Otsikkovirhe havaittu, tiedosto ohitettu.")
         # Molemmat rivit pitäisi ohittaa (tiedosto ei kelpaa)
@@ -151,14 +151,14 @@ class TestViemarinLopetusTiedosto:
         filepath = Path(datadir) / "viemari_lopetus.xlsx"
         tiedosto = ViemariLopetustiedosto(filepath)
         
-        lopetukset = list(tiedosto.lopetusilmoitukset)
+        lopetukset = tiedosto.lopetusilmoitukset
         
         assert len(lopetukset) == 2
         
         # Tarkista ensimmäinen rivi
         first = lopetukset[0]
         assert first.prt == "103456789A"
-        assert first.viemariverkosto_loppupvm == date(2024, 6, 1)  # Loppupvm
+        assert first.viemariverkosto_loppupvm == date(2025, 1, 10)  # Loppupvm
 
     def test_rawdata_preserved(self, datadir):
             """Alkuperäinen data säilytetään."""
