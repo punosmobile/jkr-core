@@ -93,12 +93,19 @@ if exist "%FILE_PATH%" (
     set SHAPE_ENCODING=CP1252
 
     ogr2ogr -f PostgreSQL -update -append ^
-        "PG:host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr" ^
-        -nln viemariverkosto ^
-        -nlt MULTIPOLYGON ^
-        -dialect SQLITE ^
-        -sql "SELECT \"Geometry\" as geom, \"%NAME_COL%\" as nimi, \"%ID_COL%\" as viemariverkosto_id, '%DATE_FROM%' as alkupvm FROM \"%SHP_TABLE%\"" ^
-        "%FILE_PATH%"
+    -s_srs EPSG:3880 ^
+    -t_srs EPSG:3067 ^
+    --config OGR_CT_FORCE_TRADITIONAL_GIS_ORDER YES ^
+    "PG:host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr" ^
+    -nln viemariverkosto ^
+    -nlt MULTIPOLYGON ^
+    -dialect SQLITE ^
+    -sql "SELECT \"Geometry\" AS geom,
+                 \"%NAME_COL%\" AS nimi,
+                 \"%ID_COL%\" AS viemariverkosto_id,
+                 '%DATE_FROM%' AS alkupvm
+          FROM \"%SHP_TABLE%\"" ^
+    "%FILE_PATH%"
 
 ) else (
     echo Varoitus: Annettua viemäröintiverkosto tiedostoa ei löydy
