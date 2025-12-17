@@ -1,69 +1,108 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
 
-REM Tarkistetaan .env tiedosto.
-if not exist "%APPDATA%\jkr\.env" (
-    echo Error: .env file not found at %APPDATA%\jkr\.env
-    exit /b 1
-)
+REM === Environment variables ===
+set HOST=db
+set PORT=%JKR_DB_PORT%
+set DB_NAME=%JKR_DB%
+set USER=%JKR_USER%
+set PGPASSWORD=%JKR_PASSWORD%
 
-REM Ladataan muuttujat .env tiedostosta.
-for /f "usebackq tokens=1,* delims==" %%a in ("%APPDATA%\jkr\.env") do (
-    set "%%a=%%b"
-)
-
-REM Tarkistetaan onko tarvittavat muuttujat asetettu.
+REM === Check required environment variables ===
 if "%JKR_DB_HOST%"=="" (
     echo Error: HOST variable not set in .env file
     exit /b 1
 )
+
 if "%JKR_DB_PORT%"=="" (
     echo Error: PORT variable not set in .env file
     exit /b 1
 )
+
 if "%JKR_DB%"=="" (
     echo Error: DB_NAME variable not set in .env file
     exit /b 1
 )
+
 if "%JKR_USER%"=="" (
     echo Error: USER variable not set in .env file
     exit /b 1
 )
-if "%QGIS_BIN_PATH%"=="" (
-    echo Error: QGIS_BIN_PATH variable not set in .env file
-    exit /b1
-)
 
-if "%JKR_PASSWORD%"=="" (
-    echo Error: USER variable not set in .env file
+REM === Check parameter count ===
+if "%~2"=="" (
+    echo Anna parametrina viemäriverkoston alkupäivämäärä, esim. 2020-01-01 sekä tiedosto, esim. Asikkala_vesihuoltolaitoksen_toiminta-alueet.shp
     exit /b 1
 )
 
-set PGPASSWORD=%JKR_PASSWORD%
-
-REM Tarkistetaan parametrit
-IF "%~3"=="" (
-   ECHO Anna parametrit järjestyksessä
-   ECHO 1. polku shp-tiedostoon
-   ECHO 2. taajamarajausten alkupäivämäärä, esim. 2020-01-01
-   ECHO 3. taajaman koko, esim. 200 tai 10000
-   ECHO esim. .\import_taajama.bat "C:\tmp\rajaukset\Yli 10 000 asukkaan taajamat.shp" 2020-01-01 10000
-   EXIT /b 1
+if not "%~3"=="" (
+    echo Liikaa parametreja annettu
+    exit /b 1
 )
 
-REM Vaihdetaan terminaalin code page UTF-8:ksi
-CHCP 65001
-REM Kerrotaan Postgresille myäs että terminaalin encoding on UTF-8
-SET PGCLIENTENCODING=UTF8
+set DATE_FROM=%~1
+set FILE_PATH=%~2
 
-SET SHP_FILE=%~1
-SET DATE_FROM=%~2
-SET POPULATION=%~3
+REM === PostgreSQL client encoding ===
+set PGCLIENTENCODING=UTF8
 
-for %%A in ("%SHP_FILE%") do (
-   SET "SHP_TABLE=%%~nA"
+REM === Process sewer network data ===
+if exist "%FILE_PATH%" (
+
+    echo Käsitellään viemäriverkosto...
+
+    REM Extract shapefile base name
+    for %%F in ("%FILE_PATH%") do set SHP_TABLE=%%~nF
+
+    REM === Extract fields using ogrinfo + awk ===
+    set FIELDS=
+
+    for /f "usebackq delims=" %%A in (`
+        ogrinfo -al -so "%FILE_PATH%" 2^>nul ^|
+        awk "/^[A-Za-z_][A-Za-z0-9_]*: / && $1 !~ /^(Geometry|Extent|Metadata|Layer|Feature|Data|SRS|ID|PROJCRS|BASEGEOGCRS|CONVERSION|CS|AXIS|USAGE|BBOX)$/ { sub(/:.*/, \"\", $1); print $1 }"
+    `) do (
+        set FIELDS=!FIELDS! %%A
+    )
+
+    echo %FIELDS%
+    echo start checks
+
+    REM === Detect name column ===
+    echo %FIELDS% | findstr /x /c:"nimi" >nul
+    if not errorlevel 1 (
+        set NAME_COL=nimi
+    ) else (
+        echo %FIELDS% | findstr /x /c:"Lajin_seli" >nul
+        if not errorlevel 1 (
+            set NAME_COL=Lajin_seli
+        ) else (
+            echo No name column found
+            exit /b 1
+        )
+    )
+
+    REM === Detect ID column ===
+    echo %FIELDS% | findstr /c:"OBJECTID" >nul
+    if not errorlevel 1 (
+        set ID_COL=OBJECTID
+    ) else (
+        set ID_COL=Laji
+    )
+
+    REM === Run ogr2ogr ===
+    set SHAPE_ENCODING=CP1252
+
+    ogr2ogr -f PostgreSQL -update -append ^
+        "PG:host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr" ^
+        -nln viemariverkosto ^
+        -nlt MULTIPOLYGON ^
+        -dialect SQLITE ^
+        -sql "SELECT \"Geometry\" as geom, \"%NAME_COL%\" as nimi, \"%ID_COL%\" as viemariverkosto_id, '%DATE_FROM%' as alkupvm FROM \"%SHP_TABLE%\"" ^
+        "%FILE_PATH%"
+
+) else (
+    echo Varoitus: Annettua viemäröintiverkosto tiedostoa ei löydy
 )
 
-"%QGIS_BIN_PATH%\\ogr2ogr" -f PostgreSQL -update -append PG:"host=%JKR_DB_HOST% port=%JKR_DB_PORT% dbname=%JKR_DB% user=%JKR_USER% ACTIVE_SCHEMA=jkr" -nln taajama -nlt MULTIPOLYGON -dialect SQLITE -sql "SELECT ""Geometry"" as geom, ""Urakkaraja"" as nimi, %POPULATION% as vaesto_lkm, ""fid"" as taajama_id, '%DATE_FROM%' as alkupvm FROM ""%SHP_TABLE%""" "%SHP_FILE%"
-
-ECHO Valmis!
+echo Valmis!
+endlocal
