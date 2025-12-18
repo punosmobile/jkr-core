@@ -110,6 +110,16 @@ log_exec "sh import_taajama.sh 2026-01-01" \
         "logs/import_taajama.log" \
         "Taajamarajausten tuonti"
 
+# Vaihe 1.5: Viemarirajaukset Asikkalalle
+log_exec "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_karttarajaukset/Asikkala_viemäriverkosto_toimintaalue/Asikkala_vesihuoltolaitoksen_toiminta-alueet_2023.shp" \
+        "logs/import_viemari_asikkala.log" \
+        "Asikkalan viemariverkoston tuonti"
+
+# Vaihe 1.5: Viemarirajaukset Heinolalle
+log_exec "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_karttarajaukset/Heinola_viemäriverksoto\ toimintaalue/Heinola_jv-alueet_area.shp" \
+        "logs/import_viemari_heinola.log" \
+        "Heinolan viemariverkoston tuonti"
+
 # Vaihe 2: Kunnat ja postinumerot
 log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql" \
         "logs/import_posti.log" \
