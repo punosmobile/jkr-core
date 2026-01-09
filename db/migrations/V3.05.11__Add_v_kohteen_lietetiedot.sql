@@ -42,6 +42,7 @@ kompostointi AS (
         k.loppupvm AS kompostointi_loppupvm
     FROM jkr.kompostorin_kohteet kk
     JOIN jkr.kompostori k ON kk.kompostori_id = k.id
+    WHERE k.onko_liete IS TRUE
     ORDER BY kk.kohde_id, 
              CASE WHEN k.loppupvm IS NULL OR k.loppupvm >= CURRENT_DATE THEN 0 ELSE 1 END,
              COALESCE(k.loppupvm, '9999-12-31') DESC,
