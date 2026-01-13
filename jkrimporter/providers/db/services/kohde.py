@@ -37,6 +37,7 @@ from ..models import (
     UlkoinenAsiakastieto,
     Viranomaispaatokset,
     HapaAineisto,
+    Kaivotiedot
 )
 from ..utils import clean_asoy_name, form_display_name, is_asoy, is_company, is_yhteiso
 from .buildings import DISTANCE_LIMIT, create_nearby_buildings_lookup, maximum_distance_of_buildings, RakennusData
@@ -784,7 +785,7 @@ def update_old_kohde_data(
     
     Prosessi suoritetaan seuraavasti:
     Alkupäivä on asetettu kohteen lopettamisessa -> ei tarvitse asettaa uudelleen
-    1. Siirretään sopimukset ja kuljetukset joiden loppupvm >= uuden kohteen alkupvm
+    1. Siirretään sopimukset, kaivotiedot ja kuljetukset joiden loppupvm >= uuden kohteen alkupvm
     2. Käsitellään viranomaispäätökset:
        - Päätöksille joiden alkupvm <= vanhan kohteen loppupvm asetetaan loppupvm
        - Muut päätökset siirretään uudelle kohteelle
@@ -817,13 +818,28 @@ def update_old_kohde_data(
 
         with session.begin_nested():
 
-            # 1. Siirrä sopimukset ja kuljetukset
-            for model in [Sopimus, Kuljetus]:
+            # 1.1 Siirrä sopimukset
+            for model in [Sopimus]:
                 stmt = (
                     update(model)
                     .where(
                         model.kohde_id == old_kohde.id,
                         model.loppupvm >= new_kohde_alkupvm
+                    )
+                    .values(kohde_id=new_kohde_id)
+                    .execution_options(synchronize_session=False)
+                )
+                result = session.execute(stmt)
+                print(f"Siirretty {result.rowcount} {model.__name__.lower()}ta uudelle kohteelle")
+
+            # 1.2 Siirrä ei-liete kuljetukset
+            for model in [Kuljetus]:
+                stmt = (
+                    update(model)
+                    .where(
+                        model.kohde_id == old_kohde.id,
+                        model.loppupvm >= new_kohde_alkupvm,
+                        model.jatetyyppi_id.not_in(5,6,7)
                     )
                     .values(kohde_id=new_kohde_id)
                     .execution_options(synchronize_session=False)
@@ -854,7 +870,89 @@ def update_old_kohde_data(
             result = session.execute(stmt)
             print(f"Päivitetty {result.rowcount} viranomaispäätöksen loppupvm")
 
-            # 2.2 Siirrä voimassa olevat päätökset uudelle kohteelle
+
+            # 2.2 Siirrä tai kopioi kaivo-, viemäri- ja lietekuljetustiedot uudelle kohteelle
+            if len(rakennus_ids) > 1:
+                
+                kopioituvat_kaivotiedot_query = (
+                    select(Kaivotiedot)
+                    .where(
+                        Kaivotiedot.kohde_id == old_kohde.id,
+                        Kaivotiedot.alkupvm <= loppupvm
+                    )
+                    .execution_options(synchronize_session=False)
+                )
+                
+                kopioituvat_kaivotiedot = session.execute(kopioituvat_kaivotiedot_query)
+                
+                for kaivotieto in kopioituvat_kaivotiedot.scalars():
+                    uusi_kaivotieto = Kaivotiedot(
+                        kohde_id = new_kohde_id,
+                        alkupvm = kaivotieto.alkupvm,
+                        loppupvm = kaivotieto.loppupvm,
+                        tiedot = kaivotieto.tiedot
+                    )
+                    session.add(uusi_kaivotieto)
+
+                print(f"Kopioitu {kopioituvat_kaivotiedot.rowcount} kaivotietoa uudelle kohteelle")
+
+
+                kopioituvat_kuljetukset_query = (
+                    select(Kuljetus)
+                    .where(
+                        model.kohde_id == old_kohde.id,
+                        model.loppupvm >= new_kohde_alkupvm,
+                        model.jatetyyppi_id.in_(5,6,7)
+                    )
+                    .execution_options(synchronize_session=False)
+                )
+
+                kopioituvat_kuljetukset = session.execute(kopioituvat_kuljetukset_query)
+                result = session.execute(stmt)
+                
+
+                for kuljetus in kopioituvat_kuljetukset.scalars():
+                    uusi_kuljetus = Kuljetus(
+                        kohde_id = new_kohde_id,
+                        alkupvm = kuljetus.alkupvm,
+                        loppupvm = kuljetus.loppupvm,
+                        jatetyyppi_id = kuljetus.jatetyyppi_id,
+                        tiedot = kuljetus.tiedot
+                    )
+                    session.add(uusi_kuljetus)
+                print(f"Kopioitu {result.rowcount} Kuljetusta uudelle kohteelle")
+
+            else:
+                siirtyvat_kaivotiedot = (
+                    update(Kaivotiedot)
+                    .where(
+                        Kaivotiedot.rakennus_id.in_(rakennus_ids.scalar_subquery()),
+                        Kaivotiedot.alkupvm <= loppupvm
+                    )
+                    .values(
+                        kohde_id = new_kohde_id  # Irroita rakennuksesta
+                        )
+                    .execution_options(synchronize_session=False)
+                )
+                
+                result_kaivo = session.execute(siirtyvat_kaivotiedot)
+                print(f"Päivitetty {result_kaivo.rowcount} kaivotiedon kohde_id")
+
+                stmt = (
+                    update(Kuljetus)
+                    .where(
+                        Kuljetus.kohde_id == old_kohde.id,
+                        Kuljetus.loppupvm >= new_kohde_alkupvm,
+                        Kuljetus.jatetyyppi_id.not_in(5,6,7)
+                    )
+                    .values(kohde_id=new_kohde_id)
+                    .execution_options(synchronize_session=False)
+                )
+                result = session.execute(stmt)
+                print(f"Siirretty {result.rowcount} Kuljetusta uudelle kohteelle")
+
+
+            # 2.3 Siirrä voimassa olevat päätökset uudelle kohteelle
             # Tämä ei näyttäisi tekevän mitä sen kuuluisi ja aiheuttaa kaatumisen
             # sillä loppupvm ei saa olla pienempi kuin alkupvm. kommentoitu 12.6.2025 - EK
 

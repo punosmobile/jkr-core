@@ -161,6 +161,7 @@ Velvoite = Base.classes.velvoite
 Velvoitemalli = Base.classes.velvoitemalli
 ViemariLiitos = Base.classes.viemari_liitos
 Viranomaispaatokset = Base.classes.viranomaispaatokset
+Kaivotiedot = Base.classes.kaivotieto
 
 # Let SQLAlchemy handle all relationships through reflection
 # Remove redundant relationship definitions that were causing warnings
