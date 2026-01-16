@@ -1710,7 +1710,7 @@ def update_or_create_kohde_from_buildings(
     """
     rakennus_ids = set()
     rakennus_prts = set()
-    print(poistettujen_rakennusten_kohteet)
+
     kohteet_rakennuksittain = {
         item.rakennus_id: item.kohde_id
         for item in poistettujen_rakennusten_kohteet
