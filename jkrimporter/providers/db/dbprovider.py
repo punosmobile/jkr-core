@@ -48,7 +48,8 @@ from .models import (
     Tiedontuottaja,
     Viranomaispaatokset,
     DVVPoimintaPvm,
-    Keraysvaline
+    Keraysvaline,
+    KohteenRakennukset
 )
 from .services.buildings import counts as building_counts
 from .services.buildings import (
@@ -369,11 +370,17 @@ def import_dvv_kohteet(
     print(f"{len(poistettavat_rakennukset)} asukas ja  {len(poistettavat_rakennukset_omistaja)} omistaja rakennusta on poistumassa kohteiltaan")
     print(f"{len(pysyvat_rakennukset_asukastiedolla) + len(pysyvat_rakennukset_omistajatiedolla)} tarkastelluista rakennuksista pysyy kohteillaan")
 
+    # Poistetaan rakennukset kohteilta asukas tai omistajapohjaisesti
+    asukas_kohde_list: List[KohteenRakennukset] = []
+    omistaja_kohde_list: List[KohteenRakennukset] = []
     if len(poistettavat_rakennukset) > 0:
-        remove_buildings_from_kohde(session, poistettavat_rakennukset, 'asukas', poimintapvm)
+        asukas_kohde_list = remove_buildings_from_kohde(session, poistettavat_rakennukset, 'asukas', poimintapvm)
     if len(poistettavat_rakennukset_omistaja) > 0:
-        remove_buildings_from_kohde(session, poistettavat_rakennukset_omistaja, 'omistaja', poimintapvm)
-    
+        omistaja_kohde_list = remove_buildings_from_kohde(session, poistettavat_rakennukset_omistaja, 'omistaja', poimintapvm)
+
+    # Otetaan yhteinen lista poistetuista rakennuksista kohteineen
+    poistettujen_rakennusten_kohteet = asukas_kohde_list + omistaja_kohde_list
+
     session.commit()
 
     # 2. Yhden asunnon kohteet (omakotitalot ja paritalot)
@@ -381,7 +388,7 @@ def import_dvv_kohteet(
     print("\nLuodaan yhden asunnon kohteet...")
 
     single_asunto_kohteet = get_or_create_single_asunto_kohteet(
-        session, poimintapvm, loppupvm
+        session, poimintapvm, loppupvm, poistettujen_rakennusten_kohteet
     )
     session.commit()
     logger.info(f"Luotu {len(single_asunto_kohteet)} yhden asunnon kohdetta")
@@ -391,7 +398,7 @@ def import_dvv_kohteet(
     logger.info("\nLuodaan loput kohteet...")
     print("\nLuodaan loput kohteet...")
     multiple_and_uninhabited_kohteet = get_or_create_multiple_and_uninhabited_kohteet(
-        session, poimintapvm, loppupvm
+        session, poimintapvm, loppupvm, poistettujen_rakennusten_kohteet
     )
     session.commit()
     logger.info(f"Luotu {len(multiple_and_uninhabited_kohteet)} muuta kohdetta")
