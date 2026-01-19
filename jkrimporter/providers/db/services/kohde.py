@@ -932,7 +932,7 @@ def update_old_kohde_data(
                         rakennus_prt = viemari.rakennus_prt
                     )
                     session.add(uusi_viemari)
-                print(f"Kopioitu {len(kopioituvat_viemarit)} Kuljetusta uudelle kohteelle")
+                print(f"Kopioitu {len(kopioituvat_viemarit)} viemäriä uudelle kohteelle")
 
             else:
                 # 3.1 kaivotietojen siirto
