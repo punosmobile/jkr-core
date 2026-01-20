@@ -56,7 +56,8 @@ CREATE MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista AS
       ON k.id = yht.kohde_id
  	CROSS JOIN latest_kompostori_date d
   WHERE
-    k.voimassaolo @> CURRENT_DATE
+    ko.onko_liete != TRUE 
+    AND k.voimassaolo @> CURRENT_DATE
     AND ko.voimassaolo && daterange(
       DATE_TRUNC('quarter', d.latest_alkupvm - INTERVAL '9 months')::date,
       DATE_TRUNC('quarter', d.latest_alkupvm)::date,
