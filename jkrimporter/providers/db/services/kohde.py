@@ -856,10 +856,6 @@ def update_old_kohde_data(
                     select(Kaivotiedot)
                     .where(
                         Kaivotiedot.kohde_id == old_kohde.id,
-                        or_(
-                            Kaivotiedot.loppupvm >= new_kohde_alkupvm,
-                            Kaivotiedot.loppupvm.is_(None)
-                        )
                     )
                     .execution_options(synchronize_session=False)
                 )
@@ -886,7 +882,6 @@ def update_old_kohde_data(
                     select(Kuljetus)
                     .where(
                         Kuljetus.kohde_id == old_kohde.id,
-                        Kuljetus.loppupvm >= new_kohde_alkupvm,
                         Kuljetus.jatetyyppi_id.in_([5,6,7])
                     )
                     .execution_options(synchronize_session=False)
@@ -914,10 +909,6 @@ def update_old_kohde_data(
                     select(ViemariLiitos)
                     .where(
                         ViemariLiitos.kohde_id == old_kohde.id,
-                        or_(
-                            ViemariLiitos.viemariverkosto_loppupvm >= new_kohde_alkupvm,
-                            ViemariLiitos.viemariverkosto_loppupvm.is_(None)
-                        )
                     )
                     .execution_options(synchronize_session=False)
                 )
@@ -940,10 +931,6 @@ def update_old_kohde_data(
                     update(Kaivotiedot)
                     .where(
                         Kaivotiedot.kohde_id == old_kohde.id,
-                        or_(
-                            Kaivotiedot.loppupvm >= new_kohde_alkupvm,
-                            Kaivotiedot.loppupvm.is_(None)
-                        )
                     )
                     .values(
                         kohde_id = new_kohde_id
@@ -959,7 +946,6 @@ def update_old_kohde_data(
                     update(Kuljetus)
                     .where(
                         Kuljetus.kohde_id == old_kohde.id,
-                        Kuljetus.loppupvm >= new_kohde_alkupvm,
                         Kuljetus.jatetyyppi_id.in_([5,6,7])
                     )
                     .values(kohde_id=new_kohde_id)
@@ -973,10 +959,6 @@ def update_old_kohde_data(
                     update(ViemariLiitos)
                     .where(
                         ViemariLiitos.kohde_id == old_kohde.id,
-                        or_(
-                            ViemariLiitos.viemariverkosto_loppupvm >= new_kohde_alkupvm,
-                            ViemariLiitos.viemariverkosto_loppupvm.is_(None)
-                        )
                     )
                     .values(kohde_id=new_kohde_id)
                     .execution_options(synchronize_session=False)
