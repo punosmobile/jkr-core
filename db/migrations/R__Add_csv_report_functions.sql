@@ -177,7 +177,7 @@ BEGIN
         LEFT JOIN
             jkr.kompostori AS kom ON kom.id = k.kompostori_id
         WHERE
-            kom.voimassaolo && tarkistusjakso
+            kom.voimassaolo && tarkistusjakso && kom.onko_liete IS NOT TRUE
         ORDER BY
             k_id.kohde_id, kom.loppupvm DESC
     )
@@ -783,7 +783,7 @@ BEGIN
             FROM jkr.kompostorin_kohteet kk
             JOIN jkr.kompostori ko ON kk.kompostori_id = ko.id
             JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
-            WHERE kk.kohde_id = k.kohde_id
+            WHERE kk.kohde_id = k.kohde_id AND ko.onko_liete != TRUE
             ORDER BY ko.loppupvm DESC
             LIMIT 1
         ) AS "Komposti-ilmoituksen tekijän nimi",

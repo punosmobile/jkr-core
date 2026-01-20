@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union
 
-from sqlalchemy import text
+from sqlalchemy import text, or_
 from sqlalchemy.orm import Session
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
@@ -761,7 +761,11 @@ class DbProvider:
                             Kompostori.loppupvm == ilmoitus.loppupvm,
                             Kompostori.osoite_id == osoite_id,
                             Kompostori.onko_kimppa == ilmoitus.onko_kimppa,
-                            Kompostori.osapuoli_id == osapuoli.id
+                            Kompostori.osapuoli_id == osapuoli.id,
+                            or_(
+                                Kompostori.onko_liete.is_(False),
+                                Kompostori.onko_liete.is_(None),
+                            ),
                         ).first()
                         if existing_kompostori:
                             print("Vastaava kompostori löydetty, ohitetaan luonti...")
