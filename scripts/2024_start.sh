@@ -197,6 +197,42 @@ log_exec "jkr import_viemarit ../data/Liete/Viemariverkosto_Heinola.xlsx" \
         "logs/viemaritHeinola.log" \
         "Heinola viemärien tuonti"
 
+# ===============================================================
+# Vuoden 2022 - 2023 tietojen sisäänluku
+
+# Kuljetukset
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2022Q1.xlsx LSJ 1.1.2022 31.3.2022" \
+        "logs/tietovirrat/2022Q1/liete_kuljetukset.log" \
+        "2022 Q1 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q1.xlsx LSJ 1.1.2023 31.3.2023" \
+        "logs/tietovirrat/2023Q1/liete_kuljetukset.log" \
+        "2023 Q1 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q2.xlsx LSJ 1.4.2023 31.6.2023" \
+        "logs/tietovirrat/2023Q2/liete_kuljetukset.log" \
+        "2023 Q2 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q3.xlsx LSJ 1.7.2023 31.9.2023" \
+        "logs/tietovirrat/2023Q3/liete_kuljetukset.log" \
+        "2023 Q3 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q4.xlsx LSJ 1.10.2023 31.12.2023" \
+        "logs/tietovirrat/2023Q4/liete_kuljetukset.log" \
+        "2023 Q4 LIETE-kuljetustietojen tuonti"
+
+# Kaivotiedon lopetukset
+log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2023Q2.xlsx LSJ" \
+        "logs/tietovirrat/2023_Q2/kaivotiedot_lopetus.log" \
+        "2023 Q2 kaivotiedon lopetusten tuonti"
+
+# Q1 Kaivotiedon lopetukset
+log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2023Q3.xlsx LSJ" \
+        "logs/tietovirrat/2023_Q3/kaivotiedot_lopetus.log" \
+        "2023 Q3 kaivotiedon lopetusten tuonti"
+
+# ===============================================================
+
 # Q1 2024 tietojen tuonti
 quarter="Q1"
 
