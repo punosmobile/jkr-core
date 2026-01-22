@@ -12,6 +12,11 @@ rm kiinteisto_debug.log
 # Luo logs-hakemisto jos ei ole olemassa
 mkdir -p logs/arkisto
 mkdir -p logs/kohteet
+mkdir -p logs/tietovirrat/2022_Q1
+mkdir -p logs/tietovirrat/2023_Q1
+mkdir -p logs/tietovirrat/2023_Q2 
+mkdir -p logs/tietovirrat/2023_Q3
+mkdir -p logs/tietovirrat/2023_Q4
 mkdir -p logs/tietovirrat/2024_Q1
 mkdir -p logs/tietovirrat/2024_Q2 
 mkdir -p logs/tietovirrat/2024_Q3
@@ -197,6 +202,50 @@ log_exec "jkr import_viemarit ../data/Liete/Viemariverkosto_Heinola.xlsx" \
         "logs/viemaritHeinola.log" \
         "Heinola viemärien tuonti"
 
+# ===============================================================
+# Vuoden 2022 - 2023 tietojen sisäänluku
+
+# Kuljetukset
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2022Q1.xlsx LSJ 1.1.2022 31.3.2022" \
+        "logs/tietovirrat/2022_Q1/liete_kuljetukset.log" \
+        "2022 Q1 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q1.xlsx LSJ 1.1.2023 31.3.2023" \
+        "logs/tietovirrat/2023_Q1/liete_kuljetukset.log" \
+        "2023 Q1 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Lietteenpeltolevitys_2023Q1.xlsx LSJ 1.1.2023 31.3.2023" \
+        "logs/tietovirrat/2023_Q1/liete_peltolevitykset.log" \
+        "2023 Q1 LIETE-peltolevityksen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q2.xlsx LSJ 1.4.2023 30.6.2023" \
+        "logs/tietovirrat/2023_Q2/liete_kuljetukset.log" \
+        "2023 Q2 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q3.xlsx LSJ 1.7.2023 30.9.2023" \
+        "logs/tietovirrat/2023_Q3/liete_kuljetukset.log" \
+        "2023 Q3 LIETE-kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Lietteenpeltolevitys_2023Q3.xlsx LSJ 1.7.2023 30.9.2023" \
+        "logs/tietovirrat/2023_Q3/liete_peltolevitykset.log" \
+        "2023 Q3 LIETE-peltolevityksen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q4.xlsx LSJ 1.10.2023 31.12.2023" \
+        "logs/tietovirrat/2023_Q4/liete_kuljetukset.log" \
+        "2023 Q4 LIETE-kuljetustietojen tuonti"
+
+# Kaivotiedon lopetukset
+log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2023Q2.xlsx LSJ" \
+        "logs/tietovirrat/2023_Q2/kaivotiedot_lopetus.log" \
+        "2023 Q2 kaivotiedon lopetusten tuonti"
+
+# Q1 Kaivotiedon lopetukset
+log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2023Q3.xlsx LSJ" \
+        "logs/tietovirrat/2023_Q3/kaivotiedot_lopetus.log" \
+        "2023 Q3 kaivotiedon lopetusten tuonti"
+
+# ===============================================================
+
 # Q1 2024 tietojen tuonti
 quarter="Q1"
 
@@ -229,6 +278,10 @@ log_exec "jkr import_lopetusilmoitukset ../data/Ilmoitus-_ja_päätöstiedot/Pä
 log_exec "jkr import ../data/Kuljetustiedot/Kuljetustiedot_2024/$quarter LSJ 1.1.2024 31.3.2024" \
         "logs/tietovirrat/2024_$quarter/kuljetukset.log" \
         "Q1 kuljetustietojen tuonti"
+
+log_exec "jkr import_liete ../data/Liete/Lietteenpeltolevitys_2024Q1.xlsx LSJ 1.1.2024 31.3.2024" \
+        "logs/tietovirrat/2024_Q1/liete_peltolevitykset.log" \
+        "2024 Q1 LIETE-peltolevityksen tuonti"
 
 # Q1 Kaivotiedon lopetukset
 log_exec "jkr import_kaivotiedon_lopetukset ../data/Liete/Kaivotiedot_lopetus_2024Q1.xlsx LSJ" \
