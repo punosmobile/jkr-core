@@ -218,15 +218,15 @@ log_exec "jkr import_liete ../data/Liete/Lietteenpeltolevitys_2023Q1.xlsx LSJ 1.
         "logs/tietovirrat/2023_Q1/liete_peltolevitykset.log" \
         "2023 Q1 LIETE-peltolevityksen tuonti"
 
-log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q2.xlsx LSJ 1.4.2023 31.6.2023" \
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q2.xlsx LSJ 1.4.2023 30.6.2023" \
         "logs/tietovirrat/2023_Q2/liete_kuljetukset.log" \
         "2023 Q2 LIETE-kuljetustietojen tuonti"
 
-log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q3.xlsx LSJ 1.7.2023 31.9.2023" \
+log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2023Q3.xlsx LSJ 1.7.2023 30.9.2023" \
         "logs/tietovirrat/2023_Q3/liete_kuljetukset.log" \
         "2023 Q3 LIETE-kuljetustietojen tuonti"
 
-log_exec "jkr import_liete ../data/Liete/Lietteenpeltolevitys_2023Q3.xlsx LSJ 1.7.2023 31.9.2023" \
+log_exec "jkr import_liete ../data/Liete/Lietteenpeltolevitys_2023Q3.xlsx LSJ 1.7.2023 30.9.2023" \
         "logs/tietovirrat/2023_Q3/liete_peltolevitykset.log" \
         "2023 Q3 LIETE-peltolevityksen tuonti"
 
