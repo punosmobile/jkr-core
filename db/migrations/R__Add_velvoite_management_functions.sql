@@ -48,9 +48,9 @@ BEGIN
         )
         and k.kohdetyyppi_id != 8
         and (
-          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')
+          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Liete''))
           OR 
-          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))
+          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte'', ''Liete''))
           OR
           (k.kohdetyyppi_id = 7)
         )
@@ -127,10 +127,10 @@ BEGIN
         and vm.voimassaolo && daterange($1, $2)
         and (
           -- HAPA kohteet (tyyppi 5)
-          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')
+          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Liete''))
           OR 
           -- BIOHAPA kohteet (tyyppi 6)
-          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))
+          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte'', ''Liete''))
           OR
           -- Asuinkiinteistöt (tyyppi 7)
           (k.kohdetyyppi_id = 7)
