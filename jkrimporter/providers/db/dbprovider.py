@@ -171,6 +171,7 @@ def insert_kuljetukset(
                 tilavuus=tyhjennys.tilavuus,
                 tiedontuottaja=urakoitsija,
                 lietteentyhjennyspaiva=tyhjennys.lietteentyhjennyspaiva,
+                jatteen_kuvaus=tyhjennys.jatteen_kuvaus,  # LAH-449: Jätteen kuvaus
             )
             session.add(db_kuljetus)
 

@@ -170,6 +170,7 @@ class Tyhjennystapahtuma:
     tilavuus: Optional[int]
     massa: Optional[int] = None
     lietteentyhjennyspaiva: Optional[date] = None  # LIETE-aineisto: erillinen tyhjennyspäivä
+    jatteen_kuvaus: Optional[str] = None  # LAH-449: LIETE-aineiston "Jätteen kuvaus" (keräysvälinetyyppi)
 
 
 class SopimusTyyppi(str, Enum):

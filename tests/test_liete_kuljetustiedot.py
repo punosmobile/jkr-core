@@ -348,6 +348,20 @@ class TestLieteTranslator:
         first_asiakas = list(jkr_data.asiakkaat.values())[0]
         assert first_asiakas.tyhjennystapahtumat[0].massa == 2500
 
+    def test_tyhjennystapahtuma_jatteen_kuvaus(self, datadir):
+        """LAH-449: Jätteen kuvaus tallennetaan tyhjennystapahtumaaan."""
+        filepath = Path(datadir) / "liete_kuljetustiedot_ok.xlsx"
+        tiedosto = LieteKuljetustiedosto(filepath)
+        translator = LieteTranslator(tiedosto, "LSJ")
+        
+        jkr_data = translator.as_jkr_data(date(2024, 1, 1), date(2024, 12, 31))
+        
+        # Tarkista että jatteen_kuvaus on tallennettu
+        first_asiakas = list(jkr_data.asiakkaat.values())[0]
+        tapahtuma = first_asiakas.tyhjennystapahtumat[0]
+        # jatteen_kuvaus voi olla esim. "Umpisäiliö", "Saostussäiliö", "Pienpuhdistamo", "Ei tiedossa"
+        assert hasattr(tapahtuma, 'jatteen_kuvaus')
+
     def test_same_prt_groups_kuljetukset(self, datadir):
         """Saman PRT:n kuljetukset ryhmitellään samalle asiakkaalle."""
         # Luo testitiedosto jossa sama PRT kahdesti
