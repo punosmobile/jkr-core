@@ -280,6 +280,7 @@ class LieteTranslator:
             tilavuus=tilavuus_litraa,
             massa=massa_kg,
             lietteentyhjennyspaiva=kuljetus_row.siirron_alkamisaika,  # LIETE: tyhjennyspäivä = siirron alkamisaika
+            jatteen_kuvaus=kuljetus_row.jatteen_kuvaus,  # LAH-449: Jätteen kuvaus (keräysvälinetyyppi)
         )
         
         return tapahtuma
