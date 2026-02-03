@@ -505,6 +505,61 @@ VALUES
         NULL,
         'Biojäte kunnossa',
         6
+    ),
+    (
+        49,
+        'Biojäte',
+        'v_taajama_asuinkiinteisto',
+        'kohteet_joilla_bio_puuttuu',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte puuttuu',
+        16
+    ),
+    (
+        50,
+        'Biojäte',
+        'v_taajama_asuinkiinteisto',
+        'kohteet_joilla_bio_puuttuu_ei_kompostointia',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte puuttuu',
+        16
+    ),
+    (
+        51,
+        'Biojäte',
+        'v_taajama_asuinkiinteisto',
+        'kohteet_joilla_bio_0_tai_yli_4_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte väärä tyhjennysväli',
+        11
+    ),
+    (
+        52,
+        'Biojäte',
+        'v_taajama_asuinkiinteisto',
+        'kohteet_joilla_bio_enint_4_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte kunnossa',
+        6
+    ),
+    (
+        53,
+        'Biojäte',
+        'v_taajama_asuinkiinteisto',
+        'kohteet_joilla_kompostointi_voimassa',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte kunnossa',
+        6
     )
 
 ON CONFLICT DO NOTHING;
