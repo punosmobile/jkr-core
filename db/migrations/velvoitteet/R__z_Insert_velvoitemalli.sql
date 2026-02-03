@@ -506,10 +506,11 @@ VALUES
         'Biojäte kunnossa',
         6
     ),
+    -- Asuinkiinteistöt: ≥5 huoneistoa, hyötyjätteiden erilliskeräysalue (taajama)
     (
         49,
         'Biojäte',
-        'v_taajama_asuinkiinteisto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
         'kohteet_joilla_bio_puuttuu',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2024-1-1',
@@ -520,18 +521,7 @@ VALUES
     (
         50,
         'Biojäte',
-        'v_taajama_asuinkiinteisto',
-        'kohteet_joilla_bio_puuttuu_ei_kompostointia',
-        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
-        '2024-1-1',
-        NULL,
-        'Biojäte puuttuu',
-        16
-    ),
-    (
-        51,
-        'Biojäte',
-        'v_taajama_asuinkiinteisto',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
         'kohteet_joilla_bio_0_tai_yli_4_vk',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2024-1-1',
@@ -540,9 +530,43 @@ VALUES
         11
     ),
     (
+        51,
+        'Biojäte',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
+        'kohteet_joilla_bio_enint_4_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte kunnossa',
+        6
+    ),
+    -- Asuinkiinteistöt: 0-4 huoneistoa, biojätteen erilliskeräysalue (taajama ≥10000)
+    (
         52,
         'Biojäte',
-        'v_taajama_asuinkiinteisto',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_bio_puuttuu_ei_kompostointia',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte puuttuu',
+        16
+    ),
+    (
+        53,
+        'Biojäte',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_bio_0_tai_yli_4_vk',
+        (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
+        '2024-1-1',
+        NULL,
+        'Biojäte väärä tyhjennysväli',
+        11
+    ),
+    (
+        54,
+        'Biojäte',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
         'kohteet_joilla_bio_enint_4_vk',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2024-1-1',
@@ -551,9 +575,9 @@ VALUES
         6
     ),
     (
-        53,
+        55,
         'Biojäte',
-        'v_taajama_asuinkiinteisto',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
         'kohteet_joilla_kompostointi_voimassa',
         (SELECT id FROM jkr_koodistot.jatetyyppi WHERE selite = 'Biojäte'),
         '2024-1-1',
