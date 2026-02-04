@@ -130,7 +130,7 @@ def openProject():
             # Tarkista velvoitelayereiden näkyvyys
             velvoite_layers = {
                 'Sekajätevelvoitteet': (3,4,5,6,7,8,9,10,11,12,30),
-                'Biojätevelvoitteet': (13,14,15,16,17),
+                'Biojätevelvoitteet': (13,14,15,16,17,44,45,46,47,48),
                 'Muovivelvoitteet': (18,19,20),
                 'Kartonkivelvoitteet': (21,22,23),
                 'Lasipakkausvelvoitteet': (24,25,26),
