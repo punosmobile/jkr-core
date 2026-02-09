@@ -1,9 +1,8 @@
--- LAH-453: Punaiset ja keltaiset lietevelvoitteet eivät toimi määrittelyn mukaan
--- Korjaus: Kantovesi=EI ja Lietteen kompostointi-ilmoitus=EI tarkistukset puuttuvat
+-- LAH-453: Lietevelvoitteet eivät toimi määrittelyn mukaan
+-- Korjaus velvoitematriisin mukaisesti:
 -- 
--- Punaiset ja keltaiset velvoitteet eivät saa näkyä jos:
--- 1. Kohteella on voimassa oleva kantovesi-tieto
--- 2. Kohteella on pienpuhdistamo JA voimassa oleva lietteen kompostointi-ilmoitus
+-- PUNAISET (ei lietteenkuljetusta): Kantovesi=EI, Kompostointi-ilmoitus=EI
+-- KELTAISET (väärä tyhjennysväli): Kantovesi=ei merkitystä, Kompostointi=ei merkitystä
 
 -- FUNCTION: jkr.kohteet_joilla_saostusai_tai_pienpuh_ei_lietekuljetus_harmaata(daterange)
 -- Velvoitemalli 41: Ei lietteenkuljetusta saostussäiliö/pienpuhdistamo (punainen)
@@ -78,6 +77,8 @@ FROM (
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 		-- LAH-453: Ei punaista jos kantovesi
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_kantovesi_tieto($1))
+		-- LAH-453: Ei punaista jos pienpuhdistamo + voimassa oleva lietekompostointi-ilmoitus
+		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint($1))
 );
 $BODY$;
 
@@ -113,6 +114,8 @@ FROM (
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
 		-- LAH-453: Ei punaista jos kantovesi
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_kantovesi_tieto($1))
+		-- LAH-453: Ei punaista jos pienpuhdistamo + voimassa oleva lietekompostointi-ilmoitus
+		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint($1))
 );
 $BODY$;
 
@@ -154,10 +157,6 @@ FROM (
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id IN (5)
 		) 
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
-		-- LAH-453: Ei keltaista jos kantovesi
-		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_kantovesi_tieto($1))
-		-- LAH-453: Ei keltaista jos pienpuhdistamo + voimassa oleva lietekompostointi-ilmoitus
-		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_saostusailio_tyhja_ja_pienpuhdistamo_kompostoint($1))
 );
 $BODY$;
 
@@ -192,8 +191,6 @@ FROM (
 			) @> lietteentyhjennyspaiva
 		) 
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
-		-- LAH-453: Ei keltaista jos kantovesi
-		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_kantovesi_tieto($1))
 );
 $BODY$;
 
@@ -227,8 +224,6 @@ FROM (
 			WHERE kohde_id = k.id AND kaivotietotyyppi_id = 5
 		)
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
-		-- LAH-453: Ei keltaista jos kantovesi
-		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joilla_kantovesi_tieto($1))
 );
 $BODY$;
 
