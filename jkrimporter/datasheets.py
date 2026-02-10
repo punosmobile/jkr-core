@@ -125,7 +125,6 @@ def get_liete_kuljetustiedosto_headers():
         "Jätteen tilavuus (m³)",
         "Kiinteistötunnus",
         "Pysyvä rakennustunnus",
-        "Lietteen tyyppi",
     ]
 
 
