@@ -102,6 +102,51 @@ def get_ilmoitustiedosto_headers():
     ]
 
 
+def get_liete_kuljetustiedosto_headers():
+    return [
+        "ID-tunnus",
+        "Siirron alkamisaika",
+        "Jätteen tuottaja tai muu haltija",
+        "Jätteen tuottajan/haltijan osoite",
+        "Jätteen tuottajan/haltijan katuosoite",
+        "Jätteen tuottajan/haltijan postinumero",
+        "Siirron alkamispaikka",
+        "Siirron alkamispaikan katuosoite",
+        "Siirron alkamispaikan postinumero",
+        "Kuljettaja",
+        "Vastaanottaja",
+        "Siirron päättymispaikka",
+        "Siirron päättymispaikan katuosoite",
+        "Siirron päättymispaikan postinumero",
+        "Siirron päättymisaika",
+        "Jäte",
+        "Jätteen kuvaus",
+        "Jätteen paino (t)",
+        "Jätteen tilavuus (m³)",
+        "Kiinteistötunnus",
+        "Pysyvä rakennustunnus",
+        "Lietteen tyyppi",
+    ]
+
+
+def get_kaivotiedosto_headers():
+    return [
+        "Vastausaika",
+        "PRT",
+        "Etunimi",
+        "Sukunimi",
+        "Katuosoite",
+        "Postinumero",
+        "Postitoimipaikka",
+        "Kantovesi",
+        "Saostussäiliö",
+        "Pienpuhdistamo",
+        "Umpisäiliö",
+        "Vain harmaat vedet",
+        "Tietolähde",
+    ]
+
+
 def get_liete_ilmoitustiedosto_headers():
     return [
         "Vastausaika",

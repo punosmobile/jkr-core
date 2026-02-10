@@ -11,6 +11,7 @@ from typing import List
 from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
+from jkrimporter.datasheets import get_liete_kuljetustiedosto_headers
 from jkrimporter.providers.lahti.liete_models import LieteKuljetusRow
 
 logger = logging.getLogger(__name__)
@@ -62,8 +63,18 @@ class LieteKuljetustiedosto:
         for cell in sheet[1]:
             if cell.value:
                 headers.append(str(cell.value).strip())
-        
+
         logger.info(f"Löydettiin {len(headers)} saraketta")
+
+        # Validoi otsikot
+        expected_headers = get_liete_kuljetustiedosto_headers()
+        missing_headers = [h for h in expected_headers if h not in headers]
+        if missing_headers:
+            workbook.close()
+            print(f"Tiedosto: {self._file_path}, puuttuvat sarakeotsikot: {missing_headers}")
+            raise RuntimeError(
+                f"LIETE-kuljetustiedostosta puuttuu oletettuja sarakeotsikoita: {missing_headers}"
+            )
         
         # Lue datarivit
         row_count = 0
