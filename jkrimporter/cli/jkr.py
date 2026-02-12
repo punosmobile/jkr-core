@@ -54,6 +54,7 @@ from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
+from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanlukutapahtuma
 
 
 @dataclass
@@ -105,29 +106,30 @@ def import_data(
     alkupvm: str = typer.Argument(None, help="Importoitavan datan alkupvm"),
     loppupvm: str = typer.Argument(None, help="Importoitavan datan loppupvm"),
 ):
-    ala_paivita_yhteystietoja = False
-    ala_paivita_kohdetta = True
-    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
-    if not tiedontuottaja:
-        typer.echo(
-            f"Tiedontuottajaa {tiedontuottaja} ei löydy järjestelmästä. Lisää komennolla `jkr tiedontuottaja add`"
-        )
-        raise typer.Exit()
-    provider = PROVIDERS[tiedontuottajatunnus]
-    data = provider.Siirtotiedosto(siirtotiedosto)
+    with sisaanlukutapahtuma():
+        ala_paivita_yhteystietoja = False
+        ala_paivita_kohdetta = True
+        tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
+        if not tiedontuottaja:
+            typer.echo(
+                f"Tiedontuottajaa {tiedontuottaja} ei löydy järjestelmästä. Lisää komennolla `jkr tiedontuottaja add`"
+            )
+            raise typer.Exit()
+        provider = PROVIDERS[tiedontuottajatunnus]
+        data = provider.Siirtotiedosto(siirtotiedosto)
 
-    if alkupvm:
-        alkupvm = parse_date_string(alkupvm)
-    if loppupvm:
-        loppupvm = parse_date_string(loppupvm)
+        if alkupvm:
+            alkupvm = parse_date_string(alkupvm)
+        if loppupvm:
+            loppupvm = parse_date_string(loppupvm)
 
-    translator = provider.Translator(data, tiedontuottajatunnus)
-    jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
-    print('writing to db...')
-    db = DbProvider()
-    db.write(jkr_data, tiedontuottajatunnus, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
+        translator = provider.Translator(data, tiedontuottajatunnus)
+        jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
+        print('writing to db...')
+        db = DbProvider()
+        db.write(jkr_data, tiedontuottajatunnus, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 
 @app.command("create_dvv_kohteet", help="Create kohteet from DVV data in database.")
@@ -137,19 +139,20 @@ def create_dvv_kohteet(
         None, help="Perusmaksurekisteritiedosto"
     ),
 ):
-    db = DbProvider()
-    # Currently, typer does not support Union[datetime, None] argument type, so we will
-    # have to parse the datetime string ourselves.
-    # support all combinations of known and unknown alku- and loppupvm
-    if poimintapvm == "None":
-        start = None
-    else:
-        start = datetime.strptime(poimintapvm, "%d.%m.%Y").date()
-    end = None
+    with sisaanlukutapahtuma():
+        db = DbProvider()
+        # Currently, typer does not support Union[datetime, None] argument type, so we will
+        # have to parse the datetime string ourselves.
+        # support all combinations of known and unknown alku- and loppupvm
+        if poimintapvm == "None":
+            start = None
+        else:
+            start = datetime.strptime(poimintapvm, "%d.%m.%Y").date()
+        end = None
 
-    db.write_dvv_kohteet(start, end, perusmaksutiedosto)
+        db.write_dvv_kohteet(start, end, perusmaksutiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 
 @app.command("import_and_create_kohteet",
@@ -160,21 +163,22 @@ def import_and_create_kohteet(
     perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
 ):
-    bat_file = ".\\scripts\\import_and_create_kohteet.bat"
+    with sisaanlukutapahtuma():
+        bat_file = ".\\scripts\\import_and_create_kohteet.bat"
 
-    cmd_args = [bat_file, dvv, poimintapvm]
+        cmd_args = [bat_file, dvv, poimintapvm]
 
-    if posti == "posti":
-        cmd_args.append("posti")
+        if posti == "posti":
+            cmd_args.append("posti")
 
-    subprocess.call(cmd_args)
+        subprocess.call(cmd_args)
 
-    if perusmaksutiedosto is not None:
-        create_dvv_kohteet(poimintapvm, perusmaksutiedosto)
-    else:
-        create_dvv_kohteet(poimintapvm, None)
+        if perusmaksutiedosto is not None:
+            create_dvv_kohteet(poimintapvm, perusmaksutiedosto)
+        else:
+            create_dvv_kohteet(poimintapvm, None)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 
 @app.command("update_huoneistomaara",
@@ -195,48 +199,52 @@ def update_huoneistomaara(
 def import_paatokset(
     siirtotiedosto: Path = typer.Argument(..., help="Polku siirtotiedostoon")
 ):
-    translator = PaatosTranslator(Paatostiedosto(siirtotiedosto))
-    paatos_data = translator.as_jkr_data()
-    db = DbProvider()
-    db.write_paatokset(paatos_data, siirtotiedosto)
+    with sisaanlukutapahtuma():
+        translator = PaatosTranslator(Paatostiedosto(siirtotiedosto))
+        paatos_data = translator.as_jkr_data()
+        db = DbProvider()
+        db.write_paatokset(paatos_data, siirtotiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 
 @app.command("import_ilmoitukset", help="Import compost notices to JKR.")
 def import_ilmoitukset(
     siirtotiedosto: Path = typer.Argument(..., help="Kompostointi ilmoitus-tiedoston sijainti.")
 ):
-    translator = IlmoitusTranslator(Ilmoitustiedosto(siirtotiedosto))
-    ilmoitus_data = translator.as_jkr_data()
-    db = DbProvider()
-    db.write_ilmoitukset(ilmoitus_data, siirtotiedosto)
+    with sisaanlukutapahtuma():
+        translator = IlmoitusTranslator(Ilmoitustiedosto(siirtotiedosto))
+        ilmoitus_data = translator.as_jkr_data()
+        db = DbProvider()
+        db.write_ilmoitukset(ilmoitus_data, siirtotiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 
 @app.command("import_liete_ilmoitukset", help="Import Liete compost notices to JKR.")
 def import_liete_ilmoitukset(
     siirtotiedosto: Path = typer.Argument(..., help="Liete Kompostointi ilmoitus-tiedoston sijainti.")
 ):
-    translator = LieteIlmoitusTranslator(LieteIlmoitustiedosto(siirtotiedosto))
-    ilmoitus_data = translator.as_jkr_data()
-    db = DbProvider()
-    db.write_lieteIlmoitukset(ilmoitus_data, siirtotiedosto)
+    with sisaanlukutapahtuma():
+        translator = LieteIlmoitusTranslator(LieteIlmoitustiedosto(siirtotiedosto))
+        ilmoitus_data = translator.as_jkr_data()
+        db = DbProvider()
+        db.write_lieteIlmoitukset(ilmoitus_data, siirtotiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 
 @app.command("import_lopetusilmoitukset", help="Import compost ending notices to JKR.")
 def import_lopetusilmoitukset(
     siirtotiedosto: Path = typer.Argument(..., help="Kompostoinnin lopetusilmoitus-tiedoston sijainti.")
 ):
-    translator = LopetusIlmoitusTranslator(LopetusIlmoitustiedosto(siirtotiedosto))
-    lopetusilmoitus_data = translator.as_jkr_data()
-    db = DbProvider()
-    db.write_lopetusilmoitukset(lopetusilmoitus_data, siirtotiedosto)
+    with sisaanlukutapahtuma():
+        translator = LopetusIlmoitusTranslator(LopetusIlmoitustiedosto(siirtotiedosto))
+        lopetusilmoitus_data = translator.as_jkr_data()
+        db = DbProvider()
+        db.write_lopetusilmoitukset(lopetusilmoitus_data, siirtotiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 
 @app.command("import_liete", help="Import LIETE transportation data to JKR.")
@@ -256,41 +264,42 @@ def import_liete(
     - Kuljettajan ja vastaanottajan tiedot
     - Jätteen määrän ja tyypin
     """
-    ala_paivita_yhteystietoja = False
-    ala_paivita_kohdetta = True
-    
-    # Tarkista että tiedontuottaja on olemassa
-    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
-    if not tiedontuottaja:
-        typer.echo(
-            f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
-            f"Lisää komennolla `jkr tiedontuottaja add`"
-        )
-        raise typer.Exit()
-    
-    # Parsii päivämäärät
-    if alkupvm:
-        alkupvm = parse_date_string(alkupvm)
-    if loppupvm:
-        loppupvm = parse_date_string(loppupvm)
-    
-    print(f"Luetaan LIETE-kuljetustiedot: {siirtotiedosto}")
-    print(f"Kausi: {alkupvm} - {loppupvm}")
-    
-    # Lue LIETE-tiedosto
-    liete_tiedosto = LieteKuljetustiedosto(siirtotiedosto)
-    
-    # Käännä JKR-muotoon
-    translator = LieteTranslator(liete_tiedosto, tiedontuottajatunnus)
-    jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
-    
-    print(f"Kirjoitetaan tietokantaan...")
-    
-    # Kirjoita tietokantaan
-    db = DbProvider()
-    db.write(jkr_data, tiedontuottajatunnus, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
-    
-    print("VALMIS!")
+    with sisaanlukutapahtuma():
+        ala_paivita_yhteystietoja = False
+        ala_paivita_kohdetta = True
+
+        # Tarkista että tiedontuottaja on olemassa
+        tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
+        if not tiedontuottaja:
+            typer.echo(
+                f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
+                f"Lisää komennolla `jkr tiedontuottaja add`"
+            )
+            raise typer.Exit()
+
+        # Parsii päivämäärät
+        if alkupvm:
+            alkupvm = parse_date_string(alkupvm)
+        if loppupvm:
+            loppupvm = parse_date_string(loppupvm)
+
+        print(f"Luetaan LIETE-kuljetustiedot: {siirtotiedosto}")
+        print(f"Kausi: {alkupvm} - {loppupvm}")
+
+        # Lue LIETE-tiedosto
+        liete_tiedosto = LieteKuljetustiedosto(siirtotiedosto)
+
+        # Käännä JKR-muotoon
+        translator = LieteTranslator(liete_tiedosto, tiedontuottajatunnus)
+        jkr_data = translator.as_jkr_data(alkupvm, loppupvm)
+
+        print(f"Kirjoitetaan tietokantaan...")
+
+        # Kirjoita tietokantaan
+        db = DbProvider()
+        db.write(jkr_data, tiedontuottajatunnus, ala_paivita_yhteystietoja, ala_paivita_kohdetta, siirtotiedosto)
+
+        print("VALMIS!")
 
 @app.command("import_viemarit", help="Import viemari notices to JKR.")
 def import_viemarointi(
@@ -303,12 +312,13 @@ def import_viemarointi(
     - PRT:n
     - Viemäriverkoston alkamispäivämäärän
     """
-    translator = ViemariIlmoitusTranslator(ViemariIlmoitustiedosto(siirtotiedosto))
-    viemari_ilmoitus_data = translator.as_jkr_data()
-    db = DbProvider()
-    db.write_viemariliitos(viemari_ilmoitus_data, siirtotiedosto)
+    with sisaanlukutapahtuma():
+        translator = ViemariIlmoitusTranslator(ViemariIlmoitustiedosto(siirtotiedosto))
+        viemari_ilmoitus_data = translator.as_jkr_data()
+        db = DbProvider()
+        db.write_viemariliitos(viemari_ilmoitus_data, siirtotiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 @app.command("import_lopeta_viemarit", help="Import viemari ending notices to JKR.")
 def import_viemari_lopetusilmoitukset(
@@ -321,12 +331,13 @@ def import_viemari_lopetusilmoitukset(
     - PRT:n
     - Viemäriverkoston loppumispäivämäärän
     """
-    translator = ViemariLopetusIlmoitusTranslator(ViemariLopetustiedosto(siirtotiedosto))
-    lopetusilmoitus_data = translator.as_jkr_data()
-    db = DbProvider()
-    db.write_viermariliitosten_lopetukset(lopetusilmoitus_data, siirtotiedosto)
+    with sisaanlukutapahtuma():
+        translator = ViemariLopetusIlmoitusTranslator(ViemariLopetustiedosto(siirtotiedosto))
+        lopetusilmoitus_data = translator.as_jkr_data()
+        db = DbProvider()
+        db.write_viermariliitosten_lopetukset(lopetusilmoitus_data, siirtotiedosto)
 
-    print("VALMIS!")
+        print("VALMIS!")
 
 @app.command("raportti")
 def raportti(
@@ -464,93 +475,96 @@ def import_hapa(
     
     The file must be in CSV format with semicolon (;) as delimiter, UTF-8 encoding, and include headers.
     """
-    try:
-        # Check if file exists
-        if not aineistopolku.exists():
-            typer.echo(f"Error: File {aineistopolku} does not exist", err=True)
-            raise typer.Exit(1)
-            
-        typer.echo(f"Importing HAPA data from {aineistopolku}")
-        
-        # Create SQLAlchemy session
-        Session = scoped_session(sessionmaker(bind=engine))
-        with Session() as session:
-            # Read CSV file to verify structure before importing
-            with open(aineistopolku, 'r', encoding='utf-8') as f:
-                reader = csv.reader(f, delimiter=';')
-                headers = next(reader)
-                
-                # Check if all required headers are present
-                required_headers = ['Rakennus-ID', 'Kohde id', 'Sijaintikunta', 'Asiakasnro', 
-                                   'Katunimi FI', 'Talon numero', 'Postinumero', 
-                                   'Postitoimipaikka FI', 'kohdetyyppi']
-                
-                missing_headers = [h for h in required_headers if h not in headers]
-                if missing_headers:
-                    typer.echo(f"Error: CSV file is missing required headers: {missing_headers}", err=True)
-                    raise typer.Exit(1)
-            
-            # Create a temporary file with renamed headers to match database columns
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.csv') as temp_file:
-                temp_path = Path(temp_file.name)
-                
-                # Write header row with database column names
-                db_headers = ['rakennus_id_tunnus', 'kohde_tunnus', 'sijaintikunta', 'asiakasnro', 
-                             'rakennus_id_tunnus2', 'katunimi_fi', 'talon_numero', 'postinumero', 
-                             'postitoimipaikka_fi', 'kohdetyyppi']
-                temp_file.write(';'.join(db_headers) + '\n')
-                
-                # Read original CSV and write to temp file with correct column order
+    with sisaanlukutapahtuma():
+        try:
+            # Check if file exists
+            if not aineistopolku.exists():
+                typer.echo(f"Error: File {aineistopolku} does not exist", err=True)
+                raise typer.Exit(1)
+
+            typer.echo(f"Importing HAPA data from {aineistopolku}")
+
+            # Create SQLAlchemy session
+            Session = scoped_session(sessionmaker(bind=engine))
+            with Session() as session:
+                # Read CSV file to verify structure before importing
                 with open(aineistopolku, 'r', encoding='utf-8') as f:
                     reader = csv.reader(f, delimiter=';')
-                    next(reader)  # Skip header
-                    
-                    for row in reader:
-                        if len(row) >= 10:  # Ensure row has enough columns
-                            temp_file.write(';'.join(row) + '\n')
-            
-            # Use SQL COPY command for efficient bulk loading with copy_expert
-            copy_sql = f"""
-            COPY jkr.hapa_aineisto(
-                rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, 
-                rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, 
-                postitoimipaikka_fi, kohdetyyppi
-            ) FROM STDIN WITH (
-                FORMAT csv, 
-                DELIMITER ';', 
-                HEADER true, 
-                ENCODING 'UTF8', 
-                NULL ''
-            );
-            """
-            
-            # Execute the COPY command with the temporary file using copy_expert
-            connection = session.connection().connection
-            cursor = connection.cursor()
-            
-            # Open the file and use copy_expert
-            with open(temp_path, 'r', encoding='utf-8') as f:
-                cursor.copy_expert(copy_sql, f)
-                
-            connection.commit()
-            
-            # Clean up the temporary file
-            try:
-                temp_path.unlink()
-            except Exception:
-                pass
-            
-            # Get count of imported rows
-            result = session.execute(text("SELECT COUNT(*) FROM jkr.hapa_aineisto WHERE tuonti_pvm >= CURRENT_DATE"))
-            count = result.scalar()
-            
-            typer.echo(f"Successfully imported {count} HAPA records")
-            typer.echo("VALMIS!")
-            
-    except Exception as e:
-        typer.echo(f"Error importing HAPA data: {str(e)}", err=True)
-        raise typer.Exit(1)
+                    headers = next(reader)
+
+                    # Check if all required headers are present
+                    required_headers = ['Rakennus-ID', 'Kohde id', 'Sijaintikunta', 'Asiakasnro',
+                                       'Katunimi FI', 'Talon numero', 'Postinumero',
+                                       'Postitoimipaikka FI', 'kohdetyyppi']
+
+                    missing_headers = [h for h in required_headers if h not in headers]
+                    if missing_headers:
+                        typer.echo(f"Error: CSV file is missing required headers: {missing_headers}", err=True)
+                        raise typer.Exit(1)
+
+                # Create a temporary file with renamed headers to match database columns
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.csv') as temp_file:
+                    temp_path = Path(temp_file.name)
+
+                    # Write header row with database column names
+                    db_headers = ['rakennus_id_tunnus', 'kohde_tunnus', 'sijaintikunta', 'asiakasnro',
+                                 'rakennus_id_tunnus2', 'katunimi_fi', 'talon_numero', 'postinumero',
+                                 'postitoimipaikka_fi', 'kohdetyyppi']
+                    temp_file.write(';'.join(db_headers) + '\n')
+
+                    # Read original CSV and write to temp file with correct column order
+                    with open(aineistopolku, 'r', encoding='utf-8') as f:
+                        reader = csv.reader(f, delimiter=';')
+                        next(reader)  # Skip header
+
+                        for row in reader:
+                            if len(row) >= 10:  # Ensure row has enough columns
+                                temp_file.write(';'.join(row) + '\n')
+
+                # Use SQL COPY command for efficient bulk loading with copy_expert
+                copy_sql = f"""
+                COPY jkr.hapa_aineisto(
+                    rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro,
+                    rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero,
+                    postitoimipaikka_fi, kohdetyyppi
+                ) FROM STDIN WITH (
+                    FORMAT csv,
+                    DELIMITER ';',
+                    HEADER true,
+                    ENCODING 'UTF8',
+                    NULL ''
+                );
+                """
+
+                # Execute the COPY command with the temporary file using copy_expert
+                with Session() as session:
+                    connection = session.connection().connection
+                    cursor = connection.cursor()
+
+                    # Open the file and use copy_expert
+                    with open(temp_path, 'r', encoding='utf-8') as f:
+                        cursor.copy_expert(copy_sql, f)
+
+                    connection.commit()
+
+                # Clean up the temporary file
+                try:
+                    temp_path.unlink()
+                except Exception:
+                    pass
+
+                # Get count of imported rows
+                with Session() as session:
+                    result = session.execute(text("SELECT COUNT(*) FROM jkr.hapa_aineisto WHERE tuonti_pvm >= CURRENT_DATE"))
+                    count = result.scalar()
+
+                typer.echo(f"Successfully imported {count} HAPA records")
+                typer.echo("VALMIS!")
+
+        except Exception as e:
+            typer.echo(f"Error importing HAPA data: {str(e)}", err=True)
+            raise typer.Exit(1)
 
 
 @app.command("import_kaivotiedot", help="Import kaivotiedot (well data) to JKR.")
@@ -573,33 +587,34 @@ def import_kaivotiedot(
     Kohdentaminen tehdään PRT:n (pysyvä rakennustunnus) perusteella.
     Jos kohteella on jo sama tieto, sitä ei viedä päälle.
     """
-    # Tarkista että tiedontuottaja on olemassa
-    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
-    if not tiedontuottaja:
-        typer.echo(
-            f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
-            f"Lisää komennolla `jkr tiedontuottaja add`"
-        )
-        raise typer.Exit(1)
-    
-    # Tarkista tiedosto
-    if not siirtotiedosto.exists():
-        typer.echo(f"Tiedostoa ei löydy: {siirtotiedosto}", err=True)
-        raise typer.Exit(1)
-    
-    print(f"Luetaan kaivotiedot: {siirtotiedosto}")
-    
-    # Lue kaivotiedot
-    kaivotiedosto = Kaivotiedosto(siirtotiedosto)
-    kaivotiedot_list = list(kaivotiedosto.kaivotiedot)
-    
-    print(f"Luettu {len(kaivotiedot_list)} kaivotietoriviä")
-    
-    # Kirjoita tietokantaan
-    db = DbProvider()
-    db.write_kaivotiedot(kaivotiedot_list, tiedontuottajatunnus, siirtotiedosto)
-    
-    print("VALMIS!")
+    with sisaanlukutapahtuma():
+        # Tarkista että tiedontuottaja on olemassa
+        tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
+        if not tiedontuottaja:
+            typer.echo(
+                f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
+                f"Lisää komennolla `jkr tiedontuottaja add`"
+            )
+            raise typer.Exit(1)
+
+        # Tarkista tiedosto
+        if not siirtotiedosto.exists():
+            typer.echo(f"Tiedostoa ei löydy: {siirtotiedosto}", err=True)
+            raise typer.Exit(1)
+
+        print(f"Luetaan kaivotiedot: {siirtotiedosto}")
+
+        # Lue kaivotiedot
+        kaivotiedosto = Kaivotiedosto(siirtotiedosto)
+        kaivotiedot_list = list(kaivotiedosto.kaivotiedot)
+
+        print(f"Luettu {len(kaivotiedot_list)} kaivotietoriviä")
+
+        # Kirjoita tietokantaan
+        db = DbProvider()
+        db.write_kaivotiedot(kaivotiedot_list, tiedontuottajatunnus, siirtotiedosto)
+
+        print("VALMIS!")
 
 
 @app.command("import_kaivotiedon_lopetukset", help="Import kaivotiedon lopetukset (well data endings) to JKR.")
@@ -616,33 +631,34 @@ def import_kaivotiedon_lopetukset(
     Mikäli kohteella on useita samoja alkaneita kaivotietoja, 
     lopetuspäivämäärä lopettaa kaikki vastaavat samannimiset kaivotiedot.
     """
-    # Tarkista että tiedontuottaja on olemassa
-    tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
-    if not tiedontuottaja:
-        typer.echo(
-            f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
-            f"Lisää komennolla `jkr tiedontuottaja add`"
-        )
-        raise typer.Exit(1)
-    
-    # Tarkista tiedosto
-    if not siirtotiedosto.exists():
-        typer.echo(f"Tiedostoa ei löydy: {siirtotiedosto}", err=True)
-        raise typer.Exit(1)
-    
-    print(f"Luetaan kaivotiedon lopetukset: {siirtotiedosto}")
-    
-    # Lue lopetukset
-    lopetustiedosto = KaivotiedonLopetusTiedosto(siirtotiedosto)
-    lopetukset_list = list(lopetustiedosto.lopetukset)
-    
-    print(f"Luettu {len(lopetukset_list)} lopetusriviä")
-    
-    # Kirjoita tietokantaan
-    db = DbProvider()
-    db.write_kaivotiedon_lopetukset(lopetukset_list, tiedontuottajatunnus, siirtotiedosto)
-    
-    print("VALMIS!")
+    with sisaanlukutapahtuma():
+        # Tarkista että tiedontuottaja on olemassa
+        tiedontuottaja = get_tiedontuottaja(tiedontuottajatunnus)
+        if not tiedontuottaja:
+            typer.echo(
+                f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
+                f"Lisää komennolla `jkr tiedontuottaja add`"
+            )
+            raise typer.Exit(1)
+
+        # Tarkista tiedosto
+        if not siirtotiedosto.exists():
+            typer.echo(f"Tiedostoa ei löydy: {siirtotiedosto}", err=True)
+            raise typer.Exit(1)
+
+        print(f"Luetaan kaivotiedon lopetukset: {siirtotiedosto}")
+
+        # Lue lopetukset
+        lopetustiedosto = KaivotiedonLopetusTiedosto(siirtotiedosto)
+        lopetukset_list = list(lopetustiedosto.lopetukset)
+
+        print(f"Luettu {len(lopetukset_list)} lopetusriviä")
+
+        # Kirjoita tietokantaan
+        db = DbProvider()
+        db.write_kaivotiedon_lopetukset(lopetukset_list, tiedontuottajatunnus, siirtotiedosto)
+
+        print("VALMIS!")
 
 
 if __name__ == "__main__":
