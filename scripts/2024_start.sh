@@ -60,10 +60,10 @@ log_exec() {
    local cmd="$1"
    local log_file="$2"
    local desc="$3"
-   
+
    # Aloitusaika
    local STEP_START=$(date +%s)
-   
+
    echo "=== $desc ==="
    status "=== $desc - Aloitettu ==="
    echo "Aloitusaika: $(date)"
@@ -71,7 +71,7 @@ log_exec() {
    echo "Suoritetaan: $cmd" >> "$log_file"
    echo "Aloitusaika: $(date)" >> "$log_file"
    echo "===================" >> "$log_file"
-   
+
    eval "$cmd" >> "$log_file" 2>&1
    local exit_code=$?
 
@@ -101,10 +101,95 @@ log_exec() {
    status "=== $desc - Lopetettu (Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s) ==="
 }
 
+# Funktio lokitusta varten komennoille jotka eivät kulje jkr-CLI:n kautta
+# (esim. psql, ogr2ogr, sh-skriptit). Kirjaa tapahtuman jkr.sisaanluku_tapahtuma -tauluun.
+log_exec_with_sql_log() {
+   local cmd="$1"
+   local log_file="$2"
+   local desc="$3"
+
+   # Aloitusaika
+   local STEP_START
+   STEP_START=$(date +%s)
+
+   echo "=== $desc ==="
+   status "=== $desc - Aloitettu ==="
+   echo "Aloitusaika: $(date)"
+   echo "=== $desc ===" > "$log_file"
+   echo "Suoritetaan: $cmd" >> "$log_file"
+   echo "Aloitusaika: $(date)" >> "$log_file"
+   echo "===================" >> "$log_file"
+
+   # Kirjataan sisäänlukutapahtuma kantaan (alkuaika)
+   # Poistetaan salasanat komennosta ennen tallennusta
+   local SAFE_CMD
+   SAFE_CMD=$(printf '%s\n' "$cmd" | sed 's/password=[^ ]*/password=***/g')
+   # Käytetään psql:n :'muuttuja'-syntaksia jotta lainausmerkit escapoituvat turvallisesti
+   local TAPAHTUMA_ID
+   TAPAHTUMA_ID=$(psql -h $HOST -p $PORT -d $DB_NAME -U $USER -t -A \
+     -v komento="$SAFE_CMD" <<'EOSQL' 2>/dev/null | head -1 | tr -d '[:space:]'
+INSERT INTO jkr.sisaanluku_tapahtuma (komento, alkuaika, status)
+VALUES (:'komento', NOW(), 'käynnissä') RETURNING id;
+EOSQL
+   )
+
+   # Tallennetaan komennon tuloste erilliseen temp-tiedostoon
+   local CMD_OUTPUT_FILE
+   CMD_OUTPUT_FILE=$(mktemp)
+   local EXIT_CODE
+   eval "$cmd" > "$CMD_OUTPUT_FILE" 2>&1
+   EXIT_CODE=$?
+   cat "$CMD_OUTPUT_FILE" >> "$log_file"
+
+   rm -f "$CMD_OUTPUT_FILE"
+
+   # Lopetusaika ja keston laskeminen
+   local STEP_END
+   STEP_END=$(date +%s)
+   local DURATION=$((STEP_END - STEP_START))
+   local HOURS=$((DURATION / 3600))
+   local MINUTES=$(( (DURATION % 3600) / 60 ))
+   local SECONDS=$((DURATION % 60))
+
+   # Päivitetään sisäänlukutapahtuma kantaan (loppuaika + status + lisatiedot)
+   # Lisätietoihin tallennetaan vain lyhyt kooste. Tarkempi tuloste on lokitiedostossa.
+   if [ -n "$TAPAHTUMA_ID" ]; then
+     local CMD_STATUS
+     local CMD_LISATIEDOT
+     if [ $EXIT_CODE -eq 0 ]; then
+       CMD_STATUS="valmis"
+       CMD_LISATIEDOT="Valmis. Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s. Loki: ${log_file}"
+     else
+       CMD_STATUS="virhe"
+       CMD_LISATIEDOT="Virhe (exit code ${EXIT_CODE}). Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s. Loki: ${log_file}"
+     fi
+     psql -h $HOST -p $PORT -d $DB_NAME -U $USER -t -A -c \
+       "UPDATE jkr.sisaanluku_tapahtuma SET loppuaika = NOW(), status = '${CMD_STATUS}', lisatiedot = '${CMD_LISATIEDOT}' WHERE id = ${TAPAHTUMA_ID};"
+   fi
+
+   echo "===================" >> "$log_file"
+   echo "Lopetusaika: $(date)" >> "$log_file"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia" >> "$log_file"
+
+   if [ $EXIT_CODE -ne 0 ]; then
+       echo "VIRHE: $desc epäonnistui (exit code: $EXIT_CODE)" | tee -a "$log_file"
+       echo "Katso lokitiedosto: $log_file"
+       status "VIRHE: $desc epäonnistui (exit code: $EXIT_CODE). Skripti keskeytetty."
+       exit $EXIT_CODE
+   fi
+
+   echo "Suoritus valmis" >> "$log_file"
+   echo "Lopetusaika: $(date)"
+   echo "Suoritus valmis"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
+   echo "==================="
+   status "=== $desc - Lopetettu (Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s) ==="
+}
+
 echo "Aloitetaan tietojen tuonti..."
 
 # Tarkista että tiedontuottaja on olemassa
-log_exec "jkr tiedontuottaja list | grep -q 'LSJ' || jkr tiedontuottaja add LSJ 'Lahden Seudun Jätehuolto'" \
+log_exec_with_sql_log "jkr tiedontuottaja list | grep -q 'LSJ' || jkr tiedontuottaja add LSJ 'Lahden Seudun Jätehuolto'" \
         "logs/tiedontuottaja_setup.log" \
         "Tiedontuottajan määritys"
 
@@ -115,64 +200,64 @@ if [ ! -f "$TIEDONTUOTTAJAT_PATH" ]; then
     echo "Virhe: Tiedostoa $TIEDONTUOTTAJAT_PATH ei löydy" | tee logs/import_tiedontuottajat.log
 fi
 
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr_koodistot.tiedontuottaja(tunnus, nimi) FROM '${TIEDONTUOTTAJAT_PATH}' WITH (FORMAT CSV, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr_koodistot.tiedontuottaja(tunnus, nimi) FROM '${TIEDONTUOTTAJAT_PATH}' WITH (FORMAT CSV, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
         "logs/import_tiedontuottajat.log" \
         "Muiden tiedontuottajien tuonti"
 
 # Vaihe 1: Taajamarajaukset
-log_exec "sh import_taajama.sh 2026-01-01" \
+log_exec_with_sql_log "sh import_taajama.sh 2026-01-01" \
         "logs/import_taajama.log" \
         "Taajamarajausten tuonti"
 
 # Vaihe 1.5: Viemarirajaukset Asikkalalle
-log_exec "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_karttarajaukset/Asikkala_viemäriverkosto_toimintaalue/Asikkala_vesihuoltolaitoksen_toiminta-alueet_2023.shp" \
+log_exec_with_sql_log "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_karttarajaukset/Asikkala_viemäriverkosto_toimintaalue/Asikkala_vesihuoltolaitoksen_toiminta-alueet_2023.shp" \
         "logs/import_viemari_asikkala.log" \
         "Asikkalan viemariverkoston tuonti"
 
 # Vaihe 1.5: Viemarirajaukset Heinolalle
-log_exec "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_karttarajaukset/Heinola_viemäriverksoto\ toimintaalue/Heinola_jv-alueet_area.shp" \
+log_exec_with_sql_log "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_karttarajaukset/Heinola_viemäriverksoto\ toimintaalue/Heinola_jv-alueet_area.shp" \
         "logs/import_viemari_heinola.log" \
         "Heinolan viemariverkoston tuonti"
 
 # Vaihe 2: Kunnat ja postinumerot
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql" \
         "logs/import_posti.log" \
         "Kuntien ja postinumeroiden tuonti"
 
 # Vaihe 3: DVV aineisto 2024
 echo "=== DVV-aineiston tuonti ===" > logs/import_dvv.log
 # Rakennukset
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln rakennus ../data/DVV/DVV-aineisto_2024.xlsx \"R1 rakennus\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln rakennus ../data/DVV/DVV-aineisto_2024.xlsx \"R1 rakennus\"" \
         "logs/import_dvv_rakennukset.log" \
         "DVV rakennusten tuonti"
 
 # Osoitteet
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln osoite ../data/DVV/DVV-aineisto_2024.xlsx \"R3 osoite\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln osoite ../data/DVV/DVV-aineisto_2024.xlsx \"R3 osoite\"" \
         "logs/import_dvv_osoitteet.log" \
         "DVV osoitteiden tuonti"
 
 # Omistajat
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln omistaja ../data/DVV/DVV-aineisto_2024.xlsx \"R4 omistaja\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln omistaja ../data/DVV/DVV-aineisto_2024.xlsx \"R4 omistaja\"" \
         "logs/import_dvv_omistajat.log" \
         "DVV omistajien tuonti"
 
 # Asukkaat
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln vanhin ../data/DVV/DVV-aineisto_2024.xlsx \"R9 huon asukk\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln vanhin ../data/DVV/DVV-aineisto_2024.xlsx \"R9 huon asukk\"" \
         "logs/import_dvv_asukkaat.log" \
         "DVV asukkaiden tuonti"
 
 # DVV muunnos JKR-muotoon
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"20240307\" -f import_dvv.sql" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"20240307\" -f import_dvv.sql" \
         "logs/import_dvv_muunnos.log" \
         "DVV-tietojen muunnos JKR-muotoon"
 
 # Vaihe 4: Huoneistomäärän päivitys
 
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2024.xlsx \"Huoneistolkm\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2024.xlsx \"Huoneistolkm\"" \
         "logs/huoneistomaara_tuonti.log" \
         "Huoneistomäärien tuonti"
 
-log_exec "psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update_huoneistomaara.sql" \
+log_exec_with_sql_log "psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f update_huoneistomaara.sql" \
         "logs/huoneistomaara_paivitys.log" \
         "Huoneistomäärien päivitys"
 
@@ -188,7 +273,7 @@ if [ ! -f "$CSV_FILE_PATH" ]; then
     echo "Virhe: Tiedostoa $CSV_FILE_PATH ei löydy" | tee logs/hapa_import.log
 fi
 
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
         "logs/hapa_import.log" \
         "HAPA-aineiston tuonti"
 

@@ -47,58 +47,165 @@ status() {
 
 # Funktio lokitusta varten
 log_exec() {
-    local cmd="$1"
-    local log_file="$2"
-    local desc="$3"
-    echo "=== $desc ==="
-    status "=== $desc - Aloitettu ==="
-    echo "Aloitusaika: $(date)"
-    echo "=== $desc ===" > "$log_file"
-    echo "Suoritetaan: $cmd" >> "$log_file"
-    echo "Aloitusaika: $(date)" >> "$log_file"
-    echo "===================" >> "$log_file"
-    
-    eval "$cmd" >> "$log_file" 2>&1
-    
-    echo "===================" >> "$log_file"
-    echo "Lopetusaika: $(date)" >> "$log_file"
-    echo "Suoritus valmis" >> "$log_file"
-    echo "Lopetusaika: $(date)"
-    echo "Suoritus valmis"
-    echo "==================="
-    status "=== $desc - Lopetettu ==="
+   local cmd="$1"
+   local log_file="$2"
+   local desc="$3"
+
+   # Aloitusaika
+   local STEP_START=$(date +%s)
+
+   echo "=== $desc ==="
+   status "=== $desc - Aloitettu ==="
+   echo "Aloitusaika: $(date)"
+   echo "=== $desc ===" > "$log_file"
+   echo "Suoritetaan: $cmd" >> "$log_file"
+   echo "Aloitusaika: $(date)" >> "$log_file"
+   echo "===================" >> "$log_file"
+
+   eval "$cmd" >> "$log_file" 2>&1
+   local exit_code=$?
+
+   # Lopetusaika ja keston laskeminen
+   local STEP_END=$(date +%s)
+   local DURATION=$((STEP_END - STEP_START))
+   local HOURS=$((DURATION / 3600))
+   local MINUTES=$(( (DURATION % 3600) / 60 ))
+   local SECONDS=$((DURATION % 60))
+
+   echo "===================" >> "$log_file"
+   echo "Lopetusaika: $(date)" >> "$log_file"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia" >> "$log_file"
+
+   if [ $exit_code -ne 0 ]; then
+       echo "VIRHE: $desc epäonnistui (exit code: $exit_code)" | tee -a "$log_file"
+       echo "Katso lokitiedosto: $log_file"
+       status "VIRHE: $desc epäonnistui (exit code: $exit_code). Skripti keskeytetty."
+       exit $exit_code
+   fi
+
+   echo "Suoritus valmis" >> "$log_file"
+   echo "Lopetusaika: $(date)"
+   echo "Suoritus valmis"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
+   echo "==================="
+   status "=== $desc - Lopetettu (Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s) ==="
+}
+
+# Funktio lokitusta varten komennoille jotka eivät kulje jkr-CLI:n kautta
+# (esim. psql, ogr2ogr, sh-skriptit). Kirjaa tapahtuman jkr.sisaanluku_tapahtuma -tauluun.
+log_exec_with_sql_log() {
+   local cmd="$1"
+   local log_file="$2"
+   local desc="$3"
+
+   # Aloitusaika
+   local STEP_START
+   STEP_START=$(date +%s)
+
+   echo "=== $desc ==="
+   status "=== $desc - Aloitettu ==="
+   echo "Aloitusaika: $(date)"
+   echo "=== $desc ===" > "$log_file"
+   echo "Suoritetaan: $cmd" >> "$log_file"
+   echo "Aloitusaika: $(date)" >> "$log_file"
+   echo "===================" >> "$log_file"
+
+   # Kirjataan sisäänlukutapahtuma kantaan (alkuaika)
+   # Poistetaan salasanat komennosta ennen tallennusta
+   local SAFE_CMD
+   SAFE_CMD=$(printf '%s\n' "$cmd" | sed 's/password=[^ ]*/password=***/g')
+   # Käytetään psql:n :'muuttuja'-syntaksia jotta lainausmerkit escapoituvat turvallisesti
+   local TAPAHTUMA_ID
+   TAPAHTUMA_ID=$(psql -h $HOST -p $PORT -d $DB_NAME -U $USER -t -A \
+     -v komento="$SAFE_CMD" <<'EOSQL' 2>/dev/null | head -1 | tr -d '[:space:]'
+INSERT INTO jkr.sisaanluku_tapahtuma (komento, alkuaika, status)
+VALUES (:'komento', NOW(), 'käynnissä') RETURNING id;
+EOSQL
+   )
+
+   # Tallennetaan komennon tuloste erilliseen temp-tiedostoon
+   local CMD_OUTPUT_FILE
+   CMD_OUTPUT_FILE=$(mktemp)
+   local EXIT_CODE
+   eval "$cmd" > "$CMD_OUTPUT_FILE" 2>&1
+   EXIT_CODE=$?
+   cat "$CMD_OUTPUT_FILE" >> "$log_file"
+
+   rm -f "$CMD_OUTPUT_FILE"
+
+   # Lopetusaika ja keston laskeminen
+   local STEP_END
+   STEP_END=$(date +%s)
+   local DURATION=$((STEP_END - STEP_START))
+   local HOURS=$((DURATION / 3600))
+   local MINUTES=$(( (DURATION % 3600) / 60 ))
+   local SECONDS=$((DURATION % 60))
+
+   # Päivitetään sisäänlukutapahtuma kantaan (loppuaika + status + lisatiedot)
+   # Lisätietoihin tallennetaan vain lyhyt kooste. Tarkempi tuloste on lokitiedostossa.
+   if [ -n "$TAPAHTUMA_ID" ]; then
+     local CMD_STATUS
+     local CMD_LISATIEDOT
+     if [ $EXIT_CODE -eq 0 ]; then
+       CMD_STATUS="valmis"
+       CMD_LISATIEDOT="Valmis. Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s. Loki: ${log_file}"
+     else
+       CMD_STATUS="virhe"
+       CMD_LISATIEDOT="Virhe (exit code ${EXIT_CODE}). Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s. Loki: ${log_file}"
+     fi
+     psql -h $HOST -p $PORT -d $DB_NAME -U $USER -t -A -c \
+       "UPDATE jkr.sisaanluku_tapahtuma SET loppuaika = NOW(), status = '${CMD_STATUS}', lisatiedot = '${CMD_LISATIEDOT}' WHERE id = ${TAPAHTUMA_ID};"
+   fi
+
+   echo "===================" >> "$log_file"
+   echo "Lopetusaika: $(date)" >> "$log_file"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia" >> "$log_file"
+
+   if [ $EXIT_CODE -ne 0 ]; then
+       echo "VIRHE: $desc epäonnistui (exit code: $EXIT_CODE)" | tee -a "$log_file"
+       echo "Katso lokitiedosto: $log_file"
+       status "VIRHE: $desc epäonnistui (exit code: $EXIT_CODE). Skripti keskeytetty."
+       exit $EXIT_CODE
+   fi
+
+   echo "Suoritus valmis" >> "$log_file"
+   echo "Lopetusaika: $(date)"
+   echo "Suoritus valmis"
+   echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
+   echo "==================="
+   status "=== $desc - Lopetettu (Kesto: ${HOURS}h ${MINUTES}m ${SECONDS}s) ==="
 }
 
 echo "Tuodaan DVV 2025 aineisto..."
 # DVV-aineisto 2025
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln rakennus ../data/DVV/DVV-aineisto_2025.xlsx \"R1 rakennus\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln rakennus ../data/DVV/DVV-aineisto_2025.xlsx \"R1 rakennus\"" \
         "logs/import_dvv_rakennukset.log" \
         "DVV rakennusten tuonti"
 
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln osoite ../data/DVV/DVV-aineisto_2025.xlsx \"R3 osoite\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln osoite ../data/DVV/DVV-aineisto_2025.xlsx \"R3 osoite\"" \
         "logs/import_dvv_osoitteet.log" \
         "DVV osoitteiden tuonti"
 
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln omistaja ../data/DVV/DVV-aineisto_2025.xlsx \"R4 omistaja\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln omistaja ../data/DVV/DVV-aineisto_2025.xlsx \"R4 omistaja\"" \
         "logs/import_dvv_omistajat.log" \
         "DVV omistajien tuonti"
 
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln vanhin ../data/DVV/DVV-aineisto_2025.xlsx \"R9 huon asukk\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER password=$JKR_PASSWORD ACTIVE_SCHEMA=jkr_dvv\" -nln vanhin ../data/DVV/DVV-aineisto_2025.xlsx \"R9 huon asukk\"" \
         "logs/import_dvv_asukkaat.log" \
         "DVV asukkaiden tuonti"
 
 echo "Muunnetaan jkr-muotoon..."
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"20250310\" -f import_dvv.sql" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v formatted_date=\"20250310\" -f import_dvv.sql" \
         "logs/import_dvv_muunnos.log" \
         "DVV-tietojen muunnos JKR-muotoon"
 
 # Päivitetään huoneistomäärät
 echo "Tuodaan huoneistomäärät..."
-log_exec "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2025.xlsx \"Huoneistomäärät 2025\"" \
+log_exec_with_sql_log "ogr2ogr -f PostgreSQL -overwrite -progress PG:\"host=$HOST port=$PORT dbname=$DB_NAME user=$USER ACTIVE_SCHEMA=jkr_dvv\" -nln huoneistomaara ../data/Huoneistomäärät_2025.xlsx \"Huoneistomäärät 2025\"" \
         "logs/huoneistomaara_tuonti.log" \
         "Huoneistomäärien tuonti"
 
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f update_huoneistomaara.sql" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f update_huoneistomaara.sql" \
         "logs/huoneistomaara_paivitys.log" \
         "Huoneistomäärien päivitys"
 
@@ -118,7 +225,7 @@ fi
 
 quarter="Q1"
 
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
         "logs/hapa_import.log" \
         "HAPA-aineiston tuonti"
 
