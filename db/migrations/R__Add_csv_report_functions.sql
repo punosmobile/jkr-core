@@ -597,6 +597,18 @@ BEGIN
                     'Ammatillisten oppilaitosten rakennukset', 'Korkeakoulurakennukset', 'Tutkimuslaitosrakennukset',
                     'Järjestöjen, liittojen, työnantajien yms. opetusrakennukset', 'Muualla luokittelemattomat opetusrakennukset'
                 ])
+                OR (
+                    r.rakennuksenkayttotarkoitus_koodi IS NULL
+                    AND rl.selite = ANY(ARRAY[
+                        'Omakotitalot', 'Paritalot', 'Rivitalot', 'Pienkerrostalot', 'Asuinkerrostalot',
+                        'Asuntolarakennukset', 'Erityisryhmien asuinrakennukset',
+                        'Ympärivuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset',
+                        'Osavuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset',
+                        'Laitospalvelujen rakennukset', 'Lasten päiväkodit',
+                        'Yleissivistävien oppilaitosten rakennukset',
+                        'Ammatillisten oppilaitosten rakennukset', 'Korkeakoulurakennukset'
+                    ])
+                )
             )
     ),
     first_significant_address AS (

@@ -28,6 +28,7 @@ from jkrimporter.utils.ilmoitus import (
 from jkrimporter.utils.intervals import IntervalCounter
 from jkrimporter.utils.liete import export_kohdentumattomat_liete_kuljetukset
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
+from jkrimporter.providers.db.sisaanlukutapahtuma import lisaa_lisatieto
 from jkrimporter.utils.kaivotieto import (
     export_kohdentumattomat_kaivotiedot,
     export_kohdentumattomat_kaivotiedon_lopetukset,
@@ -424,7 +425,7 @@ def import_dvv_kohteet(
     session.add(db_dvv_pomintapvvm)
     session.commit()
 
-    print(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta ja päivitetty {len(paivitetut_rakennus_kohteet)} vanhaa kohdetta")
+    lisaa_lisatieto(f"DVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta (perusmaksu: {len(perusmaksukohteet) if 'perusmaksukohteet' in locals() else 0}, yhden asunnon: {len(single_asunto_kohteet)}, muut: {len(multiple_and_uninhabited_kohteet)}), päivitetty {len(paivitetut_rakennus_kohteet)} vanhaa kohdetta")
     logger.info(f"\nDVV-kohteiden luonti valmis. Luotu yhteensä {total_kohteet} kohdetta.")
 
 
@@ -439,6 +440,7 @@ class DbProvider:
     ):
         try:
             kohdentumattomat = []
+            kohdentuneet_count = 0
             print(len(jkr_data.asiakkaat))
             progress = Progress(len(jkr_data.asiakkaat))
 
@@ -500,8 +502,12 @@ class DbProvider:
                     if kohdentumaton:
                         asiakas_dict = kohdentumaton.__dict__
                         kohdentumattomat.append(asiakas_dict)
+                    else:
+                        kohdentuneet_count += 1
                 session.commit()
                 progress.complete()
+
+                lisaa_lisatieto(f"Asiakkaita yhteensä: {len(jkr_data.asiakkaat)}, kohdentuneet: {kohdentuneet_count}, kohdentumattomat: {len(kohdentumattomat)}")
 
                 if kohdentumattomat:
                     kohdentumattomatRivit = 0
@@ -682,10 +688,10 @@ class DbProvider:
                                 csv_writer.writerow(rd)
 
                     if csv_path and kohdentumattomatRivit > 0:
-                        print(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
+                        lisaa_lisatieto(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
                     elif kohdentumattomatRivit == 0 and kohdentumattomat:
                         # LIETE-data tai muu data jota ei voitu tallentaa Lahden muodossa
-                        print(f"Kohdentumattomia tietoja ({len(kohdentumattomat)}) kpl, tallennetaan erilliseen tiedostoon")
+                        lisaa_lisatieto(f"Kohdentumattomia tietoja ({len(kohdentumattomat)}) kpl, tallennetaan erilliseen tiedostoon")
                         try:
                             # Käytä siirtotiedoston hakemistoa, ei tiedostoa itseään
                             output_dir = os.path.dirname(str(siirtotiedosto)) if siirtotiedosto else "."
@@ -695,7 +701,7 @@ class DbProvider:
                         except Exception as export_error:
                             logger.exception(f"LIETE-kohdentumattomien tallennus epäonnistui: {export_error}")
                 else:
-                    print("Ei kohdentumattomia tietoja.")
+                    lisaa_lisatieto("Ei kohdentumattomia tietoja.")
 
         except Exception as e:
             logger.exception(e)
@@ -737,6 +743,8 @@ class DbProvider:
         The method also stores kohdentumattomat rows.
         """
         kohdentumattomat = []
+        luotu_count = 0
+        ohitettu_count = 0
         try:
             with Session(engine) as session:
                 init_code_objects(session)
@@ -773,6 +781,7 @@ class DbProvider:
                         if existing_kompostori:
                             print("Vastaava kompostori löydetty, ohitetaan luonti...")
                             komposti = existing_kompostori
+                            ohitettu_count += 1
                         # Based on the comments on 23.2.2024, do not set ending dates
                         # for Kompostori if new ilmoitus with the same vastuuhenkilo and
                         # sijainti is added, even if the dates are different. Only set
@@ -787,6 +796,7 @@ class DbProvider:
                                 osapuoli=osapuoli,
                             )
                             session.add(komposti)
+                            luotu_count += 1
                         # Look for kohde for each kompostoija.
                         kohteet, kohdentumattomat_prt = find_kohteet_by_prt(
                             session,
@@ -813,7 +823,7 @@ class DbProvider:
                                     )
                         if kohdentumattomat_prt:
                             # Append rawdata dicts for each kohdentumaton kompostoija.
-                            print(f"Kohdentumatta jäi {len(kohdentumattomat_prt)} kompostoria")
+                            lisaa_lisatieto(f"Kohdentumatta jäi {len(kohdentumattomat_prt)} kompostoria")
                             for prt in kohdentumattomat_prt:
                                 print(prt)
                                 for rawdata in ilmoitus.rawdata:
@@ -830,8 +840,10 @@ class DbProvider:
             logger.exception(e)
             raise
 
+        lisaa_lisatieto(f"Ilmoitukset: yhteensä {len(ilmoitus_list)}, luotu: {luotu_count}, ohitettu (jo olemassa): {ohitettu_count}, kohdentumattomat: {len(kohdentumattomat)}")
+
         if kohdentumattomat:
-            print(
+            lisaa_lisatieto(
                 f"Tallennetaan kohdentumattomat ilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_ilmoitukset(
@@ -849,6 +861,8 @@ class DbProvider:
         The method also stores kohdentumattomat rows.
         """
         kohdentumattomat = []
+        luotu_count = 0
+        ohitettu_count = 0
         try:
             with Session(engine) as session:
                 init_code_objects(session)
@@ -879,6 +893,7 @@ class DbProvider:
                         if existing_kompostori:
                             print("Vastaava liete kompostori löydetty, ohitetaan luonti...")
                             komposti = existing_kompostori
+                            ohitettu_count += 1
                         # Based on the comments on 23.2.2024, do not set ending dates
                         # for Kompostori if new ilmoitus with the same vastuuhenkilo and
                         # sijainti is added, even if the dates are different. Only set
@@ -893,6 +908,7 @@ class DbProvider:
                                 osapuoli=osapuoli,
                             )
                             session.add(komposti)
+                            luotu_count += 1
                         # Look for kohde for each kompostoija.
                         kohteet, kohdentumattomat_prt = find_kohteet_by_prt(
                             session,
@@ -944,7 +960,7 @@ class DbProvider:
 
                         if kohdentumattomat_prt:
                             # Append rawdata dicts for each kohdentumaton kompostoija.
-                            print(f"Kohdentumatta jäi {len(kohdentumattomat_prt)} liete kompostoria")
+                            lisaa_lisatieto(f"Kohdentumatta jäi {len(kohdentumattomat_prt)} liete kompostoria")
                             for prt in kohdentumattomat_prt:
                                 print(prt)
                                 for rawdata in ilmoitus.rawdata:
@@ -958,8 +974,10 @@ class DbProvider:
             logger.exception(e)
             raise
 
+        lisaa_lisatieto(f"Lieteilmoitukset: yhteensä {len(lieteIlmoitus_list)}, luotu: {luotu_count}, ohitettu (jo olemassa): {ohitettu_count}, kohdentumattomat: {len(kohdentumattomat)}")
+
         if kohdentumattomat:
-            print(
+            lisaa_lisatieto(
                 f"Tallennetaan kohdentumattomat lieteilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_lieteIlmoitukset(
@@ -976,6 +994,7 @@ class DbProvider:
         The method also stores kohdentumattomat rows.
         """
         kohdentumattomat = []
+        lopetettu_count = 0
         try:
             with Session(engine) as session:
                 init_code_objects(session)
@@ -1004,6 +1023,7 @@ class DbProvider:
                             )
                             for kompostori in ending_kompostorit:
                                 kompostori.loppupvm = ilmoitus.Vastausaika
+                                lopetettu_count += 1
                             session.commit()
                         else:
                             print("Lopetettavia voimassaolevia kompostoreita ei löytynyt...")
@@ -1015,8 +1035,10 @@ class DbProvider:
             logger.exception(e)
             raise
 
+        lisaa_lisatieto(f"Lopetusilmoitukset: yhteensä {len(lopetusilmoitus_list)}, lopetettu: {lopetettu_count}, kohdentumattomat: {len(kohdentumattomat)}")
+
         if kohdentumattomat:
-            print(
+            lisaa_lisatieto(
                 f"Tallennetaan kohdentumattomat lopetusilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_lopetusilmoitukset(
@@ -1029,6 +1051,7 @@ class DbProvider:
         paatostiedosto: Path,
     ):
         kohdentumattomat = []
+        kohdentuneet_count = 0
         try:
             with Session(engine) as session:
                 init_code_objects(session)
@@ -1066,6 +1089,7 @@ class DbProvider:
                                 rakennus_id=rakennus_id,
                             )
                         )
+                        kohdentuneet_count += 1
                     else:
                         kohdentumattomat.append(paatos.rawdata)
                 session.commit()
@@ -1073,8 +1097,10 @@ class DbProvider:
             logger.exception(e)
             raise
 
+        lisaa_lisatieto(f"Päätökset: yhteensä {len(paatos_list)}, kohdentuneet: {kohdentuneet_count}, kohdentumattomat: {len(kohdentumattomat)}")
+
         if kohdentumattomat:
-            print(
+            lisaa_lisatieto(
                 f"Tallennetaan kohdentumattomat päätökset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_paatokset(
@@ -1173,13 +1199,10 @@ class DbProvider:
             raise
 
         # Yhteenveto
-        print("\nKaivotietojen tuonti valmis:")
-        print(f"  - Lisätty: {inserted_count}")
-        print(f"  - Ohitettu (jo olemassa): {skipped_existing_count}")
-        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
-        
+        lisaa_lisatieto(f"Kaivotietojen tuonti valmis: Lisätty: {inserted_count}, Ohitettu (jo olemassa): {skipped_existing_count}, Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
+
         if kohdentumattomat:
-            print(f"\nTallennetaan kohdentumattomat kaivotiedot ({len(kohdentumattomat)}) tiedostoon")
+            lisaa_lisatieto(f"Tallennetaan kohdentumattomat kaivotiedot ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_kaivotiedot(
                 os.path.dirname(kaivotiedosto_path), kohdentumattomat
             )
@@ -1259,13 +1282,10 @@ class DbProvider:
             raise
 
         # Yhteenveto
-        print("\nKaivotiedon lopetusten tuonti valmis:")
-        print(f"  - Päivitetty: {updated_count}")
-        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
-        print(f"  - Ohitettu (ei aktiivista kaivotietoa): {skipped_no_kaivotieto_count}")
-        
+        lisaa_lisatieto(f"Kaivotiedon lopetukset: yhteensä {len(lopetukset_list)}, päivitetty: {updated_count}, kohdentumatta (ei kohdetta): {skipped_no_kohde_count}, ohitettu (ei aktiivista): {skipped_no_kaivotieto_count}")
+
         if kohdentumattomat:
-            print(f"\nTallennetaan kohdentumattomat lopetukset ({len(kohdentumattomat)}) tiedostoon")
+            lisaa_lisatieto(f"Tallennetaan kohdentumattomat kaivotiedon lopetukset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_kaivotiedon_lopetukset(
                 os.path.dirname(lopetustiedosto_path), kohdentumattomat
             )
@@ -1334,13 +1354,10 @@ class DbProvider:
             raise
 
         # Yhteenveto
-        print("\nViemäriliitosten tuonti valmis:")
-        print(f"  - Lisätty: {inserted_count}")
-        print(f"  - Kohdentumatta (muu virhe): {error_count}")
-        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
-        
+        lisaa_lisatieto(f"Viemäriliitokset: yhteensä {len(viemariliitos_list)}, lisätty: {inserted_count}, virheet: {error_count}, kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
+
         if kohdentumattomat:
-            print(f"\nTallennetaan kohdentumattomat viemäriliitokset ({len(kohdentumattomat)}) tiedostoon")
+            lisaa_lisatieto(f"Tallennetaan kohdentumattomat viemäriliitokset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_viemariilmoitukset(
                 os.path.dirname(viemaritiedosto_path), kohdentumattomat, viemaritiedosto_path
             )
@@ -1408,13 +1425,10 @@ class DbProvider:
             raise
 
         # Yhteenveto
-        print("\nViemäriliitoksen lopetusten tuonti valmis:")
-        print(f"  - Päivitetty: {updated_count}")
-        print(f"  - Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
-        print(f"  - Ohitettu (ei aktiivista viemäritietoa): {skipped_no_viemari_count}")
-        
+        lisaa_lisatieto(f"Viemäriliitosten lopetukset: yhteensä {len(lopetukset_list)}, päivitetty: {updated_count}, kohdentumatta (ei kohdetta): {skipped_no_kohde_count}, ohitettu (ei aktiivista): {skipped_no_viemari_count}")
+
         if kohdentumattomat:
-            print(f"\nTallennetaan kohdentumattomat lopetukset ({len(kohdentumattomat)}) tiedostoon")
+            lisaa_lisatieto(f"Tallennetaan kohdentumattomat viemärilopetukset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_viemarilopetusilmoitukset(
                 os.path.dirname(lopetustiedosto_path), kohdentumattomat
             )
