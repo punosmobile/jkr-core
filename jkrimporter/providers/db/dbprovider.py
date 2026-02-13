@@ -705,6 +705,7 @@ class DbProvider:
 
         except Exception as e:
             logger.exception(e)
+            raise
         finally:
             logger.debug(building_counts)
 
@@ -728,6 +729,7 @@ class DbProvider:
 
         except Exception as e:
             logger.exception(e)
+            raise
         finally:
             logger.debug(building_counts)
 
@@ -836,6 +838,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         lisaa_lisatieto(f"Ilmoitukset: yhteensä {len(ilmoitus_list)}, luotu: {luotu_count}, ohitettu (jo olemassa): {ohitettu_count}, kohdentumattomat: {len(kohdentumattomat)}")
 
@@ -969,6 +972,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         lisaa_lisatieto(f"Lieteilmoitukset: yhteensä {len(lieteIlmoitus_list)}, luotu: {luotu_count}, ohitettu (jo olemassa): {ohitettu_count}, kohdentumattomat: {len(kohdentumattomat)}")
 
@@ -1029,6 +1033,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         lisaa_lisatieto(f"Lopetusilmoitukset: yhteensä {len(lopetusilmoitus_list)}, lopetettu: {lopetettu_count}, kohdentumattomat: {len(kohdentumattomat)}")
 
@@ -1090,6 +1095,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         lisaa_lisatieto(f"Päätökset: yhteensä {len(paatos_list)}, kohdentuneet: {kohdentuneet_count}, kohdentumattomat: {len(kohdentumattomat)}")
 
@@ -1190,7 +1196,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         lisaa_lisatieto(f"Kaivotietojen tuonti valmis: Lisätty: {inserted_count}, Ohitettu (jo olemassa): {skipped_existing_count}, Kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
 
@@ -1272,7 +1279,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         lisaa_lisatieto(f"Kaivotiedon lopetukset: yhteensä {len(lopetukset_list)}, päivitetty: {updated_count}, kohdentumatta (ei kohdetta): {skipped_no_kohde_count}, ohitettu (ei aktiivista): {skipped_no_kaivotieto_count}")
 
@@ -1343,7 +1351,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         lisaa_lisatieto(f"Viemäriliitokset: yhteensä {len(viemariliitos_list)}, lisätty: {inserted_count}, virheet: {error_count}, kohdentumatta (ei kohdetta): {skipped_no_kohde_count}")
 
@@ -1413,7 +1422,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         lisaa_lisatieto(f"Viemäriliitosten lopetukset: yhteensä {len(lopetukset_list)}, päivitetty: {updated_count}, kohdentumatta (ei kohdetta): {skipped_no_kohde_count}, ohitettu (ei aktiivista): {skipped_no_viemari_count}")
 

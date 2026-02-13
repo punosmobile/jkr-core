@@ -114,7 +114,7 @@ def import_data(
             typer.echo(
                 f"Tiedontuottajaa {tiedontuottaja} ei löydy järjestelmästä. Lisää komennolla `jkr tiedontuottaja add`"
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
         provider = PROVIDERS[tiedontuottajatunnus]
         data = provider.Siirtotiedosto(siirtotiedosto)
 
@@ -275,7 +275,7 @@ def import_liete(
                 f"Tiedontuottajaa {tiedontuottajatunnus} ei löydy järjestelmästä. "
                 f"Lisää komennolla `jkr tiedontuottaja add`"
             )
-            raise typer.Exit()
+            raise typer.Exit(1)
 
         # Parsii päivämäärät
         if alkupvm:

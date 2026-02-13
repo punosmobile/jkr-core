@@ -73,6 +73,7 @@ log_exec() {
    echo "===================" >> "$log_file"
 
    eval "$cmd" >> "$log_file" 2>&1
+   local exit_code=$?
 
    # Lopetusaika ja keston laskeminen
    local STEP_END=$(date +%s)
@@ -83,8 +84,16 @@ log_exec() {
 
    echo "===================" >> "$log_file"
    echo "Lopetusaika: $(date)" >> "$log_file"
-   echo "Suoritus valmis" >> "$log_file"
    echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia" >> "$log_file"
+
+   if [ $exit_code -ne 0 ]; then
+       echo "VIRHE: $desc epäonnistui (exit code: $exit_code)" | tee -a "$log_file"
+       echo "Katso lokitiedosto: $log_file"
+       status "VIRHE: $desc epäonnistui (exit code: $exit_code). Skripti keskeytetty."
+       exit $exit_code
+   fi
+
+   echo "Suoritus valmis" >> "$log_file"
    echo "Lopetusaika: $(date)"
    echo "Suoritus valmis"
    echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
@@ -160,8 +169,16 @@ EOSQL
 
    echo "===================" >> "$log_file"
    echo "Lopetusaika: $(date)" >> "$log_file"
-   echo "Suoritus valmis" >> "$log_file"
    echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia" >> "$log_file"
+
+   if [ $EXIT_CODE -ne 0 ]; then
+       echo "VIRHE: $desc epäonnistui (exit code: $EXIT_CODE)" | tee -a "$log_file"
+       echo "Katso lokitiedosto: $log_file"
+       status "VIRHE: $desc epäonnistui (exit code: $EXIT_CODE). Skripti keskeytetty."
+       exit $EXIT_CODE
+   fi
+
+   echo "Suoritus valmis" >> "$log_file"
    echo "Lopetusaika: $(date)"
    echo "Suoritus valmis"
    echo "Kesto: $HOURS tuntia, $MINUTES minuuttia, $SECONDS sekuntia"
