@@ -699,6 +699,7 @@ class DbProvider:
 
         except Exception as e:
             logger.exception(e)
+            raise
         finally:
             logger.debug(building_counts)
 
@@ -722,6 +723,7 @@ class DbProvider:
 
         except Exception as e:
             logger.exception(e)
+            raise
         finally:
             logger.debug(building_counts)
 
@@ -826,6 +828,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         if kohdentumattomat:
             print(
@@ -953,6 +956,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         if kohdentumattomat:
             print(
@@ -1009,6 +1013,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         if kohdentumattomat:
             print(
@@ -1066,6 +1071,7 @@ class DbProvider:
                 session.commit()
         except Exception as e:
             logger.exception(e)
+            raise
 
         if kohdentumattomat:
             print(
@@ -1164,7 +1170,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         print("\nKaivotietojen tuonti valmis:")
         print(f"  - Lisätty: {inserted_count}")
@@ -1249,7 +1256,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         print("\nKaivotiedon lopetusten tuonti valmis:")
         print(f"  - Päivitetty: {updated_count}")
@@ -1323,7 +1331,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         print("\nViemäriliitosten tuonti valmis:")
         print(f"  - Lisätty: {inserted_count}")
@@ -1396,7 +1405,8 @@ class DbProvider:
                 
         except Exception as e:
             logger.exception(e)
-        
+            raise
+
         # Yhteenveto
         print("\nViemäriliitoksen lopetusten tuonti valmis:")
         print(f"  - Päivitetty: {updated_count}")

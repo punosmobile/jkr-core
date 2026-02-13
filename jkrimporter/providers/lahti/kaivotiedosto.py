@@ -26,6 +26,7 @@ from typing import Iterator, Optional, Union
 
 import pandas as pd
 
+from jkrimporter.datasheets import get_kaivotiedosto_headers
 from jkrimporter.providers.lahti.kaivo_models import (
     KaivotiedotRow,
     KaivotiedonLopetusRow,
@@ -120,7 +121,7 @@ class Kaivotiedosto:
     def _load(self):
         """Lataa Excel-tiedoston."""
         logger.info(f"Ladataan kaivotiedot: {self._filepath}")
-        
+
         try:
             self._df = pd.read_excel(self._filepath)
             logger.info(f"Ladattu {len(self._df)} riviä")
@@ -128,7 +129,21 @@ class Kaivotiedosto:
         except Exception as e:
             logger.error(f"Virhe ladattaessa tiedostoa {self._filepath}: {e}")
             raise
-    
+
+        # Validoi otsikot (case-insensitive)
+        expected_headers = get_kaivotiedosto_headers()
+        actual_lower = {col.lower() for col in self._df.columns}
+        missing_headers = [h for h in expected_headers if h.lower() not in actual_lower]
+        if missing_headers:
+            print(f"Tiedosto: {self._filepath}, puuttuvat sarakeotsikot: {missing_headers}")
+            raise RuntimeError(
+                f"Kaivotiedostosta puuttuu oletettuja sarakeotsikoita: {missing_headers}"
+            )
+
+        # Normalisoi sarakkeiden nimet vastaamaan odotettuja (Pydantic/row.get -yhteensopivuus)
+        expected_lower_map = {h.lower(): h for h in expected_headers}
+        self._df.columns = [expected_lower_map.get(col.lower(), col) for col in self._df.columns]
+
     @property
     def kaivotiedot(self) -> Iterator[KaivotiedotRow]:
         """Iteroi kaivotietorivit."""
@@ -188,7 +203,7 @@ class KaivotiedonLopetusTiedosto:
     def _load(self):
         """Lataa Excel-tiedoston."""
         logger.info(f"Ladataan kaivotiedon lopetukset: {self._filepath}")
-        
+
         try:
             self._df = pd.read_excel(self._filepath)
             logger.info(f"Ladattu {len(self._df)} riviä")
@@ -196,7 +211,21 @@ class KaivotiedonLopetusTiedosto:
         except Exception as e:
             logger.error(f"Virhe ladattaessa tiedostoa {self._filepath}: {e}")
             raise
-    
+
+        # Validoi otsikot (case-insensitive)
+        expected_headers = get_kaivotiedosto_headers()
+        actual_lower = {col.lower() for col in self._df.columns}
+        missing_headers = [h for h in expected_headers if h.lower() not in actual_lower]
+        if missing_headers:
+            print(f"Tiedosto: {self._filepath}, puuttuvat sarakeotsikot: {missing_headers}")
+            raise RuntimeError(
+                f"Kaivotiedon lopetustiedostosta puuttuu oletettuja sarakeotsikoita: {missing_headers}"
+            )
+
+        # Normalisoi sarakkeiden nimet vastaamaan odotettuja (Pydantic/row.get -yhteensopivuus)
+        expected_lower_map = {h.lower(): h for h in expected_headers}
+        self._df.columns = [expected_lower_map.get(col.lower(), col) for col in self._df.columns]
+
     @property
     def lopetukset(self) -> Iterator[KaivotiedonLopetusRow]:
         """Iteroi lopetusrivit."""
