@@ -136,8 +136,8 @@ EOSQL
    # Tallennetaan komennon tuloste erilliseen temp-tiedostoon
    local CMD_OUTPUT_FILE
    CMD_OUTPUT_FILE=$(mktemp)
-   eval "$cmd" > "$CMD_OUTPUT_FILE" 2>&1
    local EXIT_CODE
+   eval "$cmd" > "$CMD_OUTPUT_FILE" 2>&1
    EXIT_CODE=$?
    cat "$CMD_OUTPUT_FILE" >> "$log_file"
 
