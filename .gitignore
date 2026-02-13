@@ -73,3 +73,6 @@ pg_service.conf
 
 #rooliraportit
 roles_report*
+
+# Windows null device file
+nul
