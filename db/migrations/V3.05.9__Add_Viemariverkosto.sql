@@ -31,11 +31,11 @@ CREATE TABLE IF NOT EXISTS jkr.viemariverkosto
 
 TABLESPACE pg_default;
 
-ALTER SEQUENCE jkr.viemariverkosto_id_seq
-    OWNED BY jkr.viemariverkosto.id;
-
 ALTER TABLE IF EXISTS jkr.viemariverkosto
     OWNER to jkr_admin;
+
+ALTER SEQUENCE jkr.viemariverkosto_id_seq
+    OWNED BY jkr.viemariverkosto.id;
 
 REVOKE ALL ON TABLE jkr.viemariverkosto FROM jkr_editor;
 REVOKE ALL ON TABLE jkr.viemariverkosto FROM jkr_viewer;
