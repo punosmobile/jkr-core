@@ -45,11 +45,18 @@ ENV PATH="/root/.local/bin:$PATH"
 # Päivitä pip
 RUN pip install --upgrade pip
 
-# Avaa portit tarvittaessa (esim. 8000 jos sovellukselle)
-EXPOSE 8000
-
 # Määritä työhakemisto
 WORKDIR /app
 
-# Aseta oletuskomento: asenna riippuvuudet, siirry scripts-kansioon ja käynnistä bash
-CMD ["bash", "-c", "poetry install --no-root && cd scripts && exec /bin/bash"]
+# Kopioi projektin tiedostot
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-root --no-dev
+
+COPY . .
+RUN poetry install --no-dev
+
+# Avaa API-portti
+EXPOSE 8000
+
+# Käynnistä API
+CMD ["uvicorn", "jkrimporter.api.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -6,3 +6,4 @@ testing.docker-compose.yml
 tests/scripts/init_database_container.sh
 tests/scripts/init_database.bat
 tests/scripts/update_database_container.sh
+jkrimporter/api/api.py

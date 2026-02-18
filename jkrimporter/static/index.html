@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JKR – Tiedontuonti</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface2: #334155;
+            --border: #475569;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --pending: #64748b;
+            --radius: 8px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 { font-size: 1.25rem; font-weight: 600; }
+        .health-badge {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.85rem; color: var(--text-muted);
+        }
+        .health-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--pending);
+        }
+        .health-dot.ok { background: var(--success); }
+        .health-dot.err { background: var(--error); }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 4px; margin-bottom: 24px;
+            border-bottom: 1px solid var(--border); padding-bottom: 0;
+        }
+        .tab-btn {
+            background: none; border: none; color: var(--text-muted);
+            padding: 10px 18px; cursor: pointer; font-size: 0.9rem;
+            border-bottom: 2px solid transparent; transition: all 0.15s;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px; margin-bottom: 16px;
+        }
+        .card h3 { font-size: 1rem; margin-bottom: 12px; }
+        .card-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; }
+
+        /* Forms */
+        .form-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px; margin-bottom: 16px;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 0.8rem; color: var(--text-muted); }
+        .form-group input, .form-group select, .form-group textarea {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 8px 12px; color: var(--text);
+            font-size: 0.9rem; outline: none; transition: border-color 0.15s;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            border-color: var(--primary);
+        }
+        .form-group textarea { resize: vertical; min-height: 60px; font-family: monospace; }
+
+        .btn {
+            background: var(--primary); color: #fff; border: none;
+            padding: 10px 20px; border-radius: 6px; cursor: pointer;
+            font-size: 0.9rem; font-weight: 500; transition: background 0.15s;
+        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+        .btn-outline {
+            background: transparent; border: 1px solid var(--border); color: var(--text);
+        }
+        .btn-outline:hover { background: var(--surface2); }
+
+        /* Task list */
+        .task-list { display: flex; flex-direction: column; gap: 8px; }
+        .task-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            display: grid; grid-template-columns: auto 1fr auto auto;
+            align-items: center; gap: 14px;
+        }
+        .task-status {
+            width: 10px; height: 10px; border-radius: 50%;
+        }
+        .task-status.pending { background: var(--pending); }
+        .task-status.running { background: var(--warning); animation: pulse 1s infinite; }
+        .task-status.completed { background: var(--success); }
+        .task-status.failed { background: var(--error); }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .task-desc { font-size: 0.9rem; }
+        .task-cmd { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; }
+        .task-duration { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+        .task-detail-btn {
+            background: none; border: none; color: var(--primary);
+            cursor: pointer; font-size: 0.8rem; text-decoration: underline;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6); z-index: 100;
+            justify-content: center; align-items: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); width: 90%; max-width: 700px;
+            max-height: 80vh; display: flex; flex-direction: column;
+        }
+        .modal-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h3 { font-size: 1rem; }
+        .modal-close {
+            background: none; border: none; color: var(--text-muted);
+            font-size: 1.4rem; cursor: pointer;
+        }
+        .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+        .modal-body pre {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 12px; font-size: 0.8rem;
+            white-space: pre-wrap; word-break: break-all;
+            max-height: 300px; overflow-y: auto;
+        }
+        .modal-body .detail-row {
+            display: flex; gap: 12px; margin-bottom: 8px; font-size: 0.85rem;
+        }
+        .detail-label { color: var(--text-muted); min-width: 100px; }
+
+        /* Toast */
+        .toast-container {
+            position: fixed; bottom: 20px; right: 20px; z-index: 200;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 6px; padding: 12px 18px; font-size: 0.85rem;
+            animation: slideIn 0.3s ease;
+        }
+        .toast.success { border-left: 3px solid var(--success); }
+        .toast.error { border-left: 3px solid var(--error); }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .empty-state {
+            text-align: center; padding: 40px; color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .task-item { grid-template-columns: auto 1fr; }
+            .task-duration, .task-detail-btn { grid-column: 2; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>JKR Tiedontuonti</h1>
+    <div class="health-badge">
+        <div class="health-dot" id="healthDot"></div>
+        <span id="healthText">Tarkistetaan...</span>
+    </div>
+</header>
+
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="import">Tiedontuonti</button>
+        <button class="tab-btn" data-tab="liete">Liete</button>
+        <button class="tab-btn" data-tab="psql">Tietokanta</button>
+        <button class="tab-btn" data-tab="scripts">Skriptit</button>
+        <button class="tab-btn" data-tab="tasks">Tehtävät</button>
+    </div>
+
+    <!-- ============ TIEDONTUONTI ============ -->
+    <div class="tab-content active" id="tab-import">
+
+        <!-- Kuljetustiedot -->
+        <div class="card">
+            <h3>Kuljetustietojen tuonti</h3>
+            <p class="card-desc">jkr import – Tuo kuljetustiedot siirtotiedostosta</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Siirtotiedosto (kansio)</label>
+                    <input id="imp-siirto" placeholder="../data/Kuljetustiedot/2024/Q1">
+                </div>
+                <div class="form-group">
+                    <label>Tiedontuottaja</label>
+                    <input id="imp-tuottaja" value="LSJ">
+                </div>
+                <div class="form-group">
+                    <label>Alkupvm</label>
+                    <input id="imp-alku" placeholder="1.1.2024">
+                </div>
+                <div class="form-group">
+                    <label>Loppupvm</label>
+                    <input id="imp-loppu" placeholder="31.3.2024">
+                </div>
+            </div>
+            <button class="btn" onclick="runImport()">Käynnistä tuonti</button>
+        </div>
+
+        <!-- Päätökset -->
+        <div class="card">
+            <h3>Päätösten tuonti</h3>
+            <p class="card-desc">jkr import_paatokset</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Päätöstiedosto</label>
+                    <input id="paat-file" placeholder="../data/.../Paatokset_2024Q1.xlsx">
+                </div>
+            </div>
+            <button class="btn" onclick="runPaatokset()">Tuo päätökset</button>
+        </div>
+
+        <!-- Ilmoitukset -->
+        <div class="card">
+            <h3>Kompostointi-ilmoitusten tuonti</h3>
+            <p class="card-desc">jkr import_ilmoitukset</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Ilmoitustiedosto</label>
+                    <input id="ilm-file" placeholder="../data/.../Kompostointi-ilmoitus_2024Q1.xlsx">
+                </div>
+            </div>
+            <button class="btn" onclick="runIlmoitukset()">Tuo ilmoitukset</button>
+        </div>
+
+        <!-- Lopetusilmoitukset -->
+        <div class="card">
+            <h3>Lopetusilmoitusten tuonti</h3>
+            <p class="card-desc">jkr import_lopetusilmoitukset</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Lopetusilmoitustiedosto</label>
+                    <input id="lop-file" placeholder="../data/.../Kompostoinnin_lopettaminen_2024Q1.xlsx">
+                </div>
+            </div>
+            <button class="btn" onclick="runLopetusilmoitukset()">Tuo lopetusilmoitukset</button>
+        </div>
+
+        <!-- DVV Kohteet -->
+        <div class="card">
+            <h3>DVV-kohteiden luonti</h3>
+            <p class="card-desc">jkr create_dvv_kohteet</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Poimintapvm</label>
+                    <input id="dvv-pvm" placeholder="07.03.2024">
+                </div>
+                <div class="form-group">
+                    <label>Perusmaksutiedosto (valinnainen)</label>
+                    <input id="dvv-perus" placeholder="../data/Perusmaksuaineisto.xlsx">
+                </div>
+            </div>
+            <button class="btn" onclick="runDvvKohteet()">Luo kohteet</button>
+        </div>
+    </div>
+
+    <!-- ============ LIETE ============ -->
+    <div class="tab-content" id="tab-liete">
+
+        <!-- LIETE kuljetukset -->
+        <div class="card">
+            <h3>LIETE-kuljetustietojen tuonti</h3>
+            <p class="card-desc">jkr import_liete</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>LIETE-tiedosto</label>
+                    <input id="liete-file" placeholder="../data/Liete/Liete_kuljetustiedot_2024Q1.xlsx">
+                </div>
+                <div class="form-group">
+                    <label>Tiedontuottaja</label>
+                    <input id="liete-tuottaja" value="LSJ">
+                </div>
+                <div class="form-group">
+                    <label>Alkupvm</label>
+                    <input id="liete-alku" placeholder="1.1.2024">
+                </div>
+                <div class="form-group">
+                    <label>Loppupvm</label>
+                    <input id="liete-loppu" placeholder="31.3.2024">
+                </div>
+            </div>
+            <button class="btn" onclick="runLiete()">Tuo LIETE-kuljetukset</button>
+        </div>
+
+        <!-- Liete-ilmoitukset -->
+        <div class="card">
+            <h3>Liete kompostointi-ilmoitukset</h3>
+            <p class="card-desc">jkr import_liete_ilmoitukset</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Liete-ilmoitustiedosto</label>
+                    <input id="liete-ilm-file" placeholder="../data/Liete/Lietteen_kompostointi_2023Q1.xlsx">
+                </div>
+            </div>
+            <button class="btn" onclick="runLieteIlmoitukset()">Tuo liete-ilmoitukset</button>
+        </div>
+
+        <!-- Kaivotiedot -->
+        <div class="card">
+            <h3>Kaivotietojen tuonti</h3>
+            <p class="card-desc">jkr import_kaivotiedot</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Kaivotiedot-tiedosto</label>
+                    <input id="kaivo-file" placeholder="../data/Liete/Kaivotiedot_aloitus.xlsx">
+                </div>
+                <div class="form-group">
+                    <label>Tiedontuottaja</label>
+                    <input id="kaivo-tuottaja" value="LSJ">
+                </div>
+            </div>
+            <button class="btn" onclick="runKaivotiedot()">Tuo kaivotiedot</button>
+        </div>
+
+        <!-- Kaivotiedon lopetukset -->
+        <div class="card">
+            <h3>Kaivotiedon lopetusten tuonti</h3>
+            <p class="card-desc">jkr import_kaivotiedon_lopetukset</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Lopetustiedosto</label>
+                    <input id="kaivo-lop-file" placeholder="../data/Liete/Kaivotiedot_lopetus_2024Q1.xlsx">
+                </div>
+                <div class="form-group">
+                    <label>Tiedontuottaja</label>
+                    <input id="kaivo-lop-tuottaja" value="LSJ">
+                </div>
+            </div>
+            <button class="btn" onclick="runKaivotiedonLopetukset()">Tuo lopetukset</button>
+        </div>
+
+        <!-- Viemärit -->
+        <div class="card">
+            <h3>Viemäritietojen tuonti</h3>
+            <p class="card-desc">jkr import_viemarit</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Viemäritiedosto</label>
+                    <input id="viem-file" placeholder="../data/Liete/Viemariverkosto_Asikkala.xlsx">
+                </div>
+            </div>
+            <button class="btn" onclick="runViemarit()">Tuo viemäritiedot</button>
+        </div>
+
+        <!-- Viemärin lopetukset -->
+        <div class="card">
+            <h3>Viemärin lopetusten tuonti</h3>
+            <p class="card-desc">jkr import_lopeta_viemarit</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Viemärin lopetustiedosto</label>
+                    <input id="viem-lop-file" placeholder="../data/Liete/Viemariverkosto_lopetus_2023Q2.xlsx">
+                </div>
+            </div>
+            <button class="btn" onclick="runViemariLopetukset()">Tuo viemärin lopetukset</button>
+        </div>
+    </div>
+
+    <!-- ============ TIETOKANTA ============ -->
+    <div class="tab-content" id="tab-psql">
+
+        <!-- SQL -->
+        <div class="card">
+            <h3>SQL-komento</h3>
+            <p class="card-desc">Suorita SQL-lause tai -tiedosto psql:llä</p>
+            <div class="form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-group">
+                    <label>SQL-lause</label>
+                    <textarea id="psql-sql" rows="3" placeholder="SELECT jkr.update_velvoitteet();"></textarea>
+                </div>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>tai SQL-tiedosto</label>
+                    <input id="psql-file" placeholder="import_dvv.sql">
+                </div>
+            </div>
+            <button class="btn" onclick="runPsql()">Suorita</button>
+        </div>
+
+        <!-- Velvoitteet -->
+        <div class="card">
+            <h3>Velvoitteiden päivitys</h3>
+            <p class="card-desc">SELECT jkr.update_velvoitteet()</p>
+            <button class="btn" onclick="runUpdateVelvoitteet()">Päivitä velvoitteet</button>
+        </div>
+
+        <!-- Velvoite-status -->
+        <div class="card">
+            <h3>Velvoite-statuksen tallennus</h3>
+            <p class="card-desc">SELECT jkr.tallenna_velvoite_status(pvm)</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Päivämäärä</label>
+                    <input id="velv-pvm" placeholder="2024-03-31">
+                </div>
+            </div>
+            <button class="btn" onclick="runTallennaVelvoite()">Tallenna status</button>
+        </div>
+
+        <!-- ogr2ogr -->
+        <div class="card">
+            <h3>ogr2ogr – Aineiston tuonti</h3>
+            <p class="card-desc">Tuo tiedosto PostgreSQL:ään ogr2ogr:llä (esim. DVV Excel)</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Lähdetiedosto</label>
+                    <input id="ogr-source" placeholder="../data/DVV/DVV-aineisto_2024.xlsx">
+                </div>
+                <div class="form-group">
+                    <label>Taulun/välilehden nimi</label>
+                    <input id="ogr-layer" placeholder="R1 rakennus">
+                </div>
+                <div class="form-group">
+                    <label>Kohdetaulu</label>
+                    <input id="ogr-table" placeholder="rakennus">
+                </div>
+                <div class="form-group">
+                    <label>Schema</label>
+                    <input id="ogr-schema" value="jkr_dvv">
+                </div>
+            </div>
+            <button class="btn" onclick="runOgr2ogr()">Tuo aineisto</button>
+        </div>
+
+        <!-- CSV Copy -->
+        <div class="card">
+            <h3>CSV-tiedoston tuonti (\\copy)</h3>
+            <p class="card-desc">Tuo CSV-tiedosto tietokantatauluun</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Kohdetaulu</label>
+                    <input id="csv-table" placeholder="jkr_koodistot.tiedontuottaja(tunnus, nimi)">
+                </div>
+                <div class="form-group">
+                    <label>CSV-tiedosto</label>
+                    <input id="csv-file" placeholder="../data/Tiedontuottajat.csv">
+                </div>
+                <div class="form-group">
+                    <label>Erotin</label>
+                    <input id="csv-delim" value=";">
+                </div>
+            </div>
+            <button class="btn" onclick="runCopyCsv()">Tuo CSV</button>
+        </div>
+    </div>
+
+    <!-- ============ SKRIPTIT ============ -->
+    <div class="tab-content" id="tab-scripts">
+
+        <!-- Taajama -->
+        <div class="card">
+            <h3>Taajamarajausten tuonti</h3>
+            <p class="card-desc">import_taajama.sh</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Alkupvm</label>
+                    <input id="taaj-pvm" placeholder="2026-01-01">
+                </div>
+            </div>
+            <button class="btn" onclick="runTaajama()">Tuo taajamarajaukset</button>
+        </div>
+
+        <!-- Viemäriverkosto -->
+        <div class="card">
+            <h3>Viemäriverkoston tuonti (SHP)</h3>
+            <p class="card-desc">import_viemari.sh</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Alkupvm</label>
+                    <input id="viem-sh-pvm" placeholder="2023-01-01">
+                </div>
+                <div class="form-group">
+                    <label>SHP-tiedosto</label>
+                    <input id="viem-sh-file" placeholder="../data/.../Asikkala_vesihuoltolaitoksen_toiminta-alueet_2023.shp">
+                </div>
+            </div>
+            <button class="btn" onclick="runViemariSh()">Tuo viemäriverkosto</button>
+        </div>
+
+        <!-- Pipeline -->
+        <div class="card">
+            <h3>Koko pipeline</h3>
+            <p class="card-desc">Aja koko tuontiskripti (esim. 2024_start.sh)</p>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Skriptin polku</label>
+                    <input id="pipe-script" value="scripts/2024_start.sh">
+                </div>
+            </div>
+            <button class="btn" onclick="runPipeline()">Käynnistä pipeline</button>
+        </div>
+
+        <!-- Vapaa komento -->
+        <div class="card">
+            <h3>Vapaa komento</h3>
+            <p class="card-desc">Suorita mikä tahansa komento palvelimella</p>
+            <div class="form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-group">
+                    <label>Komento</label>
+                    <input id="cmd-command" placeholder="jkr tiedontuottaja list">
+                </div>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Kuvaus</label>
+                    <input id="cmd-desc" placeholder="Vapaa komento">
+                </div>
+                <div class="form-group">
+                    <label>Työhakemisto (valinnainen)</label>
+                    <input id="cmd-cwd" placeholder="/app/scripts">
+                </div>
+            </div>
+            <button class="btn" onclick="runCommand()">Suorita</button>
+        </div>
+    </div>
+
+    <!-- ============ TEHTÄVÄT ============ -->
+    <div class="tab-content" id="tab-tasks">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 style="font-size:1.1rem;">Tehtävät</h2>
+            <button class="btn btn-sm btn-outline" onclick="refreshTasks()">Päivitä</button>
+        </div>
+        <div id="taskList" class="task-list">
+            <div class="empty-state">Ei tehtäviä</div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modalTitle">Tehtävän tiedot</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+
+<!-- Toasts -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const API = window.location.origin;
+let pollInterval = null;
+
+// ---- Tabs ----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'tasks') refreshTasks();
+    });
+});
+
+// ---- API helpers ----
+async function post(path, body) {
+    const res = await fetch(API + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        toast(data.detail || 'Virhe', 'error');
+        throw new Error(data.detail);
+    }
+    toast(`Tehtävä käynnistetty: ${data.description}`, 'success');
+    startPolling();
+    return data;
+}
+
+async function get(path) {
+    const res = await fetch(API + path);
+    return res.json();
+}
+
+// ---- Health ----
+async function checkHealth() {
+    try {
+        const data = await get('/health');
+        document.getElementById('healthDot').className = 'health-dot ok';
+        document.getElementById('healthText').textContent = 'API toimii';
+    } catch {
+        document.getElementById('healthDot').className = 'health-dot err';
+        document.getElementById('healthText').textContent = 'API ei vastaa';
+    }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
+
+// ---- Actions ----
+function runImport() {
+    post('/jkr/import', {
+        siirtotiedosto: v('imp-siirto'),
+        tiedontuottajatunnus: v('imp-tuottaja'),
+        alkupvm: v('imp-alku'),
+        loppupvm: v('imp-loppu'),
+    });
+}
+function runPaatokset() {
+    post('/jkr/import_paatokset', { siirtotiedosto: v('paat-file') });
+}
+function runIlmoitukset() {
+    post('/jkr/import_ilmoitukset', { siirtotiedosto: v('ilm-file') });
+}
+function runLopetusilmoitukset() {
+    post('/jkr/import_lopetusilmoitukset', { siirtotiedosto: v('lop-file') });
+}
+function runDvvKohteet() {
+    const body = { poimintapvm: v('dvv-pvm') };
+    const perus = v('dvv-perus');
+    if (perus) body.perusmaksutiedosto = perus;
+    post('/jkr/create_dvv_kohteet', body);
+}
+function runLiete() {
+    post('/jkr/import_liete', {
+        siirtotiedosto: v('liete-file'),
+        tiedontuottajatunnus: v('liete-tuottaja'),
+        alkupvm: v('liete-alku'),
+        loppupvm: v('liete-loppu'),
+    });
+}
+function runLieteIlmoitukset() {
+    post('/jkr/import_liete_ilmoitukset', { siirtotiedosto: v('liete-ilm-file') });
+}
+function runKaivotiedot() {
+    post('/jkr/import_kaivotiedot', {
+        siirtotiedosto: v('kaivo-file'),
+        tiedontuottajatunnus: v('kaivo-tuottaja'),
+    });
+}
+function runKaivotiedonLopetukset() {
+    post('/jkr/import_kaivotiedon_lopetukset', {
+        siirtotiedosto: v('kaivo-lop-file'),
+        tiedontuottajatunnus: v('kaivo-lop-tuottaja'),
+    });
+}
+function runViemarit() {
+    post('/jkr/import_viemarit', { siirtotiedosto: v('viem-file') });
+}
+function runViemariLopetukset() {
+    post('/jkr/import_lopeta_viemarit', { siirtotiedosto: v('viem-lop-file') });
+}
+function runPsql() {
+    const sql = v('psql-sql');
+    const file = v('psql-file');
+    post('/psql/exec', { sql: sql || null, file: file || null });
+}
+function runUpdateVelvoitteet() {
+    post('/psql/update_velvoitteet', {});
+}
+function runTallennaVelvoite() {
+    post('/psql/tallenna_velvoite_status', { pvm: v('velv-pvm') });
+}
+function runOgr2ogr() {
+    post('/ogr2ogr/import', {
+        source_file: v('ogr-source'),
+        layer_name: v('ogr-layer'),
+        target_table: v('ogr-table'),
+        target_schema: v('ogr-schema'),
+    });
+}
+function runCopyCsv() {
+    post('/psql/copy_csv', {
+        table: v('csv-table'),
+        file_path: v('csv-file'),
+        delimiter: v('csv-delim'),
+    });
+}
+function runTaajama() {
+    post('/scripts/import_taajama', { alkupvm: v('taaj-pvm') });
+}
+function runViemariSh() {
+    post('/scripts/import_viemari', {
+        alkupvm: v('viem-sh-pvm'),
+        shp_tiedosto: v('viem-sh-file'),
+    });
+}
+function runPipeline() {
+    post('/pipeline/run', { script_path: v('pipe-script') });
+}
+function runCommand() {
+    const body = { command: v('cmd-command'), description: v('cmd-desc') || 'Vapaa komento' };
+    const cwd = v('cmd-cwd');
+    if (cwd) body.cwd = cwd;
+    post('/command/run', body);
+}
+
+// ---- Tasks ----
+async function refreshTasks() {
+    const tasks = await get('/tasks');
+    const container = document.getElementById('taskList');
+    if (!tasks.length) {
+        container.innerHTML = '<div class="empty-state">Ei tehtäviä</div>';
+        return;
+    }
+    // Newest first
+    tasks.sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+    container.innerHTML = tasks.map(t => `
+        <div class="task-item">
+            <div class="task-status ${t.status}"></div>
+            <div>
+                <div class="task-desc">${esc(t.description)}</div>
+                <div class="task-cmd">${esc(t.command)}</div>
+            </div>
+            <div class="task-duration">${formatDuration(t.duration_seconds)}</div>
+            <button class="task-detail-btn" onclick="showDetail('${t.id}')">Tiedot</button>
+        </div>
+    `).join('');
+
+    // Stop polling if no running tasks
+    const hasRunning = tasks.some(t => t.status === 'running' || t.status === 'pending');
+    if (!hasRunning && pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+function startPolling() {
+    if (pollInterval) return;
+    refreshTasks();
+    pollInterval = setInterval(refreshTasks, 3000);
+}
+
+async function showDetail(taskId) {
+    const t = await get('/tasks/' + taskId);
+    document.getElementById('modalTitle').textContent = t.description;
+    document.getElementById('modalBody').innerHTML = `
+        <div class="detail-row"><span class="detail-label">Status:</span><span>${t.status}</span></div>
+        <div class="detail-row"><span class="detail-label">Komento:</span><span style="font-family:monospace;font-size:0.85rem;word-break:break-all">${esc(t.command)}</span></div>
+        <div class="detail-row"><span class="detail-label">Aloitettu:</span><span>${t.started_at || '-'}</span></div>
+        <div class="detail-row"><span class="detail-label">Päättynyt:</span><span>${t.finished_at || '-'}</span></div>
+        <div class="detail-row"><span class="detail-label">Kesto:</span><span>${formatDuration(t.duration_seconds)}</span></div>
+        <div class="detail-row"><span class="detail-label">Exit code:</span><span>${t.exit_code ?? '-'}</span></div>
+        <h4 style="margin:16px 0 8px;font-size:0.9rem;">Tuloste</h4>
+        <pre>${esc(t.output || '(tyhjä)')}</pre>
+        ${t.error ? `<h4 style="margin:16px 0 8px;font-size:0.9rem;color:var(--error)">Virhe</h4><pre style="border-color:var(--error)">${esc(t.error)}</pre>` : ''}
+    `;
+    document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+}
+document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+});
+
+// ---- Utils ----
+function v(id) { return document.getElementById(id).value.trim(); }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function formatDuration(sec) {
+    if (sec == null) return '-';
+    if (sec < 60) return sec.toFixed(1) + 's';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    if (m < 60) return m + 'min ' + s + 's';
+    const h = Math.floor(m / 60);
+    return h + 'h ' + (m % 60) + 'min';
+}
+function toast(msg, type) {
+    const el = document.createElement('div');
+    el.className = 'toast ' + type;
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+}
+</script>
+</body>
+</html>
