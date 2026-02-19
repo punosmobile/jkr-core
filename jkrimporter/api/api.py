@@ -552,6 +552,71 @@ async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTa
 
 
 # ---------------------------------------------------------------------------
+# Tietokantadokumentaatio
+# ---------------------------------------------------------------------------
+@app.get("/db/documentation", summary="Tietokantadokumentaatio (jkr-skeemat)")
+async def db_documentation():
+    """Palauttaa jkr-skeemojen taulut, kentät, kommentit ja tyypit."""
+    env = _db_env()
+    sql = r"""
+SELECT json_agg(row_to_json(t)) FROM (
+    SELECT
+        c.table_schema as skeema,
+        c.table_name as taulu,
+        obj_description((c.table_schema || '.' || c.table_name)::regclass) as taulun_kommentti,
+        c.column_name as kentta,
+        col_description((c.table_schema || '.' || c.table_name)::regclass, c.ordinal_position) as kentan_kommentti,
+        COALESCE(
+            upper(g.type),
+            CASE
+                WHEN c.data_type = 'character varying' THEN 'character varying'
+                WHEN c.data_type = 'character' THEN 'character'
+                WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name
+                ELSE c.data_type
+            END
+        ) AS tyyppi,
+        g.coord_dimension AS dimensions,
+        g.srid AS coordinate_system,
+        c.is_nullable
+    FROM information_schema.columns c
+    LEFT JOIN geometry_columns g
+        ON c.table_schema = g.f_table_schema
+        AND c.table_name = g.f_table_name
+        AND c.column_name = g.f_geometry_column
+    WHERE c.table_schema ILIKE 'jkr%%'
+    ORDER BY c.table_schema, c.table_name, c.ordinal_position
+) t;
+"""
+    try:
+        cmd = [
+            "psql", "-h", env.get("HOST", ""),
+            "-p", env.get("PORT", "5432"),
+            "-U", env.get("USER", ""),
+            "-d", env.get("DB_NAME", ""),
+            "-t", "-A",
+            "-c", sql,
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, env=env, timeout=30,
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=result.stderr.strip())
+
+        import json as _json
+        raw = result.stdout.strip()
+        if not raw:
+            return []
+        rows = _json.loads(raw)
+        return rows if rows else []
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Tietokantakysely aikakatkaistiin")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
 @app.get("/health", summary="Terveystarkistus")
