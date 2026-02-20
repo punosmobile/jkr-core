@@ -272,6 +272,14 @@ The testing procedures are under construction. Currently, the tests can be run i
 5. When calling `pytest` the batch file `/tests/scripts/init_database.bat` on Windows and `/tests/scripts/init_database.sh` on Linux is run before the tests related to the database.
 6. `pytest` is called like this when located in `tests` folder: `python -m pytest ../tests/ -v`
 
+**Running tests without database (lightweight tests):**
+
+Some tests do not require a database connection and can be run independently. These include parsing and model validation tests:
+
+```bash
+python -m pytest tests/test_liete_kuljetustiedot.py tests/test_kaivotiedot.py tests/test_liete_ilmoitukset.py tests/test_intervals.py tests/test_date_utils.py -v
+```
+
 NOTE:
 
 If your environment contains saved environmental variables, they may cause issues with the tests.
@@ -320,6 +328,17 @@ The automated tests test a wide variety of features within the data import proce
 | viranomaispäätöset | test_readable | Verifies readability of decision file |
 |  | test_import_faulty_data | Verifies failure with bad data |
 |  | test_import_paatokset | Verifies number of authority decisions, decision numbers, dates, positive and negative decisions, event type, AKP removal reason, matching, emptying interval, waste type, unmatched list |
+| liete_kuljetustiedot | TestLieteKuljetusRow | Verifies LIETE transport data parsing: dates, floats, identifiers |
+|  | TestLieteKuljetustiedosto | Verifies Excel file reading for LIETE transport data |
+|  | TestLieteJatelajiMap | Verifies waste type mapping (Musta→mustaliete, Harmaa→harmaaliete) |
+|  | TestLieteTranslator | Verifies translation to JKR format, customer grouping by PRT |
+| kaivotiedot | TestParseBool | Verifies boolean parsing from various formats (x, 1, type name) |
+|  | TestParseDate | Verifies date parsing from Finnish and ISO formats |
+|  | TestKaivotiedotRow | Verifies well data row model and type detection |
+|  | TestKaivotiedosto | Verifies Excel file reading for well data start/end |
+|  | TestKaivotietotyyppiIdMap | Verifies well type ID mapping |
+| liete_ilmoitukset | TestLieteIlmoitustiedosto | Verifies LIETE composting notification file reading |
+|  | TestLieteIlmoitusTranslator | Verifies translation to JKR format, pienpuhdistamo date handling |
 
 ## Naming development branches
 

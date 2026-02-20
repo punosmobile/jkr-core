@@ -76,8 +76,8 @@ jatelaji_map = {
 }
 kaivotyyppi_map = {
     KaivoTyyppi.puhdistamo: JkrKeraysvalineTyyppi.PIENPUHDISTAMO,
-    KaivoTyyppi.sako: JkrKeraysvalineTyyppi.SAKO,
-    KaivoTyyppi.umpi: JkrKeraysvalineTyyppi.UMPI,
+    KaivoTyyppi.sako: JkrKeraysvalineTyyppi.SAOSTUSSAILIO,
+    KaivoTyyppi.umpi: JkrKeraysvalineTyyppi.UMPISAILIO,
 }
 
 

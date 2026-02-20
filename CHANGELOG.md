@@ -279,3 +279,22 @@ All notable changes to this project will be documented in this file.
 - Maanmittauslaitos map layers for QGIS
 - Streetview layer for QGIS
 - Kuljetustiedot and Kompostorit layers for QGIS
+
+## [0.7.6] - 2026-02-20
+
+### Fixed
+
+- Fixed Cryptography version to patch a critical vulnerability in encrypted data
+- Fixed issue where Hapa and Biohapa velvoite was not assigned to kohde outside taajama
+- Jätteen kuvaus field was missing from data
+
+### Added
+
+- Liete information is now transferred when old kohde ends
+- Liete Kuljetustiedot ja Peltolevitys can now be read into database
+- Liete Kompostointi, kaivotiedot
+- Liete velvoitteet and QGis layers
+- Separate layers for deleted Kohde and Rakennus objects
+- Layer for showing sewer areas
+- Added a database table for storing log information about data import commands, whether they succeeded or not
+- Fixes to migration configuration

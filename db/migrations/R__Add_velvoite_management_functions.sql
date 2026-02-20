@@ -7,7 +7,16 @@ DECLARE
   insert_velvoite_sql text;
   yhteenvetomalli RECORD;
   insert_yhteenveto_sql text;
+  _tapahtuma_id integer;
+  _velvoite_count integer := 0;
+  _yhteenveto_count integer := 0;
+  _lisatiedot text;
 BEGIN
+  -- Kirjataan sisäänlukutapahtuma
+  INSERT INTO jkr.sisaanluku_tapahtuma (komento, alkuaika, status)
+  VALUES ('SELECT jkr.update_velvoitteet()', NOW(), 'käynnissä')
+  RETURNING id INTO _tapahtuma_id;
+
   -- 1. Poistetaan vanhentuneet velvoitteet
   DELETE FROM jkr.velvoite v
   WHERE EXISTS (
@@ -48,18 +57,19 @@ BEGIN
         )
         and k.kohdetyyppi_id != 8
         and (
-          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')
+          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Liete''))
           OR 
-          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))
+          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte'', ''Liete''))
           OR
           (k.kohdetyyppi_id = 7)
         )
         and k.voimassaolo && $2
     ';
     
-    EXECUTE insert_velvoite_sql 
+    EXECUTE insert_velvoite_sql
     USING velvoitemalli.id, velvoitemalli.voimassaolo;
   end loop;
+  SELECT count(*) INTO _velvoite_count FROM jkr.velvoite;
 
   -- 3. Lisää velvoiteyhteenvedot
   FOR yhteenvetomalli in select id, saanto, voimassaolo 
@@ -86,11 +96,24 @@ BEGIN
         and k.voimassaolo && $2
     ';
     
-    EXECUTE insert_yhteenveto_sql 
+    EXECUTE insert_yhteenveto_sql
     USING yhteenvetomalli.id, yhteenvetomalli.voimassaolo;
   end loop;
 
+  SELECT count(*) INTO _yhteenveto_count FROM jkr.velvoiteyhteenveto;
+  _lisatiedot := 'Velvoitteita yhteensä: ' || _velvoite_count || ', yhteenvetoja: ' || _yhteenveto_count;
+
+  -- Kirjataan onnistuminen
+  UPDATE jkr.sisaanluku_tapahtuma
+  SET loppuaika = NOW(), status = 'valmis', lisatiedot = _lisatiedot
+  WHERE id = _tapahtuma_id;
+
   RETURN 1;
+EXCEPTION WHEN OTHERS THEN
+  UPDATE jkr.sisaanluku_tapahtuma
+  SET loppuaika = NOW(), status = 'virhe', lisatiedot = SQLERRM
+  WHERE id = _tapahtuma_id;
+  RAISE;
 END;
 $BODY$;
 
@@ -127,10 +150,10 @@ BEGIN
         and vm.voimassaolo && daterange($1, $2)
         and (
           -- HAPA kohteet (tyyppi 5)
-          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' = ''Sekajäte'')
+          (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Liete''))
           OR 
           -- BIOHAPA kohteet (tyyppi 6)
-          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte''))
+          (k.kohdetyyppi_id = 6 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Biojäte'', ''Liete''))
           OR
           -- Asuinkiinteistöt (tyyppi 7)
           (k.kohdetyyppi_id = 7)
@@ -230,30 +253,42 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION jkr.tallenna_velvoite_status(date) 
+CREATE OR REPLACE FUNCTION jkr.tallenna_velvoite_status(date)
 RETURNS int AS
 $$
+DECLARE
+  _tapahtuma_id integer;
+  _velvoite_status_count integer;
+  _yhteenveto_status_count integer;
+  _lisatiedot text;
 BEGIN
+  -- Kirjataan sisäänlukutapahtuma
+  INSERT INTO jkr.sisaanluku_tapahtuma (komento, alkuaika, status)
+  VALUES ('SELECT jkr.tallenna_velvoite_status(''' || $1::text || ''')', NOW(), 'käynnissä')
+  RETURNING id INTO _tapahtuma_id;
+
   -- 1. Tallennetaan velvoitteiden status
   INSERT INTO jkr.velvoite_status (velvoite_id, jakso, ok, tallennuspvm)
-  SELECT velvoite_id, jakso, ok, CURRENT_DATE 
+  SELECT velvoite_id, jakso, ok, CURRENT_DATE
   FROM jkr.velvoite_status($1)
   ON CONFLICT (velvoite_id, jakso) DO UPDATE
     SET
       ok = EXCLUDED.ok,
       tallennuspvm = CURRENT_DATE;
+  GET DIAGNOSTICS _velvoite_status_count = ROW_COUNT;
 
   -- 2. Päivitetään velvoitteiden materialisoitu näkymä
   REFRESH MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet;
 
-  -- 3. Tallennetaan velvoiteyhteenvetojen status  
+  -- 3. Tallennetaan velvoiteyhteenvetojen status
   INSERT INTO jkr.velvoiteyhteenveto_status (velvoiteyhteenveto_id, jakso, ok, tallennuspvm)
-  SELECT velvoiteyhteenveto_id, jakso, ok, CURRENT_DATE 
+  SELECT velvoiteyhteenveto_id, jakso, ok, CURRENT_DATE
   FROM jkr.velvoiteyhteenveto_status($1)
   ON CONFLICT (velvoiteyhteenveto_id, jakso) DO UPDATE
     SET
       ok = EXCLUDED.ok,
       tallennuspvm = CURRENT_DATE;
+  GET DIAGNOSTICS _yhteenveto_status_count = ROW_COUNT;
 
   -- 4. Päivitetään yhteenvetojen materialisoitu näkymä
   REFRESH MATERIALIZED VIEW jkr.v_velvoiteyhteenvetojen_kohteet;
@@ -261,7 +296,19 @@ BEGIN
   -- 5. Päivitetään kuljetus ja kompostointi-tietojen materialized view
   REFRESH MATERIALIZED VIEW jkr.v_kuljetustietojen_kohteet_kolmeviimeista;
   REFRESH MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista;
-  
+
+  _lisatiedot := 'Velvoite statuksia tallennettu: ' || _velvoite_status_count || ', yhteenveto statuksia: ' || _yhteenveto_status_count;
+
+  -- Kirjataan onnistuminen
+  UPDATE jkr.sisaanluku_tapahtuma
+  SET loppuaika = NOW(), status = 'valmis', lisatiedot = _lisatiedot
+  WHERE id = _tapahtuma_id;
+
   RETURN 1;
+EXCEPTION WHEN OTHERS THEN
+  UPDATE jkr.sisaanluku_tapahtuma
+  SET loppuaika = NOW(), status = 'virhe', lisatiedot = SQLERRM
+  WHERE id = _tapahtuma_id;
+  RAISE;
 END;
 $$ LANGUAGE plpgsql;

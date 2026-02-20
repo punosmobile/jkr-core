@@ -177,7 +177,7 @@ BEGIN
         LEFT JOIN
             jkr.kompostori AS kom ON kom.id = k.kompostori_id
         WHERE
-            kom.voimassaolo && tarkistusjakso
+            kom.voimassaolo && tarkistusjakso && kom.onko_liete IS NOT TRUE
         ORDER BY
             k_id.kohde_id, kom.loppupvm DESC
     )
@@ -597,6 +597,18 @@ BEGIN
                     'Ammatillisten oppilaitosten rakennukset', 'Korkeakoulurakennukset', 'Tutkimuslaitosrakennukset',
                     'Järjestöjen, liittojen, työnantajien yms. opetusrakennukset', 'Muualla luokittelemattomat opetusrakennukset'
                 ])
+                OR (
+                    r.rakennuksenkayttotarkoitus_koodi IS NULL
+                    AND rl.selite = ANY(ARRAY[
+                        'Omakotitalot', 'Paritalot', 'Rivitalot', 'Pienkerrostalot', 'Asuinkerrostalot',
+                        'Asuntolarakennukset', 'Erityisryhmien asuinrakennukset',
+                        'Ympärivuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset',
+                        'Osavuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset',
+                        'Laitospalvelujen rakennukset', 'Lasten päiväkodit',
+                        'Yleissivistävien oppilaitosten rakennukset',
+                        'Ammatillisten oppilaitosten rakennukset', 'Korkeakoulurakennukset'
+                    ])
+                )
             )
     ),
     first_significant_address AS (
@@ -783,7 +795,7 @@ BEGIN
             FROM jkr.kompostorin_kohteet kk
             JOIN jkr.kompostori ko ON kk.kompostori_id = ko.id
             JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
-            WHERE kk.kohde_id = k.kohde_id
+            WHERE kk.kohde_id = k.kohde_id AND ko.onko_liete != TRUE
             ORDER BY ko.loppupvm DESC
             LIMIT 1
         ) AS "Komposti-ilmoituksen tekijän nimi",

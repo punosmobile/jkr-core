@@ -71,6 +71,17 @@ def get_paatostiedosto_headers():
         "Postitoimipaikka",
     ]
 
+def get_viemari_ilmoitustiedosto_headers():
+    return [
+        "Viemäriverkosto alkupvm",
+        "PRT",
+    ]
+
+def get_viemari_lopetustiedosto_headers():
+    return [
+        "Viemäriverkosto loppupvm",
+        "PRT",
+    ]
 
 def get_ilmoitustiedosto_headers():
     return [
@@ -88,6 +99,63 @@ def get_ilmoitustiedosto_headers():
         "1. Kompostoria käyttävän rakennuksen tiedot:Viranomaisen lisäämä tarkenne",
         "1. Kompostoria käyttävän rakennuksen tiedot:Käsittelijän lisäämä tunniste",
         "Voimassaolopäivä",
+    ]
+
+
+def get_liete_kuljetustiedosto_headers():
+    return [
+        "ID-tunnus",
+        "Siirron alkamisaika",
+        "Jätteen tuottaja tai muu haltija",
+        "Jätteen tuottajan/haltijan osoite",
+        "Jätteen tuottajan/haltijan katuosoite",
+        "Jätteen tuottajan/haltijan postinumero",
+        "Siirron alkamispaikka",
+        "Siirron alkamispaikan katuosoite",
+        "Siirron alkamispaikan postinumero",
+        "Kuljettaja",
+        "Vastaanottaja",
+        "Siirron päättymispaikka",
+        "Siirron päättymispaikan katuosoite",
+        "Siirron päättymispaikan postinumero",
+        "Siirron päättymisaika",
+        "Jäte",
+        "Jätteen kuvaus",
+        "Jätteen paino (t)",
+        "Jätteen tilavuus (m³)",
+        "Kiinteistötunnus",
+        "Pysyvä rakennustunnus",
+    ]
+
+
+def get_kaivotiedosto_headers():
+    return [
+        "Vastausaika",
+        "PRT",
+        "Etunimi",
+        "Sukunimi",
+        "Katuosoite",
+        "Postinumero",
+        "Postitoimipaikka",
+        "Kantovesi",
+        "Saostussäiliö",
+        "Pienpuhdistamo",
+        "Umpisäiliö",
+        "Vain harmaat vedet",
+        "Tietolähde",
+    ]
+
+
+def get_liete_ilmoitustiedosto_headers():
+    return [
+        "Vastausaika",
+        "Lietteen kompostoijan yhteystiedot:Etunimi",
+        "Lietteen kompostoijan yhteystiedot:Sukunimi",
+        "Lietteen kompostoijan yhteystiedot:Postiosoite",
+        "Lietteen kompostoijan yhteystiedot:Postinumero",
+        "Tiedot kiinteistöstä, jonka liete kompostoidaan:Käsittelijän lisäämä tunniste",
+        ":Voimassa alkaen",
+        ":Voimassa asti",
     ]
 
 
