@@ -28,7 +28,8 @@ CREATE OR REPLACE FUNCTION jkr.filter_kohde_ids_for_report(
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
     is_taajama_yli_200 BOOLEAN,
-    kohde_tyyppi_id INTEGER -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other, null for everything
+    kohde_tyyppi_id INTEGER, -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other, null for everything
+    onko_viemari BOOLEAN -- null for everything, true for viemäriliitoksessa, false for ei viemäriliitoksessa
 )
 RETURNS TABLE(id INTEGER) AS $$
 BEGIN
@@ -93,7 +94,25 @@ BEGIN
                 AND k.id NOT IN (SELECT kohde_ids_in_taajama FROM jkr.kohde_ids_in_taajama(200))
             )
         ) 
-        AND (kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id);
+        AND (kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id)
+        AND (onko_viemari IS NULL OR
+            (
+                onko_viemari = true
+                AND EXISTS (
+                    SELECT 1
+                    FROM jkr.viemari_liitos v
+                    WHERE v.kohde_id = k.id AND v.viemariverkosto_alkupvm <= tarkastelupvm AND (v.viemariverkosto_loppupvm IS NULL OR v.viemariverkosto_loppupvm >= tarkastelupvm)
+                )
+            )
+            OR (
+                onko_viemari = false
+                AND NOT (
+                    SELECT 1
+                    FROM jkr.viemari_liitos v
+                    WHERE v.kohde_id = k.id AND v.viemariverkosto_alkupvm <= tarkastelupvm AND (v.viemariverkosto_loppupvm IS NULL OR v.viemariverkosto_loppupvm >= tarkastelupvm)
+                )
+            )
+        );
 END;
 $$ LANGUAGE plpgsql;
 
@@ -286,7 +305,8 @@ RETURNS TABLE(
     huoneistomaara BIGINT,
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
-    kohdetyyppi TEXT
+    kohdetyyppi TEXT,
+    viemarissa BOOLEAN
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -348,7 +368,8 @@ BEGIN
 		            ) 
 		        LIMIT 1
 		),
-        kt.selite as kohdetyyppi
+        kt.selite as kohdetyyppi,
+        v.viemariverkosto_alkupvm as viemarissa
     FROM jkr.kohde k
     LEFT JOIN jkr_koodistot.kohdetyyppi kt ON k.kohdetyyppi_id = kt.id
 	LEFT JOIN (
@@ -381,6 +402,7 @@ BEGIN
 				O.ID DESC
 	) osoitetiedot ON osoitetiedot.KOHDE_ID = K.ID
 	AND osoitetiedot.KOHDETYYPPI_ID = K.KOHDETYYPPI_ID
+    LEFT JOIN jkr.viemari_liitos v ON v.kohde_id = k.id AND v.viemariverkosto_alkupvm <= tarkastelupvm AND (v.viemariverkosto_loppupvm IS NULL OR v.viemariverkosto_loppupvm >= tarkastelupvm)
     WHERE k.id = ANY(kohde_ids);
 END;
 $$ LANGUAGE plpgsql;
@@ -896,7 +918,8 @@ CREATE OR REPLACE FUNCTION jkr.print_report(
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
     is_taajama_yli_200 BOOLEAN,
-    kohde_tyyppi_id INTEGER
+    kohde_tyyppi_id INTEGER,
+    onko_viemari BOOLEAN
 )
 RETURNS TABLE(
     kohde_id INTEGER,
@@ -906,6 +929,7 @@ RETURNS TABLE(
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
     "kohdetyyppi" TEXT,
+    "Liitetty viemäriin" TEXT,
     "Komposti-ilmoituksen tekijän nimi" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
@@ -928,6 +952,7 @@ RETURNS TABLE(
     "Omistaja 3 postinumero" TEXT,
     "Omistaja 3 postitoimipaikka" TEXT,
     "Vahimman asukkaan nimi" TEXT,
+    "Viemariverkostossa" DATE,
     "Velvoitteen tallennuspvm" DATE,
     Velvoiteyhteenveto TEXT,
     Sekajätevelvoite TEXT,
@@ -1055,6 +1080,7 @@ BEGIN
         fil.taajama_yli_10000,
         fil.taajama_yli_200,
         fil.kohdetyyppi,
+        CASE WHEN fil.viemarissa IS NOT NULL THEN 'Viemäriverkostossa' ELSE 'Ei viemäriverkostossa' END AS "Liitetty viemäriin",
         koh."Komposti-ilmoituksen tekijän nimi",
         koh."Sekajätteen tilaajan nimi",
         koh."Sekajätteen tilaajan katuosoite",
@@ -1077,6 +1103,7 @@ BEGIN
         koh."Omistaja 3 postinumero",
         koh."Omistaja 3 postitoimipaikka",
         koh."Vahimman asukkaan nimi",
+        fil.viemarissa as 'Viemariverkostossa',
         vel."Velvoitteen tallennuspvm",
         vel.Velvoiteyhteenveto,
         vel.Sekajätevelvoite,
