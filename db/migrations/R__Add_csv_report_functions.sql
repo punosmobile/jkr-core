@@ -106,7 +106,7 @@ BEGIN
             )
             OR (
                 onko_viemari = false
-                AND NOT (
+                AND NOT EXISTS (
                     SELECT 1
                     FROM jkr.viemari_liitos v
                     WHERE v.kohde_id = k.id AND v.viemariverkosto_alkupvm <= tarkastelupvm AND (v.viemariverkosto_loppupvm IS NULL OR v.viemariverkosto_loppupvm >= tarkastelupvm)
@@ -912,6 +912,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.print_report;
 CREATE OR REPLACE FUNCTION jkr.print_report(
     tarkastelupvm DATE,
     kunta TEXT,
@@ -952,7 +953,7 @@ RETURNS TABLE(
     "Omistaja 3 postinumero" TEXT,
     "Omistaja 3 postitoimipaikka" TEXT,
     "Vahimman asukkaan nimi" TEXT,
-    "Viemariverkostossa" DATE,
+    "Viemäriverkostossa" DATE,
     "Velvoitteen tallennuspvm" DATE,
     Velvoiteyhteenveto TEXT,
     Sekajätevelvoite TEXT,
@@ -1068,7 +1069,8 @@ BEGIN
         huoneistomaara,
         is_taajama_yli_10000,
         is_taajama_yli_200,
-        kohde_tyyppi_id
+        kohde_tyyppi_id,
+        onko_viemari
     ) AS id;
 
     RETURN QUERY
@@ -1103,7 +1105,7 @@ BEGIN
         koh."Omistaja 3 postinumero",
         koh."Omistaja 3 postitoimipaikka",
         koh."Vahimman asukkaan nimi",
-        fil.viemarissa as 'Viemariverkostossa',
+        fil.viemarissa,
         vel."Velvoitteen tallennuspvm",
         vel.Velvoiteyhteenveto,
         vel.Sekajätevelvoite,
