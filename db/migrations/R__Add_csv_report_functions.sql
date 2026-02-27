@@ -177,7 +177,7 @@ BEGIN
         LEFT JOIN
             jkr.kompostori AS kom ON kom.id = k.kompostori_id
         WHERE
-            kom.voimassaolo && tarkistusjakso && kom.onko_liete IS NOT TRUE
+            kom.voimassaolo && tarkistusjakso AND kom.onko_liete IS NOT TRUE
         ORDER BY
             k_id.kohde_id, kom.loppupvm DESC
     )
