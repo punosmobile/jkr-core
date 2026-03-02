@@ -611,26 +611,241 @@ BEGIN
                 )
             )
     ),
+    -- Fallback: kohteille joilla ei ole yhtään significant-rakennusta
+    -- haetaan kaikki rakennukset ja järjestetään "paremmuuden" mukaan
+    fallback_rakennukset AS (
+        SELECT
+            kr.kohde_id,
+            r.id AS rakennus_id,
+            r.prt::TEXT AS prt,
+            rl.selite AS rakennusluokka_2018,
+            ro.selite::TEXT AS kayttotila,
+            rt.selite::TEXT AS kayttotarkoitus,
+            r.kiinteistotunnus::TEXT AS sijaintikiinteisto,
+            ST_X(ST_Transform(r.geom, 3067)) AS x_koordinaatti,
+            ST_Y(ST_Transform(r.geom, 3067)) AS y_koordinaatti,
+            COALESCE(r.huoneistomaara, 0) AS huoneistomaara
+        FROM
+            jkr.kohteen_rakennukset kr
+        JOIN
+            jkr.rakennus r ON kr.rakennus_id = r.id
+        LEFT JOIN
+            jkr_koodistot.rakennuksenkayttotarkoitus rt ON r.rakennuksenkayttotarkoitus_koodi = rt.koodi
+        LEFT JOIN
+            jkr_koodistot.rakennuksenolotila ro ON r.rakennuksenolotila_koodi = ro.koodi
+        LEFT JOIN
+            jkr_koodistot.rakennusluokka_2018 rl ON r.rakennusluokka_2018 = rl.koodi
+        WHERE
+            kr.kohde_id = ANY(kohde_ids)
+            AND NOT EXISTS (
+                SELECT 1 FROM significant_rakennukset sr WHERE sr.kohde_id = kr.kohde_id
+            )
+    ),
+    ranked_significant AS (
+        SELECT DISTINCT ON (sr.kohde_id, sr.rakennus_id)
+            sr.kohde_id, sr.rakennus_id, sr.prt, sr.rakennusluokka_2018,
+            sr.kayttotila, sr.kayttotarkoitus, sr.sijaintikiinteisto,
+            sr.x_koordinaatti, sr.y_koordinaatti,
+            ROW_NUMBER() OVER (PARTITION BY sr.kohde_id ORDER BY sr.rakennus_id) AS rn
+        FROM significant_rakennukset sr
+    ),
+    ranked_fallback AS (
+        SELECT DISTINCT ON (fr.kohde_id, fr.rakennus_id)
+            fr.kohde_id, fr.rakennus_id, fr.prt, fr.rakennusluokka_2018,
+            fr.kayttotila, fr.kayttotarkoitus, fr.sijaintikiinteisto,
+            fr.x_koordinaatti, fr.y_koordinaatti,
+            ROW_NUMBER() OVER (
+                PARTITION BY fr.kohde_id
+                ORDER BY
+                    -- 1. Käyttötilan paremmuus: aktiivinen > tuntematon/tyhjä > purettu/tuhoutunut
+                    CASE fr.kayttotila
+                        WHEN 'käytetään vakinaiseen asumiseen'      THEN 0
+                        WHEN 'käytetään loma-asumiseen'             THEN 0
+                        WHEN 'käytetään muuhun tilapäiseen asumiseen' THEN 0
+                        WHEN 'toimitila- tai tuotantokäytössä'      THEN 0
+                        WHEN 'tyhjillään (esim. myynnissä)'         THEN 1
+                        WHEN 'käytöstä ei ole tietoa'               THEN 1
+                        WHEN 'muu (sauna, liiteri, kellotapuli, ym.)' THEN 1
+                        WHEN 'purettu uudisrakentamisen vuoksi'     THEN 2
+                        WHEN 'purettu muusta syystä'                THEN 2
+                        WHEN 'tuhoutunut'                           THEN 2
+                        WHEN 'ränsistymien vuoksi hylätty'          THEN 2
+                        ELSE 1  -- NULL tai tuntematon arvo
+                    END ASC,
+                    -- 2. Enemmän huoneistoja ensin (asuinrakennus tunnistetaan huoneistoista)
+                    fr.huoneistomaara DESC,
+                    -- 3. Käyttötarkoituksen mukainen paremmuusjärjestys
+                    CASE fr.kayttotarkoitus
+                        -- Asuminen
+                        WHEN 'Asuntolat yms.'                                        THEN 0
+                        WHEN 'Hotellit yms.'                                         THEN 0
+                        WHEN 'Loma-, lepo- ja virkistyskodit'                        THEN 0
+                        WHEN 'Vuokrattavat lomamökit ja -osakkeet'                   THEN 0
+                        WHEN 'Muut majoitusliikerakennukset'                         THEN 0
+                        -- Sosiaali- ja terveydenhuolto
+                        WHEN 'Keskussairaalat'                                        THEN 1
+                        WHEN 'Muut sairaalat'                                        THEN 1
+                        WHEN 'Terveyskeskukset'                                      THEN 1
+                        WHEN 'Terveydenhuollon erityislaitokset'                     THEN 1
+                        WHEN 'Muut terveydenhuoltorakennukset'                       THEN 1
+                        WHEN 'Vankilat'                                              THEN 1
+                        -- Toimisto/kauppa/palvelu/kulttuuri (neutraali)
+                        WHEN 'Myymälähallit'                                         THEN 2
+                        WHEN 'Liike- ja tavaratalot, kauppakeskukset'                THEN 2
+                        WHEN 'Muut myymälärakennukset'                               THEN 2
+                        WHEN 'Ravintolat yms.'                                       THEN 2
+                        WHEN 'Toimistorakennukset'                                   THEN 2
+                        WHEN 'Rautatie- ja linja-autoasemat, lento- ja satamaterminaalit' THEN 2
+                        WHEN 'Kulkuneuvojen suoja- ja huoltorakennukset'             THEN 2
+                        WHEN 'Pysäköintitalot'                                       THEN 2
+                        WHEN 'Tietoliikenteen rakennukset'                           THEN 2
+                        WHEN 'Muut liikenteen rakennukset'                           THEN 2
+                        WHEN 'Teatterit, ooppera-, konsertti- ja kongressitalot'     THEN 2
+                        WHEN 'Elokuvateatterit'                                      THEN 2
+                        WHEN 'Kirjastot ja arkistot'                                 THEN 2
+                        WHEN 'Museot ja taidegalleriat'                              THEN 2
+                        WHEN 'Näyttelyhallit'                                        THEN 2
+                        WHEN 'Seura- ja kerhorakennukset yms.'                       THEN 2
+                        WHEN 'Kirkot, kappelit, luostarit ja rukoushuoneet'          THEN 2
+                        WHEN 'Seurakuntatalot'                                       THEN 2
+                        WHEN 'Muut uskonnollisten yhteisöjen rakennukset'            THEN 2
+                        WHEN 'Jäähallit'                                             THEN 2
+                        WHEN 'Uimahallit'                                            THEN 2
+                        WHEN 'Tennis-, squash- ja sulkapallohallit'                  THEN 2
+                        WHEN 'Monitoimihallit ja muut urheiluhallit'                 THEN 2
+                        WHEN 'Muut urheilu- ja kuntoilurakennukset'                  THEN 2
+                        WHEN 'Muut kokoontumisrakennukset'                           THEN 2
+                        -- Teollisuus/varasto/tekniikka
+                        WHEN 'Voimalaitosrakennukset'                                THEN 3
+                        WHEN 'Yhdyskuntatekniikan rakennukset'                       THEN 3
+                        WHEN 'Teollisuushallit'                                      THEN 3
+                        WHEN 'Teollisuus- ja pienteollisuustalot'                    THEN 3
+                        WHEN 'Muut teollisuuden tuotantorakennukset'                 THEN 3
+                        WHEN 'Teollisuusvarastot'                                    THEN 3
+                        WHEN 'Kauppavarastot'                                        THEN 3
+                        WHEN 'Muut varastorakennukset'                               THEN 3
+                        WHEN 'Paloasemat'                                            THEN 3
+                        WHEN 'Väestönsuojat'                                         THEN 3
+                        WHEN 'Muut palo- ja pelastustoimen rakennukset'              THEN 3
+                        -- Maatalous/piharakennukset (vähiten haluttu PRT 1:ksi)
+                        WHEN 'Navetat, sikalat, kanalat yms.'                        THEN 4
+                        WHEN 'Eläinsuojat, ravihevostallit, maneesit yms.'           THEN 4
+                        WHEN 'Viljankuivaamot ja viljan säilytysrakennukset'         THEN 4
+                        WHEN 'Kasvihuoneet'                                          THEN 4
+                        WHEN 'Turkistarhat'                                          THEN 4
+                        WHEN 'Muut maa-, metsä- ja kalatalouden rakennukset'         THEN 4
+                        WHEN 'Saunarakennukset'                                      THEN 4
+                        WHEN 'Talousrakennukset'                                     THEN 4
+                        WHEN 'Muualla luokittelemattomat rakennukset'                THEN 4
+                        ELSE 2  -- NULL tai tuntematon koodi → neutraali
+                    END ASC,
+                    -- 4. Rakennusluokan mukainen paremmuusjärjestys
+                    CASE fr.rakennusluokka_2018
+                        -- Asuinrakennukset ja majoitus
+                        WHEN 'Omakotitalot'                                                          THEN 0
+                        WHEN 'Paritalot'                                                             THEN 0
+                        WHEN 'Rivitalot'                                                             THEN 0
+                        WHEN 'Pienkerrostalot'                                                       THEN 0
+                        WHEN 'Asuinkerrostalot'                                                      THEN 0
+                        WHEN 'Asuntolarakennukset'                                                   THEN 0
+                        WHEN 'Erityisryhmien asuinrakennukset'                                       THEN 0
+                        WHEN 'Ympärivuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset'       THEN 0
+                        WHEN 'Osavuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset'          THEN 0
+                        WHEN 'Loma-, lepo- ja virkistyskodit'                                        THEN 0
+                        WHEN 'Hotellit'                                                              THEN 0
+                        WHEN 'Motellit, hostellit ja vastaavat majoitusliikerakennukset'             THEN 0
+                        WHEN 'Muut majoitusliikerakennukset'                                         THEN 0
+                        -- Sosiaali-, terveys- ja opetusrakennukset
+                        WHEN 'Laitospalvelujen rakennukset'                                          THEN 1
+                        WHEN 'Avopalvelujen rakennukset'                                             THEN 1
+                        WHEN 'Terveys- ja hyvinvointikeskukset'                                      THEN 1
+                        WHEN 'Keskussairaalat'                                                       THEN 1
+                        WHEN 'Erikoissairaalat ja laboratoriorakennukset'                            THEN 1
+                        WHEN 'Muut sairaalat'                                                        THEN 1
+                        WHEN 'Kuntoutuslaitokset'                                                    THEN 1
+                        WHEN 'Muut terveydenhuoltorakennukset'                                       THEN 1
+                        WHEN 'Lasten päiväkodit'                                                     THEN 1
+                        WHEN 'Yleissivistävien oppilaitosten rakennukset'                            THEN 1
+                        WHEN 'Ammatillisten oppilaitosten rakennukset'                               THEN 1
+                        WHEN 'Korkeakoulurakennukset'                                                THEN 1
+                        WHEN 'Tutkimuslaitosrakennukset'                                             THEN 1
+                        WHEN 'Järjestöjen, liittojen, työnantajien ja vastaavat opetusrakennukset'  THEN 1
+                        -- Kauppa, toimisto, kulttuuri, urheilu (neutraali)
+                        WHEN 'Tukku- ja vähittäiskaupan myymälähallit'                              THEN 2
+                        WHEN 'Kauppakeskukset ja liike- ja tavaratalot'                              THEN 2
+                        WHEN 'Muut myymälärakennukset'                                               THEN 2
+                        WHEN 'Ravintolarakennukset ja vastaavat liikerakennukset'                    THEN 2
+                        WHEN 'Toimistorakennukset'                                                   THEN 2
+                        WHEN 'Asemarakennukset ja terminaalit'                                       THEN 2
+                        WHEN 'Ammattiliikenteen kaluston suojarakennukset'                           THEN 2
+                        WHEN 'Ammattiliikenteen kaluston huoltorakennukset'                          THEN 2
+                        WHEN 'Pysäköintitalot ja -hallit'                                            THEN 2
+                        WHEN 'Kulkuneuvojen katokset'                                                THEN 2
+                        WHEN 'Datakeskukset ja laitetilat'                                           THEN 2
+                        WHEN 'Tietoliikenteen rakennukset'                                           THEN 2
+                        WHEN 'Muut liikenteen rakennukset'                                           THEN 2
+                        WHEN 'Teatterit, musiikki- ja kongressitalot'                                THEN 2
+                        WHEN 'Elokuvateatterit'                                                      THEN 2
+                        WHEN 'Kirjastot ja arkistot'                                                 THEN 2
+                        WHEN 'Museot ja taidegalleriat'                                              THEN 2
+                        WHEN 'Näyttely- ja messuhallit'                                              THEN 2
+                        WHEN 'Seura- ja kerhorakennukset'                                            THEN 2
+                        WHEN 'Uskonnonharjoittamisrakennukset'                                       THEN 2
+                        WHEN 'Seurakuntatalot'                                                       THEN 2
+                        WHEN 'Muut uskonnollisten yhteisöjen rakennukset'                            THEN 2
+                        WHEN 'Jäähallit'                                                             THEN 2
+                        WHEN 'Uimahallit'                                                            THEN 2
+                        WHEN 'Monitoimihallit'                                                       THEN 2
+                        WHEN 'Urheilu- ja palloiluhallit'                                            THEN 2
+                        WHEN 'Stadion- ja katsomorakennukset'                                        THEN 2
+                        WHEN 'Muut urheilu- ja liikuntarakennukset'                                  THEN 2
+                        WHEN 'Muut kokoontumisrakennukset'                                           THEN 2
+                        -- Teollisuus, energia ja pelastustoimi
+                        WHEN 'Yleiskäyttöiset teollisuushallit'                                      THEN 3
+                        WHEN 'Raskaan teollisuuden tehdasrakennukset'                                THEN 3
+                        WHEN 'Elintarviketeollisuuden tuotantorakennukset'                           THEN 3
+                        WHEN 'Muut teollisuuden tuotantorakennukset'                                 THEN 3
+                        WHEN 'Teollisuus- ja pienteollisuustalot'                                    THEN 3
+                        WHEN 'Metallimalmien käsittelyrakennukset'                                   THEN 3
+                        WHEN 'Sähköenergian tuotantorakennukset'                                     THEN 3
+                        WHEN 'Lämpö- ja kylmäenergian tuotantorakennukset'                          THEN 3
+                        WHEN 'Energiansiirtorakennukset'                                             THEN 3
+                        WHEN 'Energianvarastointirakennukset'                                        THEN 3
+                        WHEN 'Vedenotto-, vedenpuhdistus- ja vedenjakelurakennukset'                 THEN 3
+                        WHEN 'Jätteenkeruu-, jätteenkäsittely- ja jätteenvarastointirakennukset'    THEN 3
+                        WHEN 'Materiaalien kierrätysrakennukset'                                     THEN 3
+                        WHEN 'Paloasemat'                                                            THEN 3
+                        WHEN 'Väestönsuojat'                                                         THEN 3
+                        WHEN 'Muut pelastustoimen rakennukset'                                       THEN 3
+                        -- Piharakennukset (vähiten haluttu PRT 1:ksi)
+                        WHEN 'Saunarakennukset'                                                      THEN 4
+                        ELSE 2  -- NULL tai tuntematon → neutraali
+                    END ASC,
+                    -- 5. Tasatulos: pienin rakennus_id
+                    fr.rakennus_id ASC
+            ) AS rn
+        FROM fallback_rakennukset fr
+    ),
+    ranked_rakennukset AS (
+        SELECT * FROM ranked_significant
+        UNION ALL
+        SELECT * FROM ranked_fallback
+    ),
     first_significant_address AS (
-        SELECT DISTINCT ON (sr.kohde_id)
-            sr.kohde_id,
+        SELECT DISTINCT ON (rr.kohde_id)
+            rr.kohde_id,
             (k.katunimi_fi || ' ' || ao.osoitenumero)::TEXT AS katuosoite,
             ao.posti_numero::TEXT AS postinumero,
             kun.nimi_fi::TEXT AS postitoimipaikka
         FROM
-            significant_rakennukset sr
+            ranked_rakennukset rr
         JOIN
-            jkr.osoite ao ON sr.rakennus_id = ao.rakennus_id
+            jkr.osoite ao ON rr.rakennus_id = ao.rakennus_id
         LEFT JOIN
             jkr_osoite.katu k ON ao.katu_id = k.id
         LEFT JOIN
             jkr_osoite.kunta kun ON k.kunta_koodi = kun.koodi
-    ),
-    ranked_rakennukset AS (
-        SELECT DISTINCT ON (sr.kohde_id, sr.rakennus_id)
-            sr.*,
-            ROW_NUMBER() OVER (PARTITION BY sr.kohde_id ORDER BY sr.rakennus_id) AS rn
-        FROM significant_rakennukset sr
+        WHERE rr.rn = 1
     )
     SELECT
         sr.kohde_id,
