@@ -296,7 +296,7 @@ class JkrIlmoitukset:
     voimassa: Interval
     vastuuhenkilo: IlmoituksenHenkilo
     kompostoijat: List[IlmoituksenHenkilo]
-    pienpuhdistamo_alkupwm: date
+    pienpuhdistamo_alkupvm: date
     onko_kimppa: str
     onko_liete: bool
     tiedontuottaja: str
