@@ -716,10 +716,16 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_tiedot(INTEGER[]);
 CREATE OR REPLACE FUNCTION jkr.kohteiden_tiedot(kohde_ids INTEGER[])
 RETURNS TABLE(
     Kohde_id INTEGER,
     "Komposti-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen kompostointi-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen tilaajan nimi" TEXT,
+    "Lietteen tilaajan katuosoite" TEXT,
+    "Lietteen tilaajan postinumero" TEXT,
+    "Lietteen tilaajan postitoimipaikka" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
     "Sekajätteen tilaajan postinumero" TEXT,
@@ -745,6 +751,7 @@ RETURNS TABLE(
 DECLARE
     sekajate_ids INTEGER[];
     salpakierto_ids INTEGER[];
+    liete_tilaaja_id INTEGER;
     omistaja_id INTEGER;
     vanhin_id INTEGER;
 BEGIN
@@ -765,6 +772,10 @@ BEGIN
             'Tilaaja metalli', 'Kimppaisäntä metalli', 'Kimppaosakas metalli'
         )
     ) INTO salpakierto_ids;
+
+    SELECT id INTO liete_tilaaja_id
+    FROM jkr_koodistot.osapuolenrooli
+    WHERE selite = 'Tilaaja liete';
 
     SELECT id INTO omistaja_id
     FROM jkr_koodistot.osapuolenrooli
@@ -799,6 +810,47 @@ BEGIN
             ORDER BY ko.loppupvm DESC
             LIMIT 1
         ) AS "Komposti-ilmoituksen tekijän nimi",
+        (
+            SELECT o.nimi
+            FROM jkr.kompostorin_kohteet kk
+            JOIN jkr.kompostori ko ON kk.kompostori_id = ko.id
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE kk.kohde_id = k.kohde_id AND ko.onko_liete = TRUE
+            ORDER BY ko.loppupvm DESC
+            LIMIT 1
+        ) AS "Lietteen kompostointi-ilmoituksen tekijän nimi",
+        (
+            SELECT o.nimi
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan nimi",
+        (
+            SELECT o.katuosoite
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan katuosoite",
+        (
+            SELECT o.postinumero
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan postinumero",
+        (
+            SELECT o.postitoimipaikka
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan postitoimipaikka",
         (
             SELECT o.nimi
             FROM jkr.kohteen_osapuolet ko
@@ -890,6 +942,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.print_report(DATE, TEXT, INTEGER, BOOLEAN, BOOLEAN, INTEGER);
 CREATE OR REPLACE FUNCTION jkr.print_report(
     tarkastelupvm DATE,
     kunta TEXT,
@@ -907,6 +960,11 @@ RETURNS TABLE(
     taajama_yli_200 TEXT,
     "kohdetyyppi" TEXT,
     "Komposti-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen kompostointi-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen tilaajan nimi" TEXT,
+    "Lietteen tilaajan katuosoite" TEXT,
+    "Lietteen tilaajan postinumero" TEXT,
+    "Lietteen tilaajan postitoimipaikka" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
     "Sekajätteen tilaajan postinumero" TEXT,
@@ -1056,6 +1114,11 @@ BEGIN
         fil.taajama_yli_200,
         fil.kohdetyyppi,
         koh."Komposti-ilmoituksen tekijän nimi",
+        koh."Lietteen kompostointi-ilmoituksen tekijän nimi",
+        koh."Lietteen tilaajan nimi",
+        koh."Lietteen tilaajan katuosoite",
+        koh."Lietteen tilaajan postinumero",
+        koh."Lietteen tilaajan postitoimipaikka",
         koh."Sekajätteen tilaajan nimi",
         koh."Sekajätteen tilaajan katuosoite",
         koh."Sekajätteen tilaajan postinumero",
