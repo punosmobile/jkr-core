@@ -306,7 +306,7 @@ RETURNS TABLE(
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
     kohdetyyppi TEXT,
-    viemarissa BOOLEAN
+    viemarissa DATE
 ) AS $$
 BEGIN
     RETURN QUERY
