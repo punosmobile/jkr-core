@@ -293,7 +293,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
+DROP FUNCTION IF EXISTS jkr.get_report_filter;
 CREATE OR REPLACE FUNCTION jkr.get_report_filter(
     tarkastelupvm DATE,
     kohde_ids INTEGER[]
