@@ -293,7 +293,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
+DROP FUNCTION IF EXISTS jkr.get_report_filter;
 CREATE OR REPLACE FUNCTION jkr.get_report_filter(
     tarkastelupvm DATE,
     kohde_ids INTEGER[]
@@ -306,7 +306,7 @@ RETURNS TABLE(
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
     kohdetyyppi TEXT,
-    viemarissa BOOLEAN
+    viemarissa DATE
 ) AS $$
 BEGIN
     RETURN QUERY
