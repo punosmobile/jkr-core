@@ -408,6 +408,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_velvoitteet(INTEGER[], DATErange);
 CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids INTEGER[], tarkistusjakso DATErange)
 RETURNS TABLE(
     Kohde_id INTEGER,
@@ -418,7 +419,8 @@ RETURNS TABLE(
     Muovipakkausvelvoite TEXT,
     Kartonkipakkausvelvoite TEXT,
     Lasipakkausvelvoite TEXT,
-    Metallipakkausvelvoite TEXT
+    Metallipakkausvelvoite TEXT,
+    "Velvoiteyhteenveto liete" TEXT
 ) AS $$
 DECLARE
     selected_tallennuspvm DATE;
@@ -485,6 +487,25 @@ BEGIN
             velvoite_data vd
         GROUP BY
             vd.kohde_id
+    ),
+    lietevelvoite_data AS (
+        SELECT DISTINCT ON (v.kohde_id)
+            v.kohde_id,
+            vm.kuvaus,
+            vm.prioriteetti
+        FROM
+            jkr.velvoite v
+        JOIN
+            jkr.velvoite_status vs ON v.id = vs.velvoite_id
+        JOIN
+            jkr.velvoitemalli vm ON v.velvoitemalli_id = vm.id
+        WHERE
+            v.kohde_id = ANY(kohde_ids)
+            AND vs.ok = TRUE
+            AND vs.tallennuspvm = selected_tallennuspvm
+            AND vm.selite = 'Lietevelvoite'
+        ORDER BY
+            v.kohde_id, vm.prioriteetti ASC
     )
     SELECT
         k_id.kohde_id,
@@ -495,13 +516,16 @@ BEGIN
         av.muovipakkausvelvoite,
         av.kartonkipakkausvelvoite,
         av.lasipakkausvelvoite,
-        av.metallipakkausvelvoite
+        av.metallipakkausvelvoite,
+        lv.kuvaus AS "Velvoiteyhteenveto liete"
     FROM
         unnest(kohde_ids) AS k_id(kohde_id)
     LEFT JOIN
         (SELECT DISTINCT ON (kohde_id) * FROM velvoiteyhteenveto_data) vy ON vy.kohde_id = k_id.kohde_id
     LEFT JOIN
-        aggregated_velvoite av ON av.kohde_id = k_id.kohde_id;
+        aggregated_velvoite av ON av.kohde_id = k_id.kohde_id
+    LEFT JOIN
+        lietevelvoite_data lv ON lv.kohde_id = k_id.kohde_id;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -1234,6 +1258,7 @@ RETURNS TABLE(
     Kartonkipakkausvelvoite TEXT,
     Lasipakkausvelvoite TEXT,
     Metallipakkausvelvoite TEXT,
+    "Velvoiteyhteenveto liete" TEXT,
     Muovi DATE,
     Kartonki DATE,
     Metalli DATE,
@@ -1391,6 +1416,7 @@ BEGIN
         vel.Kartonkipakkausvelvoite,
         vel.Lasipakkausvelvoite,
         vel.Metallipakkausvelvoite,
+        vel."Velvoiteyhteenveto liete",
         kul.Muovi,
         kul.Kartonki,
         kul.Metalli,
