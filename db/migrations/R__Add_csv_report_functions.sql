@@ -293,6 +293,69 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION jkr.kohteiden_lietekuljetukset(kohde_ids INTEGER[], tarkastelupvm DATE)
+RETURNS TABLE(
+    Kohde_id INTEGER,
+    "Lietekuljetus saostussäiliö" DATE,
+    "Lietekuljetus umpisäiliö" DATE,
+    "Lietekuljetus pienpuhdistamo" DATE,
+    "Lietekuljetus ei tiedossa" DATE,
+    "Lietteen kuljetusliikkeen nimi" TEXT
+) AS $$
+DECLARE
+    aikarajaus_alku DATE := tarkastelupvm - INTERVAL '5 years';
+BEGIN
+    RETURN QUERY
+    WITH lietekuljetukset AS (
+        SELECT
+            k.kohde_id,
+            k.lietteentyhjennyspaiva,
+            k.jatteen_kuvaus,
+            k.tiedontuottaja_tunnus
+        FROM
+            jkr.kuljetus k
+        WHERE
+            k.kohde_id = ANY(kohde_ids)
+            AND k.jatetyyppi_id IN (5, 6, 7)
+            AND k.lietteentyhjennyspaiva > aikarajaus_alku
+    ),
+    aggregated AS (
+        SELECT
+            lk.kohde_id,
+            MAX(CASE WHEN lk.jatteen_kuvaus = 'Saostussäiliö' THEN lk.lietteentyhjennyspaiva END) AS saostussailio,
+            MAX(CASE WHEN lk.jatteen_kuvaus = 'Umpisäiliö' THEN lk.lietteentyhjennyspaiva END) AS umpisailio,
+            MAX(CASE WHEN lk.jatteen_kuvaus = 'Pienpuhdistamo' THEN lk.lietteentyhjennyspaiva END) AS pienpuhdistamo,
+            MAX(CASE WHEN lk.jatteen_kuvaus IN ('Ei tiedossa', 'Ei tietoa') THEN lk.lietteentyhjennyspaiva END) AS ei_tiedossa
+        FROM
+            lietekuljetukset lk
+        GROUP BY
+            lk.kohde_id
+    ),
+    viimeisin_kuljetus AS (
+        SELECT DISTINCT ON (lk.kohde_id)
+            lk.kohde_id,
+            lk.tiedontuottaja_tunnus
+        FROM
+            lietekuljetukset lk
+        ORDER BY
+            lk.kohde_id, lk.lietteentyhjennyspaiva DESC
+    )
+    SELECT
+        k_id.kohde_id,
+        ag.saostussailio AS "Lietekuljetus saostussäiliö",
+        ag.umpisailio AS "Lietekuljetus umpisäiliö",
+        ag.pienpuhdistamo AS "Lietekuljetus pienpuhdistamo",
+        ag.ei_tiedossa AS "Lietekuljetus ei tiedossa",
+        vk.tiedontuottaja_tunnus AS "Lietteen kuljetusliikkeen nimi"
+    FROM
+        unnest(kohde_ids) AS k_id(kohde_id)
+    LEFT JOIN
+        aggregated ag ON ag.kohde_id = k_id.kohde_id
+    LEFT JOIN
+        viimeisin_kuljetus vk ON vk.kohde_id = k_id.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP FUNCTION IF EXISTS jkr.get_report_filter;
 CREATE OR REPLACE FUNCTION jkr.get_report_filter(
     tarkastelupvm DATE,
@@ -1203,7 +1266,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-DROP FUNCTION IF EXISTS jkr.print_report(DATE, TEXT, INTEGER, BOOLEAN, BOOLEAN, INTEGER);
+DROP FUNCTION IF EXISTS jkr.print_report(DATE, TEXT, INTEGER, BOOLEAN, BOOLEAN, INTEGER, BOOLEAN);
 CREATE OR REPLACE FUNCTION jkr.print_report(
     tarkastelupvm DATE,
     kunta TEXT,
@@ -1267,6 +1330,11 @@ RETURNS TABLE(
     Monilokero DATE,
     Sekajate DATE,
     Akp DATE,
+    "Lietekuljetus saostussäiliö" DATE,
+    "Lietekuljetus umpisäiliö" DATE,
+    "Lietekuljetus pienpuhdistamo" DATE,
+    "Lietekuljetus ei tiedossa" DATE,
+    "Lietteen kuljetusliikkeen nimi" TEXT,
     Kompostoi DATE,
     "Perusmaksupäätös voimassa" DATE,
     "Perusmaksupäätös" TEXT,
@@ -1425,6 +1493,11 @@ BEGIN
         kul.Monilokero,
         kul.Sekajate,
         kul.Akp,
+        lkul."Lietekuljetus saostussäiliö",
+        lkul."Lietekuljetus umpisäiliö",
+        lkul."Lietekuljetus pienpuhdistamo",
+        lkul."Lietekuljetus ei tiedossa",
+        lkul."Lietteen kuljetusliikkeen nimi",
         paa.Kompostoi,
         paa."Perusmaksupäätös voimassa",
         paa."Perusmaksupäätös",
@@ -1523,6 +1596,9 @@ BEGIN
     LEFT JOIN jkr.kohteiden_kuljetukset(
         kohde_ids, report_period
     ) kul ON fil.kohde_id = kul.kohde_id
+    LEFT JOIN jkr.kohteiden_lietekuljetukset(
+        kohde_ids, tarkastelupvm
+    ) lkul ON fil.kohde_id = lkul.kohde_id
     LEFT JOIN jkr.kohteiden_paatokset(
         kohde_ids, report_period
     ) paa ON fil.kohde_id = paa.kohde_id
