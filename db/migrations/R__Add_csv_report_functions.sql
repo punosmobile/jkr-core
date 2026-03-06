@@ -334,9 +334,11 @@ BEGIN
     viimeisin_kuljetus AS (
         SELECT DISTINCT ON (lk.kohde_id)
             lk.kohde_id,
-            lk.tiedontuottaja_tunnus
+            tt.nimi AS kuljetusliike_nimi
         FROM
             lietekuljetukset lk
+        LEFT JOIN
+            jkr_koodistot.tiedontuottaja tt ON lk.tiedontuottaja_tunnus = tt.tunnus
         ORDER BY
             lk.kohde_id, lk.lietteentyhjennyspaiva DESC
     )
@@ -346,7 +348,7 @@ BEGIN
         ag.umpisailio AS "Lietekuljetus umpisäiliö",
         ag.pienpuhdistamo AS "Lietekuljetus pienpuhdistamo",
         ag.ei_tiedossa AS "Lietekuljetus ei tiedossa",
-        vk.tiedontuottaja_tunnus AS "Lietteen kuljetusliikkeen nimi"
+        vk.kuljetusliike_nimi AS "Lietteen kuljetusliikkeen nimi"
     FROM
         unnest(kohde_ids) AS k_id(kohde_id)
     LEFT JOIN
