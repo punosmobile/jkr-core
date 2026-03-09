@@ -358,6 +358,78 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION jkr.kohteiden_kaivotiedot(kohde_ids INTEGER[])
+RETURNS TABLE(
+    Kohde_id INTEGER,
+    "Kantovesi" DATE,
+    "Kaivotieto saostussäiliö" DATE,
+    "Kaivotieto umpisäiliö" DATE,
+    "Kaivotieto pienpuhdistamo" DATE,
+    "Kompostoi lietteen" DATE,
+    "Vain harmaita vesiä" DATE
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH kaivotiedot AS (
+        SELECT
+            kt.kohde_id,
+            CASE WHEN ktt.id = 1 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS kantovesi,
+            CASE WHEN ktt.id = 2 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS saostussailio,
+            CASE WHEN ktt.id = 4 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS umpisailio,
+            CASE WHEN ktt.id = 3 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS pienpuhdistamo,
+            CASE WHEN ktt.id = 5 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS harmaat_vedet
+        FROM
+            jkr.kaivotieto kt
+        JOIN
+            jkr_koodistot.kaivotietotyyppi ktt ON kt.kaivotietotyyppi_id = ktt.id
+        WHERE
+            kt.kohde_id = ANY(kohde_ids)
+    ),
+    aggregated_kaivotiedot AS (
+        SELECT
+            k.kohde_id,
+            MAX(k.kantovesi) AS kantovesi,
+            MAX(k.saostussailio) AS saostussailio,
+            MAX(k.umpisailio) AS umpisailio,
+            MAX(k.pienpuhdistamo) AS pienpuhdistamo,
+            MAX(k.harmaat_vedet) AS harmaat_vedet
+        FROM
+            kaivotiedot k
+        GROUP BY
+            k.kohde_id
+    ),
+    lietekompostointi AS (
+        SELECT DISTINCT ON (kk.kohde_id)
+            kk.kohde_id,
+            ko.alkupvm
+        FROM
+            jkr.kompostorin_kohteet kk
+        JOIN
+            jkr.kompostori ko ON kk.kompostori_id = ko.id
+        WHERE
+            kk.kohde_id = ANY(kohde_ids)
+            AND ko.onko_liete = TRUE
+            AND ko.loppupvm IS NULL
+        ORDER BY
+            kk.kohde_id, ko.alkupvm DESC
+    )
+    SELECT
+        k_id.kohde_id,
+        ak.kantovesi AS "Kantovesi",
+        ak.saostussailio AS "Kaivotieto saostussäiliö",
+        ak.umpisailio AS "Kaivotieto umpisäiliö",
+        ak.pienpuhdistamo AS "Kaivotieto pienpuhdistamo",
+        lk.alkupvm AS "Kompostoi lietteen",
+        ak.harmaat_vedet AS "Vain harmaita vesiä"
+    FROM
+        unnest(kohde_ids) AS k_id(kohde_id)
+    LEFT JOIN
+        aggregated_kaivotiedot ak ON ak.kohde_id = k_id.kohde_id
+    LEFT JOIN
+        lietekompostointi lk ON lk.kohde_id = k_id.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP FUNCTION IF EXISTS jkr.get_report_filter;
 CREATE OR REPLACE FUNCTION jkr.get_report_filter(
     tarkastelupvm DATE,
@@ -1315,6 +1387,12 @@ RETURNS TABLE(
     "Omistaja 3 postitoimipaikka" TEXT,
     "Vahimman asukkaan nimi" TEXT,
     "Viemäriverkostossa" DATE,
+    "Kantovesi" DATE,
+    "Kaivotieto saostussäiliö" DATE,
+    "Kaivotieto umpisäiliö" DATE,
+    "Kaivotieto pienpuhdistamo" DATE,
+    "Kompostoi lietteen" DATE,
+    "Vain harmaita vesiä" DATE,
     "Velvoitteen tallennuspvm" DATE,
     Velvoiteyhteenveto TEXT,
     Sekajätevelvoite TEXT,
@@ -1478,6 +1556,12 @@ BEGIN
         koh."Omistaja 3 postitoimipaikka",
         koh."Vahimman asukkaan nimi",
         fil.viemarissa,
+        kai."Kantovesi",
+        kai."Kaivotieto saostussäiliö",
+        kai."Kaivotieto umpisäiliö",
+        kai."Kaivotieto pienpuhdistamo",
+        kai."Kompostoi lietteen",
+        kai."Vain harmaita vesiä",
         vel."Velvoitteen tallennuspvm",
         vel.Velvoiteyhteenveto,
         vel.Sekajätevelvoite,
@@ -1592,6 +1676,9 @@ BEGIN
     LEFT JOIN jkr.kohteiden_tiedot(
         kohde_ids
     ) koh ON fil.kohde_id = koh.kohde_id
+    LEFT JOIN jkr.kohteiden_kaivotiedot(
+        kohde_ids
+    ) kai ON fil.kohde_id = kai.kohde_id
     LEFT JOIN jkr.kohteiden_velvoitteet(
         kohde_ids, report_period
     ) vel ON fil.kohde_id = vel.kohde_id
