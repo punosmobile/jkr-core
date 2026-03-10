@@ -1,2 +1,4 @@
 scripts/2024_start.sh
 scripts/2025.sh
+docker-compose.yml
+testing.docker-compose.yml
