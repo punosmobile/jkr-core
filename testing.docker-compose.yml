@@ -1,0 +1,104 @@
+# Testausinfrastruktuuri: testikanta + migraatiot + testiajuri yhdellä komennolla.
+#
+# Käyttö:
+#   docker compose -f testing.docker-compose.yml --env-file ".env.local" run --rm jkr-core-runner
+#
+# Tai hallitusti run_tests.ps1:llä joka nollaa kannan ennen ajoa:
+#   .\tests\scripts\run_tests.ps1
+
+volumes:
+  postgis-data-test:
+    driver: local
+
+services:
+
+  # ---------------------------------------------------------------
+  # Testikanta – käynnistyy ensin, flyway_test odottaa healthcheckiä
+  # ---------------------------------------------------------------
+  db_test:
+    image: jkr/postgis
+    container_name: jkr_test_database
+    build:
+      context: ./docker/postgis/test
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    volumes:
+      - postgis-data-test:/var/lib/postgresql/data
+      - ./docker/postgis/test/init_test_db:/docker-entrypoint-initdb.d
+      - ./docker/postgis/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./docker/postgis/test/logs:/var/log/postgresql
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - JKR_TEST_DB=${JKR_TEST_DB}
+      - JKR_USER=${JKR_USER}
+      - JKR_PASSWORD=${JKR_TEST_PASSWORD}
+      - PGPORT=5433
+    ports:
+      - ${JKR_TEST_DB_PORT}:5433
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -p 5433"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  # ---------------------------------------------------------------
+  # Flyway – ajaa migraatiot testikantaan; valmistuu ennen testiajuria
+  # ---------------------------------------------------------------
+  flyway_test:
+    image: flyway/flyway
+    depends_on:
+      db_test:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - FLYWAY_USER=${JKR_USER}
+      - FLYWAY_PASSWORD=${JKR_TEST_PASSWORD}
+      - FLYWAY_URL=jdbc:postgresql://db_test:5433/${JKR_TEST_DB}
+    volumes:
+      - ./db/migrations:/flyway/sql
+      - ./db/flyway.conf:/flyway/conf/flyway.conf
+    command: migrate
+
+  # ---------------------------------------------------------------
+  # Testiajuri – sama image kuin kehityksessä, ajaa pytest:n suoraan
+  # ---------------------------------------------------------------
+  jkr-core-runner:
+    build: .
+    container_name: jkr-test-runner
+    depends_on:
+      flyway_test:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    volumes:
+      - .:/app
+    environment:
+      # Yhteys testikantaan Docker-verkon sisällä (portti 5433 = db_test:n sisäinen portti)
+      - JKR_DB_HOST=db_test
+      - JKR_DB_PORT=5433
+      - JKR_DB=${JKR_TEST_DB}
+      - JKR_USER=${JKR_USER}
+      - JKR_PASSWORD=${JKR_TEST_PASSWORD}
+      # conf.py korvaa nämä kun pytest tunnistetaan sys.argv:sta
+      - JKR_TEST_DB_PORT=5433
+      - JKR_TEST_DB=${JKR_TEST_DB}
+      - JKR_TEST_PASSWORD=${JKR_TEST_PASSWORD}
+    command: bash -c "cd /app && poetry install --no-root && poetry run python -m pytest tests/ -v"

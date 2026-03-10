@@ -2,3 +2,6 @@ scripts/2024_start.sh
 scripts/2025.sh
 docker-compose.yml
 testing.docker-compose.yml
+tests/scripts/init_database_container.sh
+tests/scripts/init_database.bat
+tests/scripts/update_database_container.sh

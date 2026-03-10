@@ -55,12 +55,29 @@ def pytest_sessionstart(session):
     before performing collection and entering the run test loop.
     Creating the test database each time from scratch.
     """
-    if platform.system() == 'Windows':
-        init_test_db_command = ".\\scripts\\init_database.bat"
-    else:
-        init_test_db_command = "./scripts/init_database.sh"
+    scripts_dir = Path(__file__).parent / "scripts"
 
-    try:
-        subprocess.check_output(init_test_db_command, shell=True, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        print(f"Creating test database failed: {e.output}")
+    # Kontainerissa käytetään erillistä skriptiä (ei docker-komentoja, ei QGIS_BIN_PATH)
+    in_container = os.path.exists("/.dockerenv")
+
+    if in_container:
+        init_test_db_command = str(scripts_dir / "init_database_container.sh")
+    elif platform.system() == 'Windows':
+        init_test_db_command = str(scripts_dir / "init_database.bat")
+    else:
+        init_test_db_command = str(scripts_dir / "init_database.sh")
+
+    result = subprocess.run(
+        init_test_db_command, shell=True,
+        capture_output=True, text=True,
+        cwd=str(scripts_dir.parent),
+    )
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Testikannan alustus epäonnistui (exit {result.returncode}):\n"
+            f"{result.stdout}\n{result.stderr}"
+        )

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(poetry run:*)",
+      "Bash(echo JKR_TEST_DB_PORT=$JKR_TEST_DB_PORT JKR_TEST_DB=$JKR_TEST_DB:*)",
+      "Bash(nc:*)",
+      "Bash(docker volume:*)",
+      "Bash(ls not:*)",
+      "Bash(chmod +x:*)",
+      "Bash(python3:*)",
+      "Bash(xxd:*)",
+      "Bash(git ls-files:*)",
+      "Bash(powershell:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker compose:*)",
+      "Bash(cat:*)",
+      "Bash(xargs grep:*)",
+      "Bash(powershell.exe:*)"
+    ]
+  }
+}

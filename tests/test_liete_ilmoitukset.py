@@ -91,9 +91,9 @@ class TestLieteIlmoitusTranslator:
         
         jkr_data = translator.as_jkr_data()
         
-        # Lieteilmoituksilla on pienpuhdistamo_alkupwm (Vastausaika)
+        # Lieteilmoituksilla on pienpuhdistamo_alkupvm (Vastausaika)
         first = jkr_data[0]
-        assert first.pienpuhdistamo_alkupwm == date(2024, 1, 20)
+        assert first.pienpuhdistamo_alkupvm == date(2024, 1, 20)
 
     def test_ilmoitus_is_liete(self, datadir):
         """Ilmoitus merkitään lieteilmoitukseksi."""
