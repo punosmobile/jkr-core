@@ -1,5 +1,6 @@
 import datetime
 import logging
+import re
 from datetime import date
 from typing import TYPE_CHECKING, Optional, Union
 
@@ -59,16 +60,30 @@ def create_haltija(row: "Asiakas"):
     try:
         postinumero, postitoimipaikka = row.Kiinteistonposti.split(" ", maxsplit=1)
     except ValueError:
+        print(f"Ei voitu jakaa arvoa {row.Kiinteistonposti}")
         if row.Kiinteistonposti.isdigit():
             postinumero, postitoimipaikka = row.Kiinteistonposti, None
         else:
             postinumero, postitoimipaikka = None, row.Kiinteistonposti
     kohteen_osoite = Osoite(postinumero=postinumero, postitoimipaikka=postitoimipaikka)
     if row.Kiinteistonkatuosoite:
+        print(f"katuosoite {row.Kiinteistonkatuosoite}")
         try:
             parsed_address = address_parser.parse(row.Kiinteistonkatuosoite)
         except ValueError:
-            kohteen_osoite.erikoisosoite = row.Kiinteistonkatuosoite
+            # Try splitting trailing letter(s) from number, e.g. "Testikatu 4B" -> "Testikatu 4 B"
+            normalized = re.sub(r"(\d+)([A-Za-z]+)$", r"\1 \2", row.Kiinteistonkatuosoite)
+            try:
+                parsed_address = address_parser.parse(normalized)
+            except ValueError:
+                print(f"epäonnistunut parse, tallennetaan erikoiseksi")
+                kohteen_osoite.erikoisosoite = row.Kiinteistonkatuosoite
+            else:
+                o = osoite_from_parsed_address(parsed_address)
+                print(f"parsittu osoite (normalized) {o}")
+                kohteen_osoite.katunimi = o.katunimi
+                kohteen_osoite.osoitenumero = o.osoitenumero
+                kohteen_osoite.huoneistotunnus = o.huoneistotunnus
         else:
             o = osoite_from_parsed_address(parsed_address)
             print(f"parsittu osoite {o}")
@@ -77,6 +92,7 @@ def create_haltija(row: "Asiakas"):
             kohteen_osoite.huoneistotunnus = o.huoneistotunnus
         kohteen_osoite.kunta = row.Kuntatun
 
+    print(f"kohteen osoite {kohteen_osoite}")
     haltija = Yhteystieto(
         nimi=row.Haltijannimi.title(),
         osoite=kohteen_osoite,
