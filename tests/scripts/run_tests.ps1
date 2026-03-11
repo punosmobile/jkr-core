@@ -14,10 +14,10 @@
 $ErrorActionPreference = "Stop"
 
 # --- Polut ---
-$ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectRoot  = Resolve-Path (Join-Path $ScriptDir "../..")
-$EnvFile      = Join-Path $ProjectRoot ".env.local"
-$ComposeFile  = Join-Path $ProjectRoot "testing.docker-compose.yml"
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Resolve-Path (Join-Path $ScriptDir "../..")
+$EnvFile = Join-Path $ProjectRoot ".env.local"
+$ComposeFile = Join-Path $ProjectRoot "testing.docker-compose.yml"
 
 # --- Validoi .env.local ---
 if (-not (Test-Path $EnvFile)) {
@@ -39,7 +39,7 @@ foreach ($var in @("JKR_TEST_DB", "JKR_TEST_DB_PORT", "JKR_TEST_PASSWORD", "JKR_
     }
 }
 
-$TestDb   = $EnvVars["JKR_TEST_DB"]
+$TestDb = $EnvVars["JKR_TEST_DB"]
 $TestPort = $EnvVars["JKR_TEST_DB_PORT"]
 
 Write-Host ""
@@ -75,8 +75,9 @@ $TestExitCode = $LASTEXITCODE
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 if ($TestExitCode -eq 0) {
-    Write-Host "  Kaikki testit lapaisivat!" -ForegroundColor Green
-} else {
+    Write-Host "  Kaikki testit onnistuivat!" -ForegroundColor Green
+}
+else {
     Write-Host "  Testejä epäonnistui (exit code $TestExitCode)" -ForegroundColor Red
 }
 Write-Host "========================================" -ForegroundColor Cyan
