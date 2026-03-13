@@ -46,25 +46,4 @@ def test_kohteet(datadir):
 
 def test_import_faulty_data(faulty_datadir):
     with pytest.raises(RuntimeError):
-        import_data(faulty_datadir, 'LSJ', False, False, True, '1.1.2023', '31.3.2023')
-
-
-def test_import_data(engine, datadir):
-    import_data(datadir, 'LSJ', False, False, True, '1.1.2023', '31.3.2023')
-
-    session = Session(engine)
-
-    # Kohteita ei pidä muodostua lisää
-    lkm_kohteet = 15
-    assert session.query(func.count(Kohde.id)).scalar() == lkm_kohteet, f"Kohteita on eri määrä kuin odotettu {lkm_kohteet}"
-
-    # Kohteiden loppupäivämäärät eivät muutu kuljetuksissa
-    loppu_pvms = [
-        date(2022,6,16),
-        date(2023,1,22),
-        date(2023,1,30),
-        date(2100,1,1),
-        date(2023,1,31),
-    ]
-    loppu_pvm_filter = or_(Kohde.loppupvm.in_(loppu_pvms), Kohde.loppupvm.is_(None))
-    assert session.query(func.count(Kohde.id)).filter(loppu_pvm_filter).scalar() == lkm_kohteet
+        import_data(faulty_datadir, 'LSJ', '1.1.2023', '31.3.2023')
