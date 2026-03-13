@@ -359,7 +359,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_kaivotiedot(kohde_ids INTEGER[])
+DROP FUNCTION IF EXISTS jkr.kohteiden_kaivotiedot;
+CREATE OR REPLACE FUNCTION jkr.kohteiden_kaivotiedot(kohde_ids INTEGER[], tarkastelujakso DATERANGE)
 RETURNS TABLE(
     Kohde_id INTEGER,
     "Kantovesi" DATE,
@@ -374,11 +375,11 @@ BEGIN
     WITH kaivotiedot AS (
         SELECT
             kt.kohde_id,
-            CASE WHEN ktt.id = 1 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS kantovesi,
-            CASE WHEN ktt.id = 2 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS saostussailio,
-            CASE WHEN ktt.id = 4 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS umpisailio,
-            CASE WHEN ktt.id = 3 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS pienpuhdistamo,
-            CASE WHEN ktt.id = 5 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS harmaat_vedet
+            CASE WHEN ktt.id = 1 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS kantovesi,
+            CASE WHEN ktt.id = 2 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS saostussailio,
+            CASE WHEN ktt.id = 4 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS umpisailio,
+            CASE WHEN ktt.id = 3 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS pienpuhdistamo,
+            CASE WHEN ktt.id = 5 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS harmaat_vedet
         FROM
             jkr.kaivotieto kt
         JOIN
@@ -410,7 +411,7 @@ BEGIN
         WHERE
             kk.kohde_id = ANY(kohde_ids)
             AND ko.onko_liete = TRUE
-            AND ko.loppupvm IS NULL
+            AND ko.voimassaolo && tarkastelujakso
         ORDER BY
             kk.kohde_id, ko.alkupvm DESC
     )
@@ -1678,7 +1679,7 @@ BEGIN
         kohde_ids
     ) koh ON fil.kohde_id = koh.kohde_id
     LEFT JOIN jkr.kohteiden_kaivotiedot(
-        kohde_ids
+        kohde_ids, report_period
     ) kai ON fil.kohde_id = kai.kohde_id
     LEFT JOIN jkr.kohteiden_velvoitteet(
         kohde_ids, report_period
