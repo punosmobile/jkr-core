@@ -293,13 +293,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_lietekuljetukset;
 CREATE OR REPLACE FUNCTION jkr.kohteiden_lietekuljetukset(kohde_ids INTEGER[], tarkastelupvm DATE)
 RETURNS TABLE(
     Kohde_id INTEGER,
     "Lietekuljetus saostussäiliö" DATE,
     "Lietekuljetus umpisäiliö" DATE,
     "Lietekuljetus pienpuhdistamo" DATE,
-    "Lietekuljetus ei tiedossa" DATE,
+    "Lietetyyppi ei tiedossa" DATE,
     "Lietteen kuljetusliikkeen nimi" TEXT
 ) AS $$
 DECLARE
@@ -347,7 +348,7 @@ BEGIN
         ag.saostussailio AS "Lietekuljetus saostussäiliö",
         ag.umpisailio AS "Lietekuljetus umpisäiliö",
         ag.pienpuhdistamo AS "Lietekuljetus pienpuhdistamo",
-        ag.ei_tiedossa AS "Lietekuljetus ei tiedossa",
+        ag.ei_tiedossa AS "Lietetyyppi ei tiedossa",
         vk.kuljetusliike_nimi AS "Lietteen kuljetusliikkeen nimi"
     FROM
         unnest(kohde_ids) AS k_id(kohde_id)
@@ -1413,7 +1414,7 @@ RETURNS TABLE(
     "Lietekuljetus saostussäiliö" DATE,
     "Lietekuljetus umpisäiliö" DATE,
     "Lietekuljetus pienpuhdistamo" DATE,
-    "Lietekuljetus ei tiedossa" DATE,
+    "Lietetyyppi ei tiedossa" DATE,
     "Lietteen kuljetusliikkeen nimi" TEXT,
     Kompostoi DATE,
     "Perusmaksupäätös voimassa" DATE,
@@ -1582,7 +1583,7 @@ BEGIN
         lkul."Lietekuljetus saostussäiliö",
         lkul."Lietekuljetus umpisäiliö",
         lkul."Lietekuljetus pienpuhdistamo",
-        lkul."Lietekuljetus ei tiedossa",
+        lkul."Lietetyyppi ei tiedossa",
         lkul."Lietteen kuljetusliikkeen nimi",
         paa.Kompostoi,
         paa."Perusmaksupäätös voimassa",
