@@ -314,6 +314,19 @@ The `--test` flag accepts the test file name with or without the `test_` prefix 
 
 The test database container keeps running after the tests finish to allow manual inspection. Stop it with `docker stop jkr_test_database`.
 
+### Container scripts
+
+When tests run inside a Docker container (via `testing.docker-compose.yml`), the following scripts are used automatically:
+
+- **`tests/scripts/init_database_container.sh`** – Initializes the test database inside the container. Imports DVV test data and postal codes (Flyway migrations are already handled by Docker Compose).
+- **`tests/scripts/update_database_container.sh`** – Updates the test database with `DVV_update.xlsx` inside the container. Used by tests that verify DVV data updates.
+
+```bash
+# Make executable (first time only)
+chmod +x tests/scripts/init_database_container.sh
+chmod +x tests/scripts/update_database_container.sh
+```
+
 ### Running tests without database (lightweight tests)
 
 Some tests do not require a database connection and can be run independently:
