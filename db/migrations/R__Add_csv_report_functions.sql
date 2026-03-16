@@ -375,11 +375,11 @@ BEGIN
     WITH kaivotiedot AS (
         SELECT
             kt.kohde_id,
-            CASE WHEN ktt.id = 1 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS kantovesi,
-            CASE WHEN ktt.id = 2 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS saostussailio,
-            CASE WHEN ktt.id = 4 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS umpisailio,
-            CASE WHEN ktt.id = 3 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS pienpuhdistamo,
-            CASE WHEN ktt.id = 5 AND kt.voimassaolo && tarkastelujakso THEN kt.alkupvm END AS harmaat_vedet
+            CASE WHEN ktt.id = 1 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS kantovesi,
+            CASE WHEN ktt.id = 2 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS saostussailio,
+            CASE WHEN ktt.id = 4 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS umpisailio,
+            CASE WHEN ktt.id = 3 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS pienpuhdistamo,
+            CASE WHEN ktt.id = 5 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS harmaat_vedet
         FROM
             jkr.kaivotieto kt
         JOIN
@@ -403,7 +403,7 @@ BEGIN
     lietekompostointi AS (
         SELECT DISTINCT ON (kk.kohde_id)
             kk.kohde_id,
-            ko.alkupvm
+            ko.loppupvm
         FROM
             jkr.kompostorin_kohteet kk
         JOIN
@@ -413,7 +413,7 @@ BEGIN
             AND ko.onko_liete = TRUE
             AND ko.voimassaolo && tarkastelujakso
         ORDER BY
-            kk.kohde_id, ko.alkupvm DESC
+            kk.kohde_id, ko.loppupvm DESC
     )
     SELECT
         k_id.kohde_id,
