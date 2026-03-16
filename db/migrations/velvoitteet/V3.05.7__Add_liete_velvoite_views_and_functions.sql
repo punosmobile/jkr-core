@@ -36,7 +36,7 @@ WHERE EXISTS(
 		WHERE k.id = vl.kohde_id 
 			AND (
 				vl.voimassaolo && $1 
-				OR vl.viemariverkosto_loppupvm IS NOT NULL
+				OR vl.viemariverkosto_loppupvm IS NULL
 			)
 	) AND NOT EXISTS (
 		SELECT 1 FROM jkr.kaivotieto
