@@ -4,6 +4,9 @@ docker compose -f dev.docker-compose.yml --env-file ".env.local" down
 # Poistetaan volume
 docker volume rm jkr-core_postgis-data
 
+# Poistetaan flyway
+docker rm jkr-core-flyway-1
+
 # Käynnistetään tietokanta
 docker compose -f dev.docker-compose.yml --env-file ".env.local" up db -d
 
