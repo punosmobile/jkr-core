@@ -126,7 +126,7 @@ FROM (
 			FROM jkr.kuljetus
 			WHERE kohde_id = k.id AND jatetyyppi_id IN (7)
 			AND daterange(
-				(LOWER($1) - INTERVAL '33 months')::date,
+				(LOWER($1) - INTERVAL '30 months')::date,
 				UPPER($1)
 			) @> lietteentyhjennyspaiva
 		) AND EXISTS (
@@ -165,8 +165,8 @@ FROM (
 			FROM jkr.kuljetus
 			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
-				(LOWER($1) - INTERVAL '27 months')::date,
-				(UPPER($1) - INTERVAL '24 months')::date
+				(LOWER($1) - INTERVAL '18 months')::date,
+				(LOWER($1) - INTERVAL '6 months')::date
 			) @> lietteentyhjennyspaiva
 		) AND NOT EXISTS (
 			SELECT 1 FROM jkr.kaivotieto 
@@ -204,7 +204,7 @@ FROM (
 			WHERE kohde_id = k.id AND jatetyyppi_id IN (5, 6, 7) 
 			AND daterange(
 				(LOWER($1) - INTERVAL '30 months')::date,
-				(UPPER($1) - INTERVAL '30 months')::date 
+				(LOWER($1) - INTERVAL '18 months')::date 
 			) @> lietteentyhjennyspaiva
 		) 
 		AND k.id NOT IN (SELECT * FROM jkr.kohteet_joiden_rakennukset_vapautettu($1))
@@ -232,8 +232,8 @@ FROM (
 			FROM jkr.kuljetus
 			WHERE kohde_id = k.id AND jatetyyppi_id IN (7)
 			AND daterange(
-				(LOWER($1) - INTERVAL '45 months')::date,
-				(UPPER($1) - INTERVAL '45 months')::date
+				(LOWER($1) - INTERVAL '42 months')::date,
+				(LOWER($1) - INTERVAL '30 months')::date
 			) @> lietteentyhjennyspaiva
 		) AND EXISTS (
 			SELECT 1 FROM jkr.kaivotieto
@@ -347,7 +347,7 @@ FROM (
 			FROM jkr.kuljetus
 			WHERE kohde_id = k.id AND jatetyyppi_id IN (7)
 			AND daterange(
-				(LOWER($1) - INTERVAL '45 months')::date,
+				(LOWER($1) - INTERVAL '42 months')::date,
 				UPPER($1)
 			) @> lietteentyhjennyspaiva
 		) AND EXISTS (
