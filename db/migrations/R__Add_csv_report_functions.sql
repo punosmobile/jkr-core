@@ -421,7 +421,7 @@ BEGIN
         ak.saostussailio AS "Kaivotieto saostussäiliö",
         ak.umpisailio AS "Kaivotieto umpisäiliö",
         ak.pienpuhdistamo AS "Kaivotieto pienpuhdistamo",
-        lk.alkupvm AS "Kompostoi lietteen",
+        lk.loppupvm AS "Kompostoi lietteen",
         ak.harmaat_vedet AS "Vain harmaita vesiä"
     FROM
         unnest(kohde_ids) AS k_id(kohde_id)
