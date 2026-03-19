@@ -359,7 +359,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION jkr.kohteiden_kaivotiedot(kohde_ids INTEGER[])
+DROP FUNCTION IF EXISTS jkr.kohteiden_kaivotiedot;
+CREATE OR REPLACE FUNCTION jkr.kohteiden_kaivotiedot(kohde_ids INTEGER[], tarkastelujakso DATERANGE)
 RETURNS TABLE(
     Kohde_id INTEGER,
     "Kantovesi" DATE,
@@ -402,7 +403,7 @@ BEGIN
     lietekompostointi AS (
         SELECT DISTINCT ON (kk.kohde_id)
             kk.kohde_id,
-            ko.alkupvm
+            ko.loppupvm
         FROM
             jkr.kompostorin_kohteet kk
         JOIN
@@ -410,9 +411,9 @@ BEGIN
         WHERE
             kk.kohde_id = ANY(kohde_ids)
             AND ko.onko_liete = TRUE
-            AND ko.loppupvm IS NULL
+            AND ko.voimassaolo && tarkastelujakso
         ORDER BY
-            kk.kohde_id, ko.alkupvm DESC
+            kk.kohde_id, ko.loppupvm DESC
     )
     SELECT
         k_id.kohde_id,
@@ -1678,7 +1679,7 @@ BEGIN
         kohde_ids
     ) koh ON fil.kohde_id = koh.kohde_id
     LEFT JOIN jkr.kohteiden_kaivotiedot(
-        kohde_ids
+        kohde_ids, report_period
     ) kai ON fil.kohde_id = kai.kohde_id
     LEFT JOIN jkr.kohteiden_velvoitteet(
         kohde_ids, report_period
