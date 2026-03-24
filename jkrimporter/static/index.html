@@ -654,6 +654,7 @@
             <button class="tab-btn" data-tab="psql">Tietokanta</button>
             <button class="tab-btn" data-tab="scripts">Skriptit</button>
             <button class="tab-btn" data-tab="tasks">Tehtävät</button>
+            <button class="tab-btn" data-tab="logs">Loki</button>
             <button class="tab-btn" data-tab="docs">Dokumentaatio</button>
         </div>
 
@@ -1015,6 +1016,54 @@
             </div>
         </div>
 
+        <!-- ============ LOKI ============ -->
+        <div class="tab-content" id="tab-logs">
+            <div
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+                <h2 style="font-size:1.1rem;">Reaaliaikainen loki</h2>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <div id="wsStatus"
+                        style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-muted);">
+                        <div id="wsDot" class="health-dot"></div>
+                        <span id="wsText">Ei yhdistetty</span>
+                    </div>
+                    <select id="logLevelFilter"
+                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.8rem;">
+                        <option value="10">DEBUG</option>
+                        <option value="20" selected>INFO</option>
+                        <option value="25">IMPORT</option>
+                        <option value="30">WARNING</option>
+                        <option value="40">ERROR</option>
+                        <option value="50">CRITICAL</option>
+                    </select>
+                    <label style="font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="logAutoScroll" checked> Autoscroll
+                    </label>
+                    <button class="btn btn-sm btn-outline" onclick="clearLogView()">Tyhjennä</button>
+                </div>
+            </div>
+            <div id="logContainer" style="
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 12px;
+                font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+                font-size: 0.78rem;
+                line-height: 1.5;
+                height: 70vh;
+                overflow-y: auto;
+                white-space: pre-wrap;
+                word-break: break-all;
+            ">
+                <div style="color:var(--text-muted);text-align:center;padding:40px;">
+                    Vaihda Loki-välilehdelle aloittaaksesi lokin seurannan.
+                </div>
+            </div>
+            <div style="margin-top:8px;font-size:0.75rem;color:var(--text-muted);">
+                <span id="logCount">0</span> viestiä | WebSocket: <code>ws://&lt;host&gt;:8000/ws/logs</code>
+            </div>
+        </div>
+
         <!-- ============ DOKUMENTAATIO ============ -->
         <div class="tab-content" id="tab-docs">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -1057,6 +1106,7 @@
                 btn.classList.add('active');
                 document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
                 if (btn.dataset.tab === 'tasks') refreshTasks();
+                if (btn.dataset.tab === 'logs') connectLogWs();
                 if (btn.dataset.tab === 'docs' && !window._docsLoaded) loadDocs();
             });
         });
@@ -1274,6 +1324,99 @@
             document.getElementById('toasts').appendChild(el);
             setTimeout(() => el.remove(), 5000);
         }
+
+        // ---- WebSocket Log Viewer ----
+        let _ws = null;
+        let _logCount = 0;
+        const LOG_COLORS = {
+            'DEBUG': '#64748b',
+            'INFO': '#3b82f6',
+            'IMPORT': '#8b5cf6',
+            'WARNING': '#f59e0b',
+            'ERROR': '#ef4444',
+            'CRITICAL': '#dc2626',
+        };
+        const MAX_LOG_LINES = 2000;
+
+        function connectLogWs() {
+            if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return;
+
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = proto + '//' + window.location.host + '/ws/logs';
+            _ws = new WebSocket(url);
+
+            _ws.onopen = () => {
+                document.getElementById('wsDot').className = 'health-dot ok';
+                document.getElementById('wsText').textContent = 'Yhdistetty';
+                // Lähetä nykyinen suodatustaso
+                const lvl = document.getElementById('logLevelFilter').value;
+                _ws.send(JSON.stringify({ min_level: parseInt(lvl) }));
+            };
+
+            _ws.onclose = () => {
+                document.getElementById('wsDot').className = 'health-dot err';
+                document.getElementById('wsText').textContent = 'Yhteys katkesi';
+                // Yritä uudelleen 3s päästä
+                setTimeout(connectLogWs, 3000);
+            };
+
+            _ws.onerror = () => {
+                document.getElementById('wsDot').className = 'health-dot err';
+                document.getElementById('wsText').textContent = 'Virhe';
+            };
+
+            _ws.onmessage = (event) => {
+                try {
+                    const entry = JSON.parse(event.data);
+                    appendLogEntry(entry);
+                } catch (e) {
+                    // ei-JSON viesti, näytä sellaisenaan
+                    appendLogLine(event.data, 'INFO');
+                }
+            };
+        }
+
+        function appendLogEntry(entry) {
+            const container = document.getElementById('logContainer');
+            // Poista placeholder jos näkyy
+            if (_logCount === 0) container.innerHTML = '';
+
+            const line = document.createElement('div');
+            const color = LOG_COLORS[entry.level] || '#e2e8f0';
+            const levelBadge = `<span style="color:${color};font-weight:600;min-width:65px;display:inline-block;">[${entry.level}]</span>`;
+            const ts = entry.timestamp ? entry.timestamp.split('T')[1] || '' : '';
+            line.innerHTML = `<span style="color:var(--text-muted);">${esc(ts)}</span> ${levelBadge} ${esc(entry.message || '')}`;
+            line.style.borderBottom = '1px solid rgba(71,85,105,0.15)';
+            line.style.padding = '2px 0';
+
+            container.appendChild(line);
+            _logCount++;
+            document.getElementById('logCount').textContent = _logCount;
+
+            // Rajoita rivimäärää
+            while (container.childElementCount > MAX_LOG_LINES) {
+                container.removeChild(container.firstChild);
+            }
+
+            // Autoscroll
+            if (document.getElementById('logAutoScroll').checked) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function clearLogView() {
+            const container = document.getElementById('logContainer');
+            container.innerHTML = '';
+            _logCount = 0;
+            document.getElementById('logCount').textContent = '0';
+        }
+
+        // Tason vaihto -> lähetä palvelimelle
+        document.getElementById('logLevelFilter').addEventListener('change', (e) => {
+            if (_ws && _ws.readyState === WebSocket.OPEN) {
+                _ws.send(JSON.stringify({ min_level: parseInt(e.target.value) }));
+            }
+        });
 
         // ---- Documentation ----
         let _docsData = null;

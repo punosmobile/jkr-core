@@ -12,6 +12,7 @@ Tai:
 """
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -21,16 +22,17 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from jkrimporter import ws_log_handler
+
 # ---------------------------------------------------------------------------
-# Logging
+# Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
 # ---------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("jkr-api")
 
 # ---------------------------------------------------------------------------
@@ -622,6 +624,66 @@ SELECT json_agg(row_to_json(t)) FROM (
 @app.get("/health", summary="Terveystarkistus")
 async def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+# ---------------------------------------------------------------------------
+# WebSocket: Reaaliaikainen loki
+# ---------------------------------------------------------------------------
+@app.websocket("/ws/logs")
+async def ws_logs(websocket: WebSocket):
+    """
+    WebSocket-endpoint reaaliaikaiselle lokille.
+
+    Yhdistettäessä lähetetään ensin viimeisimmät puskuroidut viestit (max 500),
+    jonka jälkeen uudet viestit streamataan reaaliajassa.
+
+    Client voi lähettää JSON-viestin log-tason suodattamiseksi:
+        {"min_level": 25}   # näytä vain IMPORT (25) ja sitä vakavammat
+    """
+    await websocket.accept()
+    min_level = 0
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def _sender(text: str):
+        await queue.put(text)
+
+    ws_log_handler.register(_sender)
+    try:
+        # Lähetä puskuroidut viestit
+        for entry in ws_log_handler.get_buffer():
+            if entry.get("levelno", 0) >= min_level:
+                await websocket.send_json(entry)
+
+        # Kuuntele sekä uusia logeja että clientin viestejä rinnakkain
+        async def _read_client():
+            nonlocal min_level
+            while True:
+                data = await websocket.receive_text()
+                try:
+                    msg = json.loads(data)
+                    if "min_level" in msg:
+                        min_level = int(msg["min_level"])
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+        async def _write_logs():
+            while True:
+                raw = await queue.get()
+                try:
+                    entry = json.loads(raw)
+                    if entry.get("levelno", 0) >= min_level:
+                        await websocket.send_text(raw)
+                except Exception:
+                    pass
+
+        await asyncio.gather(_read_client(), _write_logs())
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        ws_log_handler.unregister(_sender)
 
 
 # ---------------------------------------------------------------------------

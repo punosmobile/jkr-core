@@ -135,6 +135,7 @@ services:
       - JKR_DB_PORT=5432
       - APPDATA=/$HOME/.config/jkr/.env
       - HOOK_URL=${HOOK_URL}
+      - JKR_LOG_LEVEL=${JKR_LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"
     networks:

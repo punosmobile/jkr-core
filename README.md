@@ -76,7 +76,30 @@ Run migrations
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" up flyway
 ```
 
-Optionally Scripts can be runned in container. First build image
+### API server (jkr-core-runner)
+
+The application includes a FastAPI-based REST API for running JKR import commands via HTTP. The API runs on port **8000**.
+
+Start the API server:
+```bash
+docker-compose -f dev.docker-compose.yml --env-file ".env.local" up jkr-core-runner -d
+```
+
+The API is available at `http://localhost:8000`. API documentation (Swagger UI) is at `http://localhost:8000/docs`.
+
+#### Port forwarding
+
+| Service | Host port | Container port | Description |
+|---------|-----------|----------------|-------------|
+| db | `${JKR_DB_PORT}` (default 5435) | 5432 | PostgreSQL database |
+| db_test | `${JKR_TEST_DB_PORT}` (default 5436) | 5433 | Test database |
+| jkr-core-runner | 8000 | 8000 | JKR REST API |
+
+When using `scriptsrunner.bat` (standalone `docker run`), port forwarding is included automatically (`-p 8000:8000`).
+
+### Script runner container (optional)
+
+Scripts can be run in a container. First build the image:
 ```bash
 docker build --pull --rm -f "Dockerfile" -t jkr-core-runner:latest "."
 ```
