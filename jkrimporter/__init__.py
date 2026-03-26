@@ -49,6 +49,10 @@ class WebSocketLogHandler(logging.Handler):
             }
             self._buffer.append(entry)
 
+            # Ei serialisointia eikä lähetystä jos kukaan ei kuuntele
+            if not self._clients:
+                return
+
             msg = json.dumps(entry, ensure_ascii=False)
             stale = set()
             for ws_send in self._clients:

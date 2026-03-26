@@ -641,11 +641,27 @@
 
     <header>
         <h1>JKR Tiedontuonti</h1>
-        <div class="health-badge">
-            <div class="health-dot" id="healthDot"></div>
-            <span id="healthText">Tarkistetaan...</span>
+        <div style="display:flex;align-items:center;gap:16px;">
+            <div class="health-badge">
+                <div class="health-dot" id="healthDot"></div>
+                <span id="healthText">Tarkistetaan...</span>
+            </div>
+            <div class="health-badge">
+                <div class="health-dot" id="dbDot"></div>
+                <span id="dbText">Kanta: ?</span>
+            </div>
         </div>
     </header>
+    <div id="dbErrorBanner" style="
+        display:none;
+        background:#991b1b;
+        color:#fecaca;
+        padding:10px 24px;
+        font-size:0.85rem;
+        border-bottom:2px solid #ef4444;
+    ">
+        <strong>Tietokantayhteys puuttuu:</strong> <span id="dbErrorMsg"></span>
+    </div>
 
     <div class="container">
         <div class="tabs">
@@ -1039,6 +1055,7 @@
                     <label style="font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
                         <input type="checkbox" id="logAutoScroll" checked> Autoscroll
                     </label>
+                    <button class="btn btn-sm btn-outline" id="wsToggleBtn" onclick="toggleLogWs()">Yhdistä</button>
                     <button class="btn btn-sm btn-outline" onclick="clearLogView()">Tyhjennä</button>
                 </div>
             </div>
@@ -1106,7 +1123,8 @@
                 btn.classList.add('active');
                 document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
                 if (btn.dataset.tab === 'tasks') refreshTasks();
-                if (btn.dataset.tab === 'logs') connectLogWs();
+                if (btn.dataset.tab === 'logs') { if (_wsAutoConnect) connectLogWs(); }
+                if (btn.dataset.tab !== 'logs') disconnectLogWs();
                 if (btn.dataset.tab === 'docs' && !window._docsLoaded) loadDocs();
             });
         });
@@ -1135,13 +1153,32 @@
 
         // ---- Health ----
         async function checkHealth() {
+            const banner = document.getElementById('dbErrorBanner');
+            const dbDot = document.getElementById('dbDot');
+            const dbText = document.getElementById('dbText');
             try {
                 const data = await get('/health');
                 document.getElementById('healthDot').className = 'health-dot ok';
                 document.getElementById('healthText').textContent = 'API toimii';
+
+                if (data.database && data.database.connected) {
+                    dbDot.className = 'health-dot ok';
+                    dbText.textContent = 'Kanta: OK';
+                    banner.style.display = 'none';
+                } else {
+                    dbDot.className = 'health-dot err';
+                    dbText.textContent = 'Kanta: virhe';
+                    banner.style.display = 'block';
+                    document.getElementById('dbErrorMsg').textContent =
+                        (data.database && data.database.error) || 'Tuntematon virhe';
+                }
             } catch {
                 document.getElementById('healthDot').className = 'health-dot err';
                 document.getElementById('healthText').textContent = 'API ei vastaa';
+                dbDot.className = 'health-dot err';
+                dbText.textContent = 'Kanta: ?';
+                banner.style.display = 'block';
+                document.getElementById('dbErrorMsg').textContent = 'API ei vastaa – kantayhteyden tilaa ei voida tarkistaa';
             }
         }
         checkHealth();
@@ -1328,6 +1365,8 @@
         // ---- WebSocket Log Viewer ----
         let _ws = null;
         let _logCount = 0;
+        let _wsAutoConnect = true;   // oletuksena yhdistää automaattisesti
+        let _wsReconnectTimer = null;
         const LOG_COLORS = {
             'DEBUG': '#64748b',
             'INFO': '#3b82f6',
@@ -1338,8 +1377,15 @@
         };
         const MAX_LOG_LINES = 2000;
 
+        function _updateWsBtn() {
+            const btn = document.getElementById('wsToggleBtn');
+            const connected = _ws && _ws.readyState === WebSocket.OPEN;
+            btn.textContent = connected ? 'Katkaise' : 'Yhdistä';
+        }
+
         function connectLogWs() {
             if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return;
+            if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
 
             const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const url = proto + '//' + window.location.host + '/ws/logs';
@@ -1348,37 +1394,65 @@
             _ws.onopen = () => {
                 document.getElementById('wsDot').className = 'health-dot ok';
                 document.getElementById('wsText').textContent = 'Yhdistetty';
-                // Lähetä nykyinen suodatustaso
+                _updateWsBtn();
                 const lvl = document.getElementById('logLevelFilter').value;
                 _ws.send(JSON.stringify({ min_level: parseInt(lvl) }));
             };
 
             _ws.onclose = () => {
                 document.getElementById('wsDot').className = 'health-dot err';
-                document.getElementById('wsText').textContent = 'Yhteys katkesi';
-                // Yritä uudelleen 3s päästä
-                setTimeout(connectLogWs, 3000);
+                document.getElementById('wsText').textContent = 'Ei yhdistetty';
+                _updateWsBtn();
+                // Yhdistä uudelleen vain jos auto-mode päällä JA Loki-tab auki
+                if (_wsAutoConnect && _isLogsTabActive()) {
+                    _wsReconnectTimer = setTimeout(connectLogWs, 3000);
+                }
             };
 
             _ws.onerror = () => {
                 document.getElementById('wsDot').className = 'health-dot err';
                 document.getElementById('wsText').textContent = 'Virhe';
+                _updateWsBtn();
             };
 
             _ws.onmessage = (event) => {
                 try {
                     const entry = JSON.parse(event.data);
                     appendLogEntry(entry);
-                } catch (e) {
-                    // ei-JSON viesti, näytä sellaisenaan
-                    appendLogLine(event.data, 'INFO');
-                }
+                } catch (e) { }
             };
+        }
+
+        function disconnectLogWs() {
+            if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+            if (_ws) {
+                _ws.onclose = null;  // estä auto-reconnect
+                _ws.close();
+                _ws = null;
+            }
+            document.getElementById('wsDot').className = 'health-dot';
+            document.getElementById('wsText').textContent = 'Ei yhdistetty';
+            _updateWsBtn();
+        }
+
+        function toggleLogWs() {
+            const connected = _ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING);
+            if (connected) {
+                _wsAutoConnect = false;
+                disconnectLogWs();
+            } else {
+                _wsAutoConnect = true;
+                connectLogWs();
+            }
+        }
+
+        function _isLogsTabActive() {
+            const tab = document.getElementById('tab-logs');
+            return tab && tab.classList.contains('active');
         }
 
         function appendLogEntry(entry) {
             const container = document.getElementById('logContainer');
-            // Poista placeholder jos näkyy
             if (_logCount === 0) container.innerHTML = '';
 
             const line = document.createElement('div');
@@ -1393,12 +1467,10 @@
             _logCount++;
             document.getElementById('logCount').textContent = _logCount;
 
-            // Rajoita rivimäärää
             while (container.childElementCount > MAX_LOG_LINES) {
                 container.removeChild(container.firstChild);
             }
 
-            // Autoscroll
             if (document.getElementById('logAutoScroll').checked) {
                 container.scrollTop = container.scrollHeight;
             }
@@ -1411,7 +1483,6 @@
             document.getElementById('logCount').textContent = '0';
         }
 
-        // Tason vaihto -> lähetä palvelimelle
         document.getElementById('logLevelFilter').addEventListener('change', (e) => {
             if (_ws && _ws.readyState === WebSocket.OPEN) {
                 _ws.send(JSON.stringify({ min_level: parseInt(e.target.value) }));

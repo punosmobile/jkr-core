@@ -5,9 +5,9 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 START_TIME=$(date +%s)
 
 rm -rf logs
-rm jkr.log
-rm cluster_debug.log
-rm kiinteisto_debug.log
+rm -f jkr.log
+rm -f cluster_debug.log
+rm -f kiinteisto_debug.log
 
 # Luo logs-hakemisto jos ei ole olemassa
 mkdir -p logs/arkisto
@@ -72,8 +72,8 @@ log_exec() {
    echo "Aloitusaika: $(date)" >> "$log_file"
    echo "===================" >> "$log_file"
 
-   eval "$cmd" >> "$log_file" 2>&1
-   local exit_code=$?
+   eval "$cmd" 2>&1 | tee -a "$log_file"
+   local exit_code=${PIPESTATUS[0]}
 
    # Lopetusaika ja keston laskeminen
    local STEP_END=$(date +%s)
@@ -137,8 +137,8 @@ EOSQL
    local CMD_OUTPUT_FILE
    CMD_OUTPUT_FILE=$(mktemp)
    local EXIT_CODE
-   eval "$cmd" > "$CMD_OUTPUT_FILE" 2>&1
-   EXIT_CODE=$?
+   eval "$cmd" 2>&1 | tee "$CMD_OUTPUT_FILE"
+   EXIT_CODE=${PIPESTATUS[0]}
    cat "$CMD_OUTPUT_FILE" >> "$log_file"
 
    rm -f "$CMD_OUTPUT_FILE"

@@ -12,6 +12,7 @@ Tai:
 """
 
 import asyncio
+import collections
 import json
 import logging
 import os
@@ -111,12 +112,57 @@ def _create_task(command: str, description: str) -> TaskInfo:
     return task
 
 
+_TASK_OUTPUT_TAIL = 100  # task.output/error säilyttää vain viimeiset N riviä
+
+
 async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
-    """Suorittaa komennon taustalla ja päivittää tehtävän tilan."""
+    """Suorittaa komennon taustalla ja päivittää tehtävän tilan.
+
+    Lukee stdout/stderr rivi kerrallaan reaaliajassa, jotta:
+    - rivit logitetaan Pythonin loggeriin (→ WebSocket-loki, tiedostoloki, konsoli)
+    - task.output/error sisältää vain viimeiset _TASK_OUTPUT_TAIL riviä (kevyt JSON)
+    """
     task = _tasks[task_id]
     task.status = TaskStatus.running
     task.started_at = datetime.now()
+    task_logger = logging.getLogger(f"task.{task_id[:8]}")
 
+    output_buf: collections.deque = collections.deque(maxlen=_TASK_OUTPUT_TAIL)
+    error_buf: collections.deque = collections.deque(maxlen=_TASK_OUTPUT_TAIL)
+
+    async def _read_stream(stream, buf: collections.deque, level: int):
+        """Lukee streamin rivi kerrallaan ja logittaa jokaisen.
+
+        Käyttää read()-chunkkeja readline():n sijaan, jotta ylipitkät rivit
+        (esim. debug-printit) eivät aiheuta asyncio LimitOverrunError-virhettä.
+        """
+        remainder = b""
+        while True:
+            chunk = await stream.read(65536)  # 64 KiB kerrallaan
+            if not chunk:
+                # Käsittele viimeinen pätkä
+                if remainder:
+                    line = remainder.decode("utf-8", errors="replace").rstrip("\n")
+                    if line:
+                        buf.append(line)
+                        task_logger.log(level, line[:2000])
+                break
+            data = remainder + chunk
+            # Jaa riveihin
+            while b"\n" in data:
+                line_bytes, data = data.split(b"\n", 1)
+                line = line_bytes.decode("utf-8", errors="replace")
+                if line:
+                    buf.append(line)
+                    task_logger.log(level, line[:2000])  # Rajoita logiviesti 2000 merkkiin
+            remainder = data
+            # Päivitä task.output/error reaaliajassa (vain viimeiset rivit)
+            if level <= logging.INFO:
+                task.output = "\n".join(output_buf)
+            else:
+                task.error = "\n".join(error_buf)
+
+    proc = None
     try:
         proc = await asyncio.create_subprocess_shell(
             command,
@@ -125,16 +171,30 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
             env=_db_env(),
             cwd=cwd,
         )
-        stdout, stderr = await proc.communicate()
+
+        await asyncio.gather(
+            _read_stream(proc.stdout, output_buf, logging.INFO),
+            _read_stream(proc.stderr, error_buf, logging.WARNING),
+        )
+        await proc.wait()
 
         task.exit_code = proc.returncode
-        task.output = stdout.decode("utf-8", errors="replace")
-        task.error = stderr.decode("utf-8", errors="replace")
+        task.output = "\n".join(output_buf)
+        task.error = "\n".join(error_buf)
         task.status = TaskStatus.completed if proc.returncode == 0 else TaskStatus.failed
     except Exception as e:
         task.status = TaskStatus.failed
-        task.error = str(e)
+        task.error = "\n".join(error_buf) + "\n" + str(e) if error_buf else str(e)
     finally:
+        # Varmista exit_code myös virhetilanteissa
+        if proc is not None and task.exit_code is None:
+            try:
+                if proc.returncode is None:
+                    await proc.wait()
+                task.exit_code = proc.returncode
+            except Exception:
+                pass
+        task.output = "\n".join(output_buf)
         task.finished_at = datetime.now()
         if task.started_at:
             task.duration_seconds = (task.finished_at - task.started_at).total_seconds()
@@ -623,7 +683,27 @@ SELECT json_agg(row_to_json(t)) FROM (
 # ---------------------------------------------------------------------------
 @app.get("/health", summary="Terveystarkistus")
 async def health():
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+    db_ok = False
+    db_error = None
+    try:
+        from jkrimporter.providers.db.database import engine
+        from sqlalchemy import text as sa_text
+        with engine.connect() as conn:
+            conn.execute(sa_text("SELECT 1"))
+            conn.commit()
+        db_ok = True
+    except Exception as e:
+        db_error = str(e)
+
+    status = "ok" if db_ok else "degraded"
+    return {
+        "status": status,
+        "timestamp": datetime.now().isoformat(),
+        "database": {
+            "connected": db_ok,
+            "error": db_error,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
