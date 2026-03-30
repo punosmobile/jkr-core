@@ -19,6 +19,7 @@ from jkrimporter.model import (
     LopetusIlmoitus,
     KeraysvalineTyyppi,
 )
+from jkrimporter.providers.lahti.kaivo_models import KaivotietoTyyppi
 from jkrimporter.model import Tyhjennystapahtuma as JkrTyhjennystapahtuma
 from jkrimporter.utils.ilmoitus import (
     export_kohdentumattomat_ilmoitukset,
@@ -888,8 +889,9 @@ class DbProvider:
                             Kompostori.loppupvm == ilmoitus.loppupvm,
                             Kompostori.osoite_id == osoite_id,
                             Kompostori.osapuoli_id == osapuoli.id,
-                            Kompostori.onko_liete is True,
+                            Kompostori.onko_liete == True,
                         ).first()
+
                         if existing_kompostori:
                             print("Vastaava liete kompostori löydetty, ohitetaan luonti...")
                             komposti = existing_kompostori
@@ -934,29 +936,19 @@ class DbProvider:
                                         ),
                                     )
                                 
-                                print("creating new väline")
-                                keraysvaline_id = codes.keraysvalinetyypit.get(KeraysvalineTyyppi.PIENPUHDISTAMO)
-
-                                existing_keraysvaline = session.query(
-                                    Keraysvaline).filter(
-                                        Keraysvaline.kohde_id == kohde.id,
-                                        Keraysvaline.keraysvalinetyyppi_id == keraysvaline_id.id
-                                ).first()
-
-                                if existing_keraysvaline:
-                                    print(f"Kohteella {kohde.id} on jo PIENPUHDISTAMO, ohitetaan luonti...")
-                                    continue
-
-                                db_keraysvaline = Keraysvaline(
-                                    pvm=ilmoitus.pienpuhdistamo_alkupwm,
-                                    keraysvalinetyyppi=keraysvaline_id,
-                                    tilavuus=0,
-                                    maara=0,
-                                    kohde_id=kohde.id,
+                                print("creating new pienpuhdistamo")
+                                kaivotieto_luotu, vastaus_teksti = insert_kaivotieto(
+                                    session,
+                                    kohde.id,
+                                    kaivotietotyyppi=KaivotietoTyyppi.PIENPUHDISTAMO,
+                                    alkupvm=ilmoitus.pienpuhdistamo_alkupvm,
+                                    tietolahde='ilmoitus'
                                 )
-                                print(f"Kohteelle {kohde.id} lisätty PIENPUHDISTAMO")
-
-                                session.add(db_keraysvaline)
+                                
+                                if kaivotieto_luotu:
+                                    print(vastaus_teksti)
+                                else:
+                                    print(vastaus_teksti)
 
                         if kohdentumattomat_prt:
                             # Append rawdata dicts for each kohdentumaton kompostoija.

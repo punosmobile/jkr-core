@@ -12,6 +12,8 @@ from jkrimporter.model import (
     Asiakas as JkrAsiakas,
     Jatelaji as JkrJatelaji,
     JkrData,
+    SopimusTyyppi,
+    TyhjennysSopimus,
     Tunnus,
     Tyhjennystapahtuma,
     Yhteystieto,
@@ -225,6 +227,15 @@ class LieteTranslator:
         if kuljetus_row.pysyva_rakennustunnus:
             rakennukset.append(kuljetus_row.pysyva_rakennustunnus)
         
+        # Luodaan sopimus liete-jätelajilla, jotta osapuoli luodaan
+        # LIETE_TILAAJA-roolilla (create_or_update_haltija_osapuoli vaatii sopimuksen)
+        liete_sopimus = TyhjennysSopimus(
+            sopimustyyppi=SopimusTyyppi.tyhjennyssopimus,
+            jatelaji=JkrJatelaji.liete,
+            alkupvm=kuljetus_row.siirron_alkamisaika,
+            loppupvm=kuljetus_row.siirron_paattymisaika or kuljetus_row.siirron_alkamisaika,
+        )
+
         asiakas = JkrAsiakas(
             asiakasnumero=tunnus,
             voimassa=Interval(None, None),  # LIETE-datassa ei ole voimassaolotietoja
@@ -233,7 +244,7 @@ class LieteTranslator:
             rakennukset=rakennukset,
             haltija=haltija,
             yhteyshenkilo=None,  # LIETE-datassa ei ole yhteyshenkilöä
-            sopimukset=[],  # LIETE-datassa ei ole sopimuksia
+            sopimukset=[liete_sopimus],
             tyhjennystapahtumat=[],
         )
         

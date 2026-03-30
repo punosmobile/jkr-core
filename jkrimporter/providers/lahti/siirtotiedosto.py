@@ -38,6 +38,8 @@ class LahtiSiirtotiedosto:
         failed_validations = []
         missing_headers_list = []
         expected_headers = get_siirtotiedosto_headers()
+        # Map lowercase -> canonical casing for case-insensitive matching
+        header_map = {h.lower(): h for h in expected_headers}
 
         # Iterate through all CSV files in the directory to check headers
         for csv_file_path in Path(self._path).glob("*.csv"):
@@ -48,8 +50,8 @@ class LahtiSiirtotiedosto:
                     content = content[3:]
                 content = content.decode("cp1252")
                 csv_reader = csv.DictReader(content.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
-                headers = csv_reader.fieldnames
-                missing_headers = [header for header in expected_headers if header not in headers]
+                headers_lower = {h.lower() for h in (csv_reader.fieldnames or [])}
+                missing_headers = [header for header in expected_headers if header.lower() not in headers_lower]
 
                 if missing_headers:
                     missing_headers_list.append({
@@ -73,8 +75,9 @@ class LahtiSiirtotiedosto:
                     content = content[3:]
                 content = content.decode("cp1252")
                 csv_reader = csv.DictReader(content.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
-                data_list = [row for row in csv_reader]
-                all_data.extend(data_list)
+                for row in csv_reader:
+                    normalized = {header_map.get(k.lower(), k): v for k, v in row.items()}
+                    all_data.append(normalized)
 
         for data in all_data:
             # Validate AsiakasRow, if validation fails, append to failed_validations
@@ -113,3 +116,4 @@ class LahtiSiirtotiedosto:
                 asiakas_list.append(Asiakas(asiakas_row))
 
         return asiakas_list
+

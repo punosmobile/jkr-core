@@ -263,26 +263,79 @@ Note that it is recommended to include target municipality id/ sijainti-kunta va
 
 ## Testing
 
-The testing procedures are under construction. Currently, the tests can be run in Windows and Linux systems. A local test database is created for running the tests. The database is created from scratch each time the tests are run. The docker container for the database isn't stopped after the tests in order to make manual checks available.
+Tests run inside Docker containers. The test runner script creates a fresh test database, runs Flyway migrations, and executes pytest automatically. No local Python environment is needed for running the tests.
 
-1. On Windows the settings for the local test database are stored in `%APPDATA%/jkr/.env`. Copy the defaults from `/tests/.env.template`.
-2. On Linux you should place it in `$HOME/.config/jkr/.env` file
-3. It is recommended to setup a virtual environment for running tests, this can be done with `python3 -m venv .venv` followed by `source .venv/bin/activate` to activate it
-4. Install dependencies Using `pip install -e .` The -e will install the local repository as a local package so that the scripts can be changed in between tests
-5. When calling `pytest` the batch file `/tests/scripts/init_database.bat` on Windows and `/tests/scripts/init_database.sh` on Linux is run before the tests related to the database.
-6. `pytest` is called like this when located in `tests` folder: `python -m pytest ../tests/ -v`
+### Prerequisites
 
-**Running tests without database (lightweight tests):**
+- Docker and Docker Compose installed and running
+- `.env.local` in the project root with the following variables:
 
-Some tests do not require a database connection and can be run independently. These include parsing and model validation tests:
+```ini
+JKR_TEST_DB=jkr_test
+JKR_TEST_DB_PORT=5436
+JKR_TEST_PASSWORD=qwerty
+JKR_USER=jkr_admin
+```
+
+You can copy `.env.template` as a starting point: `cp .env.template .env.local`
+
+### Running tests
+
+#### Windows (PowerShell)
+
+```powershell
+# Interactive menu (default: run all)
+.\tests\scripts\run_tests.ps1
+
+# Run all tests directly
+.\tests\scripts\run_tests.ps1 --all
+
+# Run a single test file
+.\tests\scripts\run_tests.ps1 --test test_kompostori
+```
+
+#### Linux / macOS (Bash)
+
+```bash
+# Make executable (first time only)
+chmod +x tests/scripts/run_tests.sh
+
+# Interactive menu (default: run all)
+./tests/scripts/run_tests.sh
+
+# Run all tests directly
+./tests/scripts/run_tests.sh --all
+
+# Run a single test file
+./tests/scripts/run_tests.sh --test test_kompostori
+```
+
+The `--test` flag accepts the test file name with or without the `test_` prefix and `.py` extension. If the test file is not found, the script lists all available tests.
+
+The test database container keeps running after the tests finish to allow manual inspection. Stop it with `docker stop jkr_test_database`.
+
+### Container scripts
+
+When tests run inside a Docker container (via `testing.docker-compose.yml`), the following scripts are used automatically:
+
+- **`tests/scripts/init_database_container.sh`** – Initializes the test database inside the container. Imports DVV test data and postal codes (Flyway migrations are already handled by Docker Compose).
+- **`tests/scripts/update_database_container.sh`** – Updates the test database with `DVV_update.xlsx` inside the container. Used by tests that verify DVV data updates.
+
+```bash
+# Make executable (first time only)
+chmod +x tests/scripts/init_database_container.sh
+chmod +x tests/scripts/update_database_container.sh
+```
+
+### Running tests without database (lightweight tests)
+
+Some tests do not require a database connection and can be run independently:
 
 ```bash
 python -m pytest tests/test_liete_kuljetustiedot.py tests/test_kaivotiedot.py tests/test_liete_ilmoitukset.py tests/test_intervals.py tests/test_date_utils.py -v
 ```
 
-NOTE:
-
-If your environment contains saved environmental variables, they may cause issues with the tests.
+> **Note:** If your environment contains saved environmental variables, they may cause issues with the tests.
 
 ### Test data
 

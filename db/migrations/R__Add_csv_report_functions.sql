@@ -28,7 +28,8 @@ CREATE OR REPLACE FUNCTION jkr.filter_kohde_ids_for_report(
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
     is_taajama_yli_200 BOOLEAN,
-    kohde_tyyppi_id INTEGER -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other, null for everything
+    kohde_tyyppi_id INTEGER, -- 5 = hapa, 6 = biohapa, 7 = housing, 8 = other, null for everything
+    onko_viemari BOOLEAN -- null for everything, true for viemäriliitoksessa, false for ei viemäriliitoksessa
 )
 RETURNS TABLE(id INTEGER) AS $$
 BEGIN
@@ -93,7 +94,25 @@ BEGIN
                 AND k.id NOT IN (SELECT kohde_ids_in_taajama FROM jkr.kohde_ids_in_taajama(200))
             )
         ) 
-        AND (kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id);
+        AND (kohde_tyyppi_id IS NULL OR k.kohdetyyppi_id = kohde_tyyppi_id)
+        AND (onko_viemari IS NULL OR
+            (
+                onko_viemari = true
+                AND EXISTS (
+                    SELECT 1
+                    FROM jkr.viemari_liitos v
+                    WHERE v.kohde_id = k.id AND v.viemariverkosto_alkupvm <= tarkastelupvm AND (v.viemariverkosto_loppupvm IS NULL OR v.viemariverkosto_loppupvm >= tarkastelupvm)
+                )
+            )
+            OR (
+                onko_viemari = false
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM jkr.viemari_liitos v
+                    WHERE v.kohde_id = k.id AND v.viemariverkosto_alkupvm <= tarkastelupvm AND (v.viemariverkosto_loppupvm IS NULL OR v.viemariverkosto_loppupvm >= tarkastelupvm)
+                )
+            )
+        );
 END;
 $$ LANGUAGE plpgsql;
 
@@ -177,7 +196,7 @@ BEGIN
         LEFT JOIN
             jkr.kompostori AS kom ON kom.id = k.kompostori_id
         WHERE
-            kom.voimassaolo && tarkistusjakso && kom.onko_liete IS NOT TRUE
+            kom.voimassaolo && tarkistusjakso AND kom.onko_liete IS NOT TRUE
         ORDER BY
             k_id.kohde_id, kom.loppupvm DESC
     )
@@ -274,7 +293,146 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_lietekuljetukset;
+CREATE OR REPLACE FUNCTION jkr.kohteiden_lietekuljetukset(kohde_ids INTEGER[], tarkastelupvm DATE)
+RETURNS TABLE(
+    Kohde_id INTEGER,
+    "Lietekuljetus saostussäiliö" DATE,
+    "Lietekuljetus umpisäiliö" DATE,
+    "Lietekuljetus pienpuhdistamo" DATE,
+    "Lietetyyppi ei tiedossa" DATE,
+    "Lietteen kuljetusliikkeen nimi" TEXT
+) AS $$
+DECLARE
+    aikarajaus_alku DATE := tarkastelupvm - INTERVAL '5 years';
+BEGIN
+    RETURN QUERY
+    WITH lietekuljetukset AS (
+        SELECT
+            k.kohde_id,
+            k.lietteentyhjennyspaiva,
+            k.jatteen_kuvaus,
+            k.tiedontuottaja_tunnus
+        FROM
+            jkr.kuljetus k
+        WHERE
+            k.kohde_id = ANY(kohde_ids)
+            AND k.jatetyyppi_id IN (5, 6, 7)
+            AND k.lietteentyhjennyspaiva > aikarajaus_alku
+    ),
+    aggregated AS (
+        SELECT
+            lk.kohde_id,
+            MAX(CASE WHEN lk.jatteen_kuvaus = 'Saostussäiliö' THEN lk.lietteentyhjennyspaiva END) AS saostussailio,
+            MAX(CASE WHEN lk.jatteen_kuvaus = 'Umpisäiliö' THEN lk.lietteentyhjennyspaiva END) AS umpisailio,
+            MAX(CASE WHEN lk.jatteen_kuvaus = 'Pienpuhdistamo' THEN lk.lietteentyhjennyspaiva END) AS pienpuhdistamo,
+            MAX(CASE WHEN lk.jatteen_kuvaus IN ('Ei tiedossa', 'Ei tietoa') THEN lk.lietteentyhjennyspaiva END) AS ei_tiedossa
+        FROM
+            lietekuljetukset lk
+        GROUP BY
+            lk.kohde_id
+    ),
+    viimeisin_kuljetus AS (
+        SELECT DISTINCT ON (lk.kohde_id)
+            lk.kohde_id,
+            tt.nimi AS kuljetusliike_nimi
+        FROM
+            lietekuljetukset lk
+        LEFT JOIN
+            jkr_koodistot.tiedontuottaja tt ON lk.tiedontuottaja_tunnus = tt.tunnus
+        ORDER BY
+            lk.kohde_id, lk.lietteentyhjennyspaiva DESC
+    )
+    SELECT
+        k_id.kohde_id,
+        ag.saostussailio AS "Lietekuljetus saostussäiliö",
+        ag.umpisailio AS "Lietekuljetus umpisäiliö",
+        ag.pienpuhdistamo AS "Lietekuljetus pienpuhdistamo",
+        ag.ei_tiedossa AS "Lietetyyppi ei tiedossa",
+        vk.kuljetusliike_nimi AS "Lietteen kuljetusliikkeen nimi"
+    FROM
+        unnest(kohde_ids) AS k_id(kohde_id)
+    LEFT JOIN
+        aggregated ag ON ag.kohde_id = k_id.kohde_id
+    LEFT JOIN
+        viimeisin_kuljetus vk ON vk.kohde_id = k_id.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_kaivotiedot;
+CREATE OR REPLACE FUNCTION jkr.kohteiden_kaivotiedot(kohde_ids INTEGER[], tarkastelujakso DATERANGE)
+RETURNS TABLE(
+    Kohde_id INTEGER,
+    "Kantovesi" DATE,
+    "Kaivotieto saostussäiliö" DATE,
+    "Kaivotieto umpisäiliö" DATE,
+    "Kaivotieto pienpuhdistamo" DATE,
+    "Kompostoi lietteen" DATE,
+    "Vain harmaita vesiä" DATE
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH kaivotiedot AS (
+        SELECT
+            kt.kohde_id,
+            CASE WHEN ktt.id = 1 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS kantovesi,
+            CASE WHEN ktt.id = 2 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS saostussailio,
+            CASE WHEN ktt.id = 4 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS umpisailio,
+            CASE WHEN ktt.id = 3 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS pienpuhdistamo,
+            CASE WHEN ktt.id = 5 AND kt.loppupvm IS NULL THEN kt.alkupvm END AS harmaat_vedet
+        FROM
+            jkr.kaivotieto kt
+        JOIN
+            jkr_koodistot.kaivotietotyyppi ktt ON kt.kaivotietotyyppi_id = ktt.id
+        WHERE
+            kt.kohde_id = ANY(kohde_ids)
+    ),
+    aggregated_kaivotiedot AS (
+        SELECT
+            k.kohde_id,
+            MAX(k.kantovesi) AS kantovesi,
+            MAX(k.saostussailio) AS saostussailio,
+            MAX(k.umpisailio) AS umpisailio,
+            MAX(k.pienpuhdistamo) AS pienpuhdistamo,
+            MAX(k.harmaat_vedet) AS harmaat_vedet
+        FROM
+            kaivotiedot k
+        GROUP BY
+            k.kohde_id
+    ),
+    lietekompostointi AS (
+        SELECT DISTINCT ON (kk.kohde_id)
+            kk.kohde_id,
+            ko.loppupvm
+        FROM
+            jkr.kompostorin_kohteet kk
+        JOIN
+            jkr.kompostori ko ON kk.kompostori_id = ko.id
+        WHERE
+            kk.kohde_id = ANY(kohde_ids)
+            AND ko.onko_liete = TRUE
+            AND ko.voimassaolo && tarkastelujakso
+        ORDER BY
+            kk.kohde_id, ko.loppupvm DESC
+    )
+    SELECT
+        k_id.kohde_id,
+        ak.kantovesi AS "Kantovesi",
+        ak.saostussailio AS "Kaivotieto saostussäiliö",
+        ak.umpisailio AS "Kaivotieto umpisäiliö",
+        ak.pienpuhdistamo AS "Kaivotieto pienpuhdistamo",
+        lk.loppupvm AS "Kompostoi lietteen",
+        ak.harmaat_vedet AS "Vain harmaita vesiä"
+    FROM
+        unnest(kohde_ids) AS k_id(kohde_id)
+    LEFT JOIN
+        aggregated_kaivotiedot ak ON ak.kohde_id = k_id.kohde_id
+    LEFT JOIN
+        lietekompostointi lk ON lk.kohde_id = k_id.kohde_id;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP FUNCTION IF EXISTS jkr.get_report_filter;
 CREATE OR REPLACE FUNCTION jkr.get_report_filter(
     tarkastelupvm DATE,
     kohde_ids INTEGER[]
@@ -286,7 +444,8 @@ RETURNS TABLE(
     huoneistomaara BIGINT,
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
-    kohdetyyppi TEXT
+    kohdetyyppi TEXT,
+    viemarissa DATE
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -348,7 +507,8 @@ BEGIN
 		            ) 
 		        LIMIT 1
 		),
-        kt.selite as kohdetyyppi
+        kt.selite as kohdetyyppi,
+        v.viemariverkosto_alkupvm as viemarissa
     FROM jkr.kohde k
     LEFT JOIN jkr_koodistot.kohdetyyppi kt ON k.kohdetyyppi_id = kt.id
 	LEFT JOIN (
@@ -381,11 +541,13 @@ BEGIN
 				O.ID DESC
 	) osoitetiedot ON osoitetiedot.KOHDE_ID = K.ID
 	AND osoitetiedot.KOHDETYYPPI_ID = K.KOHDETYYPPI_ID
+    LEFT JOIN jkr.viemari_liitos v ON v.kohde_id = k.id AND v.viemariverkosto_alkupvm <= tarkastelupvm AND (v.viemariverkosto_loppupvm IS NULL OR v.viemariverkosto_loppupvm >= tarkastelupvm)
     WHERE k.id = ANY(kohde_ids);
 END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_velvoitteet(INTEGER[], DATErange);
 CREATE OR REPLACE FUNCTION jkr.kohteiden_velvoitteet(kohde_ids INTEGER[], tarkistusjakso DATErange)
 RETURNS TABLE(
     Kohde_id INTEGER,
@@ -396,7 +558,8 @@ RETURNS TABLE(
     Muovipakkausvelvoite TEXT,
     Kartonkipakkausvelvoite TEXT,
     Lasipakkausvelvoite TEXT,
-    Metallipakkausvelvoite TEXT
+    Metallipakkausvelvoite TEXT,
+    "Velvoiteyhteenveto liete" TEXT
 ) AS $$
 DECLARE
     selected_tallennuspvm DATE;
@@ -463,6 +626,25 @@ BEGIN
             velvoite_data vd
         GROUP BY
             vd.kohde_id
+    ),
+    lietevelvoite_data AS (
+        SELECT DISTINCT ON (v.kohde_id)
+            v.kohde_id,
+            vm.kuvaus,
+            vm.prioriteetti
+        FROM
+            jkr.velvoite v
+        JOIN
+            jkr.velvoite_status vs ON v.id = vs.velvoite_id
+        JOIN
+            jkr.velvoitemalli vm ON v.velvoitemalli_id = vm.id
+        WHERE
+            v.kohde_id = ANY(kohde_ids)
+            AND vs.ok = TRUE
+            AND vs.tallennuspvm = selected_tallennuspvm
+            AND vm.selite = 'Lietevelvoite'
+        ORDER BY
+            v.kohde_id, vm.prioriteetti ASC
     )
     SELECT
         k_id.kohde_id,
@@ -473,13 +655,16 @@ BEGIN
         av.muovipakkausvelvoite,
         av.kartonkipakkausvelvoite,
         av.lasipakkausvelvoite,
-        av.metallipakkausvelvoite
+        av.metallipakkausvelvoite,
+        lv.kuvaus AS "Velvoiteyhteenveto liete"
     FROM
         unnest(kohde_ids) AS k_id(kohde_id)
     LEFT JOIN
         (SELECT DISTINCT ON (kohde_id) * FROM velvoiteyhteenveto_data) vy ON vy.kohde_id = k_id.kohde_id
     LEFT JOIN
-        aggregated_velvoite av ON av.kohde_id = k_id.kohde_id;
+        aggregated_velvoite av ON av.kohde_id = k_id.kohde_id
+    LEFT JOIN
+        lietevelvoite_data lv ON lv.kohde_id = k_id.kohde_id;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -611,26 +796,241 @@ BEGIN
                 )
             )
     ),
+    -- Fallback: kohteille joilla ei ole yhtään significant-rakennusta
+    -- haetaan kaikki rakennukset ja järjestetään "paremmuuden" mukaan
+    fallback_rakennukset AS (
+        SELECT
+            kr.kohde_id,
+            r.id AS rakennus_id,
+            r.prt::TEXT AS prt,
+            rl.selite AS rakennusluokka_2018,
+            ro.selite::TEXT AS kayttotila,
+            rt.selite::TEXT AS kayttotarkoitus,
+            r.kiinteistotunnus::TEXT AS sijaintikiinteisto,
+            ST_X(ST_Transform(r.geom, 3067)) AS x_koordinaatti,
+            ST_Y(ST_Transform(r.geom, 3067)) AS y_koordinaatti,
+            COALESCE(r.huoneistomaara, 0) AS huoneistomaara
+        FROM
+            jkr.kohteen_rakennukset kr
+        JOIN
+            jkr.rakennus r ON kr.rakennus_id = r.id
+        LEFT JOIN
+            jkr_koodistot.rakennuksenkayttotarkoitus rt ON r.rakennuksenkayttotarkoitus_koodi = rt.koodi
+        LEFT JOIN
+            jkr_koodistot.rakennuksenolotila ro ON r.rakennuksenolotila_koodi = ro.koodi
+        LEFT JOIN
+            jkr_koodistot.rakennusluokka_2018 rl ON r.rakennusluokka_2018 = rl.koodi
+        WHERE
+            kr.kohde_id = ANY(kohde_ids)
+            AND NOT EXISTS (
+                SELECT 1 FROM significant_rakennukset sr WHERE sr.kohde_id = kr.kohde_id
+            )
+    ),
+    ranked_significant AS (
+        SELECT DISTINCT ON (sr.kohde_id, sr.rakennus_id)
+            sr.kohde_id, sr.rakennus_id, sr.prt, sr.rakennusluokka_2018,
+            sr.kayttotila, sr.kayttotarkoitus, sr.sijaintikiinteisto,
+            sr.x_koordinaatti, sr.y_koordinaatti,
+            ROW_NUMBER() OVER (PARTITION BY sr.kohde_id ORDER BY sr.rakennus_id) AS rn
+        FROM significant_rakennukset sr
+    ),
+    ranked_fallback AS (
+        SELECT DISTINCT ON (fr.kohde_id, fr.rakennus_id)
+            fr.kohde_id, fr.rakennus_id, fr.prt, fr.rakennusluokka_2018,
+            fr.kayttotila, fr.kayttotarkoitus, fr.sijaintikiinteisto,
+            fr.x_koordinaatti, fr.y_koordinaatti,
+            ROW_NUMBER() OVER (
+                PARTITION BY fr.kohde_id
+                ORDER BY
+                    -- 1. Käyttötilan paremmuus: aktiivinen > tuntematon/tyhjä > purettu/tuhoutunut
+                    CASE fr.kayttotila
+                        WHEN 'käytetään vakinaiseen asumiseen'      THEN 0
+                        WHEN 'käytetään loma-asumiseen'             THEN 0
+                        WHEN 'käytetään muuhun tilapäiseen asumiseen' THEN 0
+                        WHEN 'toimitila- tai tuotantokäytössä'      THEN 0
+                        WHEN 'tyhjillään (esim. myynnissä)'         THEN 1
+                        WHEN 'käytöstä ei ole tietoa'               THEN 1
+                        WHEN 'muu (sauna, liiteri, kellotapuli, ym.)' THEN 1
+                        WHEN 'purettu uudisrakentamisen vuoksi'     THEN 2
+                        WHEN 'purettu muusta syystä'                THEN 2
+                        WHEN 'tuhoutunut'                           THEN 2
+                        WHEN 'ränsistymien vuoksi hylätty'          THEN 2
+                        ELSE 1  -- NULL tai tuntematon arvo
+                    END ASC,
+                    -- 2. Enemmän huoneistoja ensin (asuinrakennus tunnistetaan huoneistoista)
+                    fr.huoneistomaara DESC,
+                    -- 3. Käyttötarkoituksen mukainen paremmuusjärjestys
+                    CASE fr.kayttotarkoitus
+                        -- Asuminen
+                        WHEN 'Asuntolat yms.'                                        THEN 0
+                        WHEN 'Hotellit yms.'                                         THEN 0
+                        WHEN 'Loma-, lepo- ja virkistyskodit'                        THEN 0
+                        WHEN 'Vuokrattavat lomamökit ja -osakkeet'                   THEN 0
+                        WHEN 'Muut majoitusliikerakennukset'                         THEN 0
+                        -- Sosiaali- ja terveydenhuolto
+                        WHEN 'Keskussairaalat'                                        THEN 1
+                        WHEN 'Muut sairaalat'                                        THEN 1
+                        WHEN 'Terveyskeskukset'                                      THEN 1
+                        WHEN 'Terveydenhuollon erityislaitokset'                     THEN 1
+                        WHEN 'Muut terveydenhuoltorakennukset'                       THEN 1
+                        WHEN 'Vankilat'                                              THEN 1
+                        -- Toimisto/kauppa/palvelu/kulttuuri (neutraali)
+                        WHEN 'Myymälähallit'                                         THEN 2
+                        WHEN 'Liike- ja tavaratalot, kauppakeskukset'                THEN 2
+                        WHEN 'Muut myymälärakennukset'                               THEN 2
+                        WHEN 'Ravintolat yms.'                                       THEN 2
+                        WHEN 'Toimistorakennukset'                                   THEN 2
+                        WHEN 'Rautatie- ja linja-autoasemat, lento- ja satamaterminaalit' THEN 2
+                        WHEN 'Kulkuneuvojen suoja- ja huoltorakennukset'             THEN 2
+                        WHEN 'Pysäköintitalot'                                       THEN 2
+                        WHEN 'Tietoliikenteen rakennukset'                           THEN 2
+                        WHEN 'Muut liikenteen rakennukset'                           THEN 2
+                        WHEN 'Teatterit, ooppera-, konsertti- ja kongressitalot'     THEN 2
+                        WHEN 'Elokuvateatterit'                                      THEN 2
+                        WHEN 'Kirjastot ja arkistot'                                 THEN 2
+                        WHEN 'Museot ja taidegalleriat'                              THEN 2
+                        WHEN 'Näyttelyhallit'                                        THEN 2
+                        WHEN 'Seura- ja kerhorakennukset yms.'                       THEN 2
+                        WHEN 'Kirkot, kappelit, luostarit ja rukoushuoneet'          THEN 2
+                        WHEN 'Seurakuntatalot'                                       THEN 2
+                        WHEN 'Muut uskonnollisten yhteisöjen rakennukset'            THEN 2
+                        WHEN 'Jäähallit'                                             THEN 2
+                        WHEN 'Uimahallit'                                            THEN 2
+                        WHEN 'Tennis-, squash- ja sulkapallohallit'                  THEN 2
+                        WHEN 'Monitoimihallit ja muut urheiluhallit'                 THEN 2
+                        WHEN 'Muut urheilu- ja kuntoilurakennukset'                  THEN 2
+                        WHEN 'Muut kokoontumisrakennukset'                           THEN 2
+                        -- Teollisuus/varasto/tekniikka
+                        WHEN 'Voimalaitosrakennukset'                                THEN 3
+                        WHEN 'Yhdyskuntatekniikan rakennukset'                       THEN 3
+                        WHEN 'Teollisuushallit'                                      THEN 3
+                        WHEN 'Teollisuus- ja pienteollisuustalot'                    THEN 3
+                        WHEN 'Muut teollisuuden tuotantorakennukset'                 THEN 3
+                        WHEN 'Teollisuusvarastot'                                    THEN 3
+                        WHEN 'Kauppavarastot'                                        THEN 3
+                        WHEN 'Muut varastorakennukset'                               THEN 3
+                        WHEN 'Paloasemat'                                            THEN 3
+                        WHEN 'Väestönsuojat'                                         THEN 3
+                        WHEN 'Muut palo- ja pelastustoimen rakennukset'              THEN 3
+                        -- Maatalous/piharakennukset (vähiten haluttu PRT 1:ksi)
+                        WHEN 'Navetat, sikalat, kanalat yms.'                        THEN 4
+                        WHEN 'Eläinsuojat, ravihevostallit, maneesit yms.'           THEN 4
+                        WHEN 'Viljankuivaamot ja viljan säilytysrakennukset'         THEN 4
+                        WHEN 'Kasvihuoneet'                                          THEN 4
+                        WHEN 'Turkistarhat'                                          THEN 4
+                        WHEN 'Muut maa-, metsä- ja kalatalouden rakennukset'         THEN 4
+                        WHEN 'Saunarakennukset'                                      THEN 4
+                        WHEN 'Talousrakennukset'                                     THEN 4
+                        WHEN 'Muualla luokittelemattomat rakennukset'                THEN 4
+                        ELSE 2  -- NULL tai tuntematon koodi → neutraali
+                    END ASC,
+                    -- 4. Rakennusluokan mukainen paremmuusjärjestys
+                    CASE fr.rakennusluokka_2018
+                        -- Asuinrakennukset ja majoitus
+                        WHEN 'Omakotitalot'                                                          THEN 0
+                        WHEN 'Paritalot'                                                             THEN 0
+                        WHEN 'Rivitalot'                                                             THEN 0
+                        WHEN 'Pienkerrostalot'                                                       THEN 0
+                        WHEN 'Asuinkerrostalot'                                                      THEN 0
+                        WHEN 'Asuntolarakennukset'                                                   THEN 0
+                        WHEN 'Erityisryhmien asuinrakennukset'                                       THEN 0
+                        WHEN 'Ympärivuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset'       THEN 0
+                        WHEN 'Osavuotiseen käyttöön soveltuvat vapaa-ajan asuinrakennukset'          THEN 0
+                        WHEN 'Loma-, lepo- ja virkistyskodit'                                        THEN 0
+                        WHEN 'Hotellit'                                                              THEN 0
+                        WHEN 'Motellit, hostellit ja vastaavat majoitusliikerakennukset'             THEN 0
+                        WHEN 'Muut majoitusliikerakennukset'                                         THEN 0
+                        -- Sosiaali-, terveys- ja opetusrakennukset
+                        WHEN 'Laitospalvelujen rakennukset'                                          THEN 1
+                        WHEN 'Avopalvelujen rakennukset'                                             THEN 1
+                        WHEN 'Terveys- ja hyvinvointikeskukset'                                      THEN 1
+                        WHEN 'Keskussairaalat'                                                       THEN 1
+                        WHEN 'Erikoissairaalat ja laboratoriorakennukset'                            THEN 1
+                        WHEN 'Muut sairaalat'                                                        THEN 1
+                        WHEN 'Kuntoutuslaitokset'                                                    THEN 1
+                        WHEN 'Muut terveydenhuoltorakennukset'                                       THEN 1
+                        WHEN 'Lasten päiväkodit'                                                     THEN 1
+                        WHEN 'Yleissivistävien oppilaitosten rakennukset'                            THEN 1
+                        WHEN 'Ammatillisten oppilaitosten rakennukset'                               THEN 1
+                        WHEN 'Korkeakoulurakennukset'                                                THEN 1
+                        WHEN 'Tutkimuslaitosrakennukset'                                             THEN 1
+                        WHEN 'Järjestöjen, liittojen, työnantajien ja vastaavat opetusrakennukset'  THEN 1
+                        -- Kauppa, toimisto, kulttuuri, urheilu (neutraali)
+                        WHEN 'Tukku- ja vähittäiskaupan myymälähallit'                              THEN 2
+                        WHEN 'Kauppakeskukset ja liike- ja tavaratalot'                              THEN 2
+                        WHEN 'Muut myymälärakennukset'                                               THEN 2
+                        WHEN 'Ravintolarakennukset ja vastaavat liikerakennukset'                    THEN 2
+                        WHEN 'Toimistorakennukset'                                                   THEN 2
+                        WHEN 'Asemarakennukset ja terminaalit'                                       THEN 2
+                        WHEN 'Ammattiliikenteen kaluston suojarakennukset'                           THEN 2
+                        WHEN 'Ammattiliikenteen kaluston huoltorakennukset'                          THEN 2
+                        WHEN 'Pysäköintitalot ja -hallit'                                            THEN 2
+                        WHEN 'Kulkuneuvojen katokset'                                                THEN 2
+                        WHEN 'Datakeskukset ja laitetilat'                                           THEN 2
+                        WHEN 'Tietoliikenteen rakennukset'                                           THEN 2
+                        WHEN 'Muut liikenteen rakennukset'                                           THEN 2
+                        WHEN 'Teatterit, musiikki- ja kongressitalot'                                THEN 2
+                        WHEN 'Elokuvateatterit'                                                      THEN 2
+                        WHEN 'Kirjastot ja arkistot'                                                 THEN 2
+                        WHEN 'Museot ja taidegalleriat'                                              THEN 2
+                        WHEN 'Näyttely- ja messuhallit'                                              THEN 2
+                        WHEN 'Seura- ja kerhorakennukset'                                            THEN 2
+                        WHEN 'Uskonnonharjoittamisrakennukset'                                       THEN 2
+                        WHEN 'Seurakuntatalot'                                                       THEN 2
+                        WHEN 'Muut uskonnollisten yhteisöjen rakennukset'                            THEN 2
+                        WHEN 'Jäähallit'                                                             THEN 2
+                        WHEN 'Uimahallit'                                                            THEN 2
+                        WHEN 'Monitoimihallit'                                                       THEN 2
+                        WHEN 'Urheilu- ja palloiluhallit'                                            THEN 2
+                        WHEN 'Stadion- ja katsomorakennukset'                                        THEN 2
+                        WHEN 'Muut urheilu- ja liikuntarakennukset'                                  THEN 2
+                        WHEN 'Muut kokoontumisrakennukset'                                           THEN 2
+                        -- Teollisuus, energia ja pelastustoimi
+                        WHEN 'Yleiskäyttöiset teollisuushallit'                                      THEN 3
+                        WHEN 'Raskaan teollisuuden tehdasrakennukset'                                THEN 3
+                        WHEN 'Elintarviketeollisuuden tuotantorakennukset'                           THEN 3
+                        WHEN 'Muut teollisuuden tuotantorakennukset'                                 THEN 3
+                        WHEN 'Teollisuus- ja pienteollisuustalot'                                    THEN 3
+                        WHEN 'Metallimalmien käsittelyrakennukset'                                   THEN 3
+                        WHEN 'Sähköenergian tuotantorakennukset'                                     THEN 3
+                        WHEN 'Lämpö- ja kylmäenergian tuotantorakennukset'                          THEN 3
+                        WHEN 'Energiansiirtorakennukset'                                             THEN 3
+                        WHEN 'Energianvarastointirakennukset'                                        THEN 3
+                        WHEN 'Vedenotto-, vedenpuhdistus- ja vedenjakelurakennukset'                 THEN 3
+                        WHEN 'Jätteenkeruu-, jätteenkäsittely- ja jätteenvarastointirakennukset'    THEN 3
+                        WHEN 'Materiaalien kierrätysrakennukset'                                     THEN 3
+                        WHEN 'Paloasemat'                                                            THEN 3
+                        WHEN 'Väestönsuojat'                                                         THEN 3
+                        WHEN 'Muut pelastustoimen rakennukset'                                       THEN 3
+                        -- Piharakennukset (vähiten haluttu PRT 1:ksi)
+                        WHEN 'Saunarakennukset'                                                      THEN 4
+                        ELSE 2  -- NULL tai tuntematon → neutraali
+                    END ASC,
+                    -- 5. Tasatulos: pienin rakennus_id
+                    fr.rakennus_id ASC
+            ) AS rn
+        FROM fallback_rakennukset fr
+    ),
+    ranked_rakennukset AS (
+        SELECT * FROM ranked_significant
+        UNION ALL
+        SELECT * FROM ranked_fallback
+    ),
     first_significant_address AS (
-        SELECT DISTINCT ON (sr.kohde_id)
-            sr.kohde_id,
+        SELECT DISTINCT ON (rr.kohde_id)
+            rr.kohde_id,
             (k.katunimi_fi || ' ' || ao.osoitenumero)::TEXT AS katuosoite,
             ao.posti_numero::TEXT AS postinumero,
             kun.nimi_fi::TEXT AS postitoimipaikka
         FROM
-            significant_rakennukset sr
+            ranked_rakennukset rr
         JOIN
-            jkr.osoite ao ON sr.rakennus_id = ao.rakennus_id
+            jkr.osoite ao ON rr.rakennus_id = ao.rakennus_id
         LEFT JOIN
             jkr_osoite.katu k ON ao.katu_id = k.id
         LEFT JOIN
             jkr_osoite.kunta kun ON k.kunta_koodi = kun.koodi
-    ),
-    ranked_rakennukset AS (
-        SELECT DISTINCT ON (sr.kohde_id, sr.rakennus_id)
-            sr.*,
-            ROW_NUMBER() OVER (PARTITION BY sr.kohde_id ORDER BY sr.rakennus_id) AS rn
-        FROM significant_rakennukset sr
+        WHERE rr.rn = 1
     )
     SELECT
         sr.kohde_id,
@@ -716,10 +1116,16 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_tiedot(INTEGER[]);
 CREATE OR REPLACE FUNCTION jkr.kohteiden_tiedot(kohde_ids INTEGER[])
 RETURNS TABLE(
     Kohde_id INTEGER,
     "Komposti-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen kompostointi-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen tilaajan nimi" TEXT,
+    "Lietteen tilaajan katuosoite" TEXT,
+    "Lietteen tilaajan postinumero" TEXT,
+    "Lietteen tilaajan postitoimipaikka" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
     "Sekajätteen tilaajan postinumero" TEXT,
@@ -745,6 +1151,7 @@ RETURNS TABLE(
 DECLARE
     sekajate_ids INTEGER[];
     salpakierto_ids INTEGER[];
+    liete_tilaaja_id INTEGER;
     omistaja_id INTEGER;
     vanhin_id INTEGER;
 BEGIN
@@ -765,6 +1172,10 @@ BEGIN
             'Tilaaja metalli', 'Kimppaisäntä metalli', 'Kimppaosakas metalli'
         )
     ) INTO salpakierto_ids;
+
+    SELECT id INTO liete_tilaaja_id
+    FROM jkr_koodistot.osapuolenrooli
+    WHERE selite = 'Tilaaja liete';
 
     SELECT id INTO omistaja_id
     FROM jkr_koodistot.osapuolenrooli
@@ -799,6 +1210,47 @@ BEGIN
             ORDER BY ko.loppupvm DESC
             LIMIT 1
         ) AS "Komposti-ilmoituksen tekijän nimi",
+        (
+            SELECT o.nimi
+            FROM jkr.kompostorin_kohteet kk
+            JOIN jkr.kompostori ko ON kk.kompostori_id = ko.id
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE kk.kohde_id = k.kohde_id AND ko.onko_liete = TRUE
+            ORDER BY ko.loppupvm DESC
+            LIMIT 1
+        ) AS "Lietteen kompostointi-ilmoituksen tekijän nimi",
+        (
+            SELECT o.nimi
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan nimi",
+        (
+            SELECT o.katuosoite
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan katuosoite",
+        (
+            SELECT o.postinumero
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan postinumero",
+        (
+            SELECT o.postitoimipaikka
+            FROM jkr.kohteen_osapuolet ko
+            JOIN jkr.osapuoli o ON ko.osapuoli_id = o.id
+            WHERE ko.kohde_id = k.kohde_id
+            AND ko.osapuolenrooli_id = liete_tilaaja_id
+            LIMIT 1
+        ) AS "Lietteen tilaajan postitoimipaikka",
         (
             SELECT o.nimi
             FROM jkr.kohteen_osapuolet ko
@@ -890,13 +1342,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.print_report(DATE, TEXT, INTEGER, BOOLEAN, BOOLEAN, INTEGER, BOOLEAN);
 CREATE OR REPLACE FUNCTION jkr.print_report(
     tarkastelupvm DATE,
     kunta TEXT,
     huoneistomaara INTEGER, -- 4 = four or less, 5 = five or more
     is_taajama_yli_10000 BOOLEAN,
     is_taajama_yli_200 BOOLEAN,
-    kohde_tyyppi_id INTEGER
+    kohde_tyyppi_id INTEGER,
+    onko_viemari BOOLEAN
 )
 RETURNS TABLE(
     kohde_id INTEGER,
@@ -906,7 +1360,13 @@ RETURNS TABLE(
     taajama_yli_10000 TEXT,
     taajama_yli_200 TEXT,
     "kohdetyyppi" TEXT,
+    "Liitetty viemäriin" TEXT,
     "Komposti-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen kompostointi-ilmoituksen tekijän nimi" TEXT,
+    "Lietteen tilaajan nimi" TEXT,
+    "Lietteen tilaajan katuosoite" TEXT,
+    "Lietteen tilaajan postinumero" TEXT,
+    "Lietteen tilaajan postitoimipaikka" TEXT,
     "Sekajätteen tilaajan nimi" TEXT,
     "Sekajätteen tilaajan katuosoite" TEXT,
     "Sekajätteen tilaajan postinumero" TEXT,
@@ -928,6 +1388,13 @@ RETURNS TABLE(
     "Omistaja 3 postinumero" TEXT,
     "Omistaja 3 postitoimipaikka" TEXT,
     "Vahimman asukkaan nimi" TEXT,
+    "Viemäriverkostossa" DATE,
+    "Kantovesi" DATE,
+    "Kaivotieto saostussäiliö" DATE,
+    "Kaivotieto umpisäiliö" DATE,
+    "Kaivotieto pienpuhdistamo" DATE,
+    "Kompostoi lietteen" DATE,
+    "Vain harmaita vesiä" DATE,
     "Velvoitteen tallennuspvm" DATE,
     Velvoiteyhteenveto TEXT,
     Sekajätevelvoite TEXT,
@@ -936,6 +1403,7 @@ RETURNS TABLE(
     Kartonkipakkausvelvoite TEXT,
     Lasipakkausvelvoite TEXT,
     Metallipakkausvelvoite TEXT,
+    "Velvoiteyhteenveto liete" TEXT,
     Muovi DATE,
     Kartonki DATE,
     Metalli DATE,
@@ -944,6 +1412,11 @@ RETURNS TABLE(
     Monilokero DATE,
     Sekajate DATE,
     Akp DATE,
+    "Lietekuljetus saostussäiliö" DATE,
+    "Lietekuljetus umpisäiliö" DATE,
+    "Lietekuljetus pienpuhdistamo" DATE,
+    "Lietetyyppi ei tiedossa" DATE,
+    "Lietteen kuljetusliikkeen nimi" TEXT,
     Kompostoi DATE,
     "Perusmaksupäätös voimassa" DATE,
     "Perusmaksupäätös" TEXT,
@@ -1043,7 +1516,8 @@ BEGIN
         huoneistomaara,
         is_taajama_yli_10000,
         is_taajama_yli_200,
-        kohde_tyyppi_id
+        kohde_tyyppi_id,
+        onko_viemari
     ) AS id;
 
     RETURN QUERY
@@ -1055,7 +1529,13 @@ BEGIN
         fil.taajama_yli_10000,
         fil.taajama_yli_200,
         fil.kohdetyyppi,
+        CASE WHEN fil.viemarissa IS NOT NULL THEN 'Viemäriverkostossa' ELSE 'Ei viemäriverkostossa' END AS "Liitetty viemäriin",
         koh."Komposti-ilmoituksen tekijän nimi",
+        koh."Lietteen kompostointi-ilmoituksen tekijän nimi",
+        koh."Lietteen tilaajan nimi",
+        koh."Lietteen tilaajan katuosoite",
+        koh."Lietteen tilaajan postinumero",
+        koh."Lietteen tilaajan postitoimipaikka",
         koh."Sekajätteen tilaajan nimi",
         koh."Sekajätteen tilaajan katuosoite",
         koh."Sekajätteen tilaajan postinumero",
@@ -1077,6 +1557,13 @@ BEGIN
         koh."Omistaja 3 postinumero",
         koh."Omistaja 3 postitoimipaikka",
         koh."Vahimman asukkaan nimi",
+        fil.viemarissa,
+        kai."Kantovesi",
+        kai."Kaivotieto saostussäiliö",
+        kai."Kaivotieto umpisäiliö",
+        kai."Kaivotieto pienpuhdistamo",
+        kai."Kompostoi lietteen",
+        kai."Vain harmaita vesiä",
         vel."Velvoitteen tallennuspvm",
         vel.Velvoiteyhteenveto,
         vel.Sekajätevelvoite,
@@ -1085,6 +1572,7 @@ BEGIN
         vel.Kartonkipakkausvelvoite,
         vel.Lasipakkausvelvoite,
         vel.Metallipakkausvelvoite,
+        vel."Velvoiteyhteenveto liete",
         kul.Muovi,
         kul.Kartonki,
         kul.Metalli,
@@ -1093,6 +1581,11 @@ BEGIN
         kul.Monilokero,
         kul.Sekajate,
         kul.Akp,
+        lkul."Lietekuljetus saostussäiliö",
+        lkul."Lietekuljetus umpisäiliö",
+        lkul."Lietekuljetus pienpuhdistamo",
+        lkul."Lietetyyppi ei tiedossa",
+        lkul."Lietteen kuljetusliikkeen nimi",
         paa.Kompostoi,
         paa."Perusmaksupäätös voimassa",
         paa."Perusmaksupäätös",
@@ -1185,12 +1678,18 @@ BEGIN
     LEFT JOIN jkr.kohteiden_tiedot(
         kohde_ids
     ) koh ON fil.kohde_id = koh.kohde_id
+    LEFT JOIN jkr.kohteiden_kaivotiedot(
+        kohde_ids, report_period
+    ) kai ON fil.kohde_id = kai.kohde_id
     LEFT JOIN jkr.kohteiden_velvoitteet(
         kohde_ids, report_period
     ) vel ON fil.kohde_id = vel.kohde_id
     LEFT JOIN jkr.kohteiden_kuljetukset(
         kohde_ids, report_period
     ) kul ON fil.kohde_id = kul.kohde_id
+    LEFT JOIN jkr.kohteiden_lietekuljetukset(
+        kohde_ids, tarkastelupvm
+    ) lkul ON fil.kohde_id = lkul.kohde_id
     LEFT JOIN jkr.kohteiden_paatokset(
         kohde_ids, report_period
     ) paa ON fil.kohde_id = paa.kohde_id
