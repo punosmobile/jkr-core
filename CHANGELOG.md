@@ -298,3 +298,22 @@ All notable changes to this project will be documented in this file.
 - Layer for showing sewer areas
 - Added a database table for storing log information about data import commands, whether they succeeded or not
 - Fixes to migration configuration
+
+## [0.7.7] - 2026-03-30
+
+### Fixed
+
+- Fixed issue where Pienpuhdistamo was not receiving correct source information from liete kompostori
+- Fixes to pseudonymization fields
+- Several fixes for lietevelvoitteet where the periods would allow overlap between multiple velvoitteet
+- Fixes viemari velvoite where it existing made the check return ok for all eternity
+
+### Added
+
+- Reports now have liete information such as kuljetus, kaivo, liete viemäri and liete komposti
+- Added liete tilaaja name, address and postal code
+
+### Changed
+
+- Jätelaji naming has been slightly changed to match source data
+-
