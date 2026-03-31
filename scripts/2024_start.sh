@@ -348,10 +348,6 @@ log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2024$quarter.xlsx 
         "logs/tietovirrat/2024_$quarter/liete_kuljetukset.log" \
         "Q1 LIETE-kuljetustietojen tuonti"
 
-log_exec "jkr import_paatokset ../data/Liete/Paatokset_2024$quarter.xlsx" \
-        "logs/tietovirrat/2024_$quarter/liete_paatokset.log" \
-        "Q1 LIETE-päätösten tuonti"
-
 # Tavalliset päätökset ja ilmoitukset
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
@@ -393,10 +389,6 @@ quarter="Q2"
 log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2024$quarter.xlsx LSJ 1.4.2024 30.6.2024" \
         "logs/tietovirrat/2024_$quarter/liete_kuljetukset.log" \
         "Q2 LIETE-kuljetustietojen tuonti"
-
-log_exec "jkr import_paatokset ../data/Liete/Paatokset_2024$quarter.xlsx" \
-        "logs/tietovirrat/2024_$quarter/liete_paatokset.log" \
-        "Q2 LIETE-päätösten tuonti"
 
 # Tavalliset päätökset ja ilmoitukset
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \
