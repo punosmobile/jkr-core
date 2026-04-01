@@ -23,11 +23,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+import aiofiles
+import hashlib
 
 from jkrimporter import ws_log_handler
 
@@ -56,6 +58,7 @@ app.add_middleware(
 )
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+UPLOAD_DIR = Path("/data/input")
 
 
 # ---------------------------------------------------------------------------
@@ -764,6 +767,206 @@ async def ws_logs(websocket: WebSocket):
         pass
     finally:
         ws_log_handler.unregister(_sender)
+
+
+# ---------------------------------------------------------------------------
+# Endpointit: Tiedostojen chunked upload
+# ---------------------------------------------------------------------------
+_active_uploads: Dict[str, dict] = {}
+
+
+class UploadInitRequest(BaseModel):
+    """Aloita chunked upload."""
+    filename: str = Field(..., description="Tiedoston nimi")
+    total_size: int = Field(..., description="Tiedoston kokonaiskoko tavuina")
+    chunk_size: int = Field(5 * 1024 * 1024, description="Chunkin koko tavuina (oletus 5 MB)")
+    subfolder: Optional[str] = Field(None, description="Alikansio /data/input -kansion alla")
+
+
+class UploadInitResponse(BaseModel):
+    upload_id: str
+    filename: str
+    total_size: int
+    chunk_size: int
+    total_chunks: int
+    target_path: str
+
+
+class UploadStatusResponse(BaseModel):
+    upload_id: str
+    filename: str
+    total_chunks: int
+    received_chunks: List[int]
+    complete: bool
+    target_path: str
+
+
+@app.post("/upload/init", summary="Aloita chunked file upload", response_model=UploadInitResponse)
+async def upload_init(req: UploadInitRequest):
+    """Aloittaa uuden chunked upload -session."""
+    upload_id = str(uuid.uuid4())
+    total_chunks = -(-req.total_size // req.chunk_size)  # ceil division
+
+    target_dir = UPLOAD_DIR / req.subfolder if req.subfolder else UPLOAD_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_path = target_dir / req.filename
+
+    # Luo tyhjä temp-tiedosto
+    temp_path = target_dir / f".{upload_id}.part"
+
+    _active_uploads[upload_id] = {
+        "filename": req.filename,
+        "total_size": req.total_size,
+        "chunk_size": req.chunk_size,
+        "total_chunks": total_chunks,
+        "received_chunks": set(),
+        "target_path": str(target_path),
+        "temp_path": str(temp_path),
+        "created_at": datetime.now(),
+    }
+
+    logger.info("Upload aloitettu: %s -> %s (%d chunks)", upload_id[:8], req.filename, total_chunks)
+    return UploadInitResponse(
+        upload_id=upload_id,
+        filename=req.filename,
+        total_size=req.total_size,
+        chunk_size=req.chunk_size,
+        total_chunks=total_chunks,
+        target_path=str(target_path),
+    )
+
+
+@app.post("/upload/{upload_id}/chunk", summary="Lähetä tiedoston chunk")
+async def upload_chunk(
+    upload_id: str,
+    chunk_index: int = Form(...),
+    chunk: UploadFile = File(...),
+):
+    """Vastaanottaa yksittäisen chunkin."""
+    if upload_id not in _active_uploads:
+        raise HTTPException(status_code=404, detail="Upload-sessiota ei löydy")
+
+    session = _active_uploads[upload_id]
+    if chunk_index < 0 or chunk_index >= session["total_chunks"]:
+        raise HTTPException(status_code=400, detail=f"Virheellinen chunk_index: {chunk_index}")
+
+    data = await chunk.read()
+    temp_path = session["temp_path"]
+    offset = chunk_index * session["chunk_size"]
+
+    async with aiofiles.open(temp_path, mode="r+b" if os.path.exists(temp_path) else "wb") as f:
+        await f.seek(offset)
+        await f.write(data)
+
+    session["received_chunks"].add(chunk_index)
+    received = len(session["received_chunks"])
+    total = session["total_chunks"]
+
+    logger.info("Upload %s chunk %d/%d vastaanotettu (%d tavua)", upload_id[:8], chunk_index + 1, total, len(data))
+
+    return {
+        "upload_id": upload_id,
+        "chunk_index": chunk_index,
+        "received_chunks": received,
+        "total_chunks": total,
+        "complete": received == total,
+    }
+
+
+@app.post("/upload/{upload_id}/complete", summary="Viimeistele chunked upload")
+async def upload_complete(upload_id: str):
+    """Viimeistelee uploadn: nimeää temp-tiedoston lopulliseksi."""
+    if upload_id not in _active_uploads:
+        raise HTTPException(status_code=404, detail="Upload-sessiota ei löydy")
+
+    session = _active_uploads[upload_id]
+    received = len(session["received_chunks"])
+    total = session["total_chunks"]
+
+    if received < total:
+        missing = sorted(set(range(total)) - session["received_chunks"])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Puuttuu {total - received} chunkkia: {missing[:20]}",
+        )
+
+    temp_path = Path(session["temp_path"])
+    target_path = Path(session["target_path"])
+
+    if target_path.exists():
+        target_path.unlink()
+    temp_path.rename(target_path)
+
+    file_size = target_path.stat().st_size
+    del _active_uploads[upload_id]
+
+    logger.info("Upload %s valmis: %s (%d tavua)", upload_id[:8], session["filename"], file_size)
+    return {
+        "upload_id": upload_id,
+        "filename": session["filename"],
+        "target_path": str(target_path),
+        "file_size": file_size,
+        "status": "completed",
+    }
+
+
+@app.get("/upload/{upload_id}/status", summary="Tarkista upload-session tila", response_model=UploadStatusResponse)
+async def upload_status(upload_id: str):
+    if upload_id not in _active_uploads:
+        raise HTTPException(status_code=404, detail="Upload-sessiota ei löydy")
+    session = _active_uploads[upload_id]
+    received = sorted(session["received_chunks"])
+    return UploadStatusResponse(
+        upload_id=upload_id,
+        filename=session["filename"],
+        total_chunks=session["total_chunks"],
+        received_chunks=received,
+        complete=len(received) == session["total_chunks"],
+        target_path=session["target_path"],
+    )
+
+
+@app.post("/upload/file", summary="Lataa tiedosto kerralla")
+async def upload_file(
+    file: UploadFile = File(...),
+    subfolder: Optional[str] = Form(None),
+):
+    """Lataa yksittäisen tiedoston kerralla /data/input -kansioon."""
+    target_dir = UPLOAD_DIR / subfolder if subfolder else UPLOAD_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_path = target_dir / file.filename
+
+    async with aiofiles.open(str(target_path), "wb") as f:
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB kerrallaan
+            if not chunk:
+                break
+            await f.write(chunk)
+
+    file_size = target_path.stat().st_size
+    logger.info("Tiedosto ladattu: %s (%d tavua)", file.filename, file_size)
+    return {
+        "filename": file.filename,
+        "target_path": str(target_path),
+        "file_size": file_size,
+    }
+
+
+@app.get("/upload/files", summary="Listaa /data/input -kansion tiedostot")
+async def upload_list_files(subfolder: Optional[str] = Query(None)):
+    target_dir = UPLOAD_DIR / subfolder if subfolder else UPLOAD_DIR
+    if not target_dir.exists():
+        return []
+    files = []
+    for f in sorted(target_dir.iterdir()):
+        if f.is_file() and not f.name.startswith("."):
+            files.append({
+                "name": f.name,
+                "path": str(f),
+                "size": f.stat().st_size,
+                "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+            })
+    return files
 
 
 # ---------------------------------------------------------------------------

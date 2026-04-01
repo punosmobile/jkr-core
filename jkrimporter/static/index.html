@@ -619,6 +619,41 @@
             }
         }
 
+        /* Drop zone */
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 28px 20px;
+            text-align: center;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .dropzone:hover {
+            border-color: var(--primary);
+        }
+
+        .dropzone.dragover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.08);
+            color: var(--text);
+        }
+
+        .dropzone .drop-icon {
+            font-size: 1.6rem;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .dropzone .drop-filename {
+            margin-top: 8px;
+            font-size: 0.82rem;
+            color: var(--text);
+            font-weight: 500;
+        }
+
         /* Responsive */
         @media (max-width: 640px) {
             .form-grid {
@@ -671,6 +706,7 @@
             <button class="tab-btn" data-tab="scripts">Skriptit</button>
             <button class="tab-btn" data-tab="tasks">Tehtävät</button>
             <button class="tab-btn" data-tab="logs">Loki</button>
+            <button class="tab-btn" data-tab="files">Tiedostot</button>
             <button class="tab-btn" data-tab="docs">Dokumentaatio</button>
         </div>
 
@@ -1081,6 +1117,80 @@
             </div>
         </div>
 
+        <!-- ============ TIEDOSTOT ============ -->
+        <div class="tab-content" id="tab-files">
+
+            <!-- Yksittäinen tiedosto -->
+            <div class="card">
+                <h3>Lataa tiedosto</h3>
+                <p class="card-desc">Lataa yksittäinen tiedosto palvelimelle (/data/input)</p>
+                <div class="dropzone" id="upload-dropzone">
+                    <span class="drop-icon">&#128462;</span>
+                    Vedä ja pudota tiedosto tähän tai <strong>klikkaa valitaksesi</strong>
+                    <div class="drop-filename" id="upload-filename"></div>
+                    <input type="file" id="upload-file" style="display:none;">
+                </div>
+                <div class="form-grid" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Alikansio (valinnainen)</label>
+                        <input id="upload-subfolder" placeholder="esim. Kuljetustiedot/2024">
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <button class="btn" onclick="runUploadFile()">Lataa</button>
+                    <span id="uploadProgress" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                </div>
+            </div>
+
+            <!-- Chunked upload -->
+            <div class="card">
+                <h3>Chunked upload (isot tiedostot)</h3>
+                <p class="card-desc">Lataa iso tiedosto osissa. Chunk-koko oletuksena 5 MB.</p>
+                <div class="dropzone" id="chunked-dropzone">
+                    <span class="drop-icon">&#128462;</span>
+                    Vedä ja pudota tiedosto tähän tai <strong>klikkaa valitaksesi</strong>
+                    <div class="drop-filename" id="chunked-filename"></div>
+                    <input type="file" id="chunked-file" style="display:none;">
+                </div>
+                <div class="form-grid" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Alikansio (valinnainen)</label>
+                        <input id="chunked-subfolder" placeholder="esim. Liete/2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Chunk-koko (MB)</label>
+                        <input id="chunked-size" type="number" value="5" min="1" max="50">
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn" id="chunkedBtn" onclick="runChunkedUpload()">Lataa osissa</button>
+                    <span id="chunkedProgress" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                </div>
+                <div id="chunkedBar"
+                    style="display:none;margin-top:12px;background:var(--bg);border-radius:6px;height:8px;overflow:hidden;">
+                    <div id="chunkedBarFill"
+                        style="height:100%;background:var(--primary);width:0%;transition:width 0.3s;"></div>
+                </div>
+            </div>
+
+            <!-- Tiedostolista -->
+            <div class="card">
+                <h3>Palvelimen tiedostot</h3>
+                <p class="card-desc">/data/input -kansion sisältö</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Alikansio (valinnainen)</label>
+                        <input id="filelist-subfolder" placeholder="">
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="refreshFileList()" style="margin-bottom:12px;">Päivitä
+                    lista</button>
+                <div id="fileListContainer">
+                    <div class="empty-state">Paina "Päivitä lista" nähdäksesi tiedostot.</div>
+                </div>
+            </div>
+        </div>
+
         <!-- ============ DOKUMENTAATIO ============ -->
         <div class="tab-content" id="tab-docs">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -1125,6 +1235,7 @@
                 if (btn.dataset.tab === 'tasks') refreshTasks();
                 if (btn.dataset.tab === 'logs') { if (_wsAutoConnect) connectLogWs(); }
                 if (btn.dataset.tab !== 'logs') disconnectLogWs();
+                if (btn.dataset.tab === 'files') refreshFileList();
                 if (btn.dataset.tab === 'docs' && !window._docsLoaded) loadDocs();
             });
         });
@@ -1488,6 +1599,136 @@
                 _ws.send(JSON.stringify({ min_level: parseInt(e.target.value) }));
             }
         });
+
+        // ---- Dropzone setup ----
+        function setupDropzone(dropzoneId, fileInputId, filenameId) {
+            const dz = document.getElementById(dropzoneId);
+            const fi = document.getElementById(fileInputId);
+            const fn = document.getElementById(filenameId);
+            dz.addEventListener('click', () => fi.click());
+            fi.addEventListener('change', () => {
+                fn.textContent = fi.files.length ? fi.files[0].name + ' (' + formatBytes(fi.files[0].size) + ')' : '';
+            });
+            dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+            dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+            dz.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dz.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    fi.files = e.dataTransfer.files;
+                    fn.textContent = fi.files[0].name + ' (' + formatBytes(fi.files[0].size) + ')';
+                }
+            });
+        }
+        setupDropzone('upload-dropzone', 'upload-file', 'upload-filename');
+        setupDropzone('chunked-dropzone', 'chunked-file', 'chunked-filename');
+
+        // ---- File Upload ----
+        async function runUploadFile() {
+            const fileInput = document.getElementById('upload-file');
+            const subfolder = document.getElementById('upload-subfolder').value.trim();
+            const progress = document.getElementById('uploadProgress');
+            if (!fileInput.files.length) { toast('Valitse tiedosto', 'error'); return; }
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            if (subfolder) formData.append('subfolder', subfolder);
+            progress.textContent = 'Ladataan...';
+            try {
+                const res = await fetch(API + '/upload/file', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; return; }
+                progress.textContent = `Valmis: ${data.filename} (${formatBytes(data.file_size)})`;
+                toast(`Tiedosto ladattu: ${data.filename}`, 'success');
+                refreshFileList();
+            } catch (e) { progress.textContent = 'Virhe: ' + e.message; toast('Lataus epäonnistui', 'error'); }
+        }
+
+        async function runChunkedUpload() {
+            const fileInput = document.getElementById('chunked-file');
+            const subfolder = document.getElementById('chunked-subfolder').value.trim();
+            const chunkMB = parseInt(document.getElementById('chunked-size').value) || 5;
+            const progress = document.getElementById('chunkedProgress');
+            const bar = document.getElementById('chunkedBar');
+            const barFill = document.getElementById('chunkedBarFill');
+            const btn = document.getElementById('chunkedBtn');
+            if (!fileInput.files.length) { toast('Valitse tiedosto', 'error'); return; }
+            const file = fileInput.files[0];
+            const chunkSize = chunkMB * 1024 * 1024;
+            btn.disabled = true;
+            bar.style.display = 'block';
+            barFill.style.width = '0%';
+            progress.textContent = 'Alustetaan...';
+            try {
+                // 1. Init
+                const initRes = await fetch(API + '/upload/init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: file.name,
+                        total_size: file.size,
+                        chunk_size: chunkSize,
+                        subfolder: subfolder || null,
+                    }),
+                });
+                const initData = await initRes.json();
+                if (!initRes.ok) { toast(initData.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; btn.disabled = false; return; }
+                const { upload_id, total_chunks } = initData;
+                progress.textContent = `0 / ${total_chunks} chunkkia`;
+                // 2. Chunks
+                for (let i = 0; i < total_chunks; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, file.size);
+                    const blob = file.slice(start, end);
+                    const fd = new FormData();
+                    fd.append('chunk_index', i);
+                    fd.append('chunk', blob, file.name);
+                    const cRes = await fetch(API + `/upload/${upload_id}/chunk`, { method: 'POST', body: fd });
+                    if (!cRes.ok) { const err = await cRes.json(); toast(err.detail || 'Chunk-virhe', 'error'); progress.textContent = 'Virhe'; btn.disabled = false; return; }
+                    const pct = Math.round(((i + 1) / total_chunks) * 100);
+                    barFill.style.width = pct + '%';
+                    progress.textContent = `${i + 1} / ${total_chunks} chunkkia (${pct}%)`;
+                }
+                // 3. Complete
+                const compRes = await fetch(API + `/upload/${upload_id}/complete`, { method: 'POST' });
+                const compData = await compRes.json();
+                if (!compRes.ok) { toast(compData.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; btn.disabled = false; return; }
+                progress.textContent = `Valmis: ${compData.filename} (${formatBytes(compData.file_size)})`;
+                toast(`Chunked upload valmis: ${compData.filename}`, 'success');
+                refreshFileList();
+            } catch (e) { progress.textContent = 'Virhe: ' + e.message; toast('Chunked upload epäonnistui', 'error'); }
+            btn.disabled = false;
+        }
+
+        async function refreshFileList() {
+            const subfolder = document.getElementById('filelist-subfolder');
+            const sub = subfolder ? subfolder.value.trim() : '';
+            const container = document.getElementById('fileListContainer');
+            try {
+                const url = sub ? `/upload/files?subfolder=${encodeURIComponent(sub)}` : '/upload/files';
+                const files = await get(url);
+                if (!files.length) { container.innerHTML = '<div class="empty-state">Ei tiedostoja</div>'; return; }
+                container.innerHTML = '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;">'
+                    + '<thead><tr style="color:var(--text-muted);text-align:left;">'
+                    + '<th style="padding:6px 10px;">Nimi</th><th style="padding:6px 10px;">Koko</th>'
+                    + '<th style="padding:6px 10px;">Muokattu</th><th style="padding:6px 10px;">Polku</th></tr></thead><tbody>'
+                    + files.map(f => '<tr style="border-top:1px solid var(--border);">'
+                        + `<td style="padding:6px 10px;font-weight:500;">${esc(f.name)}</td>`
+                        + `<td style="padding:6px 10px;">${formatBytes(f.size)}</td>`
+                        + `<td style="padding:6px 10px;color:var(--text-muted);">${f.modified ? f.modified.replace('T', ' ').substring(0, 19) : ''}</td>`
+                        + `<td style="padding:6px 10px;font-family:monospace;font-size:0.78rem;color:var(--text-muted);">${esc(f.path)}</td>`
+                        + '</tr>').join('')
+                    + '</tbody></table>';
+            } catch (e) { container.innerHTML = '<div class="empty-state">Virhe: ' + esc(e.message || String(e)) + '</div>'; }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes == null) return '-';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
 
         // ---- Documentation ----
         let _docsData = null;
