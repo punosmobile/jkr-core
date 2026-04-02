@@ -1,104 +1,148 @@
 # ==========================================================================
 # JKR Tiedonhallinta – Azure AD App Registration
 #
-# Luo App Registrationin joka palvelee sekä:
-#   - Flutter-frontendia (public client, MSAL-kirjautuminen)
+# Luo App Registrationin joka palvelee:
+#   - Flutter web -frontendia (SPA, MSAL-kirjautuminen)
 #   - Python FastAPI -backendia (token-validointi)
 #
-# Käyttö:
+# Ei client secretia – Flutter web kayttaa SPA-virtaa (Authorization Code + PKCE)
+#
+# Kaytto:
 #   .\create_azure_app_registration.ps1
 #
 # Vaatii: Azure CLI (az) kirjautuneena admin-tunnuksilla
 # ==========================================================================
 
+$ErrorActionPreference = "Stop"
+
 # 1. Luo App Registration
-#    - sign-in-audience: vain oman organisaation käyttäjät
-#    - Flutter käyttää MSAL:ia → tarvitsee SPA redirect URI:t
+#    - sign-in-audience: vain oman organisaation kayttajat
+Write-Host "1/8 Luodaan App Registration..." -ForegroundColor Cyan
 $app = az ad app create `
     --display-name "Tiedonhallinta Development" `
     --sign-in-audience "AzureADMyOrg" | ConvertFrom-Json
 
 $appId = $app.appId
-Write-Host "App ID (Client ID): $appId"
+$objectId = $app.id
+Write-Host "  App ID (Client ID): $appId"
+Write-Host "  Object ID: $objectId"
 
-# 2. Aseta SPA redirect URI:t (Flutter web + dev)
-#    HUOM: Flutter mobile käyttää MSAL:n brokeria, ei tarvitse erillistä redirect URI:a
-az ad app update --id $appId `
-    --spa-redirect-uris "http://localhost:3000" "http://localhost:8080" "msauth://com.example.jkr/callback"
+# 2. Aseta SPA redirect URI:t ja API scope Graph API:lla
+#    az ad app update ei tue --spa-redirect-uris, joten kaytetaan az rest + Graph API:a.
+#    Kirjoitetaan JSON temp-tiedostoon jotta PowerShell ei sotke escapeja.
+Write-Host "2/8 Asetetaan SPA redirect URI:t ja API scope..." -ForegroundColor Cyan
+$scopeId = [guid]::NewGuid().ToString()
+$tempFile = [System.IO.Path]::GetTempFileName()
 
-# 3. Salli public client -virta (Flutter mobile MSAL tarvitsee tämän)
-az ad app update --id $appId `
-    --is-fallback-public-client true
+$jsonContent = @"
+{
+  "identifierUris": ["api://$appId"],
+  "spa": {
+    "redirectUris": ["http://localhost:3000", "http://localhost:8080"]
+  },
+  "api": {
+    "oauth2PermissionScopes": [
+      {
+        "id": "$scopeId",
+        "adminConsentDisplayName": "Access JKR API",
+        "adminConsentDescription": "Allows the user to access JKR Tiedonhallinta API",
+        "userConsentDisplayName": "Access JKR API",
+        "userConsentDescription": "Allows the user to access JKR Tiedonhallinta API",
+        "value": "access_as_user",
+        "type": "User",
+        "isEnabled": true
+      }
+    ]
+  }
+}
+"@
 
-# 4. Lisää Microsoft Graph -oikeudet
-#    User.Read (delegated) – käyttäjän perustiedot
+Set-Content -Path $tempFile -Value $jsonContent -Encoding UTF8
+
+az rest --method PATCH `
+    --uri "https://graph.microsoft.com/v1.0/applications/$objectId" `
+    --headers "Content-Type=application/json" `
+    --body "@$tempFile"
+
+Remove-Item $tempFile -ErrorAction SilentlyContinue
+
+# 3. Lisaa Microsoft Graph -oikeudet
+#    User.Read (delegated) – kayttajan perustiedot
+Write-Host "3/8 Lisataan Graph-oikeudet..." -ForegroundColor Cyan
 az ad app permission add --id $appId `
     --api 00000003-0000-0000-c000-000000000000 `
     --api-permissions e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope
 
-#    GroupMember.Read.All (delegated) – käyttäjän ryhmäjäsenyydet
+#    GroupMember.Read.All (delegated) – kayttajan ryhmajasenydet
 az ad app permission add --id $appId `
     --api 00000003-0000-0000-c000-000000000000 `
     --api-permissions bc024368-1153-4739-b217-4326f2e966d0=Scope
 
-# 5. Sisällytä Security Group -jäsenyydet tokeniin (groups-claim)
+# 4. Sisallyta Security Group -jasenydet tokeniin (groups-claim)
 #    Backend tarkistaa sg-jkr-admin-sql / sg-jkr-viewer-sql Object ID:t tokenista
+Write-Host "4/8 Asetetaan groupMembershipClaims..." -ForegroundColor Cyan
 az ad app update --id $appId `
     --set groupMembershipClaims="SecurityGroup"
 
-# 6. Määritä API scope jota Flutter pyytää tokenissa
-#    Luo "access_as_user" scope → Flutter pyytää: api://<clientId>/access_as_user
-$scopeId = [guid]::NewGuid().ToString()
-$apiBody = @{
-    identifierUris = @("api://$appId")
-    api            = @{
-        oauth2PermissionScopes = @(
-            @{
-                id                      = $scopeId
-                adminConsentDisplayName = "Käytä JKR API:a"
-                adminConsentDescription = "Sallii käyttäjän käyttää JKR Tiedonhallinta API:a"
-                userConsentDisplayName  = "Käytä JKR API:a"
-                userConsentDescription  = "Sallii käyttäjän käyttää JKR Tiedonhallinta API:a"
-                value                   = "access_as_user"
-                type                    = "User"
-                isEnabled               = $true
-            }
-        )
-    }
-} | ConvertTo-Json -Depth 5 -Compress
+# 5. Luo Service Principal (vaaditaan ennen permission grant:ia)
+Write-Host "5/8 Luodaan Service Principal..." -ForegroundColor Cyan
+$ErrorActionPreference = "SilentlyContinue"
+$existingSp = az ad sp show --id $appId 2>$null
+$ErrorActionPreference = "Stop"
+if (-not $existingSp) {
+    az ad sp create --id $appId | Out-Null
+    Write-Host "  Service Principal luotu."
+}
+else {
+    Write-Host "  Service Principal on jo olemassa, ohitetaan."
+}
 
-az rest --method PATCH `
-    --uri "https://graph.microsoft.com/v1.0/applications/$($app.id)" `
-    --headers "Content-Type=application/json" `
-    --body $apiBody
+# 6. Myonna admin consent Graph-oikeuksille (vaatii admin-oikeudet)
+#    permission grant luo OAuth2-consentobjektin (AllPrincipals) suoraan.
+#    admin-consent ei toimi SP:n kanssa joka on juuri luotu (tunnettu bugi).
+Write-Host "6/8 Myonnetaan admin consent..." -ForegroundColor Cyan
+$ErrorActionPreference = "SilentlyContinue"
+az ad app permission grant --id $appId `
+    --api 00000003-0000-0000-c000-000000000000 `
+    --scope "User.Read GroupMember.Read.All" 2>$null | Out-Null
+$ErrorActionPreference = "Stop"
+Write-Host "  Admin consent myonnetty (User.Read, GroupMember.Read.All)."
 
-# 7. Myönnä admin consent (vaatii admin-oikeudet)
-az ad app permission admin-consent --id $appId
+# 7. Hae Security Group Object ID:t
+Write-Host "7/8 Haetaan Security Group ID:t..." -ForegroundColor Cyan
+$ErrorActionPreference = "SilentlyContinue"
+$adminGroupId = az ad group show --group "sg-jkr-admin-sql" --query id -o tsv 2>$null
+$viewerGroupId = az ad group show --group "sg-jkr-viewer-sql" --query id -o tsv 2>$null
+$ErrorActionPreference = "Stop"
 
-# 8. Luo Service Principal
-az ad sp create --id $appId
+if (-not $adminGroupId) {
+    Write-Host "  VAROITUS: Ryhmaa 'sg-jkr-admin-sql' ei loydy!" -ForegroundColor Yellow
+    $adminGroupId = "<EI LOYTYNYT - aseta manuaalisesti>"
+}
+if (-not $viewerGroupId) {
+    Write-Host "  VAROITUS: Ryhmaa 'sg-jkr-viewer-sql' ei loydy!" -ForegroundColor Yellow
+    $viewerGroupId = "<EI LOYTYNYT - aseta manuaalisesti>"
+}
 
-# 9. Tulosta yhteenveto
+# 8. Tulosta yhteenveto
 $tenantId = az account show --query tenantId -o tsv
 
-Write-Host "`n=========================================="
-Write-Host "Valmis! Yhteenveto:"
-Write-Host "=========================================="
+Write-Host "`n==========================================" -ForegroundColor Green
+Write-Host "8/8 Valmis! Yhteenveto:" -ForegroundColor Green
+Write-Host "==========================================" -ForegroundColor Green
 Write-Host "Client ID:    $appId"
 Write-Host "Tenant ID:    $tenantId"
 Write-Host "API Scope:    api://$appId/access_as_user"
+Write-Host "Admin Group:  $adminGroupId (sg-jkr-admin-sql)"
+Write-Host "Viewer Group: $viewerGroupId (sg-jkr-viewer-sql)"
 Write-Host ""
-Write-Host "Backend-ympäristömuuttujat (.env):"
+Write-Host "Backend-ymparistomuuttujat (.env):"
 Write-Host "  AZURE_TENANT_ID=$tenantId"
 Write-Host "  AZURE_CLIENT_ID=$appId"
-Write-Host "  AZURE_ADMIN_GROUP_ID=<sg-jkr-admin-sql Object ID>"
-Write-Host "  AZURE_VIEWER_GROUP_ID=<sg-jkr-viewer-sql Object ID>"
+Write-Host "  AZURE_ADMIN_GROUP_ID=$adminGroupId"
+Write-Host "  AZURE_VIEWER_GROUP_ID=$viewerGroupId"
 Write-Host ""
 Write-Host "Flutter-konfiguraatio:"
 Write-Host "  clientId: $appId"
 Write-Host "  tenantId: $tenantId"
 Write-Host "  scopes: ['api://$appId/access_as_user']"
-Write-Host ""
-Write-Host "HUOM: Hae Security Group Object ID:t komennolla:"
-Write-Host "  az ad group show --group 'sg-jkr-admin-sql' --query id -o tsv"
-Write-Host "  az ad group show --group 'sg-jkr-viewer-sql' --query id -o tsv"

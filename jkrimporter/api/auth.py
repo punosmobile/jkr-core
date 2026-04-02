@@ -33,11 +33,9 @@ AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "")
 AZURE_ADMIN_GROUP_ID = os.environ.get("AZURE_ADMIN_GROUP_ID", "")
 AZURE_VIEWER_GROUP_ID = os.environ.get("AZURE_VIEWER_GROUP_ID", "")
 
-# Azure AD OIDC-endpointit
-_OPENID_CONFIG_URL = (
-    f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/v2.0/.well-known/openid-configuration"
-)
-_JWKS_URL = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/discovery/v2.0/keys"
+def _jwks_url() -> str:
+    """JWKS URL muodostetaan dynaamisesti, jotta AZURE_TENANT_ID voi tulla myöhemmin."""
+    return f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/discovery/v2.0/keys"
 
 # ---------------------------------------------------------------------------
 # JWKS-avainten välimuisti
@@ -51,7 +49,7 @@ async def _get_jwks() -> Dict:
     if _jwks_cache is not None:
         return _jwks_cache
     async with httpx.AsyncClient() as client:
-        resp = await client.get(_JWKS_URL)
+        resp = await client.get(_jwks_url())
         resp.raise_for_status()
         _jwks_cache = resp.json()
         logger.info("Azure AD JWKS-avaimet haettu (%d avainta)", len(_jwks_cache.get("keys", [])))
@@ -153,11 +151,14 @@ async def _validate_token(
 
     # Validoi token
     try:
+        # Azure AD:n access_token audience on "api://<clientId>" kun käytetään
+        # custom API scopea (access_as_user). Hyväksytään molemmat muodot.
+        valid_audiences = [AZURE_CLIENT_ID, f"api://{AZURE_CLIENT_ID}"]
         payload = jwt.decode(
             token,
             rsa_key,
             algorithms=["RS256"],
-            audience=AZURE_CLIENT_ID,
+            audience=valid_audiences,
             issuer=f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/v2.0",
         )
     except jwt.ExpiredSignatureError:
