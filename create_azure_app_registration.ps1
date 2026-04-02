@@ -53,6 +53,22 @@ $jsonContent = @"
         "isEnabled": true
       }
     ]
+  },
+  "optionalClaims": {
+    "accessToken": [
+      {
+        "name": "groups",
+        "essential": false,
+        "additionalProperties": ["sam_account_name", "cloud_displayname"]
+      }
+    ],
+    "idToken": [
+      {
+        "name": "groups",
+        "essential": false,
+        "additionalProperties": ["sam_account_name", "cloud_displayname"]
+      }
+    ]
   }
 }
 "@

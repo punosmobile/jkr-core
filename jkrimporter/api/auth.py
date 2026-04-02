@@ -152,14 +152,30 @@ async def _validate_token(
     # Validoi token
     try:
         # Azure AD:n access_token audience on "api://<clientId>" kun käytetään
-        # custom API scopea (access_as_user). Hyväksytään molemmat muodot.
-        valid_audiences = [AZURE_CLIENT_ID, f"api://{AZURE_CLIENT_ID}"]
+        # custom API scopea (access_as_user).
+        # python-jose ei hyväksy listaa audience-parametrina, joten
+        # tarkistetaan ensin aud manuaalisesti ja annetaan decode:lle yksi arvo.
+        unverified_claims = jwt.get_unverified_claims(token)
+        token_aud = unverified_claims.get("aud", "")
+        expected_audiences = {AZURE_CLIENT_ID, f"api://{AZURE_CLIENT_ID}"}
+        if token_aud not in expected_audiences:
+            raise JWTError(f"Väärä audience: {token_aud}")
+        # Azure AD voi antaa issuerin v1.0- tai v2.0-muodossa riippuen
+        # app registrationin ja tokenin konfiguraatiosta.
+        # python-jose ei hyväksy listaa issuerille, joten tarkistetaan manuaalisesti.
+        token_iss = unverified_claims.get("iss", "")
+        valid_issuers = {
+            f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/v2.0",
+            f"https://sts.windows.net/{AZURE_TENANT_ID}/",
+        }
+        if token_iss not in valid_issuers:
+            raise JWTError(f"Invalid issuer: {token_iss}")
         payload = jwt.decode(
             token,
             rsa_key,
             algorithms=["RS256"],
-            audience=valid_audiences,
-            issuer=f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/v2.0",
+            audience=token_aud,
+            options={"verify_iss": False},
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
