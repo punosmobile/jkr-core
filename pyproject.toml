@@ -43,6 +43,8 @@ fastapi = "^0.95.0"
 uvicorn = {version = "^0.22.0", extras = ["standard"]}
 aiofiles = "^23.1.0"
 python-multipart = ">=0.0.5"
+python-jose = {version = "^3.3.0", extras = ["cryptography"]}
+httpx = ">=0.24.0"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^5.0.4"

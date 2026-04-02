@@ -23,7 +23,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Query
+from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +32,7 @@ import aiofiles
 import hashlib
 
 from jkrimporter import ws_log_handler
+from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -377,12 +378,12 @@ class TaskResponse(BaseModel):
 # Endpointit: Tehtävien hallinta
 # ---------------------------------------------------------------------------
 @app.get("/tasks", summary="Listaa kaikki tehtävät")
-async def list_tasks():
+async def list_tasks(user: CurrentUser = Depends(require_authenticated)):
     return list(_tasks.values())
 
 
 @app.get("/tasks/{task_id}", summary="Hae tehtävän tila", response_model=TaskInfo)
-async def get_task(task_id: str):
+async def get_task(task_id: str, user: CurrentUser = Depends(require_authenticated)):
     if task_id not in _tasks:
         raise HTTPException(status_code=404, detail="Tehtävää ei löydy")
     return _tasks[task_id]
@@ -392,7 +393,7 @@ async def get_task(task_id: str):
 # Endpointit: jkr CLI -komennot
 # ---------------------------------------------------------------------------
 @app.post("/jkr/import", summary="jkr import – Kuljetustietojen tuonti", response_model=TaskResponse)
-async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks):
+async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
     task = _create_task(cmd, f"Kuljetustietojen tuonti ({req.tiedontuottajatunnus} {req.alkupvm}-{req.loppupvm})")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -400,7 +401,7 @@ async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks):
 
 
 @app.post("/jkr/import_liete", summary="jkr import_liete – LIETE-kuljetustietojen tuonti", response_model=TaskResponse)
-async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: BackgroundTasks):
+async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
     task = _create_task(cmd, f"LIETE-kuljetustietojen tuonti ({req.alkupvm}-{req.loppupvm})")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -408,7 +409,7 @@ async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: Backgro
 
 
 @app.post("/jkr/import_paatokset", summary="jkr import_paatokset – Päätösten tuonti", response_model=TaskResponse)
-async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks: BackgroundTasks):
+async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_paatokset {req.siirtotiedosto}"
     task = _create_task(cmd, "Päätösten tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -416,7 +417,7 @@ async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks:
 
 
 @app.post("/jkr/import_ilmoitukset", summary="jkr import_ilmoitukset – Ilmoitusten tuonti", response_model=TaskResponse)
-async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_tasks: BackgroundTasks):
+async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_ilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Kompostointi-ilmoitusten tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -424,7 +425,7 @@ async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_ta
 
 
 @app.post("/jkr/import_liete_ilmoitukset", summary="jkr import_liete_ilmoitukset – Liete-ilmoitusten tuonti", response_model=TaskResponse)
-async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, background_tasks: BackgroundTasks):
+async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete_ilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Liete kompostointi-ilmoitusten tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -432,7 +433,7 @@ async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, ba
 
 
 @app.post("/jkr/import_lopetusilmoitukset", summary="jkr import_lopetusilmoitukset – Lopetusilmoitusten tuonti", response_model=TaskResponse)
-async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest, background_tasks: BackgroundTasks):
+async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopetusilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Lopetusilmoitusten tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -440,7 +441,7 @@ async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest,
 
 
 @app.post("/jkr/import_kaivotiedot", summary="jkr import_kaivotiedot – Kaivotietojen tuonti", response_model=TaskResponse)
-async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_tasks: BackgroundTasks):
+async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedot {req.siirtotiedosto} {req.tiedontuottajatunnus}"
     task = _create_task(cmd, "Kaivotietojen tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -448,7 +449,7 @@ async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_ta
 
 
 @app.post("/jkr/import_kaivotiedon_lopetukset", summary="jkr import_kaivotiedon_lopetukset – Kaivotiedon lopetusten tuonti", response_model=TaskResponse)
-async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetRequest, background_tasks: BackgroundTasks):
+async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedon_lopetukset {req.siirtotiedosto} {req.tiedontuottajatunnus}"
     task = _create_task(cmd, "Kaivotiedon lopetusten tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -456,7 +457,7 @@ async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetR
 
 
 @app.post("/jkr/import_viemarit", summary="jkr import_viemarit – Viemäritietojen tuonti", response_model=TaskResponse)
-async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: BackgroundTasks):
+async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_viemarit {req.siirtotiedosto}"
     task = _create_task(cmd, "Viemäritietojen tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -464,7 +465,7 @@ async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: B
 
 
 @app.post("/jkr/import_lopeta_viemarit", summary="jkr import_lopeta_viemarit – Viemärin lopetusten tuonti", response_model=TaskResponse)
-async def jkr_import_lopeta_viemarit(req: JkrImportLopetaViemaritRequest, background_tasks: BackgroundTasks):
+async def jkr_import_lopeta_viemarit(req: JkrImportLopetaViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopeta_viemarit {req.siirtotiedosto}"
     task = _create_task(cmd, "Viemärin lopetusten tuonti")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -472,7 +473,7 @@ async def jkr_import_lopeta_viemarit(req: JkrImportLopetaViemaritRequest, backgr
 
 
 @app.post("/jkr/create_dvv_kohteet", summary="jkr create_dvv_kohteet – Kohteiden luonti DVV-aineistosta", response_model=TaskResponse)
-async def jkr_create_dvv_kohteet(req: JkrCreateDvvKohteetRequest, background_tasks: BackgroundTasks):
+async def jkr_create_dvv_kohteet(req: JkrCreateDvvKohteetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr create_dvv_kohteet {req.poimintapvm}"
     if req.perusmaksutiedosto:
         cmd += f" {req.perusmaksutiedosto}"
@@ -482,7 +483,7 @@ async def jkr_create_dvv_kohteet(req: JkrCreateDvvKohteetRequest, background_tas
 
 
 @app.post("/jkr/tiedontuottaja/add", summary="jkr tiedontuottaja add – Lisää tiedontuottaja", response_model=TaskResponse)
-async def jkr_tiedontuottaja_add(req: TiedontuottajaAddRequest, background_tasks: BackgroundTasks):
+async def jkr_tiedontuottaja_add(req: TiedontuottajaAddRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr tiedontuottaja add {req.tunnus} '{req.nimi}'"
     task = _create_task(cmd, f"Tiedontuottajan lisäys: {req.tunnus}")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -490,7 +491,7 @@ async def jkr_tiedontuottaja_add(req: TiedontuottajaAddRequest, background_tasks
 
 
 @app.get("/jkr/tiedontuottaja/list", summary="jkr tiedontuottaja list – Listaa tiedontuottajat")
-async def jkr_tiedontuottaja_list():
+async def jkr_tiedontuottaja_list(user: CurrentUser = Depends(require_authenticated)):
     proc = subprocess.run(
         "jkr tiedontuottaja list",
         shell=True,
@@ -505,7 +506,7 @@ async def jkr_tiedontuottaja_list():
 # Endpointit: psql-komennot
 # ---------------------------------------------------------------------------
 @app.post("/psql/exec", summary="Suorita psql-komento (SQL tai tiedosto)", response_model=TaskResponse)
-async def psql_exec(req: PsqlRequest, background_tasks: BackgroundTasks):
+async def psql_exec(req: PsqlRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     if not req.sql and not req.file:
         raise HTTPException(status_code=400, detail="Anna joko 'sql' tai 'file'")
     cmd = _psql_cmd(sql=req.sql, file=req.file)
@@ -516,7 +517,7 @@ async def psql_exec(req: PsqlRequest, background_tasks: BackgroundTasks):
 
 
 @app.post("/psql/copy_csv", summary="psql \\copy CSV-tiedostosta", response_model=TaskResponse)
-async def psql_copy_csv(req: CopyFromCsvRequest, background_tasks: BackgroundTasks):
+async def psql_copy_csv(req: CopyFromCsvRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     header_str = "true" if req.header else "false"
     copy_cmd = (
         f"\\copy {req.table} FROM '{req.file_path}' "
@@ -530,7 +531,7 @@ async def psql_copy_csv(req: CopyFromCsvRequest, background_tasks: BackgroundTas
 
 
 @app.post("/psql/update_velvoitteet", summary="Velvoitteiden päivitys", response_model=TaskResponse)
-async def psql_update_velvoitteet(background_tasks: BackgroundTasks):
+async def psql_update_velvoitteet(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = _psql_cmd(sql="SELECT jkr.update_velvoitteet();")
     task = _create_task(cmd, "Velvoitteiden päivitys")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -538,7 +539,7 @@ async def psql_update_velvoitteet(background_tasks: BackgroundTasks):
 
 
 @app.post("/psql/tallenna_velvoite_status", summary="Velvoite-statuksen tallennus", response_model=TaskResponse)
-async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, background_tasks: BackgroundTasks):
+async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = _psql_cmd(sql=f"SELECT jkr.tallenna_velvoite_status('{req.pvm}');")
     task = _create_task(cmd, f"Velvoite-statuksen tallennus ({req.pvm})")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -549,7 +550,7 @@ async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, back
 # Endpointit: ogr2ogr (DVV-aineiston tuonti)
 # ---------------------------------------------------------------------------
 @app.post("/ogr2ogr/import", summary="ogr2ogr – Tuo aineisto PostgreSQL:ään", response_model=TaskResponse)
-async def ogr2ogr_import(req: Ogr2ogrRequest, background_tasks: BackgroundTasks):
+async def ogr2ogr_import(req: Ogr2ogrRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = _ogr2ogr_cmd(req.source_file, req.layer_name, req.target_table, req.target_schema)
     task = _create_task(cmd, f"ogr2ogr: {req.layer_name} → {req.target_schema}.{req.target_table}")
     background_tasks.add_task(_run_task, task.id, cmd)
@@ -560,7 +561,7 @@ async def ogr2ogr_import(req: Ogr2ogrRequest, background_tasks: BackgroundTasks)
 # Endpointit: Shell-skriptit
 # ---------------------------------------------------------------------------
 @app.post("/scripts/import_taajama", summary="Taajamarajausten tuonti (import_taajama.sh)", response_model=TaskResponse)
-async def scripts_import_taajama(req: ImportTaajamaRequest, background_tasks: BackgroundTasks):
+async def scripts_import_taajama(req: ImportTaajamaRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"sh import_taajama.sh {req.alkupvm}"
     task = _create_task(cmd, f"Taajamarajausten tuonti ({req.alkupvm})")
     background_tasks.add_task(_run_task, task.id, cmd, cwd=str(SCRIPTS_DIR))
@@ -568,7 +569,7 @@ async def scripts_import_taajama(req: ImportTaajamaRequest, background_tasks: Ba
 
 
 @app.post("/scripts/import_viemari", summary="Viemäriverkoston tuonti (import_viemari.sh)", response_model=TaskResponse)
-async def scripts_import_viemari(req: ImportViemariRequest, background_tasks: BackgroundTasks):
+async def scripts_import_viemari(req: ImportViemariRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"sh import_viemari.sh {req.alkupvm} {req.shp_tiedosto}"
     task = _create_task(cmd, f"Viemäriverkoston tuonti ({req.alkupvm})")
     background_tasks.add_task(_run_task, task.id, cmd, cwd=str(SCRIPTS_DIR))
@@ -576,7 +577,7 @@ async def scripts_import_viemari(req: ImportViemariRequest, background_tasks: Ba
 
 
 @app.post("/scripts/run", summary="Aja mikä tahansa shell-skripti", response_model=TaskResponse)
-async def scripts_run(req: ShellScriptRequest, background_tasks: BackgroundTasks):
+async def scripts_run(req: ShellScriptRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     args_str = " ".join(req.args)
     cmd = f"sh {req.script} {args_str}".strip()
     task = _create_task(cmd, f"Skripti: {req.script}")
@@ -588,7 +589,7 @@ async def scripts_run(req: ShellScriptRequest, background_tasks: BackgroundTasks
 # Endpointit: Koko pipeline
 # ---------------------------------------------------------------------------
 @app.post("/pipeline/run", summary="Aja koko tuontiskripti (esim. 2024_start.sh)", response_model=TaskResponse)
-async def pipeline_run(req: RunFullPipelineRequest, background_tasks: BackgroundTasks):
+async def pipeline_run(req: RunFullPipelineRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     project_root = Path(__file__).resolve().parent.parent.parent
     script = project_root / req.script_path
     if not script.exists():
@@ -610,7 +611,7 @@ class GenericCommandRequest(BaseModel):
 
 
 @app.post("/command/run", summary="Aja vapaa komento", response_model=TaskResponse)
-async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTasks):
+async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     task = _create_task(req.command, req.description)
     background_tasks.add_task(_run_task, task.id, req.command, cwd=req.cwd)
     return TaskResponse(task_id=task.id, status=task.status, description=task.description)
@@ -620,7 +621,7 @@ async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTa
 # Tietokantadokumentaatio
 # ---------------------------------------------------------------------------
 @app.get("/db/documentation", summary="Tietokantadokumentaatio (jkr-skeemat)")
-async def db_documentation():
+async def db_documentation(user: CurrentUser = Depends(require_authenticated)):
     """Palauttaa jkr-skeemojen taulut, kentät, kommentit ja tyypit."""
     env = _db_env()
     sql = r"""
@@ -679,6 +680,22 @@ SELECT json_agg(row_to_json(t)) FROM (
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Auth: Käyttäjätiedot (Flutter-frontin käyttöön)
+# ---------------------------------------------------------------------------
+@app.get("/auth/me", summary="Kirjautuneen käyttäjän tiedot ja roolit")
+async def auth_me(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa tokenista puretut käyttäjätiedot. Flutter kutsuu tätä kirjautumisen jälkeen."""
+    return {
+        "oid": user.oid,
+        "name": user.name,
+        "email": user.email,
+        "roles": user.roles,
+        "is_admin": user.is_admin,
+        "is_viewer": user.is_viewer,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -802,7 +819,7 @@ class UploadStatusResponse(BaseModel):
 
 
 @app.post("/upload/init", summary="Aloita chunked file upload", response_model=UploadInitResponse)
-async def upload_init(req: UploadInitRequest):
+async def upload_init(req: UploadInitRequest, user: CurrentUser = Depends(require_admin)):
     """Aloittaa uuden chunked upload -session."""
     upload_id = str(uuid.uuid4())
     total_chunks = -(-req.total_size // req.chunk_size)  # ceil division
@@ -841,6 +858,7 @@ async def upload_chunk(
     upload_id: str,
     chunk_index: int = Form(...),
     chunk: UploadFile = File(...),
+    user: CurrentUser = Depends(require_admin),
 ):
     """Vastaanottaa yksittäisen chunkin."""
     if upload_id not in _active_uploads:
@@ -874,7 +892,7 @@ async def upload_chunk(
 
 
 @app.post("/upload/{upload_id}/complete", summary="Viimeistele chunked upload")
-async def upload_complete(upload_id: str):
+async def upload_complete(upload_id: str, user: CurrentUser = Depends(require_admin)):
     """Viimeistelee uploadn: nimeää temp-tiedoston lopulliseksi."""
     if upload_id not in _active_uploads:
         raise HTTPException(status_code=404, detail="Upload-sessiota ei löydy")
@@ -911,7 +929,7 @@ async def upload_complete(upload_id: str):
 
 
 @app.get("/upload/{upload_id}/status", summary="Tarkista upload-session tila", response_model=UploadStatusResponse)
-async def upload_status(upload_id: str):
+async def upload_status(upload_id: str, user: CurrentUser = Depends(require_authenticated)):
     if upload_id not in _active_uploads:
         raise HTTPException(status_code=404, detail="Upload-sessiota ei löydy")
     session = _active_uploads[upload_id]
@@ -930,6 +948,7 @@ async def upload_status(upload_id: str):
 async def upload_file(
     file: UploadFile = File(...),
     subfolder: Optional[str] = Form(None),
+    user: CurrentUser = Depends(require_admin),
 ):
     """Lataa yksittäisen tiedoston kerralla /data/input -kansioon."""
     target_dir = UPLOAD_DIR / subfolder if subfolder else UPLOAD_DIR
@@ -953,7 +972,7 @@ async def upload_file(
 
 
 @app.get("/upload/files", summary="Listaa /data/input -kansion tiedostot")
-async def upload_list_files(subfolder: Optional[str] = Query(None)):
+async def upload_list_files(subfolder: Optional[str] = Query(None), user: CurrentUser = Depends(require_authenticated)):
     target_dir = UPLOAD_DIR / subfolder if subfolder else UPLOAD_DIR
     if not target_dir.exists():
         return []
