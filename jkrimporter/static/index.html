@@ -1189,6 +1189,56 @@
                     <div class="empty-state">Paina "Päivitä lista" nähdäksesi tiedostot.</div>
                 </div>
             </div>
+
+            <!-- ============ SHAREPOINT ============ -->
+            <div class="card" id="spCard">
+                <h3>&#9729; SharePoint</h3>
+                <p class="card-desc" id="spDesc">SharePoint-siten tiedostot</p>
+
+                <div id="spNotConfigured" style="display:none;">
+                    <div class="empty-state">SharePoint-integraatio ei ole konfiguroitu.<br>
+                        Aseta SHAREPOINT_SITE_ID, AZURE_CLIENT_ID ja AZURE_CLIENT_SECRET ympäristömuuttujat.</div>
+                </div>
+
+                <div id="spConfigured" style="display:none;">
+                    <!-- Kansion selaus -->
+                    <div class="form-grid" style="margin-bottom:12px;">
+                        <div class="form-group" style="flex:1;">
+                            <label>Kansio</label>
+                            <input id="sp-folder" placeholder="oletus: SHAREPOINT_FOLDER">
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-outline" onclick="spRefresh()">Päivitä lista</button>
+                        <span id="spBreadcrumb"
+                            style="font-size:0.8rem;color:var(--text-muted);align-self:center;"></span>
+                    </div>
+                    <div id="spFileList">
+                        <div class="empty-state">Paina "Päivitä lista" nähdäksesi SharePoint-tiedostot.</div>
+                    </div>
+
+                    <!-- Upload SharePointiin -->
+                    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+                        <h4 style="font-size:0.9rem;margin-bottom:8px;">Lataa tiedosto SharePointiin</h4>
+                        <div class="dropzone" id="sp-upload-dropzone">
+                            <span class="drop-icon">&#9729;</span>
+                            Vedä ja pudota tiedosto tai <strong>klikkaa valitaksesi</strong>
+                            <div class="drop-filename" id="sp-upload-filename"></div>
+                            <input type="file" id="sp-upload-file" style="display:none;">
+                        </div>
+                        <div class="form-grid" style="margin-top:8px;">
+                            <div class="form-group">
+                                <label>Kohdekansio (valinnainen)</label>
+                                <input id="sp-upload-folder" placeholder="oletus: SHAREPOINT_FOLDER">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:center;margin-top:8px;">
+                            <button class="btn" onclick="spUpload()">Lataa SharePointiin</button>
+                            <span id="spUploadProgress" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- ============ DOKUMENTAATIO ============ -->
@@ -1720,6 +1770,136 @@
                         + '</tr>').join('')
                     + '</tbody></table>';
             } catch (e) { container.innerHTML = '<div class="empty-state">Virhe: ' + esc(e.message || String(e)) + '</div>'; }
+        }
+
+        // ---- SharePoint ----
+        let _spDefaultFolder = '';
+
+        async function spInit() {
+            try {
+                const st = await get('/sharepoint/status');
+                if (st.configured) {
+                    document.getElementById('spNotConfigured').style.display = 'none';
+                    document.getElementById('spConfigured').style.display = 'block';
+                    _spDefaultFolder = st.default_folder || '';
+                    document.getElementById('sp-folder').placeholder = 'oletus: ' + _spDefaultFolder;
+                    document.getElementById('sp-upload-folder').placeholder = 'oletus: ' + _spDefaultFolder;
+                    document.getElementById('spDesc').textContent = 'Site: ' + (st.site_id || '');
+                } else {
+                    document.getElementById('spNotConfigured').style.display = 'block';
+                    document.getElementById('spConfigured').style.display = 'none';
+                }
+            } catch (e) {
+                document.getElementById('spNotConfigured').style.display = 'block';
+                document.getElementById('spConfigured').style.display = 'none';
+            }
+        }
+        spInit();
+        setupDropzone('sp-upload-dropzone', 'sp-upload-file', 'sp-upload-filename');
+
+        async function spRefresh() {
+            const folder = document.getElementById('sp-folder').value.trim();
+            const container = document.getElementById('spFileList');
+            container.innerHTML = '<div class="empty-state"><div class="spinner"></div> Ladataan...</div>';
+            try {
+                const url = folder
+                    ? '/sharepoint/files?folder=' + encodeURIComponent(folder)
+                    : '/sharepoint/files';
+                const items = await get(url);
+                if (!items.length) {
+                    container.innerHTML = '<div class="empty-state">Kansio on tyhjä</div>';
+                    return;
+                }
+                const currentFolder = folder || _spDefaultFolder;
+                document.getElementById('spBreadcrumb').textContent = currentFolder;
+
+                container.innerHTML = '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;">'
+                    + '<thead><tr style="color:var(--text-muted);text-align:left;">'
+                    + '<th style="padding:6px 10px;">Nimi</th>'
+                    + '<th style="padding:6px 10px;">Tyyppi</th>'
+                    + '<th style="padding:6px 10px;">Koko</th>'
+                    + '<th style="padding:6px 10px;">Muokattu</th>'
+                    + '<th style="padding:6px 10px;">Toiminnot</th>'
+                    + '</tr></thead><tbody>'
+                    + items.map(item => {
+                        const isFolder = item.type === 'folder';
+                        const icon = isFolder ? '&#128193;' : '&#128196;';
+                        const nameHtml = isFolder
+                            ? `<a href="#" onclick="spNavigate('${esc(currentFolder + '/' + item.name)}');return false;" style="color:var(--primary);text-decoration:none;font-weight:600;">${icon} ${esc(item.name)}</a>`
+                            : `<span style="font-weight:500;">${icon} ${esc(item.name)}</span>`;
+                        const sizeStr = isFolder
+                            ? (item.childCount != null ? item.childCount + ' kohdetta' : '-')
+                            : formatBytes(item.size);
+                        const modified = item.lastModified
+                            ? item.lastModified.replace('T', ' ').substring(0, 19)
+                            : '';
+                        const actions = isFolder
+                            ? ''
+                            : `<a href="#" onclick="spDownload('${esc(currentFolder + '/' + item.name)}');return false;" style="color:var(--primary);font-size:0.8rem;text-decoration:none;">&#11015; Lataa</a>`;
+                        return '<tr style="border-top:1px solid var(--border);">'
+                            + `<td style="padding:6px 10px;">${nameHtml}</td>`
+                            + `<td style="padding:6px 10px;color:var(--text-muted);">${isFolder ? 'Kansio' : 'Tiedosto'}</td>`
+                            + `<td style="padding:6px 10px;">${sizeStr}</td>`
+                            + `<td style="padding:6px 10px;color:var(--text-muted);">${modified}</td>`
+                            + `<td style="padding:6px 10px;">${actions}</td>`
+                            + '</tr>';
+                    }).join('')
+                    + '</tbody></table>';
+            } catch (e) {
+                container.innerHTML = '<div class="empty-state">Virhe: ' + esc(e.message || String(e)) + '</div>';
+            }
+        }
+
+        function spNavigate(folder) {
+            document.getElementById('sp-folder').value = folder;
+            spRefresh();
+        }
+
+        async function spDownload(filePath) {
+            try {
+                const url = API + '/sharepoint/download?path=' + encodeURIComponent(filePath);
+                const res = await fetch(url);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    toast(err.detail || 'Lataus epäonnistui', 'error');
+                    return;
+                }
+                const blob = await res.blob();
+                const filename = filePath.split('/').pop();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+                toast('Tiedosto ladattu: ' + filename, 'success');
+            } catch (e) {
+                toast('Lataus epäonnistui: ' + e.message, 'error');
+            }
+        }
+
+        async function spUpload() {
+            const fileInput = document.getElementById('sp-upload-file');
+            const folder = document.getElementById('sp-upload-folder').value.trim();
+            const progress = document.getElementById('spUploadProgress');
+            if (!fileInput.files.length) { toast('Valitse tiedosto', 'error'); return; }
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            if (folder) formData.append('folder', folder);
+            progress.textContent = 'Ladataan SharePointiin...';
+            try {
+                const res = await fetch(API + '/sharepoint/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; return; }
+                progress.textContent = `Valmis: ${data.name} (${formatBytes(data.size)})`;
+                toast('Tiedosto ladattu SharePointiin: ' + data.name, 'success');
+                spRefresh();
+            } catch (e) {
+                progress.textContent = 'Virhe: ' + e.message;
+                toast('SharePoint-lataus epäonnistui', 'error');
+            }
         }
 
         function formatBytes(bytes) {

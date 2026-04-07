@@ -33,6 +33,7 @@ import hashlib
 
 from jkrimporter import ws_log_handler
 from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin
+from jkrimporter.api import sharepoint as sp
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -986,6 +987,73 @@ async def upload_list_files(subfolder: Optional[str] = Query(None), user: Curren
                 "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
             })
     return files
+
+
+# ---------------------------------------------------------------------------
+# SharePoint-integraatio
+# ---------------------------------------------------------------------------
+
+@app.get("/sharepoint/status", summary="SharePoint-integraation tila")
+async def sharepoint_status(user: CurrentUser = Depends(require_authenticated)):
+    configured = await sp.is_configured()
+    return {
+        "configured": configured,
+        "site_id": sp.SHAREPOINT_SITE_ID or None,
+        "default_folder": sp.SHAREPOINT_FOLDER or None,
+    }
+
+
+@app.get("/sharepoint/files", summary="Listaa SharePoint-kansion sisältö")
+async def sharepoint_list_files(
+    folder: Optional[str] = Query(None, description="Kansion polku (oletus: SHAREPOINT_FOLDER)"),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    if not await sp.is_configured():
+        raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
+    try:
+        items = await sp.list_folder(folder)
+        return items
+    except Exception as e:
+        logger.error("SharePoint listaus epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
+
+
+@app.get("/sharepoint/download", summary="Lataa tiedosto SharePointista")
+async def sharepoint_download(
+    path: str = Query(..., description="Tiedoston polku SharePointissa"),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    if not await sp.is_configured():
+        raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
+    try:
+        content, filename, content_type = await sp.download_file(path)
+        from fastapi.responses import Response
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        logger.error("SharePoint download epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
+
+
+@app.post("/sharepoint/upload", summary="Lataa tiedosto SharePointiin")
+async def sharepoint_upload(
+    file: UploadFile = File(...),
+    folder: Optional[str] = Form(None, description="Kohdekansio (oletus: SHAREPOINT_FOLDER)"),
+    user: CurrentUser = Depends(require_admin),
+):
+    if not await sp.is_configured():
+        raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
+    try:
+        content = await file.read()
+        result = await sp.upload_file(content, file.filename, folder)
+        logger.info("SharePoint upload: %s (%d tavua)", file.filename, len(content))
+        return result
+    except Exception as e:
+        logger.error("SharePoint upload epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
 
 
 # ---------------------------------------------------------------------------

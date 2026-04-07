@@ -1,4 +1,4 @@
-# ==========================================================================
+﻿# ==========================================================================
 # JKR Tiedonhallinta – Osa 1/2: App Registration
 #
 # Mitä tämä tekee:
@@ -31,7 +31,7 @@
 [CmdletBinding()]
 param(
     # Ympäristö – vaikuttaa app-nimeen ja redirect URI:hin
-    [ValidateSet("dev","test","prod")]
+    [ValidateSet("dev", "test", "prod")]
     [string]$Env = "dev",
 
     # App Registrationin näyttönimi – oletuksena generoidaan ympäristön mukaan
@@ -59,7 +59,7 @@ $ErrorActionPreference = "Stop"
 function Write-Step([int]$n, [int]$total, [string]$msg) {
     Write-Host "`n$n/$total  $msg" -ForegroundColor Cyan
 }
-function Write-OK([string]$msg)   { Write-Host "  [OK]  $msg" -ForegroundColor Green }
+function Write-OK([string]$msg) { Write-Host "  [OK]  $msg" -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "  [!!]  $msg" -ForegroundColor Yellow }
 function Write-Info([string]$msg) { Write-Host "        $msg" -ForegroundColor Gray }
 function Write-Fatal([string]$msg) {
@@ -149,7 +149,7 @@ Write-Host "  Redirect:  $($redirectUris -join ', ')"
 Write-Host ""
 
 $confirm = Read-Host "Jatketaanko? (k/e)"
-if ($confirm -notin @("k","K","y","Y")) {
+if ($confirm -notin @("k", "K", "y", "Y")) {
     Write-Host "Keskeytettiin." -ForegroundColor Yellow
     exit 0
 }
@@ -164,8 +164,8 @@ $app = az ad app create `
     --display-name $AppName `
     --sign-in-audience "AzureADMyOrg" | ConvertFrom-Json
 
-$appId  = $app.appId
-$objId  = $app.id
+$appId = $app.appId
+$objId = $app.id
 $scopeId = [guid]::NewGuid().ToString()
 
 Write-OK "App ID (Client ID): $appId"
@@ -182,27 +182,27 @@ $patchBody = @{
     spa            = @{ redirectUris = $redirectUris }
     api            = @{
         oauth2PermissionScopes = @(@{
-            id                      = $scopeId
-            adminConsentDisplayName = "Access JKR API"
-            adminConsentDescription = "Allows the user to access JKR Tiedonhallinta API"
-            userConsentDisplayName  = "Access JKR API"
-            userConsentDescription  = "Allows the user to access JKR Tiedonhallinta API"
-            value                   = "access_as_user"
-            type                    = "User"
-            isEnabled               = $true
-        })
+                id                      = $scopeId
+                adminConsentDisplayName = "Access JKR API"
+                adminConsentDescription = "Allows the user to access JKR Tiedonhallinta API"
+                userConsentDisplayName  = "Access JKR API"
+                userConsentDescription  = "Allows the user to access JKR Tiedonhallinta API"
+                value                   = "access_as_user"
+                type                    = "User"
+                isEnabled               = $true
+            })
     }
     optionalClaims = @{
         accessToken = @(@{
-            name                 = "groups"
-            essential            = $false
-            additionalProperties = @("sam_account_name", "cloud_displayname")
-        })
-        idToken = @(@{
-            name                 = "groups"
-            essential            = $false
-            additionalProperties = @("sam_account_name", "cloud_displayname")
-        })
+                name                 = "groups"
+                essential            = $false
+                additionalProperties = @("sam_account_name", "cloud_displayname")
+            })
+        idToken     = @(@{
+                name                 = "groups"
+                essential            = $false
+                additionalProperties = @("sam_account_name", "cloud_displayname")
+            })
     }
 }
 
@@ -262,7 +262,8 @@ $ErrorActionPreference = "Stop"
 if (-not $existingSp) {
     az ad sp create --id $appId | Out-Null
     Write-OK "Service Principal luotu"
-} else {
+}
+else {
     Write-OK "Service Principal oli jo olemassa"
 }
 
@@ -284,7 +285,10 @@ az ad app permission grant `
 try {
     az ad app permission admin-consent --id $appId 2>$null | Out-Null
     Write-OK "Admin consent myönnetty"
-} catch {
+    Write-Info "Odotetaan consentin propagoitumista (10s)..."
+    Start-Sleep -Seconds 10
+}
+catch {
     Write-Warn "Admin consent vaatii manuaalisen hyväksynnän portaalissa:"
     Write-Info "https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$appId"
 }
@@ -320,52 +324,51 @@ if ($Env -eq "prod") {
 Write-Step 8 9 "SharePoint site -valinta..."
 
 if (-not $SharePointSiteId) {
-    Write-Info "Haetaan saatavilla olevat SharePoint-sidet..."
+    Write-Host ""
+    Write-Host "  SharePoint Site ID:tä ei annettu parametrina." -ForegroundColor White
+    Write-Host "  Voit syöttää joko:" -ForegroundColor Gray
+    Write-Host "    1) Site ID suoraan (esim. contoso.sharepoint.com,guid1,guid2)" -ForegroundColor Gray
+    Write-Host "    2) SharePoint-siten URL (esim. https://contoso.sharepoint.com/sites/MySite)" -ForegroundColor Gray
+    Write-Host "    3) Tyhjä (Enter) ohittaaksesi" -ForegroundColor Gray
+    Write-Host ""
 
-    $token = Get-GraphToken
-    $sitesResp = az rest --method GET `
-        --uri "https://graph.microsoft.com/v1.0/sites?search=*" `
-        --headers "Authorization=Bearer $token" `
-        --output json 2>$null | ConvertFrom-Json
+    $siteInput = Read-Host "  Syötä Site ID tai URL"
 
-    $sites = $sitesResp.value
+    if ($siteInput -match "^https?://") {
+        Write-Info "Haetaan Site ID URL:n perusteella..."
+        try {
+            $uri = [System.Uri]$siteInput
+            $hostname = $uri.Host
+            $sitePath = $uri.AbsolutePath.TrimEnd('/')
+            $graphUri = "https://graph.microsoft.com/v1.0/sites/${hostname}:${sitePath}"
 
-    if (-not $sites -or $sites.Count -eq 0) {
-        Write-Warn "SharePoint-sitejä ei löytynyt automaattisesti."
-        Write-Info "Voit lisätä grantin myöhemmin parametrilla -SharePointSiteId"
-        $SharePointSiteId = Read-Host "  Syötä Site ID manuaalisesti (tai Enter ohittaaksesi)"
-    } else {
-        Write-Host ""
-        Write-Host "  Löytyi $($sites.Count) SharePoint-siteä:" -ForegroundColor White
-        Write-Host ""
+            $token = Get-GraphToken
+            $siteResp = az rest --method GET `
+                --uri $graphUri `
+                --headers "Authorization=Bearer $token" `
+                --output json 2>$null | ConvertFrom-Json
 
-        for ($i = 0; $i -lt $sites.Count; $i++) {
-            $s = $sites[$i]
-            Write-Host "  [$($i+1)] $($s.displayName)" -ForegroundColor White
-            Write-Host "      URL: $($s.webUrl)" -ForegroundColor Gray
-            Write-Host "      ID:  $($s.id)" -ForegroundColor DarkGray
-            Write-Host ""
-        }
-        Write-Host "  [0] Ohita – lisätään myöhemmin" -ForegroundColor DarkGray
-        Write-Host ""
-
-        do {
-            $raw = Read-Host "  Valitse numero (0-$($sites.Count))"
-            $choice = [int]$raw
-        } while ($choice -lt 0 -or $choice -gt $sites.Count)
-
-        if ($choice -eq 0) {
-            Write-Warn "SharePoint site -grant ohitettu."
-            Write-Info "Lisää myöhemmin ajamalla skripti uudelleen -SharePointSiteId parametrilla."
-            $SharePointSiteId = ""
-        } else {
-            $sel = $sites[$choice - 1]
-            $SharePointSiteId = $sel.id
-            Write-OK "Valittu: $($sel.displayName)"
+            $SharePointSiteId = $siteResp.id
+            Write-OK "Site löytyi: $($siteResp.displayName)"
             Write-OK "Site ID: $SharePointSiteId"
         }
+        catch {
+            Write-Warn "Siten haku epäonnistui: $_"
+            Write-Info "Voit lisätä grantin myöhemmin parametrilla -SharePointSiteId"
+            $SharePointSiteId = ""
+        }
     }
-} else {
+    elseif ($siteInput) {
+        $SharePointSiteId = $siteInput
+        Write-OK "Käytetään annettua Site ID:tä: $SharePointSiteId"
+    }
+    else {
+        Write-Warn "SharePoint site -grant ohitettu."
+        Write-Info "Lisää myöhemmin ajamalla skripti uudelleen -SharePointSiteId parametrilla."
+        $SharePointSiteId = ""
+    }
+}
+else {
     Write-OK "Käytetään annettua Site ID:tä: $SharePointSiteId"
 }
 
@@ -380,25 +383,95 @@ if ($SharePointSiteId) {
     $grantBody = @{
         roles               = @("write")
         grantedToIdentities = @(@{
-            application = @{
-                id          = $appId
-                displayName = $AppName
-            }
-        })
+                application = @{
+                    id          = $appId
+                    displayName = $AppName
+                }
+            })
     }
 
     try {
-        $grantResp = Invoke-GraphPost `
-            "https://graph.microsoft.com/v1.0/sites/$SharePointSiteId/permissions" `
-            $grantBody
+        # Site permission grant vaatii Sites.FullControl.All -oikeuden.
+        # Azure CLI:n tokenissa ei ole tätä scopea, joten käytetään
+        # device code flow -kirjautumista Graph CLI:n well-known app ID:llä.
+        # Ei vaadi lisämoduuleja – toimii pelkällä Invoke-RestMethod:llä.
+        $graphCliClientId = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
+        $deviceScope = "https://graph.microsoft.com/Sites.FullControl.All offline_access"
+
+        Write-Info "Käynnistetään device code -kirjautuminen..."
+        $deviceResp = Invoke-RestMethod -Method POST `
+            -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/devicecode" `
+            -ContentType "application/x-www-form-urlencoded" `
+            -Body "client_id=$graphCliClientId&scope=$([uri]::EscapeDataString($deviceScope))"
+
+        Write-Host ""
+        Write-Host "  $($deviceResp.message)" -ForegroundColor Yellow
+        Write-Host ""
+
+        # Pollaa token-endpointia kunnes käyttäjä kirjautuu
+        $pollBody = "client_id=$graphCliClientId&grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=$($deviceResp.device_code)"
+        $pollInterval = [math]::Max($deviceResp.interval, 5)
+        $deadline = (Get-Date).AddSeconds($deviceResp.expires_in)
+        $dcToken = $null
+
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds $pollInterval
+            try {
+                $tokenResp = Invoke-RestMethod -Method POST `
+                    -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token" `
+                    -ContentType "application/x-www-form-urlencoded" `
+                    -Body $pollBody
+                $dcToken = $tokenResp.access_token
+                break
+            }
+            catch {
+                $errBody = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if ($errBody.error -eq "authorization_pending") {
+                    continue
+                }
+                elseif ($errBody.error -eq "slow_down") {
+                    $pollInterval += 5
+                    continue
+                }
+                else {
+                    throw $_
+                }
+            }
+        }
+
+        if (-not $dcToken) {
+            throw "Kirjautuminen aikakatkaistiin tai epäonnistui."
+        }
+
+        Write-OK "Kirjautuminen onnistui (Sites.FullControl.All)"
+
+        $grantJson = $grantBody | ConvertTo-Json -Depth 10
+        $grantResp = Invoke-RestMethod -Method POST `
+            -Uri "https://graph.microsoft.com/v1.0/sites/$SharePointSiteId/permissions" `
+            -Headers @{ Authorization = "Bearer $dcToken" } `
+            -ContentType "application/json" `
+            -Body ([System.Text.Encoding]::UTF8.GetBytes($grantJson))
+
         $spGrantId = $grantResp.id
         Write-OK "Kirjoitusoikeus myönnetty"
         Write-OK "Permission ID: $spGrantId"
-    } catch {
-        Write-Warn "Grantin myöntäminen epäonnistui: $_"
-        Write-Warn "Varmista Sites.Selected admin consent portaalissa ja aja uudelleen."
     }
-} else {
+    catch {
+        $errMsg = $_.ToString()
+        Write-Warn "Grantin myöntäminen epäonnistui: $errMsg"
+        Write-Host ""
+        Write-Info "Voit myöntää grantin manuaalisesti Graph Explorerilla:"
+        Write-Info "  https://developer.microsoft.com/en-us/graph/graph-explorer"
+        Write-Info "  POST https://graph.microsoft.com/v1.0/sites/$SharePointSiteId/permissions"
+        Write-Info "  Content-Type: application/json"
+        Write-Host ""
+        $grantJson = $grantBody | ConvertTo-Json -Depth 10 -Compress
+        Write-Info "Body: $grantJson"
+        Write-Host ""
+        Write-Info "Voit myöntää grantin myöhemmin ajamalla skriptin uudelleen -SharePointSiteId parametrilla."
+    }
+}
+else {
     Write-Warn "SharePoint grant ohitettu"
 }
 
@@ -407,18 +480,18 @@ if ($SharePointSiteId) {
 # --------------------------------------------------------------------------
 
 $ErrorActionPreference = "SilentlyContinue"
-$adminGroupId  = az ad group show --group "sg-jkr-admin-sql"  --query id -o tsv 2>$null
+$adminGroupId = az ad group show --group "sg-jkr-admin-sql"  --query id -o tsv 2>$null
 $viewerGroupId = az ad group show --group "sg-jkr-viewer-sql" --query id -o tsv 2>$null
 $ErrorActionPreference = "Stop"
-if (-not $adminGroupId)  { $adminGroupId  = "<EI LÖYTYNYT – lisää manuaalisesti>" }
-if (-not $viewerGroupId) { $viewerGroupId = "<EI LÖYTYNYT – lisää manuaalisesti>" }
+if (-not $adminGroupId) { $adminGroupId = "<NOT FOUND - add manually>" }
+if (-not $viewerGroupId) { $viewerGroupId = "<NOT FOUND - add manually>" }
 
 # --------------------------------------------------------------------------
 # YHTEENVETO
 # --------------------------------------------------------------------------
 
-$spSiteDisplay   = if ($SharePointSiteId) { $SharePointSiteId } else { "<ei asetettu>" }
-$spGrantDisplay  = if ($spGrantId)        { $spGrantId }        else { "<ei asetettu>" }
+$spSiteDisplay = $(if ($SharePointSiteId) { $SharePointSiteId } else { "<ei asetettu>" })
+$spGrantDisplay = $(if ($spGrantId) { $spGrantId } else { "<ei asetettu>" })
 
 Write-Host @"
 
