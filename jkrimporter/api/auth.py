@@ -33,6 +33,11 @@ AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "")
 AZURE_ADMIN_GROUP_ID = os.environ.get("AZURE_ADMIN_GROUP_ID", "")
 AZURE_VIEWER_GROUP_ID = os.environ.get("AZURE_VIEWER_GROUP_ID", "")
 
+# Jos UNSECURE=1 tai UNSECURE=true, autentikointi ohitetaan kokonaan (vain testauskäyttöön!)
+_UNSECURE = os.environ.get("UNSECURE", "").strip().lower() in ("1", "true")
+if _UNSECURE:
+    logger.warning("⚠️  UNSECURE-tila on päällä! Autentikointi on ohitettu. ÄLÄ käytä tuotannossa!")
+
 def _jwks_url() -> str:
     """JWKS URL muodostetaan dynaamisesti, jotta AZURE_TENANT_ID voi tulla myöhemmin."""
     return f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/discovery/v2.0/keys"
@@ -105,13 +110,22 @@ class CurrentUser:
 # ---------------------------------------------------------------------------
 # Bearer-token security scheme
 # ---------------------------------------------------------------------------
-_bearer_scheme = HTTPBearer(auto_error=True)
+_bearer_scheme = HTTPBearer(auto_error=not _UNSECURE)
 
 
 async def _validate_token(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> CurrentUser:
     """Validoi Azure AD Bearer -tokenin ja palauttaa käyttäjätiedot."""
+    if _UNSECURE:
+        return CurrentUser(
+            oid="unsecure-test-user",
+            name="Test User (UNSECURE)",
+            email="test@unsecure.local",
+            roles=[UserRole.ADMIN, UserRole.VIEWER],
+            groups=[],
+        )
+
     token = credentials.credentials
 
     if not AZURE_TENANT_ID or not AZURE_CLIENT_ID:
