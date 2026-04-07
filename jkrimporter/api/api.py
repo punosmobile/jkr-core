@@ -999,13 +999,14 @@ async def sharepoint_status(user: CurrentUser = Depends(require_authenticated)):
     return {
         "configured": configured,
         "site_id": sp.SHAREPOINT_SITE_ID or None,
-        "default_folder": sp.SHAREPOINT_FOLDER or None,
+        "input_folder": sp.SHAREPOINT_INPUT_FOLDER or None,
+        "output_folder": sp.SHAREPOINT_OUTPUT_FOLDER or None,
     }
 
 
 @app.get("/sharepoint/files", summary="Listaa SharePoint-kansion sisältö")
 async def sharepoint_list_files(
-    folder: Optional[str] = Query(None, description="Kansion polku (oletus: SHAREPOINT_FOLDER)"),
+    folder: Optional[str] = Query(None, description="Kansion polku (oletus: SHAREPOINT_INPUT_FOLDER)"),
     user: CurrentUser = Depends(require_authenticated),
 ):
     if not await sp.is_configured():
@@ -1053,6 +1054,56 @@ async def sharepoint_upload(
         return result
     except Exception as e:
         logger.error("SharePoint upload epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
+
+
+@app.delete("/sharepoint/delete", summary="Poista tiedosto SharePointista")
+async def sharepoint_delete(
+    path: str = Query(..., description="Tiedoston polku SharePointissa"),
+    user: CurrentUser = Depends(require_admin),
+):
+    if not await sp.is_configured():
+        raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
+    try:
+        await sp.delete_file(path)
+        logger.info("SharePoint delete: %s", path)
+        return {"deleted": True, "path": path}
+    except Exception as e:
+        logger.error("SharePoint delete epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
+
+
+@app.post("/sharepoint/move", summary="Siirrä tiedosto SharePointissa")
+async def sharepoint_move(
+    source: str = Query(..., description="Lähdetiedoston polku"),
+    dest_folder: str = Query(..., description="Kohdekansion polku"),
+    new_name: Optional[str] = Query(None, description="Uusi tiedostonimi (valinnainen)"),
+    user: CurrentUser = Depends(require_admin),
+):
+    if not await sp.is_configured():
+        raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
+    try:
+        result = await sp.move_file(source, dest_folder, new_name)
+        logger.info("SharePoint move: %s -> %s", source, dest_folder)
+        return result
+    except Exception as e:
+        logger.error("SharePoint move epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
+
+
+@app.post("/sharepoint/folder", summary="Luo kansio SharePointiin")
+async def sharepoint_create_folder(
+    path: str = Query(..., description="Luotavan kansion polku (esim. Shared Documents/JKR-output/2024)"),
+    user: CurrentUser = Depends(require_admin),
+):
+    if not await sp.is_configured():
+        raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
+    try:
+        result = await sp.create_folder(path)
+        logger.info("SharePoint folder created: %s", path)
+        return result
+    except Exception as e:
+        logger.error("SharePoint folder creation epäonnistui: %s", e)
         raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
 
 

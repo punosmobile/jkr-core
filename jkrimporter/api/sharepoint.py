@@ -9,7 +9,8 @@ Ympäristömuuttujat:
     AZURE_CLIENT_ID        - App Registration client ID
     AZURE_CLIENT_SECRET    - App Registrationin client secret
     SHAREPOINT_SITE_ID     - SharePoint Site ID (esim. contoso.sharepoint.com,guid1,guid2)
-    SHAREPOINT_FOLDER      - Oletuskansio (esim. /Shared Documents/JKR-ajot)
+    SHAREPOINT_INPUT_FOLDER  - Syöttökansio (esim. /Shared Documents/JKR-input)
+    SHAREPOINT_OUTPUT_FOLDER - Tuloskansio (esim. /Shared Documents/JKR-output)
 """
 
 import logging
@@ -28,7 +29,8 @@ AZURE_TENANT_ID = os.environ.get("AZURE_TENANT_ID", "")
 AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "")
 AZURE_CLIENT_SECRET = os.environ.get("AZURE_CLIENT_SECRET", "")
 SHAREPOINT_SITE_ID = os.environ.get("SHAREPOINT_SITE_ID", "")
-SHAREPOINT_FOLDER = os.environ.get("SHAREPOINT_FOLDER", "/Shared Documents/JKR-ajot")
+SHAREPOINT_INPUT_FOLDER = os.environ.get("SHAREPOINT_INPUT_FOLDER", "/Shared Documents/JKR-input")
+SHAREPOINT_OUTPUT_FOLDER = os.environ.get("SHAREPOINT_OUTPUT_FOLDER", "/Shared Documents/JKR-output")
 
 # ---------------------------------------------------------------------------
 # Token-välimuisti
@@ -72,9 +74,9 @@ def _graph_base() -> str:
     return f"https://graph.microsoft.com/v1.0/sites/{SHAREPOINT_SITE_ID}/drive"
 
 
-def _resolve_folder_path(folder: Optional[str] = None) -> str:
+def _resolve_folder_path(folder: Optional[str] = None, default: Optional[str] = None) -> str:
     """Palauttaa kansion polun Graph API -muodossa."""
-    path = folder or SHAREPOINT_FOLDER
+    path = folder or default or SHAREPOINT_INPUT_FOLDER
     # Poista alku- ja loppuslashit normalisointia varten
     path = path.strip("/")
     return path
@@ -170,7 +172,7 @@ async def upload_file(
     Käyttää yksinkertaista PUT-uploadia (< 4 MB) tai upload sessionia (>= 4 MB).
     """
     token = await _get_app_token()
-    folder_path = _resolve_folder_path(folder)
+    folder_path = _resolve_folder_path(folder, default=SHAREPOINT_OUTPUT_FOLDER)
     target = f"{folder_path}/{filename}"
 
     if len(file_content) < 4 * 1024 * 1024:
@@ -257,5 +259,133 @@ async def _upload_large(token: str, target_path: str, content: bytes) -> Dict[st
         "id": result.get("id"),
         "name": result.get("name"),
         "size": result.get("size"),
+        "webUrl": result.get("webUrl"),
+    }
+
+
+async def delete_file(file_path: str) -> None:
+    """Poistaa tiedoston SharePointista."""
+    token = await _get_app_token()
+    path = file_path.strip("/")
+
+    url = f"{_graph_base()}/root:/{path}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.delete(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+
+    logger.info("Tiedosto poistettu SharePointista: %s", file_path)
+
+
+async def move_file(source_path: str, dest_folder: str, new_name: Optional[str] = None) -> Dict[str, Any]:
+    """Siirtää tiedoston toiseen kansioon SharePointissa.
+
+    Args:
+        source_path: Lähdetiedoston polku (esim. Shared Documents/JKR-input/data.csv)
+        dest_folder: Kohdekansion polku (esim. Shared Documents/JKR-output)
+        new_name: Uusi tiedostonimi (valinnainen, oletus: sama nimi)
+    """
+    token = await _get_app_token()
+    src = source_path.strip("/")
+    dst = dest_folder.strip("/")
+
+    # Hae lähdetiedoston item ID
+    url = f"{_graph_base()}/root:/{src}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"$select": "id,name"},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        item = resp.json()
+
+    item_id = item["id"]
+    filename = new_name or item["name"]
+
+    # Hae kohdekansion item ID
+    folder_url = f"{_graph_base()}/root:/{dst}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            folder_url,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"$select": "id"},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        dest_item = resp.json()
+
+    # PATCH: siirrä tiedosto
+    patch_url = f"{_graph_base()}/items/{item_id}"
+    body = {
+        "parentReference": {"id": dest_item["id"]},
+        "name": filename,
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.patch(
+            patch_url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+    logger.info("Tiedosto siirretty: %s -> %s/%s", source_path, dest_folder, filename)
+    return {
+        "id": result.get("id"),
+        "name": result.get("name"),
+        "webUrl": result.get("webUrl"),
+    }
+
+
+async def create_folder(folder_path: str) -> Dict[str, Any]:
+    """Luo kansion SharePointiin.
+
+    Args:
+        folder_path: Kansion polku (esim. Shared Documents/JKR-output/2024)
+    """
+    token = await _get_app_token()
+    path = folder_path.strip("/")
+
+    # Erota parent-kansio ja uuden kansion nimi
+    if "/" in path:
+        parent = path.rsplit("/", 1)[0]
+        name = path.rsplit("/", 1)[1]
+        url = f"{_graph_base()}/root:/{parent}:/children"
+    else:
+        name = path
+        url = f"{_graph_base()}/root/children"
+
+    body = {
+        "name": name,
+        "folder": {},
+        "@microsoft.graph.conflictBehavior": "fail",
+    }
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json=body,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+    logger.info("Kansio luotu SharePointiin: %s", folder_path)
+    return {
+        "id": result.get("id"),
+        "name": result.get("name"),
         "webUrl": result.get("webUrl"),
     }

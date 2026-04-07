@@ -1773,7 +1773,8 @@
         }
 
         // ---- SharePoint ----
-        let _spDefaultFolder = '';
+        let _spInputFolder = '';
+        let _spOutputFolder = '';
 
         async function spInit() {
             try {
@@ -1781,10 +1782,13 @@
                 if (st.configured) {
                     document.getElementById('spNotConfigured').style.display = 'none';
                     document.getElementById('spConfigured').style.display = 'block';
-                    _spDefaultFolder = st.default_folder || '';
-                    document.getElementById('sp-folder').placeholder = 'oletus: ' + _spDefaultFolder;
-                    document.getElementById('sp-upload-folder').placeholder = 'oletus: ' + _spDefaultFolder;
+                    _spInputFolder = st.input_folder || '';
+                    _spOutputFolder = st.output_folder || '';
+                    document.getElementById('sp-folder').value = _spInputFolder;
+                    document.getElementById('sp-folder').placeholder = 'oletus: ' + _spInputFolder;
+                    document.getElementById('sp-upload-folder').placeholder = 'oletus: ' + _spOutputFolder;
                     document.getElementById('spDesc').textContent = 'Site: ' + (st.site_id || '');
+                    spRefresh();
                 } else {
                     document.getElementById('spNotConfigured').style.display = 'block';
                     document.getElementById('spConfigured').style.display = 'none';
@@ -1810,7 +1814,7 @@
                     container.innerHTML = '<div class="empty-state">Kansio on tyhjä</div>';
                     return;
                 }
-                const currentFolder = folder || _spDefaultFolder;
+                const currentFolder = folder || _spInputFolder;
                 document.getElementById('spBreadcrumb').textContent = currentFolder;
 
                 container.innerHTML = '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;">'
@@ -1833,9 +1837,11 @@
                         const modified = item.lastModified
                             ? item.lastModified.replace('T', ' ').substring(0, 19)
                             : '';
+                        const itemPath = esc(currentFolder + '/' + item.name);
                         const actions = isFolder
                             ? ''
-                            : `<a href="#" onclick="spDownload('${esc(currentFolder + '/' + item.name)}');return false;" style="color:var(--primary);font-size:0.8rem;text-decoration:none;">&#11015; Lataa</a>`;
+                            : `<a href="#" onclick="spDownload('${itemPath}');return false;" style="color:var(--primary);font-size:0.8rem;text-decoration:none;margin-right:10px;">&#11015; Lataa</a>`
+                            + `<a href="#" onclick="spDelete('${itemPath}');return false;" style="color:#ef4444;font-size:0.8rem;text-decoration:none;">&#10060; Poista</a>`;
                         return '<tr style="border-top:1px solid var(--border);">'
                             + `<td style="padding:6px 10px;">${nameHtml}</td>`
                             + `<td style="padding:6px 10px;color:var(--text-muted);">${isFolder ? 'Kansio' : 'Tiedosto'}</td>`
@@ -1876,6 +1882,20 @@
                 toast('Tiedosto ladattu: ' + filename, 'success');
             } catch (e) {
                 toast('Lataus epäonnistui: ' + e.message, 'error');
+            }
+        }
+
+        async function spDelete(filePath) {
+            const filename = filePath.split('/').pop();
+            if (!confirm('Poistetaanko tiedosto "' + filename + '" SharePointista?')) return;
+            try {
+                const res = await fetch(API + '/sharepoint/delete?path=' + encodeURIComponent(filePath), { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Poisto epäonnistui', 'error'); return; }
+                toast('Tiedosto poistettu: ' + filename, 'success');
+                spRefresh();
+            } catch (e) {
+                toast('Poisto epäonnistui: ' + e.message, 'error');
             }
         }
 
