@@ -16,6 +16,7 @@ Ympäristömuuttujat:
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -80,6 +81,41 @@ def _resolve_folder_path(folder: Optional[str] = None, default: Optional[str] = 
     # Poista alku- ja loppuslashit normalisointia varten
     path = path.strip("/")
     return path
+
+
+# ---------------------------------------------------------------------------
+# Audit trail
+# ---------------------------------------------------------------------------
+
+async def _set_audit_description(
+    token: str,
+    item_id: str,
+    action: str,
+    user_name: str,
+    user_email: str,
+    details: str = "",
+) -> None:
+    """Asettaa DriveItem:n description-kenttään audit-tiedot."""
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    desc = f"[{ts}] {action} — {user_name} ({user_email})"
+    if details:
+        desc += f" | {details}"
+
+    url = f"{_graph_base()}/items/{item_id}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.patch(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            json={"description": desc},
+            timeout=15.0,
+        )
+        if resp.status_code >= 400:
+            logger.warning("Audit description asetus epäonnistui (item %s): %s", item_id, resp.text)
+        else:
+            logger.info("Audit: %s", desc)
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +202,8 @@ async def upload_file(
     file_content: bytes,
     filename: str,
     folder: Optional[str] = None,
+    user_name: str = "",
+    user_email: str = "",
 ) -> Dict[str, Any]:
     """Lataa tiedoston SharePointiin.
 
@@ -176,9 +214,16 @@ async def upload_file(
     target = f"{folder_path}/{filename}"
 
     if len(file_content) < 4 * 1024 * 1024:
-        return await _upload_small(token, target, file_content)
+        result = await _upload_small(token, target, file_content)
     else:
-        return await _upload_large(token, target, file_content)
+        result = await _upload_large(token, target, file_content)
+
+    if result.get("id") and user_name:
+        await _set_audit_description(
+            token, result["id"], "Upload", user_name, user_email,
+            f"{filename} ({len(file_content)} tavua)",
+        )
+    return result
 
 
 async def _upload_small(token: str, target_path: str, content: bytes) -> Dict[str, Any]:
@@ -263,10 +308,16 @@ async def _upload_large(token: str, target_path: str, content: bytes) -> Dict[st
     }
 
 
-async def delete_file(file_path: str) -> None:
+async def delete_file(file_path: str, user_name: str = "", user_email: str = "") -> None:
     """Poistaa tiedoston SharePointista."""
     token = await _get_app_token()
     path = file_path.strip("/")
+
+    # Logita audit ennen poistoa (koska poiston jälkeen itemiä ei voi päivittää)
+    logger.info(
+        "Audit: Delete — %s (%s) poisti tiedoston: %s",
+        user_name, user_email, file_path,
+    )
 
     url = f"{_graph_base()}/root:/{path}"
     async with httpx.AsyncClient() as client:
@@ -280,7 +331,7 @@ async def delete_file(file_path: str) -> None:
     logger.info("Tiedosto poistettu SharePointista: %s", file_path)
 
 
-async def move_file(source_path: str, dest_folder: str, new_name: Optional[str] = None) -> Dict[str, Any]:
+async def move_file(source_path: str, dest_folder: str, new_name: Optional[str] = None, user_name: str = "", user_email: str = "") -> Dict[str, Any]:
     """Siirtää tiedoston toiseen kansioon SharePointissa.
 
     Args:
@@ -339,6 +390,13 @@ async def move_file(source_path: str, dest_folder: str, new_name: Optional[str] 
         result = resp.json()
 
     logger.info("Tiedosto siirretty: %s -> %s/%s", source_path, dest_folder, filename)
+
+    if result.get("id") and user_name:
+        await _set_audit_description(
+            token, result["id"], "Move", user_name, user_email,
+            f"{source_path} -> {dest_folder}/{filename}",
+        )
+
     return {
         "id": result.get("id"),
         "name": result.get("name"),
@@ -346,7 +404,7 @@ async def move_file(source_path: str, dest_folder: str, new_name: Optional[str] 
     }
 
 
-async def create_folder(folder_path: str) -> Dict[str, Any]:
+async def create_folder(folder_path: str, user_name: str = "", user_email: str = "") -> Dict[str, Any]:
     """Luo kansion SharePointiin.
 
     Args:
@@ -384,6 +442,13 @@ async def create_folder(folder_path: str) -> Dict[str, Any]:
         result = resp.json()
 
     logger.info("Kansio luotu SharePointiin: %s", folder_path)
+
+    if result.get("id") and user_name:
+        await _set_audit_description(
+            token, result["id"], "Create folder", user_name, user_email,
+            folder_path,
+        )
+
     return {
         "id": result.get("id"),
         "name": result.get("name"),

@@ -1049,7 +1049,7 @@ async def sharepoint_upload(
         raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
     try:
         content = await file.read()
-        result = await sp.upload_file(content, file.filename, folder)
+        result = await sp.upload_file(content, file.filename, folder, user_name=user.name, user_email=user.email)
         logger.info("SharePoint upload: %s (%d tavua)", file.filename, len(content))
         return result
     except Exception as e:
@@ -1065,7 +1065,7 @@ async def sharepoint_delete(
     if not await sp.is_configured():
         raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
     try:
-        await sp.delete_file(path)
+        await sp.delete_file(path, user_name=user.name, user_email=user.email)
         logger.info("SharePoint delete: %s", path)
         return {"deleted": True, "path": path}
     except Exception as e:
@@ -1083,7 +1083,7 @@ async def sharepoint_move(
     if not await sp.is_configured():
         raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
     try:
-        result = await sp.move_file(source, dest_folder, new_name)
+        result = await sp.move_file(source, dest_folder, new_name, user_name=user.name, user_email=user.email)
         logger.info("SharePoint move: %s -> %s", source, dest_folder)
         return result
     except Exception as e:
@@ -1099,7 +1099,7 @@ async def sharepoint_create_folder(
     if not await sp.is_configured():
         raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
     try:
-        result = await sp.create_folder(path)
+        result = await sp.create_folder(path, user_name=user.name, user_email=user.email)
         logger.info("SharePoint folder created: %s", path)
         return result
     except Exception as e:
