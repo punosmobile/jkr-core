@@ -140,6 +140,7 @@ services:
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_ADMIN_GROUP_ID=${AZURE_ADMIN_GROUP_ID}
       - AZURE_VIEWER_GROUP_ID=${AZURE_VIEWER_GROUP_ID}
+      - UNSECURE=${UNSECURE:-}
     ports:
       - "8000:8000"
     networks:
