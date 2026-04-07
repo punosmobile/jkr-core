@@ -127,6 +127,8 @@ services:
           memory: 4G
     volumes:
       - .:/app
+      - ./input:/data/input
+      - ./output:/data/output
     environment:
       - JKR_DB_HOST=db
       - JKR_DB=${JKR_DB}
