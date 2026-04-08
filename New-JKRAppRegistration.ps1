@@ -37,9 +37,6 @@ param(
     # App Registrationin näyttönimi – oletuksena generoidaan ympäristön mukaan
     [string]$AppName = "",
 
-    # SharePoint-kansio johon background job kirjoittaa
-    [string]$SharePointFolder = "/Shared Documents/JKR-ajot",
-
     # SharePoint Site ID jos tiedossa – muuten näytetään valikko
     [string]$SharePointSiteId = "",
 
@@ -111,7 +108,7 @@ function Invoke-GraphPatch([string]$uri, [hashtable]$body) {
 Write-Host @"
 
 ==========================================================================
-  JKR Tiedonhallinta – Osa 1/2: App Registration
+  JKR Tiedonhallinta - Osa 1/2: App Registration
   Ympäristö: $($Env.ToUpper())
 ==========================================================================
 "@ -ForegroundColor White
@@ -236,7 +233,7 @@ az ad app permission add --id $appId `
 
 Write-OK "User.Read (delegated)"
 Write-OK "GroupMember.Read.All (delegated)"
-Write-OK "Sites.Selected (application) – taustatyö SharePoint-kirjoitukseen"
+Write-OK "Sites.Selected (application) - taustatyö SharePoint-kirjoitukseen"
 
 # --------------------------------------------------------------------------
 # VAIHE 4 – groupMembershipClaims
@@ -310,7 +307,7 @@ $clientSecret = $secretResult.password
 $secretExpiry = (Get-Date).AddYears($SecretYears).ToString("yyyy-MM-dd")
 
 Write-OK "Client secret luotu (vanhenee $secretExpiry)"
-Write-Warn "Tallenna secret heti – sitä ei voi hakea uudelleen!"
+Write-Warn "Tallenna secret heti - sitä ei voi hakea uudelleen!"
 
 if ($Env -eq "prod") {
     Write-Warn "PROD: Harkitse Managed Identityn käyttöä client secretin sijaan."
@@ -510,7 +507,6 @@ Write-Host @"
   Secret expiry: $secretExpiry
 
   SharePoint Site ID:  $spSiteDisplay
-  SharePoint kansio:   $SharePointFolder
   SharePoint Grant ID: $spGrantDisplay
 
   Admin Group:   $adminGroupId
@@ -526,7 +522,8 @@ Write-Host @"
   AZURE_ADMIN_GROUP_ID=$adminGroupId
   AZURE_VIEWER_GROUP_ID=$viewerGroupId
   SHAREPOINT_SITE_ID=$spSiteDisplay
-  SHAREPOINT_FOLDER=$SharePointFolder
+  SHAREPOINT_INPUT_FOLDER=/Shared Documents/JKR-input
+  SHAREPOINT_OUTPUT_FOLDER=/Shared Documents/JKR-output
 
 ==========================================================================
   Flutter-konfiguraatio
@@ -558,7 +555,7 @@ Write-Host @"
 # Tallenna yhteenveto tiedostoon (ilman secretia)
 $summaryFile = "jkr-app-registration-$Env-$appId.txt"
 @"
-JKR App Registration – yhteenveto
+JKR App Registration - yhteenveto
 Luotu:     $(Get-Date -Format "yyyy-MM-dd HH:mm")
 Ympäristö: $Env
 
@@ -569,7 +566,6 @@ Object ID:     $objId
 Secret expiry: $secretExpiry
 
 SharePoint Site ID:  $spSiteDisplay
-SharePoint kansio:   $SharePointFolder
 SharePoint Grant ID: $spGrantDisplay
 
 Admin Group:   $adminGroupId
