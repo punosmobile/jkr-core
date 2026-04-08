@@ -1,0 +1,2061 @@
+<!DOCTYPE html>
+<html lang="fi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JKR – Tiedontuonti</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface2: #334155;
+            --border: #475569;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --pending: #64748b;
+            --radius: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .health-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .health-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--pending);
+        }
+
+        .health-dot.ok {
+            background: var(--success);
+        }
+
+        .health-dot.err {
+            background: var(--error);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px 18px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .tab-btn:hover {
+            color: var(--text);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .card h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+
+        .card-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        /* Forms */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: monospace;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 0.8rem;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-outline:hover {
+            background: var(--surface2);
+        }
+
+        /* Task list */
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .task-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .task-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .task-status.pending {
+            background: var(--pending);
+        }
+
+        .task-status.running {
+            background: var(--warning);
+            animation: pulse 1s infinite;
+        }
+
+        .task-status.completed {
+            background: var(--success);
+        }
+
+        .task-status.failed {
+            background: var(--error);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .task-desc {
+            font-size: 0.9rem;
+        }
+
+        .task-cmd {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .task-duration {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .task-detail-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 0.8rem;
+            text-decoration: underline;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            width: 90%;
+            max-width: 700px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-body pre {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .modal-body .detail-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .detail-label {
+            color: var(--text-muted);
+            min-width: 100px;
+        }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px 18px;
+            font-size: 0.85rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success {
+            border-left: 3px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 3px solid var(--error);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        /* Documentation */
+        .doc-search {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-size: 0.9rem;
+            width: 100%;
+            outline: none;
+            margin-bottom: 20px;
+            transition: border-color 0.15s;
+        }
+
+        .doc-search:focus {
+            border-color: var(--primary);
+        }
+
+        .doc-stats {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .schema-group {
+            margin-bottom: 12px;
+        }
+
+        .schema-header {
+            background: var(--primary);
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: var(--radius) var(--radius) 0 0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 0.95rem;
+            user-select: none;
+        }
+
+        .schema-header:hover {
+            background: var(--primary-hover);
+        }
+
+        .schema-header .chevron {
+            transition: transform 0.2s;
+            font-size: 0.8rem;
+        }
+
+        .schema-header .chevron.open {
+            transform: rotate(90deg);
+        }
+
+        .schema-body {
+            display: none;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+
+        .schema-body.open {
+            display: block;
+        }
+
+        .table-group {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-group:last-child {
+            border-bottom: none;
+        }
+
+        .table-header {
+            padding: 10px 16px 10px 24px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            font-weight: 500;
+            user-select: none;
+            transition: background 0.1s;
+        }
+
+        .table-header:hover {
+            background: var(--surface2);
+        }
+
+        .table-comment {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-left: 12px;
+            font-style: italic;
+        }
+
+        .table-body {
+            display: none;
+            padding: 0;
+        }
+
+        .table-body.open {
+            display: block;
+        }
+
+        .col-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        .col-table th {
+            text-align: left;
+            padding: 6px 12px 6px 36px;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .col-table td {
+            padding: 5px 12px 5px 36px;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+        }
+
+        .col-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .col-table tr:hover td {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .col-name {
+            font-family: monospace;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .col-type {
+            font-family: monospace;
+            font-size: 0.78rem;
+            color: var(--warning);
+            background: rgba(245, 158, 11, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .col-comment {
+            color: var(--text-muted);
+            font-style: italic;
+            white-space: pre-wrap;
+        }
+
+        .col-nullable {
+            font-size: 0.75rem;
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        .col-nullable.yes {
+            color: var(--text-muted);
+        }
+
+        .col-nullable.no {
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .col-geo {
+            font-size: 0.72rem;
+            color: var(--success);
+            background: rgba(34, 197, 94, 0.1);
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        .doc-loading {
+            text-align: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+
+        .doc-loading .spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Drop zone */
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 28px 20px;
+            text-align: center;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .dropzone:hover {
+            border-color: var(--primary);
+        }
+
+        .dropzone.dragover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.08);
+            color: var(--text);
+        }
+
+        .dropzone .drop-icon {
+            font-size: 1.6rem;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .dropzone .drop-filename {
+            margin-top: 8px;
+            font-size: 0.82rem;
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .task-item {
+                grid-template-columns: auto 1fr;
+            }
+
+            .task-duration,
+            .task-detail-btn {
+                grid-column: 2;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>JKR Tiedontuonti</h1>
+        <div style="display:flex;align-items:center;gap:16px;">
+            <div class="health-badge">
+                <div class="health-dot" id="healthDot"></div>
+                <span id="healthText">Tarkistetaan...</span>
+            </div>
+            <div class="health-badge">
+                <div class="health-dot" id="dbDot"></div>
+                <span id="dbText">Kanta: ?</span>
+            </div>
+        </div>
+    </header>
+    <div id="dbErrorBanner" style="
+        display:none;
+        background:#991b1b;
+        color:#fecaca;
+        padding:10px 24px;
+        font-size:0.85rem;
+        border-bottom:2px solid #ef4444;
+    ">
+        <strong>Tietokantayhteys puuttuu:</strong> <span id="dbErrorMsg"></span>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="import">Tiedontuonti</button>
+            <button class="tab-btn" data-tab="liete">Liete</button>
+            <button class="tab-btn" data-tab="psql">Tietokanta</button>
+            <button class="tab-btn" data-tab="scripts">Skriptit</button>
+            <button class="tab-btn" data-tab="tasks">Tehtävät</button>
+            <button class="tab-btn" data-tab="logs">Loki</button>
+            <button class="tab-btn" data-tab="files">Tiedostot</button>
+            <button class="tab-btn" data-tab="docs">Dokumentaatio</button>
+        </div>
+
+        <!-- ============ TIEDONTUONTI ============ -->
+        <div class="tab-content active" id="tab-import">
+
+            <!-- Kuljetustiedot -->
+            <div class="card">
+                <h3>Kuljetustietojen tuonti</h3>
+                <p class="card-desc">jkr import – Tuo kuljetustiedot siirtotiedostosta</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Siirtotiedosto (kansio)</label>
+                        <input id="imp-siirto" placeholder="../data/Kuljetustiedot/2024/Q1">
+                    </div>
+                    <div class="form-group">
+                        <label>Tiedontuottaja</label>
+                        <input id="imp-tuottaja" value="LSJ">
+                    </div>
+                    <div class="form-group">
+                        <label>Alkupvm</label>
+                        <input id="imp-alku" placeholder="1.1.2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Loppupvm</label>
+                        <input id="imp-loppu" placeholder="31.3.2024">
+                    </div>
+                </div>
+                <button class="btn" onclick="runImport()">Käynnistä tuonti</button>
+            </div>
+
+            <!-- Päätökset -->
+            <div class="card">
+                <h3>Päätösten tuonti</h3>
+                <p class="card-desc">jkr import_paatokset</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Päätöstiedosto</label>
+                        <input id="paat-file" placeholder="../data/.../Paatokset_2024Q1.xlsx">
+                    </div>
+                </div>
+                <button class="btn" onclick="runPaatokset()">Tuo päätökset</button>
+            </div>
+
+            <!-- Ilmoitukset -->
+            <div class="card">
+                <h3>Kompostointi-ilmoitusten tuonti</h3>
+                <p class="card-desc">jkr import_ilmoitukset</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Ilmoitustiedosto</label>
+                        <input id="ilm-file" placeholder="../data/.../Kompostointi-ilmoitus_2024Q1.xlsx">
+                    </div>
+                </div>
+                <button class="btn" onclick="runIlmoitukset()">Tuo ilmoitukset</button>
+            </div>
+
+            <!-- Lopetusilmoitukset -->
+            <div class="card">
+                <h3>Lopetusilmoitusten tuonti</h3>
+                <p class="card-desc">jkr import_lopetusilmoitukset</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Lopetusilmoitustiedosto</label>
+                        <input id="lop-file" placeholder="../data/.../Kompostoinnin_lopettaminen_2024Q1.xlsx">
+                    </div>
+                </div>
+                <button class="btn" onclick="runLopetusilmoitukset()">Tuo lopetusilmoitukset</button>
+            </div>
+
+            <!-- DVV Kohteet -->
+            <div class="card">
+                <h3>DVV-kohteiden luonti</h3>
+                <p class="card-desc">jkr create_dvv_kohteet</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Poimintapvm</label>
+                        <input id="dvv-pvm" placeholder="07.03.2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Perusmaksutiedosto (valinnainen)</label>
+                        <input id="dvv-perus" placeholder="../data/Perusmaksuaineisto.xlsx">
+                    </div>
+                </div>
+                <button class="btn" onclick="runDvvKohteet()">Luo kohteet</button>
+            </div>
+        </div>
+
+        <!-- ============ LIETE ============ -->
+        <div class="tab-content" id="tab-liete">
+
+            <!-- LIETE kuljetukset -->
+            <div class="card">
+                <h3>LIETE-kuljetustietojen tuonti</h3>
+                <p class="card-desc">jkr import_liete</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>LIETE-tiedosto</label>
+                        <input id="liete-file" placeholder="../data/Liete/Liete_kuljetustiedot_2024Q1.xlsx">
+                    </div>
+                    <div class="form-group">
+                        <label>Tiedontuottaja</label>
+                        <input id="liete-tuottaja" value="LSJ">
+                    </div>
+                    <div class="form-group">
+                        <label>Alkupvm</label>
+                        <input id="liete-alku" placeholder="1.1.2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Loppupvm</label>
+                        <input id="liete-loppu" placeholder="31.3.2024">
+                    </div>
+                </div>
+                <button class="btn" onclick="runLiete()">Tuo LIETE-kuljetukset</button>
+            </div>
+
+            <!-- Liete-ilmoitukset -->
+            <div class="card">
+                <h3>Liete kompostointi-ilmoitukset</h3>
+                <p class="card-desc">jkr import_liete_ilmoitukset</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Liete-ilmoitustiedosto</label>
+                        <input id="liete-ilm-file" placeholder="../data/Liete/Lietteen_kompostointi_2023Q1.xlsx">
+                    </div>
+                </div>
+                <button class="btn" onclick="runLieteIlmoitukset()">Tuo liete-ilmoitukset</button>
+            </div>
+
+            <!-- Kaivotiedot -->
+            <div class="card">
+                <h3>Kaivotietojen tuonti</h3>
+                <p class="card-desc">jkr import_kaivotiedot</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Kaivotiedot-tiedosto</label>
+                        <input id="kaivo-file" placeholder="../data/Liete/Kaivotiedot_aloitus.xlsx">
+                    </div>
+                    <div class="form-group">
+                        <label>Tiedontuottaja</label>
+                        <input id="kaivo-tuottaja" value="LSJ">
+                    </div>
+                </div>
+                <button class="btn" onclick="runKaivotiedot()">Tuo kaivotiedot</button>
+            </div>
+
+            <!-- Kaivotiedon lopetukset -->
+            <div class="card">
+                <h3>Kaivotiedon lopetusten tuonti</h3>
+                <p class="card-desc">jkr import_kaivotiedon_lopetukset</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Lopetustiedosto</label>
+                        <input id="kaivo-lop-file" placeholder="../data/Liete/Kaivotiedot_lopetus_2024Q1.xlsx">
+                    </div>
+                    <div class="form-group">
+                        <label>Tiedontuottaja</label>
+                        <input id="kaivo-lop-tuottaja" value="LSJ">
+                    </div>
+                </div>
+                <button class="btn" onclick="runKaivotiedonLopetukset()">Tuo lopetukset</button>
+            </div>
+
+            <!-- Viemärit -->
+            <div class="card">
+                <h3>Viemäritietojen tuonti</h3>
+                <p class="card-desc">jkr import_viemarit</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Viemäritiedosto</label>
+                        <input id="viem-file" placeholder="../data/Liete/Viemariverkosto_Asikkala.xlsx">
+                    </div>
+                </div>
+                <button class="btn" onclick="runViemarit()">Tuo viemäritiedot</button>
+            </div>
+
+            <!-- Viemärin lopetukset -->
+            <div class="card">
+                <h3>Viemärin lopetusten tuonti</h3>
+                <p class="card-desc">jkr import_lopeta_viemarit</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Viemärin lopetustiedosto</label>
+                        <input id="viem-lop-file" placeholder="../data/Liete/Viemariverkosto_lopetus_2023Q2.xlsx">
+                    </div>
+                </div>
+                <button class="btn" onclick="runViemariLopetukset()">Tuo viemärin lopetukset</button>
+            </div>
+        </div>
+
+        <!-- ============ TIETOKANTA ============ -->
+        <div class="tab-content" id="tab-psql">
+
+            <!-- SQL -->
+            <div class="card">
+                <h3>SQL-komento</h3>
+                <p class="card-desc">Suorita SQL-lause tai -tiedosto psql:llä</p>
+                <div class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="form-group">
+                        <label>SQL-lause</label>
+                        <textarea id="psql-sql" rows="3" placeholder="SELECT jkr.update_velvoitteet();"></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>tai SQL-tiedosto</label>
+                        <input id="psql-file" placeholder="import_dvv.sql">
+                    </div>
+                </div>
+                <button class="btn" onclick="runPsql()">Suorita</button>
+            </div>
+
+            <!-- Velvoitteet -->
+            <div class="card">
+                <h3>Velvoitteiden päivitys</h3>
+                <p class="card-desc">SELECT jkr.update_velvoitteet()</p>
+                <button class="btn" onclick="runUpdateVelvoitteet()">Päivitä velvoitteet</button>
+            </div>
+
+            <!-- Velvoite-status -->
+            <div class="card">
+                <h3>Velvoite-statuksen tallennus</h3>
+                <p class="card-desc">SELECT jkr.tallenna_velvoite_status(pvm)</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Päivämäärä</label>
+                        <input id="velv-pvm" placeholder="2024-03-31">
+                    </div>
+                </div>
+                <button class="btn" onclick="runTallennaVelvoite()">Tallenna status</button>
+            </div>
+
+            <!-- ogr2ogr -->
+            <div class="card">
+                <h3>ogr2ogr – Aineiston tuonti</h3>
+                <p class="card-desc">Tuo tiedosto PostgreSQL:ään ogr2ogr:llä (esim. DVV Excel)</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Lähdetiedosto</label>
+                        <input id="ogr-source" placeholder="../data/DVV/DVV-aineisto_2024.xlsx">
+                    </div>
+                    <div class="form-group">
+                        <label>Taulun/välilehden nimi</label>
+                        <input id="ogr-layer" placeholder="R1 rakennus">
+                    </div>
+                    <div class="form-group">
+                        <label>Kohdetaulu</label>
+                        <input id="ogr-table" placeholder="rakennus">
+                    </div>
+                    <div class="form-group">
+                        <label>Schema</label>
+                        <input id="ogr-schema" value="jkr_dvv">
+                    </div>
+                </div>
+                <button class="btn" onclick="runOgr2ogr()">Tuo aineisto</button>
+            </div>
+
+            <!-- CSV Copy -->
+            <div class="card">
+                <h3>CSV-tiedoston tuonti (\\copy)</h3>
+                <p class="card-desc">Tuo CSV-tiedosto tietokantatauluun</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Kohdetaulu</label>
+                        <input id="csv-table" placeholder="jkr_koodistot.tiedontuottaja(tunnus, nimi)">
+                    </div>
+                    <div class="form-group">
+                        <label>CSV-tiedosto</label>
+                        <input id="csv-file" placeholder="../data/Tiedontuottajat.csv">
+                    </div>
+                    <div class="form-group">
+                        <label>Erotin</label>
+                        <input id="csv-delim" value=";">
+                    </div>
+                </div>
+                <button class="btn" onclick="runCopyCsv()">Tuo CSV</button>
+            </div>
+        </div>
+
+        <!-- ============ SKRIPTIT ============ -->
+        <div class="tab-content" id="tab-scripts">
+
+            <!-- Taajama -->
+            <div class="card">
+                <h3>Taajamarajausten tuonti</h3>
+                <p class="card-desc">import_taajama.sh</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Alkupvm</label>
+                        <input id="taaj-pvm" placeholder="2026-01-01">
+                    </div>
+                </div>
+                <button class="btn" onclick="runTaajama()">Tuo taajamarajaukset</button>
+            </div>
+
+            <!-- Viemäriverkosto -->
+            <div class="card">
+                <h3>Viemäriverkoston tuonti (SHP)</h3>
+                <p class="card-desc">import_viemari.sh</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Alkupvm</label>
+                        <input id="viem-sh-pvm" placeholder="2023-01-01">
+                    </div>
+                    <div class="form-group">
+                        <label>SHP-tiedosto</label>
+                        <input id="viem-sh-file"
+                            placeholder="../data/.../Asikkala_vesihuoltolaitoksen_toiminta-alueet_2023.shp">
+                    </div>
+                </div>
+                <button class="btn" onclick="runViemariSh()">Tuo viemäriverkosto</button>
+            </div>
+
+            <!-- Pipeline -->
+            <div class="card">
+                <h3>Koko pipeline</h3>
+                <p class="card-desc">Aja koko tuontiskripti (esim. 2024_start.sh)</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Skriptin polku</label>
+                        <input id="pipe-script" value="scripts/2024_start.sh">
+                    </div>
+                </div>
+                <button class="btn" onclick="runPipeline()">Käynnistä pipeline</button>
+            </div>
+
+            <!-- Vapaa komento -->
+            <div class="card">
+                <h3>Vapaa komento</h3>
+                <p class="card-desc">Suorita mikä tahansa komento palvelimella</p>
+                <div class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="form-group">
+                        <label>Komento</label>
+                        <input id="cmd-command" placeholder="jkr tiedontuottaja list">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Kuvaus</label>
+                        <input id="cmd-desc" placeholder="Vapaa komento">
+                    </div>
+                    <div class="form-group">
+                        <label>Työhakemisto (valinnainen)</label>
+                        <input id="cmd-cwd" placeholder="/app/scripts">
+                    </div>
+                </div>
+                <button class="btn" onclick="runCommand()">Suorita</button>
+            </div>
+        </div>
+
+        <!-- ============ TEHTÄVÄT ============ -->
+        <div class="tab-content" id="tab-tasks">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h2 style="font-size:1.1rem;">Tehtävät</h2>
+                <button class="btn btn-sm btn-outline" onclick="refreshTasks()">Päivitä</button>
+            </div>
+            <div id="taskList" class="task-list">
+                <div class="empty-state">Ei tehtäviä</div>
+            </div>
+        </div>
+
+        <!-- ============ LOKI ============ -->
+        <div class="tab-content" id="tab-logs">
+            <div
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+                <h2 style="font-size:1.1rem;">Reaaliaikainen loki</h2>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <div id="wsStatus"
+                        style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-muted);">
+                        <div id="wsDot" class="health-dot"></div>
+                        <span id="wsText">Ei yhdistetty</span>
+                    </div>
+                    <select id="logLevelFilter"
+                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.8rem;">
+                        <option value="10">DEBUG</option>
+                        <option value="20" selected>INFO</option>
+                        <option value="25">IMPORT</option>
+                        <option value="30">WARNING</option>
+                        <option value="40">ERROR</option>
+                        <option value="50">CRITICAL</option>
+                    </select>
+                    <label style="font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="logAutoScroll" checked> Autoscroll
+                    </label>
+                    <button class="btn btn-sm btn-outline" id="wsToggleBtn" onclick="toggleLogWs()">Yhdistä</button>
+                    <button class="btn btn-sm btn-outline" onclick="clearLogView()">Tyhjennä</button>
+                </div>
+            </div>
+            <div id="logContainer" style="
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 12px;
+                font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+                font-size: 0.78rem;
+                line-height: 1.5;
+                height: 70vh;
+                overflow-y: auto;
+                white-space: pre-wrap;
+                word-break: break-all;
+            ">
+                <div style="color:var(--text-muted);text-align:center;padding:40px;">
+                    Vaihda Loki-välilehdelle aloittaaksesi lokin seurannan.
+                </div>
+            </div>
+            <div style="margin-top:8px;font-size:0.75rem;color:var(--text-muted);">
+                <span id="logCount">0</span> viestiä | WebSocket: <code>ws://&lt;host&gt;:8000/ws/logs</code>
+            </div>
+        </div>
+
+        <!-- ============ TIEDOSTOT ============ -->
+        <div class="tab-content" id="tab-files">
+
+            <!-- Yksittäinen tiedosto -->
+            <div class="card">
+                <h3>Lataa tiedosto</h3>
+                <p class="card-desc">Lataa yksittäinen tiedosto palvelimelle (/data/input)</p>
+                <div class="dropzone" id="upload-dropzone">
+                    <span class="drop-icon">&#128462;</span>
+                    Vedä ja pudota tiedosto tähän tai <strong>klikkaa valitaksesi</strong>
+                    <div class="drop-filename" id="upload-filename"></div>
+                    <input type="file" id="upload-file" style="display:none;">
+                </div>
+                <div class="form-grid" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Alikansio (valinnainen)</label>
+                        <input id="upload-subfolder" placeholder="esim. Kuljetustiedot/2024">
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <button class="btn" onclick="runUploadFile()">Lataa</button>
+                    <span id="uploadProgress" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                </div>
+            </div>
+
+            <!-- Chunked upload -->
+            <div class="card">
+                <h3>Chunked upload (isot tiedostot)</h3>
+                <p class="card-desc">Lataa iso tiedosto osissa. Chunk-koko oletuksena 5 MB.</p>
+                <div class="dropzone" id="chunked-dropzone">
+                    <span class="drop-icon">&#128462;</span>
+                    Vedä ja pudota tiedosto tähän tai <strong>klikkaa valitaksesi</strong>
+                    <div class="drop-filename" id="chunked-filename"></div>
+                    <input type="file" id="chunked-file" style="display:none;">
+                </div>
+                <div class="form-grid" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>Alikansio (valinnainen)</label>
+                        <input id="chunked-subfolder" placeholder="esim. Liete/2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Chunk-koko (MB)</label>
+                        <input id="chunked-size" type="number" value="5" min="1" max="50">
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                    <button class="btn" id="chunkedBtn" onclick="runChunkedUpload()">Lataa osissa</button>
+                    <span id="chunkedProgress" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                </div>
+                <div id="chunkedBar"
+                    style="display:none;margin-top:12px;background:var(--bg);border-radius:6px;height:8px;overflow:hidden;">
+                    <div id="chunkedBarFill"
+                        style="height:100%;background:var(--primary);width:0%;transition:width 0.3s;"></div>
+                </div>
+            </div>
+
+            <!-- Tiedostolista -->
+            <div class="card">
+                <h3>Palvelimen tiedostot</h3>
+                <p class="card-desc">/data/input -kansion sisältö</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Alikansio (valinnainen)</label>
+                        <input id="filelist-subfolder" placeholder="">
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="refreshFileList()" style="margin-bottom:12px;">Päivitä
+                    lista</button>
+                <div id="fileListContainer">
+                    <div class="empty-state">Paina "Päivitä lista" nähdäksesi tiedostot.</div>
+                </div>
+            </div>
+
+            <!-- ============ SHAREPOINT ============ -->
+            <div class="card" id="spCard">
+                <h3>&#9729; SharePoint</h3>
+                <p class="card-desc" id="spDesc">SharePoint-siten tiedostot</p>
+
+                <div id="spNotConfigured" style="display:none;">
+                    <div class="empty-state">SharePoint-integraatio ei ole konfiguroitu.<br>
+                        Aseta SHAREPOINT_SITE_ID, AZURE_CLIENT_ID ja AZURE_CLIENT_SECRET ympäristömuuttujat.</div>
+                </div>
+
+                <div id="spConfigured" style="display:none;">
+                    <!-- Kansion selaus -->
+                    <div class="form-grid" style="margin-bottom:12px;">
+                        <div class="form-group" style="flex:1;">
+                            <label>Kansio</label>
+                            <input id="sp-folder" placeholder="oletus: SHAREPOINT_FOLDER">
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-outline" onclick="spRefresh()">Päivitä lista</button>
+                        <span id="spBreadcrumb"
+                            style="font-size:0.8rem;color:var(--text-muted);align-self:center;"></span>
+                    </div>
+                    <div id="spFileList">
+                        <div class="empty-state">Paina "Päivitä lista" nähdäksesi SharePoint-tiedostot.</div>
+                    </div>
+
+                    <!-- Upload SharePointiin -->
+                    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+                        <h4 style="font-size:0.9rem;margin-bottom:8px;">Lataa tiedosto SharePointiin</h4>
+                        <div class="dropzone" id="sp-upload-dropzone">
+                            <span class="drop-icon">&#9729;</span>
+                            Vedä ja pudota tiedosto tai <strong>klikkaa valitaksesi</strong>
+                            <div class="drop-filename" id="sp-upload-filename"></div>
+                            <input type="file" id="sp-upload-file" style="display:none;">
+                        </div>
+                        <div class="form-grid" style="margin-top:8px;">
+                            <div class="form-group">
+                                <label>Kohdekansio (valinnainen)</label>
+                                <input id="sp-upload-folder" placeholder="oletus: SHAREPOINT_FOLDER">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:center;margin-top:8px;">
+                            <button class="btn" onclick="spUpload()">Lataa SharePointiin</button>
+                            <span id="spUploadProgress" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ DOKUMENTAATIO ============ -->
+        <div class="tab-content" id="tab-docs">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h2 style="font-size:1.1rem;">Tietokantadokumentaatio</h2>
+                <button class="btn btn-sm btn-outline" onclick="loadDocs()">Päivitä</button>
+            </div>
+            <input class="doc-search" id="docSearch" placeholder="Hae skeemaa, taulua tai kenttää..."
+                oninput="filterDocs()">
+            <div id="docStats" class="doc-stats"></div>
+            <div id="docContainer">
+                <div class="empty-state">Paina "Päivitä" tai vaihda tälle välilehdelle ladataksesi dokumentaation.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Tehtävän tiedot</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="toast-container" id="toasts"></div>
+
+    <script>
+        const API = window.location.origin;
+        let pollInterval = null;
+
+        // ---- Tabs ----
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+                if (btn.dataset.tab === 'tasks') refreshTasks();
+                if (btn.dataset.tab === 'logs') { if (_wsAutoConnect) connectLogWs(); }
+                if (btn.dataset.tab !== 'logs') disconnectLogWs();
+                if (btn.dataset.tab === 'files') refreshFileList();
+                if (btn.dataset.tab === 'docs' && !window._docsLoaded) loadDocs();
+            });
+        });
+
+        // ---- API helpers ----
+        async function post(path, body) {
+            const res = await fetch(API + path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                toast(data.detail || 'Virhe', 'error');
+                throw new Error(data.detail);
+            }
+            toast(`Tehtävä käynnistetty: ${data.description}`, 'success');
+            startPolling();
+            return data;
+        }
+
+        async function get(path) {
+            const res = await fetch(API + path);
+            return res.json();
+        }
+
+        // ---- Health ----
+        async function checkHealth() {
+            const banner = document.getElementById('dbErrorBanner');
+            const dbDot = document.getElementById('dbDot');
+            const dbText = document.getElementById('dbText');
+            try {
+                const data = await get('/health');
+                document.getElementById('healthDot').className = 'health-dot ok';
+                document.getElementById('healthText').textContent = 'API toimii';
+
+                if (data.database && data.database.connected) {
+                    dbDot.className = 'health-dot ok';
+                    dbText.textContent = 'Kanta: OK';
+                    banner.style.display = 'none';
+                } else {
+                    dbDot.className = 'health-dot err';
+                    dbText.textContent = 'Kanta: virhe';
+                    banner.style.display = 'block';
+                    document.getElementById('dbErrorMsg').textContent =
+                        (data.database && data.database.error) || 'Tuntematon virhe';
+                }
+            } catch {
+                document.getElementById('healthDot').className = 'health-dot err';
+                document.getElementById('healthText').textContent = 'API ei vastaa';
+                dbDot.className = 'health-dot err';
+                dbText.textContent = 'Kanta: ?';
+                banner.style.display = 'block';
+                document.getElementById('dbErrorMsg').textContent = 'API ei vastaa – kantayhteyden tilaa ei voida tarkistaa';
+            }
+        }
+        checkHealth();
+        setInterval(checkHealth, 30000);
+
+        // ---- Actions ----
+        function runImport() {
+            post('/jkr/import', {
+                siirtotiedosto: v('imp-siirto'),
+                tiedontuottajatunnus: v('imp-tuottaja'),
+                alkupvm: v('imp-alku'),
+                loppupvm: v('imp-loppu'),
+            });
+        }
+        function runPaatokset() {
+            post('/jkr/import_paatokset', { siirtotiedosto: v('paat-file') });
+        }
+        function runIlmoitukset() {
+            post('/jkr/import_ilmoitukset', { siirtotiedosto: v('ilm-file') });
+        }
+        function runLopetusilmoitukset() {
+            post('/jkr/import_lopetusilmoitukset', { siirtotiedosto: v('lop-file') });
+        }
+        function runDvvKohteet() {
+            const body = { poimintapvm: v('dvv-pvm') };
+            const perus = v('dvv-perus');
+            if (perus) body.perusmaksutiedosto = perus;
+            post('/jkr/create_dvv_kohteet', body);
+        }
+        function runLiete() {
+            post('/jkr/import_liete', {
+                siirtotiedosto: v('liete-file'),
+                tiedontuottajatunnus: v('liete-tuottaja'),
+                alkupvm: v('liete-alku'),
+                loppupvm: v('liete-loppu'),
+            });
+        }
+        function runLieteIlmoitukset() {
+            post('/jkr/import_liete_ilmoitukset', { siirtotiedosto: v('liete-ilm-file') });
+        }
+        function runKaivotiedot() {
+            post('/jkr/import_kaivotiedot', {
+                siirtotiedosto: v('kaivo-file'),
+                tiedontuottajatunnus: v('kaivo-tuottaja'),
+            });
+        }
+        function runKaivotiedonLopetukset() {
+            post('/jkr/import_kaivotiedon_lopetukset', {
+                siirtotiedosto: v('kaivo-lop-file'),
+                tiedontuottajatunnus: v('kaivo-lop-tuottaja'),
+            });
+        }
+        function runViemarit() {
+            post('/jkr/import_viemarit', { siirtotiedosto: v('viem-file') });
+        }
+        function runViemariLopetukset() {
+            post('/jkr/import_lopeta_viemarit', { siirtotiedosto: v('viem-lop-file') });
+        }
+        function runPsql() {
+            const sql = v('psql-sql');
+            const file = v('psql-file');
+            post('/psql/exec', { sql: sql || null, file: file || null });
+        }
+        function runUpdateVelvoitteet() {
+            post('/psql/update_velvoitteet', {});
+        }
+        function runTallennaVelvoite() {
+            post('/psql/tallenna_velvoite_status', { pvm: v('velv-pvm') });
+        }
+        function runOgr2ogr() {
+            post('/ogr2ogr/import', {
+                source_file: v('ogr-source'),
+                layer_name: v('ogr-layer'),
+                target_table: v('ogr-table'),
+                target_schema: v('ogr-schema'),
+            });
+        }
+        function runCopyCsv() {
+            post('/psql/copy_csv', {
+                table: v('csv-table'),
+                file_path: v('csv-file'),
+                delimiter: v('csv-delim'),
+            });
+        }
+        function runTaajama() {
+            post('/scripts/import_taajama', { alkupvm: v('taaj-pvm') });
+        }
+        function runViemariSh() {
+            post('/scripts/import_viemari', {
+                alkupvm: v('viem-sh-pvm'),
+                shp_tiedosto: v('viem-sh-file'),
+            });
+        }
+        function runPipeline() {
+            post('/pipeline/run', { script_path: v('pipe-script') });
+        }
+        function runCommand() {
+            const body = { command: v('cmd-command'), description: v('cmd-desc') || 'Vapaa komento' };
+            const cwd = v('cmd-cwd');
+            if (cwd) body.cwd = cwd;
+            post('/command/run', body);
+        }
+
+        // ---- Tasks ----
+        async function refreshTasks() {
+            const tasks = await get('/tasks');
+            const container = document.getElementById('taskList');
+            if (!tasks.length) {
+                container.innerHTML = '<div class="empty-state">Ei tehtäviä</div>';
+                return;
+            }
+            // Newest first
+            tasks.sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+            container.innerHTML = tasks.map(t => `
+        <div class="task-item">
+            <div class="task-status ${t.status}"></div>
+            <div>
+                <div class="task-desc">${esc(t.description)}</div>
+                <div class="task-cmd">${esc(t.command)}</div>
+            </div>
+            <div class="task-duration">${formatDuration(t.duration_seconds)}</div>
+            <button class="task-detail-btn" onclick="showDetail('${t.id}')">Tiedot</button>
+        </div>
+    `).join('');
+
+            // Stop polling if no running tasks
+            const hasRunning = tasks.some(t => t.status === 'running' || t.status === 'pending');
+            if (!hasRunning && pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        function startPolling() {
+            if (pollInterval) return;
+            refreshTasks();
+            pollInterval = setInterval(refreshTasks, 3000);
+        }
+
+        async function showDetail(taskId) {
+            const t = await get('/tasks/' + taskId);
+            document.getElementById('modalTitle').textContent = t.description;
+            document.getElementById('modalBody').innerHTML = `
+        <div class="detail-row"><span class="detail-label">Status:</span><span>${t.status}</span></div>
+        <div class="detail-row"><span class="detail-label">Komento:</span><span style="font-family:monospace;font-size:0.85rem;word-break:break-all">${esc(t.command)}</span></div>
+        <div class="detail-row"><span class="detail-label">Aloitettu:</span><span>${t.started_at || '-'}</span></div>
+        <div class="detail-row"><span class="detail-label">Päättynyt:</span><span>${t.finished_at || '-'}</span></div>
+        <div class="detail-row"><span class="detail-label">Kesto:</span><span>${formatDuration(t.duration_seconds)}</span></div>
+        <div class="detail-row"><span class="detail-label">Exit code:</span><span>${t.exit_code ?? '-'}</span></div>
+        <h4 style="margin:16px 0 8px;font-size:0.9rem;">Tuloste</h4>
+        <pre>${esc(t.output || '(tyhjä)')}</pre>
+        ${t.error ? `<h4 style="margin:16px 0 8px;font-size:0.9rem;color:var(--error)">Virhe</h4><pre style="border-color:var(--error)">${esc(t.error)}</pre>` : ''}
+    `;
+            document.getElementById('modal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('open');
+        }
+        document.getElementById('modal').addEventListener('click', e => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+
+        // ---- Utils ----
+        function v(id) { return document.getElementById(id).value.trim(); }
+        function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function formatDuration(sec) {
+            if (sec == null) return '-';
+            if (sec < 60) return sec.toFixed(1) + 's';
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            if (m < 60) return m + 'min ' + s + 's';
+            const h = Math.floor(m / 60);
+            return h + 'h ' + (m % 60) + 'min';
+        }
+        function toast(msg, type) {
+            const el = document.createElement('div');
+            el.className = 'toast ' + type;
+            el.textContent = msg;
+            document.getElementById('toasts').appendChild(el);
+            setTimeout(() => el.remove(), 5000);
+        }
+
+        // ---- WebSocket Log Viewer ----
+        let _ws = null;
+        let _logCount = 0;
+        let _wsAutoConnect = true;   // oletuksena yhdistää automaattisesti
+        let _wsReconnectTimer = null;
+        const LOG_COLORS = {
+            'DEBUG': '#64748b',
+            'INFO': '#3b82f6',
+            'IMPORT': '#8b5cf6',
+            'WARNING': '#f59e0b',
+            'ERROR': '#ef4444',
+            'CRITICAL': '#dc2626',
+        };
+        const MAX_LOG_LINES = 2000;
+
+        function _updateWsBtn() {
+            const btn = document.getElementById('wsToggleBtn');
+            const connected = _ws && _ws.readyState === WebSocket.OPEN;
+            btn.textContent = connected ? 'Katkaise' : 'Yhdistä';
+        }
+
+        function connectLogWs() {
+            if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return;
+            if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            let url = proto + '//' + window.location.host + '/ws/logs';
+            // Jos token on saatavilla (esim. Flutter), lisää query-parametrina
+            if (window._authToken) url += '?token=' + encodeURIComponent(window._authToken);
+            _ws = new WebSocket(url);
+
+            _ws.onopen = () => {
+                document.getElementById('wsDot').className = 'health-dot ok';
+                document.getElementById('wsText').textContent = 'Yhdistetty';
+                _updateWsBtn();
+                const lvl = document.getElementById('logLevelFilter').value;
+                _ws.send(JSON.stringify({ min_level: parseInt(lvl) }));
+            };
+
+            _ws.onclose = () => {
+                document.getElementById('wsDot').className = 'health-dot err';
+                document.getElementById('wsText').textContent = 'Ei yhdistetty';
+                _updateWsBtn();
+                // Yhdistä uudelleen vain jos auto-mode päällä JA Loki-tab auki
+                if (_wsAutoConnect && _isLogsTabActive()) {
+                    _wsReconnectTimer = setTimeout(connectLogWs, 3000);
+                }
+            };
+
+            _ws.onerror = () => {
+                document.getElementById('wsDot').className = 'health-dot err';
+                document.getElementById('wsText').textContent = 'Virhe';
+                _updateWsBtn();
+            };
+
+            _ws.onmessage = (event) => {
+                try {
+                    const entry = JSON.parse(event.data);
+                    appendLogEntry(entry);
+                } catch (e) { }
+            };
+        }
+
+        function disconnectLogWs() {
+            if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+            if (_ws) {
+                _ws.onclose = null;  // estä auto-reconnect
+                _ws.close();
+                _ws = null;
+            }
+            document.getElementById('wsDot').className = 'health-dot';
+            document.getElementById('wsText').textContent = 'Ei yhdistetty';
+            _updateWsBtn();
+        }
+
+        function toggleLogWs() {
+            const connected = _ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING);
+            if (connected) {
+                _wsAutoConnect = false;
+                disconnectLogWs();
+            } else {
+                _wsAutoConnect = true;
+                connectLogWs();
+            }
+        }
+
+        function _isLogsTabActive() {
+            const tab = document.getElementById('tab-logs');
+            return tab && tab.classList.contains('active');
+        }
+
+        function appendLogEntry(entry) {
+            const container = document.getElementById('logContainer');
+            if (_logCount === 0) container.innerHTML = '';
+
+            const line = document.createElement('div');
+            const color = LOG_COLORS[entry.level] || '#e2e8f0';
+            const levelBadge = `<span style="color:${color};font-weight:600;min-width:65px;display:inline-block;">[${entry.level}]</span>`;
+            const ts = entry.timestamp ? entry.timestamp.split('T')[1] || '' : '';
+            line.innerHTML = `<span style="color:var(--text-muted);">${esc(ts)}</span> ${levelBadge} ${esc(entry.message || '')}`;
+            line.style.borderBottom = '1px solid rgba(71,85,105,0.15)';
+            line.style.padding = '2px 0';
+
+            container.appendChild(line);
+            _logCount++;
+            document.getElementById('logCount').textContent = _logCount;
+
+            while (container.childElementCount > MAX_LOG_LINES) {
+                container.removeChild(container.firstChild);
+            }
+
+            if (document.getElementById('logAutoScroll').checked) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function clearLogView() {
+            const container = document.getElementById('logContainer');
+            container.innerHTML = '';
+            _logCount = 0;
+            document.getElementById('logCount').textContent = '0';
+        }
+
+        document.getElementById('logLevelFilter').addEventListener('change', (e) => {
+            if (_ws && _ws.readyState === WebSocket.OPEN) {
+                _ws.send(JSON.stringify({ min_level: parseInt(e.target.value) }));
+            }
+        });
+
+        // ---- Dropzone setup ----
+        function setupDropzone(dropzoneId, fileInputId, filenameId) {
+            const dz = document.getElementById(dropzoneId);
+            const fi = document.getElementById(fileInputId);
+            const fn = document.getElementById(filenameId);
+            dz.addEventListener('click', () => fi.click());
+            fi.addEventListener('change', () => {
+                fn.textContent = fi.files.length ? fi.files[0].name + ' (' + formatBytes(fi.files[0].size) + ')' : '';
+            });
+            dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
+            dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+            dz.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dz.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    fi.files = e.dataTransfer.files;
+                    fn.textContent = fi.files[0].name + ' (' + formatBytes(fi.files[0].size) + ')';
+                }
+            });
+        }
+        setupDropzone('upload-dropzone', 'upload-file', 'upload-filename');
+        setupDropzone('chunked-dropzone', 'chunked-file', 'chunked-filename');
+
+        // ---- File Upload ----
+        async function runUploadFile() {
+            const fileInput = document.getElementById('upload-file');
+            const subfolder = document.getElementById('upload-subfolder').value.trim();
+            const progress = document.getElementById('uploadProgress');
+            if (!fileInput.files.length) { toast('Valitse tiedosto', 'error'); return; }
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            if (subfolder) formData.append('subfolder', subfolder);
+            progress.textContent = 'Ladataan...';
+            try {
+                const res = await fetch(API + '/upload/file', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; return; }
+                progress.textContent = `Valmis: ${data.filename} (${formatBytes(data.file_size)})`;
+                toast(`Tiedosto ladattu: ${data.filename}`, 'success');
+                refreshFileList();
+            } catch (e) { progress.textContent = 'Virhe: ' + e.message; toast('Lataus epäonnistui', 'error'); }
+        }
+
+        async function runChunkedUpload() {
+            const fileInput = document.getElementById('chunked-file');
+            const subfolder = document.getElementById('chunked-subfolder').value.trim();
+            const chunkMB = parseInt(document.getElementById('chunked-size').value) || 5;
+            const progress = document.getElementById('chunkedProgress');
+            const bar = document.getElementById('chunkedBar');
+            const barFill = document.getElementById('chunkedBarFill');
+            const btn = document.getElementById('chunkedBtn');
+            if (!fileInput.files.length) { toast('Valitse tiedosto', 'error'); return; }
+            const file = fileInput.files[0];
+            const chunkSize = chunkMB * 1024 * 1024;
+            btn.disabled = true;
+            bar.style.display = 'block';
+            barFill.style.width = '0%';
+            progress.textContent = 'Alustetaan...';
+            try {
+                // 1. Init
+                const initRes = await fetch(API + '/upload/init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: file.name,
+                        total_size: file.size,
+                        chunk_size: chunkSize,
+                        subfolder: subfolder || null,
+                    }),
+                });
+                const initData = await initRes.json();
+                if (!initRes.ok) { toast(initData.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; btn.disabled = false; return; }
+                const { upload_id, total_chunks } = initData;
+                progress.textContent = `0 / ${total_chunks} chunkkia`;
+                // 2. Chunks
+                for (let i = 0; i < total_chunks; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, file.size);
+                    const blob = file.slice(start, end);
+                    const fd = new FormData();
+                    fd.append('chunk_index', i);
+                    fd.append('chunk', blob, file.name);
+                    const cRes = await fetch(API + `/upload/${upload_id}/chunk`, { method: 'POST', body: fd });
+                    if (!cRes.ok) { const err = await cRes.json(); toast(err.detail || 'Chunk-virhe', 'error'); progress.textContent = 'Virhe'; btn.disabled = false; return; }
+                    const pct = Math.round(((i + 1) / total_chunks) * 100);
+                    barFill.style.width = pct + '%';
+                    progress.textContent = `${i + 1} / ${total_chunks} chunkkia (${pct}%)`;
+                }
+                // 3. Complete
+                const compRes = await fetch(API + `/upload/${upload_id}/complete`, { method: 'POST' });
+                const compData = await compRes.json();
+                if (!compRes.ok) { toast(compData.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; btn.disabled = false; return; }
+                progress.textContent = `Valmis: ${compData.filename} (${formatBytes(compData.file_size)})`;
+                toast(`Chunked upload valmis: ${compData.filename}`, 'success');
+                refreshFileList();
+            } catch (e) { progress.textContent = 'Virhe: ' + e.message; toast('Chunked upload epäonnistui', 'error'); }
+            btn.disabled = false;
+        }
+
+        async function refreshFileList() {
+            const subfolder = document.getElementById('filelist-subfolder');
+            const sub = subfolder ? subfolder.value.trim() : '';
+            const container = document.getElementById('fileListContainer');
+            try {
+                const url = sub ? `/upload/files?subfolder=${encodeURIComponent(sub)}` : '/upload/files';
+                const files = await get(url);
+                if (!files.length) { container.innerHTML = '<div class="empty-state">Ei tiedostoja</div>'; return; }
+                container.innerHTML = '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;">'
+                    + '<thead><tr style="color:var(--text-muted);text-align:left;">'
+                    + '<th style="padding:6px 10px;">Nimi</th><th style="padding:6px 10px;">Koko</th>'
+                    + '<th style="padding:6px 10px;">Muokattu</th><th style="padding:6px 10px;">Polku</th></tr></thead><tbody>'
+                    + files.map(f => '<tr style="border-top:1px solid var(--border);">'
+                        + `<td style="padding:6px 10px;font-weight:500;">${esc(f.name)}</td>`
+                        + `<td style="padding:6px 10px;">${formatBytes(f.size)}</td>`
+                        + `<td style="padding:6px 10px;color:var(--text-muted);">${f.modified ? f.modified.replace('T', ' ').substring(0, 19) : ''}</td>`
+                        + `<td style="padding:6px 10px;font-family:monospace;font-size:0.78rem;color:var(--text-muted);">${esc(f.path)}</td>`
+                        + '</tr>').join('')
+                    + '</tbody></table>';
+            } catch (e) { container.innerHTML = '<div class="empty-state">Virhe: ' + esc(e.message || String(e)) + '</div>'; }
+        }
+
+        // ---- SharePoint ----
+        let _spInputFolder = '';
+        let _spOutputFolder = '';
+
+        async function spInit() {
+            try {
+                const st = await get('/sharepoint/status');
+                if (st.configured) {
+                    document.getElementById('spNotConfigured').style.display = 'none';
+                    document.getElementById('spConfigured').style.display = 'block';
+                    _spInputFolder = st.input_folder || '';
+                    _spOutputFolder = st.output_folder || '';
+                    document.getElementById('sp-folder').value = _spInputFolder;
+                    document.getElementById('sp-folder').placeholder = 'oletus: ' + _spInputFolder;
+                    document.getElementById('sp-upload-folder').placeholder = 'oletus: ' + _spOutputFolder;
+                    document.getElementById('spDesc').textContent = 'Site: ' + (st.site_id || '');
+                    spRefresh();
+                } else {
+                    document.getElementById('spNotConfigured').style.display = 'block';
+                    document.getElementById('spConfigured').style.display = 'none';
+                }
+            } catch (e) {
+                document.getElementById('spNotConfigured').style.display = 'block';
+                document.getElementById('spConfigured').style.display = 'none';
+            }
+        }
+        spInit();
+        setupDropzone('sp-upload-dropzone', 'sp-upload-file', 'sp-upload-filename');
+
+        async function spRefresh() {
+            const folder = document.getElementById('sp-folder').value.trim();
+            const container = document.getElementById('spFileList');
+            container.innerHTML = '<div class="empty-state"><div class="spinner"></div> Ladataan...</div>';
+            try {
+                const url = folder
+                    ? '/sharepoint/files?folder=' + encodeURIComponent(folder)
+                    : '/sharepoint/files';
+                const items = await get(url);
+                if (!items.length) {
+                    container.innerHTML = '<div class="empty-state">Kansio on tyhjä</div>';
+                    return;
+                }
+                const currentFolder = folder || _spInputFolder;
+                document.getElementById('spBreadcrumb').textContent = currentFolder;
+
+                container.innerHTML = '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;">'
+                    + '<thead><tr style="color:var(--text-muted);text-align:left;">'
+                    + '<th style="padding:6px 10px;">Nimi</th>'
+                    + '<th style="padding:6px 10px;">Tyyppi</th>'
+                    + '<th style="padding:6px 10px;">Koko</th>'
+                    + '<th style="padding:6px 10px;">Muokattu</th>'
+                    + '<th style="padding:6px 10px;">Toiminnot</th>'
+                    + '</tr></thead><tbody>'
+                    + items.map(item => {
+                        const isFolder = item.type === 'folder';
+                        const icon = isFolder ? '&#128193;' : '&#128196;';
+                        const nameHtml = isFolder
+                            ? `<a href="#" onclick="spNavigate('${esc(currentFolder + '/' + item.name)}');return false;" style="color:var(--primary);text-decoration:none;font-weight:600;">${icon} ${esc(item.name)}</a>`
+                            : `<span style="font-weight:500;">${icon} ${esc(item.name)}</span>`;
+                        const sizeStr = isFolder
+                            ? (item.childCount != null ? item.childCount + ' kohdetta' : '-')
+                            : formatBytes(item.size);
+                        const modified = item.lastModified
+                            ? item.lastModified.replace('T', ' ').substring(0, 19)
+                            : '';
+                        const itemPath = esc(currentFolder + '/' + item.name);
+                        const actions = isFolder
+                            ? ''
+                            : `<a href="#" onclick="spDownload('${itemPath}');return false;" style="color:var(--primary);font-size:0.8rem;text-decoration:none;margin-right:10px;">&#11015; Lataa</a>`
+                            + `<a href="#" onclick="spDelete('${itemPath}');return false;" style="color:#ef4444;font-size:0.8rem;text-decoration:none;">&#10060; Poista</a>`;
+                        return '<tr style="border-top:1px solid var(--border);">'
+                            + `<td style="padding:6px 10px;">${nameHtml}</td>`
+                            + `<td style="padding:6px 10px;color:var(--text-muted);">${isFolder ? 'Kansio' : 'Tiedosto'}</td>`
+                            + `<td style="padding:6px 10px;">${sizeStr}</td>`
+                            + `<td style="padding:6px 10px;color:var(--text-muted);">${modified}</td>`
+                            + `<td style="padding:6px 10px;">${actions}</td>`
+                            + '</tr>';
+                    }).join('')
+                    + '</tbody></table>';
+            } catch (e) {
+                container.innerHTML = '<div class="empty-state">Virhe: ' + esc(e.message || String(e)) + '</div>';
+            }
+        }
+
+        function spNavigate(folder) {
+            document.getElementById('sp-folder').value = folder;
+            spRefresh();
+        }
+
+        async function spDownload(filePath) {
+            try {
+                const url = API + '/sharepoint/download?path=' + encodeURIComponent(filePath);
+                const res = await fetch(url);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    toast(err.detail || 'Lataus epäonnistui', 'error');
+                    return;
+                }
+                const blob = await res.blob();
+                const filename = filePath.split('/').pop();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+                toast('Tiedosto ladattu: ' + filename, 'success');
+            } catch (e) {
+                toast('Lataus epäonnistui: ' + e.message, 'error');
+            }
+        }
+
+        async function spDelete(filePath) {
+            const filename = filePath.split('/').pop();
+            if (!confirm('Poistetaanko tiedosto "' + filename + '" SharePointista?')) return;
+            try {
+                const res = await fetch(API + '/sharepoint/delete?path=' + encodeURIComponent(filePath), { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Poisto epäonnistui', 'error'); return; }
+                toast('Tiedosto poistettu: ' + filename, 'success');
+                spRefresh();
+            } catch (e) {
+                toast('Poisto epäonnistui: ' + e.message, 'error');
+            }
+        }
+
+        async function spUpload() {
+            const fileInput = document.getElementById('sp-upload-file');
+            const folder = document.getElementById('sp-upload-folder').value.trim();
+            const progress = document.getElementById('spUploadProgress');
+            if (!fileInput.files.length) { toast('Valitse tiedosto', 'error'); return; }
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            if (folder) formData.append('folder', folder);
+            progress.textContent = 'Ladataan SharePointiin...';
+            try {
+                const res = await fetch(API + '/sharepoint/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Virhe', 'error'); progress.textContent = 'Virhe'; return; }
+                progress.textContent = `Valmis: ${data.name} (${formatBytes(data.size)})`;
+                toast('Tiedosto ladattu SharePointiin: ' + data.name, 'success');
+                spRefresh();
+            } catch (e) {
+                progress.textContent = 'Virhe: ' + e.message;
+                toast('SharePoint-lataus epäonnistui', 'error');
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes == null) return '-';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        // ---- Documentation ----
+        let _docsData = null;
+
+        async function loadDocs() {
+            const container = document.getElementById('docContainer');
+            container.innerHTML = '<div class="doc-loading"><div class="spinner"></div><br>Ladataan dokumentaatiota...</div>';
+            document.getElementById('docStats').textContent = '';
+            try {
+                const rows = await get('/db/documentation');
+                _docsData = rows;
+                window._docsLoaded = true;
+                renderDocs(rows);
+            } catch (e) {
+                container.innerHTML = '<div class="empty-state">Virhe ladattaessa dokumentaatiota: ' + esc(e.message || String(e)) + '</div>';
+            }
+        }
+
+        function renderDocs(rows) {
+            const container = document.getElementById('docContainer');
+            if (!rows || !rows.length) {
+                container.innerHTML = '<div class="empty-state">Ei tietoja</div>';
+                document.getElementById('docStats').textContent = '';
+                return;
+            }
+
+            // Group: schema -> table -> columns
+            const schemas = {};
+            const tableSet = new Set();
+            for (const r of rows) {
+                if (!schemas[r.skeema]) schemas[r.skeema] = {};
+                if (!schemas[r.skeema][r.taulu]) {
+                    schemas[r.skeema][r.taulu] = { kommentti: r.taulun_kommentti, columns: [] };
+                    tableSet.add(r.skeema + '.' + r.taulu);
+                }
+                schemas[r.skeema][r.taulu].columns.push(r);
+            }
+
+            const schemaCount = Object.keys(schemas).length;
+            const tableCount = tableSet.size;
+            document.getElementById('docStats').textContent =
+                schemaCount + ' skeemaa, ' + tableCount + ' taulua, ' + rows.length + ' kenttää';
+
+            let html = '';
+            for (const [schema, tables] of Object.entries(schemas)) {
+                const tCount = Object.keys(tables).length;
+                html += '<div class="schema-group" data-schema="' + esc(schema) + '">';
+                html += '<div class="schema-header" onclick="toggleSchema(this)">';
+                html += '<span>' + esc(schema) + ' <span style="font-weight:400;font-size:0.8rem;opacity:0.7">(' + tCount + ' taulua)</span></span>';
+                html += '<span class="chevron">&#9654;</span></div>';
+                html += '<div class="schema-body">';
+
+                for (const [table, info] of Object.entries(tables)) {
+                    html += '<div class="table-group" data-table="' + esc(table) + '">';
+                    html += '<div class="table-header" onclick="toggleTable(this)">';
+                    html += '<span>' + esc(table);
+                    if (info.kommentti) html += '<span class="table-comment">' + esc(info.kommentti) + '</span>';
+                    html += '</span>';
+                    html += '<span class="chevron">&#9654;</span></div>';
+                    html += '<div class="table-body">';
+                    html += '<table class="col-table"><thead><tr>';
+                    html += '<th>Kenttä</th><th>Tyyppi</th><th>Kommentti</th><th>NULL</th><th>Geometria</th>';
+                    html += '</tr></thead><tbody>';
+
+                    for (const col of info.columns) {
+                        html += '<tr>';
+                        html += '<td><span class="col-name">' + esc(col.kentta) + '</span></td>';
+                        html += '<td><span class="col-type">' + esc(col.tyyppi || '') + '</span></td>';
+                        html += '<td><span class="col-comment">' + esc(col.kentan_kommentti || '') + '</span></td>';
+                        const nullable = (col.is_nullable || '').toUpperCase() === 'YES';
+                        html += '<td><span class="col-nullable ' + (nullable ? 'yes' : 'no') + '">' + (nullable ? 'YES' : 'NOT NULL') + '</span></td>';
+                        let geo = '';
+                        if (col.dimensions != null) {
+                            geo = (col.tyyppi || '') + ' ' + (col.dimensions || '') + 'D';
+                            if (col.coordinate_system) geo += ' SRID:' + col.coordinate_system;
+                        }
+                        html += '<td>' + (geo ? '<span class="col-geo">' + esc(geo) + '</span>' : '') + '</td>';
+                        html += '</tr>';
+                    }
+
+                    html += '</tbody></table></div></div>';
+                }
+
+                html += '</div></div>';
+            }
+            container.innerHTML = html;
+        }
+
+        function toggleSchema(el) {
+            const body = el.nextElementSibling;
+            const chevron = el.querySelector('.chevron');
+            body.classList.toggle('open');
+            chevron.classList.toggle('open');
+        }
+
+        function toggleTable(el) {
+            const body = el.nextElementSibling;
+            const chevron = el.querySelector('.chevron');
+            body.classList.toggle('open');
+            chevron.classList.toggle('open');
+        }
+
+        function filterDocs() {
+            if (!_docsData) return;
+            const q = document.getElementById('docSearch').value.trim().toLowerCase();
+            if (!q) {
+                renderDocs(_docsData);
+                return;
+            }
+            const filtered = _docsData.filter(r =>
+                (r.skeema || '').toLowerCase().includes(q) ||
+                (r.taulu || '').toLowerCase().includes(q) ||
+                (r.kentta || '').toLowerCase().includes(q) ||
+                (r.taulun_kommentti || '').toLowerCase().includes(q) ||
+                (r.kentan_kommentti || '').toLowerCase().includes(q) ||
+                (r.tyyppi || '').toLowerCase().includes(q)
+            );
+            renderDocs(filtered);
+            // Auto-expand all when filtering
+            if (q) {
+                document.querySelectorAll('.schema-body, .table-body').forEach(el => el.classList.add('open'));
+                document.querySelectorAll('.chevron').forEach(el => el.classList.add('open'));
+            }
+        }
+    </script>
+</body>
+
+</html>
