@@ -32,7 +32,7 @@ import aiofiles
 import hashlib
 
 from jkrimporter import ws_log_handler
-from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin
+from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin, validate_ws_token
 from jkrimporter.api import sharepoint as sp
 
 # ---------------------------------------------------------------------------
@@ -731,7 +731,7 @@ async def health():
 # WebSocket: Reaaliaikainen loki
 # ---------------------------------------------------------------------------
 @app.websocket("/ws/logs")
-async def ws_logs(websocket: WebSocket):
+async def ws_logs(websocket: WebSocket, token: Optional[str] = Query(None)):
     """
     WebSocket-endpoint reaaliaikaiselle lokille.
 
@@ -740,7 +740,15 @@ async def ws_logs(websocket: WebSocket):
 
     Client voi lähettää JSON-viestin log-tason suodattamiseksi:
         {"min_level": 25}   # näytä vain IMPORT (25) ja sitä vakavammat
+
+    Autentikointi: ws://host/ws/logs?token=<bearer_token>
     """
+    try:
+        await validate_ws_token(token)
+    except Exception:
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+
     await websocket.accept()
     min_level = 0
     queue: asyncio.Queue = asyncio.Queue()

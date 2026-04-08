@@ -1549,7 +1549,9 @@
             if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
 
             const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const url = proto + '//' + window.location.host + '/ws/logs';
+            let url = proto + '//' + window.location.host + '/ws/logs';
+            // Jos token on saatavilla (esim. Flutter), lisää query-parametrina
+            if (window._authToken) url += '?token=' + encodeURIComponent(window._authToken);
             _ws = new WebSocket(url);
 
             _ws.onopen = () => {

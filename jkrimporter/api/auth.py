@@ -251,6 +251,35 @@ async def require_viewer_or_admin(
 
 
 # ---------------------------------------------------------------------------
+# WebSocket-autentikointi (token query-parametrista)
+# ---------------------------------------------------------------------------
+async def validate_ws_token(token: Optional[str]) -> CurrentUser:
+    """Validoi Bearer-tokenin WebSocket-yhteyksissä (query param ?token=...).
+
+    Palauttaa CurrentUser tai nostaa HTTPException.
+    """
+    if _UNSECURE:
+        return CurrentUser(
+            oid="unsecure-test-user",
+            name="Test User (UNSECURE)",
+            email="test@unsecure.local",
+            roles=[UserRole.ADMIN, UserRole.VIEWER],
+            groups=[],
+        )
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token puuttuu (käytä ?token=... query-parametria)",
+        )
+
+    # Käytetään samaa validointilogiikkaa kuin _validate_token
+    from fastapi.security import HTTPAuthorizationCredentials
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    return await _validate_token(credentials=creds)
+
+
+# ---------------------------------------------------------------------------
 # Julkiset dependencyt endpointeille
 # ---------------------------------------------------------------------------
 # Käytä näitä FastAPI Depends():ssä:
