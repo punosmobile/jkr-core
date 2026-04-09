@@ -1208,10 +1208,18 @@
                             <input id="sp-folder" placeholder="oletus: SHAREPOINT_FOLDER">
                         </div>
                     </div>
-                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
                         <button class="btn btn-sm btn-outline" onclick="spRefresh()">Päivitä lista</button>
+                        <button class="btn btn-sm" onclick="spPullSelected()" id="spPullBtn"
+                            style="display:none;">&#128229; Lataa valitut palvelimelle</button>
+                        <span id="spPullStatus" style="font-size:0.8rem;color:var(--text-muted);"></span>
                         <span id="spBreadcrumb"
-                            style="font-size:0.8rem;color:var(--text-muted);align-self:center;"></span>
+                            style="font-size:0.8rem;color:var(--text-muted);align-self:center;margin-left:auto;"></span>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+                        <label style="font-size:0.8rem;color:var(--text-muted);">Alikansio /data/input alla:</label>
+                        <input id="sp-pull-subfolder" placeholder="(valinnainen)"
+                            style="width:200px;font-size:0.85rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;">
                     </div>
                     <div id="spFileList">
                         <div class="empty-state">Paina "Päivitä lista" nähdäksesi SharePoint-tiedostot.</div>
@@ -1821,6 +1829,7 @@
 
                 container.innerHTML = '<table style="width:100%;font-size:0.85rem;border-collapse:collapse;">'
                     + '<thead><tr style="color:var(--text-muted);text-align:left;">'
+                    + '<th style="padding:6px 4px;width:30px;"><input type="checkbox" onchange="spToggleAll(this)"></th>'
                     + '<th style="padding:6px 10px;">Nimi</th>'
                     + '<th style="padding:6px 10px;">Tyyppi</th>'
                     + '<th style="padding:6px 10px;">Koko</th>'
@@ -1840,11 +1849,16 @@
                             ? item.lastModified.replace('T', ' ').substring(0, 19)
                             : '';
                         const itemPath = esc(currentFolder + '/' + item.name);
+                        const checkbox = isFolder
+                            ? ''
+                            : `<input type="checkbox" class="sp-file-cb" data-path="${itemPath}" onchange="spUpdatePullBtn()">`;
                         const actions = isFolder
                             ? ''
-                            : `<a href="#" onclick="spDownload('${itemPath}');return false;" style="color:var(--primary);font-size:0.8rem;text-decoration:none;margin-right:10px;">&#11015; Lataa</a>`
+                            : `<a href="#" onclick="spDownload('${itemPath}');return false;" style="color:var(--primary);font-size:0.8rem;text-decoration:none;margin-right:8px;">&#11015; Lataa</a>`
+                            + `<a href="#" onclick="spPullOne('${itemPath}');return false;" style="color:var(--accent);font-size:0.8rem;text-decoration:none;margin-right:8px;">&#128229; Palvelimelle</a>`
                             + `<a href="#" onclick="spDelete('${itemPath}');return false;" style="color:#ef4444;font-size:0.8rem;text-decoration:none;">&#10060; Poista</a>`;
                         return '<tr style="border-top:1px solid var(--border);">'
+                            + `<td style="padding:6px 4px;text-align:center;">${checkbox}</td>`
                             + `<td style="padding:6px 10px;">${nameHtml}</td>`
                             + `<td style="padding:6px 10px;color:var(--text-muted);">${isFolder ? 'Kansio' : 'Tiedosto'}</td>`
                             + `<td style="padding:6px 10px;">${sizeStr}</td>`
@@ -1853,6 +1867,7 @@
                             + '</tr>';
                     }).join('')
                     + '</tbody></table>';
+                spUpdatePullBtn();
             } catch (e) {
                 container.innerHTML = '<div class="empty-state">Virhe: ' + esc(e.message || String(e)) + '</div>';
             }
@@ -1898,6 +1913,65 @@
                 spRefresh();
             } catch (e) {
                 toast('Poisto epäonnistui: ' + e.message, 'error');
+            }
+        }
+
+        function spToggleAll(master) {
+            document.querySelectorAll('.sp-file-cb').forEach(cb => cb.checked = master.checked);
+            spUpdatePullBtn();
+        }
+
+        function spUpdatePullBtn() {
+            const checked = document.querySelectorAll('.sp-file-cb:checked');
+            const btn = document.getElementById('spPullBtn');
+            btn.style.display = checked.length > 0 ? 'inline-block' : 'none';
+            btn.textContent = '\u{1F4E5} Lataa ' + checked.length + ' palvelimelle';
+        }
+
+        function _getSelectedSpPaths() {
+            return Array.from(document.querySelectorAll('.sp-file-cb:checked')).map(cb => cb.dataset.path);
+        }
+
+        async function spPullSelected() {
+            const paths = _getSelectedSpPaths();
+            if (!paths.length) { toast('Valitse tiedostot', 'error'); return; }
+            const subfolder = document.getElementById('sp-pull-subfolder').value.trim();
+            const status = document.getElementById('spPullStatus');
+            status.textContent = 'Ladataan ' + paths.length + ' tiedostoa palvelimelle...';
+            try {
+                let url = API + '/sharepoint/pull?' + paths.map(p => 'paths=' + encodeURIComponent(p)).join('&');
+                if (subfolder) url += '&subfolder=' + encodeURIComponent(subfolder);
+                const res = await fetch(url, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Pull epäonnistui', 'error'); status.textContent = 'Virhe'; return; }
+                const ok = data.downloaded ? data.downloaded.length : 0;
+                const fail = data.errors ? data.errors.length : 0;
+                status.textContent = ok + ' ladattu' + (fail ? ', ' + fail + ' epäonnistui' : '') + ' → ' + data.target_dir;
+                toast(ok + ' tiedostoa ladattu palvelimelle', 'success');
+                if (fail) data.errors.forEach(e => toast(e.path + ': ' + e.error, 'error'));
+            } catch (e) {
+                status.textContent = 'Virhe: ' + e.message;
+                toast('Pull epäonnistui: ' + e.message, 'error');
+            }
+        }
+
+        async function spPullOne(filePath) {
+            const filename = filePath.split('/').pop();
+            const subfolder = document.getElementById('sp-pull-subfolder').value.trim();
+            const status = document.getElementById('spPullStatus');
+            status.textContent = 'Ladataan ' + filename + '...';
+            try {
+                let url = API + '/sharepoint/pull?paths=' + encodeURIComponent(filePath);
+                if (subfolder) url += '&subfolder=' + encodeURIComponent(subfolder);
+                const res = await fetch(url, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) { toast(data.detail || 'Pull epäonnistui', 'error'); status.textContent = 'Virhe'; return; }
+                const dl = data.downloaded[0];
+                status.textContent = dl.filename + ' (' + formatBytes(dl.size) + ') → ' + dl.target_path;
+                toast(filename + ' ladattu palvelimelle', 'success');
+            } catch (e) {
+                status.textContent = 'Virhe: ' + e.message;
+                toast('Pull epäonnistui: ' + e.message, 'error');
             }
         }
 

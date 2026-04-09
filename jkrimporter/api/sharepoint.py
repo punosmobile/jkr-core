@@ -198,6 +198,79 @@ async def download_file(file_path: str) -> tuple:
     return resp.content, filename, content_type
 
 
+async def download_file_to_disk(
+    file_path: str,
+    target_dir: str,
+    user_name: str = "",
+    user_email: str = "",
+) -> Dict[str, Any]:
+    """Lataa tiedoston SharePointista suoraan palvelimen levylle.
+
+    Streamaa sisällön suoraan tiedostoon ilman, että koko tiedosto
+    pidetään muistissa. Sopii suurillekin tiedostoille.
+
+    Palauttaa dict: filename, target_path, size
+    """
+    import aiofiles
+    from pathlib import Path
+
+    token = await _get_app_token()
+    path = file_path.strip("/")
+
+    # Hae tiedoston metadata + download URL
+    url = f"{_graph_base()}/root:/{path}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        meta = resp.json()
+
+    download_url = meta.get("@microsoft.graph.downloadUrl") or meta.get("@content.downloadUrl")
+    if not download_url:
+        raise RuntimeError(f"Download URL ei saatavilla tiedostolle: {file_path}")
+
+    filename = meta.get("name", file_path.split("/")[-1])
+    file_size = meta.get("size", 0)
+
+    # Varmista kohdehakemisto
+    dest_dir = Path(target_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / filename
+
+    # Streamaa tiedosto levylle
+    written = 0
+    async with httpx.AsyncClient() as client:
+        async with client.stream("GET", download_url, timeout=300.0) as stream:
+            stream.raise_for_status()
+            async with aiofiles.open(str(dest_path), "wb") as f:
+                async for chunk in stream.aiter_bytes(chunk_size=1024 * 1024):
+                    await f.write(chunk)
+                    written += len(chunk)
+
+    logger.info(
+        "SharePoint -> disk: %s (%d tavua) -> %s",
+        filename, written, str(dest_path),
+    )
+
+    # Audit trail
+    item_id = meta.get("id")
+    if item_id and user_name:
+        await _set_audit_description(
+            token, item_id, "Download to server", user_name, user_email,
+            f"{filename} -> {target_dir}",
+        )
+
+    return {
+        "filename": filename,
+        "target_path": str(dest_path),
+        "size": written,
+        "sharepoint_path": file_path,
+    }
+
+
 async def upload_file(
     file_content: bytes,
     filename: str,
