@@ -1047,6 +1047,42 @@ async def sharepoint_download(
         raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
 
 
+@app.post("/sharepoint/pull", summary="Lataa tiedosto(t) SharePointista palvelimen /data/input -kansioon")
+async def sharepoint_pull(
+    paths: List[str] = Query(..., description="SharePoint-tiedostopolut ladattavaksi"),
+    subfolder: Optional[str] = Query(None, description="Alikansio /data/input alla"),
+    user: CurrentUser = Depends(require_admin),
+):
+    """Lataa valitut tiedostot SharePointista suoraan palvelimen levylle.
+
+    Tiedostot streamataan suoraan /data/input -hakemistoon ilman,
+    että ne kulkevat selaimen kautta.
+    """
+    if not await sp.is_configured():
+        raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
+
+    target_dir = str(UPLOAD_DIR / subfolder) if subfolder else str(UPLOAD_DIR)
+    results = []
+    errors = []
+    for path in paths:
+        try:
+            result = await sp.download_file_to_disk(
+                path, target_dir,
+                user_name=user.name, user_email=user.email,
+            )
+            results.append(result)
+            logger.info("SharePoint pull: %s -> %s", path, result["target_path"])
+        except Exception as e:
+            logger.error("SharePoint pull epäonnistui: %s – %s", path, e)
+            errors.append({"path": path, "error": str(e)})
+
+    return {
+        "downloaded": results,
+        "errors": errors,
+        "target_dir": target_dir,
+    }
+
+
 @app.post("/sharepoint/upload", summary="Lataa tiedosto SharePointiin")
 async def sharepoint_upload(
     file: UploadFile = File(...),
