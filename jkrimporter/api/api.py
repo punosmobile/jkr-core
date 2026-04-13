@@ -39,6 +39,7 @@ from jkrimporter import ws_log_handler
 from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin, validate_ws_token
 from jkrimporter.api import sharepoint as sp
 from jkrimporter.api import licenses as lic
+from jkrimporter.api import util as utilities
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -1510,8 +1511,10 @@ async def sharepoint_pull(
                 path, target_dir,
                 user_name=user.name, user_email=user.email,
             )
-            results.append(result)
-            logger.info("SharePoint pull: %s -> %s", path, result["target_path"])
+
+            verified_result = utilities.verify_contents(result)
+            results.append(verified_result)
+            logger.info("SharePoint pull: %s -> %s", path, verified_result["target_path"])
         except Exception as e:
             logger.error("SharePoint pull epäonnistui: %s – %s", path, e)
             errors.append({"path": path, "error": str(e)})
