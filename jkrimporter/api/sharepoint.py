@@ -155,6 +155,7 @@ async def list_folder(folder: Optional[str] = None) -> List[Dict[str, Any]]:
             "id": item.get("id"),
             "name": item.get("name"),
             "size": item.get("size"),
+            "path": folder_path+'/'+item.get("name"),
             "lastModified": item.get("lastModifiedDateTime"),
             "type": "folder" if "folder" in item else "file",
             "webUrl": item.get("webUrl"),
