@@ -17,6 +17,115 @@ if TYPE_CHECKING:
         headers: List[str]
 
 
+
+def get_hapa_kohteet_headers():
+    expected_headers = [
+        "Rakennus-ID", 
+        "Kohde id", 
+        "Sijaintikunta", 
+        "Asiakasnro",  
+        "Katunimi FI", 
+        "Talon numero", 
+        "Postinumero", 
+        "Postitoimipaikka fi", 
+        "kohdetyyppi"
+    ]
+    return expected_headers
+
+
+def get_tiedontuottajat_headers():
+    expected_headers = [
+        "tunnus",
+        "nimi"
+    ]
+    return expected_headers
+
+def get_dvv_osoite_headers():
+    expected_headers = [
+        "Kadunnimi ruotsiksi",
+        "Kadunnimi suomeksi",
+        "Sijainti-kunta",
+        "Posti-numero",
+        "Katu-numero",
+        "Rakennustunnus",
+        "Postitoimipaikan nimi suomeksi"
+    ]
+    return expected_headers
+
+
+def get_dvv_rakennus_headers():
+    expected_headers = [
+        "rakennustunnus",
+        "sijaintikiinteistön tunnus",
+        "viemäri",
+        "Pohjois-koordinaatti",
+        "Itä-koordinaatti",
+        """Valmis-tumis-
+päivä""",
+       "Käytössä-olotilanteen muutospäivä",
+        "Käyttö-tarkoitus"
+        "Käytös-säolo-tilanne",
+        """Rakennus-
+luokka""",
+        "Sijainti-kunta"
+    ]
+    return expected_headers
+
+
+def get_dvv_omistaja_headers():
+    expected_headers = [
+        "Omistajan nimi",
+        "Omistajan vakinainen kotimainen asuinosoite",
+        "Vakinaisen kotim osoitteen postitoimipaikka",
+        "Vak os posti- numero",
+        "Omistajan kuolinpäivä",
+        "Vakin kotim osoitteen alkupäivä",
+        "Postios posti-numero",
+        "Postiosoitteen postitoimipaikka",
+        "Omistajan postiosoite",
+        "Um os valtio-koodi",
+        "Omistajan ulkomainen lähiosoite",
+        "Ulkomaisen osoitteen paikkakunta",
+        "Ulkomaisen osoitteen valtion postinimi",
+        "Omist koti-kunta",
+        "Henkilötunnus",
+        "Y-tunnus",
+        "Omistuksen alkupäivä"
+    ]
+    return expected_headers
+
+
+def get_dvv_asukas_headers():
+    expected_headers = [
+        "Huoneiston vanhin asukas (henkilötunnus)",
+        "Sukunimi",
+        "Etunimet",
+        "Vakinainen kotimainen asuinosoite",
+        "Vak os posti- numero",
+        "Sijainti-kunta",
+        "Rakennustunnus",
+        "Vakin kotim osoitteen alkupäivä",
+        "Vakinaisen kotim osoitteen postitoimipaikka",
+        "Huo-neisto-kirjain",
+        "Huo-neisto-numero",
+        "Jako-kirjain",
+    ]
+    return expected_headers
+
+
+def get_perusmaksu_headers():
+    expected_headers = [
+        "Rakennus-ID",
+        "Sijaintikunta",
+        "Asiakasnro",
+        "Katunimi FI",
+        "Talon numero",
+        "Postinumero",
+        "Postitoimipaikka FI",
+    ]
+    return expected_headers
+
+
 def get_siirtotiedosto_headers():
     expected_headers = [
         "UrakoitsijaId",

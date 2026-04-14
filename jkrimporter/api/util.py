@@ -15,7 +15,14 @@ from jkrimporter.datasheets import (
     get_paatostiedosto_headers,
     get_viemari_ilmoitustiedosto_headers,
     get_viemari_lopetustiedosto_headers,
-    get_siirtotiedosto_headers
+    get_siirtotiedosto_headers,
+    get_hapa_kohteet_headers,
+    get_dvv_rakennus_headers,
+    get_dvv_osoite_headers,
+    get_dvv_omistaja_headers,
+    get_dvv_asukas_headers,
+    get_perusmaksu_headers,
+    get_tiedontuottajat_headers,
 )
 
 logger = logging.getLogger("jkr-sharepoint")
@@ -38,6 +45,7 @@ class fileType(str, Enum):
     LIETE_PELTOLEVITYS = "Lietteenpeltolevitys"
     VIEMARIVERKOSTO_ALKU = "Viemariverkosto"
     VIEMARIVERKOSTO_LOPPU = "Viemäriverkosto_lopetus"
+    POSTINUMEROT = "PCF"
 
 
 class fileInfo:
@@ -62,6 +70,17 @@ _HEADERS_BY_TYPE: Dict[fileType, List[str]] = {
     fileType.VIEMARIVERKOSTO_ALKU: get_viemari_ilmoitustiedosto_headers(),
     fileType.VIEMARIVERKOSTO_LOPPU: get_viemari_lopetustiedosto_headers(),
     fileType.KULJETUSTIETO: get_siirtotiedosto_headers(),
+    fileType.HAPATIEDOSTO: get_hapa_kohteet_headers(),
+    fileType.PERUSMAKSUAINEISTO: get_perusmaksu_headers(),
+    fileType.TIEDONTUOTTAJAT: get_tiedontuottajat_headers(),
+}
+
+# DVV files contain multiple named sheets, each with its own expected headers.
+_DVV_SHEETS: Dict[str, List[str]] = {
+    "R1 rakennus": get_dvv_rakennus_headers(),
+    "R3 osoite": get_dvv_osoite_headers(),
+    "R4 omistaja": get_dvv_omistaja_headers(),
+    "R9 huon asukk": get_dvv_asukas_headers(),
 }
 
 # Sorted longest-first so more specific prefixes are tried before shorter ones.
@@ -76,21 +95,22 @@ def _detect_file_type(filename: str) -> Optional[fileType]:
     return None
 
 
-def _verify_excel_headers(target_path: str, expected_headers: List[str]) -> List[str]:
-    """Open the Excel file and return a list of any missing expected headers."""
+def _verify_excel_headers(target_path: str, expected_headers: List[str]):
+    """Return (missing_headers, data_row_count) for an Excel file."""
     try:
         workbook = load_workbook(filename=target_path, data_only=True, read_only=True)
         sheet = workbook[workbook.sheetnames[0]]
         actual_headers = [cell.value for cell in sheet[1]]
+        rows = max((sheet.max_row or 1) - 1, 0)
         workbook.close()
-        return [h for h in expected_headers if h not in actual_headers]
+        return [h for h in expected_headers if h not in actual_headers], rows
     except Exception as e:
         logger.error("Tiedoston otsakkeiden lukeminen epäonnistui: %s – %s", target_path, e)
-        return expected_headers
+        return expected_headers, None
 
 
-def _verify_csv_headers(target_path: str, expected_headers: List[str]) -> List[str]:
-    """Open the CSV file and return a list of any missing expected headers."""
+def _verify_csv_headers(target_path: str, expected_headers: List[str]):
+    """Return (missing_headers, data_row_count) for a CSV file."""
     try:
         with open(target_path, mode="rb") as f:
             content = f.read()
@@ -99,10 +119,47 @@ def _verify_csv_headers(target_path: str, expected_headers: List[str]) -> List[s
         decoded = content.decode("cp1252")
         reader = csv.DictReader(decoded.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
         actual_lower = {h.lower() for h in (reader.fieldnames or [])}
-        return [h for h in expected_headers if h.lower() not in actual_lower]
+        rows = sum(1 for _ in reader)
+        return [h for h in expected_headers if h.lower() not in actual_lower], rows
     except Exception as e:
         logger.error("Tiedoston otsakkeiden lukeminen epäonnistui: %s – %s", target_path, e)
-        return expected_headers
+        return expected_headers, None
+
+
+def _verify_dvv_sheets(target_path: str) -> bool:
+    """Verify that all expected DVV sheets exist and have the correct headers."""
+    try:
+        workbook = load_workbook(filename=target_path, data_only=True, read_only=True)
+        all_ok = True
+        for sheet_name, expected_headers in _DVV_SHEETS.items():
+            if sheet_name not in workbook.sheetnames:
+                logger.error("DVV-tiedostosta puuttuu välilehti: %s", sheet_name)
+                all_ok = False
+                continue
+            sheet = workbook[sheet_name]
+            actual_headers = [cell.value for cell in sheet[1]]
+            missing = [h for h in expected_headers if h not in actual_headers]
+            if missing:
+                logger.error(
+                    "DVV-tiedosto: välilehti '%s', puuttuvat sarakeotsikot: %s",
+                    sheet_name, missing,
+                )
+                all_ok = False
+        workbook.close()
+        return all_ok
+    except Exception as e:
+        logger.error("DVV-tiedoston lukeminen epäonnistui: %s – %s", target_path, e)
+        return False
+
+
+def _verify_dat_readable(target_path: str) -> bool:
+    """Check that a fixed-width .dat file can be opened and is non-empty."""
+    try:
+        with open(target_path, mode="rb") as f:
+            return len(f.read(1)) > 0
+    except Exception as e:
+        logger.error("Tiedoston lukeminen epäonnistui: %s – %s", target_path, e)
+        return False
 
 
 def verify_contents(file: Dict[str, Any]) -> Dict[str, Any]:
@@ -116,17 +173,29 @@ def verify_contents(file: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("Tuntematon tiedostotyyppi: %s", filename)
         file["type"] = None
         file["runnable"] = False
+        file["rows"] = None
         return file
 
     file["type"] = detected_type.value
     logger.info("Tiedostotyyppi tunnistettu: %s → %s", filename, detected_type.name)
 
+    if suffix == ".dat":
+        file["runnable"] = _verify_dat_readable(target_path)
+        file["rows"] = None
+        return file
+
+    if detected_type == fileType.DVVTIEDOSTO:
+        file["runnable"] = _verify_dvv_sheets(target_path)
+        file["rows"] = file.get("size")
+        return file
+
     expected_headers = _HEADERS_BY_TYPE.get(detected_type)
     if expected_headers:
         if suffix == ".csv":
-            missing = _verify_csv_headers(target_path, expected_headers)
+            missing, rows = _verify_csv_headers(target_path, expected_headers)
         else:
-            missing = _verify_excel_headers(target_path, expected_headers)
+            missing, rows = _verify_excel_headers(target_path, expected_headers)
+        file["rows"] = rows
         if missing:
             logger.error(
                 "Tiedosto: %s, puuttuvat sarakeotsikot: %s", filename, missing
@@ -135,7 +204,8 @@ def verify_contents(file: Dict[str, Any]) -> Dict[str, Any]:
         else:
             file["runnable"] = True
     else:
-        # No header schema defined for this type yet — accept as-is.
-        file["runnable"] = True
+        # No header schema defined for this type, deny to inform user of possible misnaming.
+        file["runnable"] = False
+        file["rows"] = None
 
     return file
