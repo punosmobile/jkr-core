@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from openpyxl.reader.excel import load_workbook
+from pydantic import BaseModel
 
 from jkrimporter.datasheets import (
     get_ilmoitustiedosto_headers,
@@ -28,9 +29,10 @@ from jkrimporter.datasheets import (
 logger = logging.getLogger("jkr-sharepoint")
 
 
-class fileType(str, Enum):
+class FileType(str, Enum):
     PERUSMAKSUAINEISTO = "Perusmaksuaineisto"
     ILMOITUSTIEDOSTO = "Kompostointi_ilmoitukset"
+    TAAJAMAT = "asukkaan taajamat"
     KOMPOSTOINNIN_LOPETUS = "Kompostoinnin_lopettami"
     PAATOSTIEDOSTO = "Paatokset"
     HAPATIEDOSTO = "Hapa-kohteet"
@@ -48,31 +50,35 @@ class fileType(str, Enum):
     POSTINUMEROT = "PCF"
 
 
-class fileInfo:
+class FileInfo(BaseModel):
+    class Config:
+        extra = "allow"
+
     filename: str
     target_path: str
-    size: int
-    sharepoint_path: str
-    type: Optional[fileType]
-    runnable: Optional[bool]
+    size: Optional[int] = None
+    rows: Optional[int] = None
+    sharepoint_path: str = ""
+    type: Optional[FileType] = None
+    runnable: Optional[bool] = None
 
 
-# Map fileType to expected Excel headers.
+# Map FileType to expected Excel headers.
 # Types without an entry here are accepted as-is (no header schema defined yet).
-_HEADERS_BY_TYPE: Dict[fileType, List[str]] = {
-    fileType.ILMOITUSTIEDOSTO: get_ilmoitustiedosto_headers(),
-    fileType.KOMPOSTOINNIN_LOPETUS: get_lopetustiedosto_headers(),
-    fileType.PAATOSTIEDOSTO: get_paatostiedosto_headers(),
-    fileType.KAIVOTIEDOT_ALKU: get_kaivotiedosto_headers(),
-    fileType.KAIVOTIEDOT_LOPPU: get_kaivotiedosto_headers(),
-    fileType.KULJETUSTIETO_LIETE: get_liete_kuljetustiedosto_headers(),
-    fileType.LIETE_KOMPOSTOINTI: get_liete_ilmoitustiedosto_headers(),
-    fileType.VIEMARIVERKOSTO_ALKU: get_viemari_ilmoitustiedosto_headers(),
-    fileType.VIEMARIVERKOSTO_LOPPU: get_viemari_lopetustiedosto_headers(),
-    fileType.KULJETUSTIETO: get_siirtotiedosto_headers(),
-    fileType.HAPATIEDOSTO: get_hapa_kohteet_headers(),
-    fileType.PERUSMAKSUAINEISTO: get_perusmaksu_headers(),
-    fileType.TIEDONTUOTTAJAT: get_tiedontuottajat_headers(),
+_HEADERS_BY_TYPE: Dict[FileType, List[str]] = {
+    FileType.ILMOITUSTIEDOSTO: get_ilmoitustiedosto_headers(),
+    FileType.KOMPOSTOINNIN_LOPETUS: get_lopetustiedosto_headers(),
+    FileType.PAATOSTIEDOSTO: get_paatostiedosto_headers(),
+    FileType.KAIVOTIEDOT_ALKU: get_kaivotiedosto_headers(),
+    FileType.KAIVOTIEDOT_LOPPU: get_kaivotiedosto_headers(),
+    FileType.KULJETUSTIETO_LIETE: get_liete_kuljetustiedosto_headers(),
+    FileType.LIETE_KOMPOSTOINTI: get_liete_ilmoitustiedosto_headers(),
+    FileType.VIEMARIVERKOSTO_ALKU: get_viemari_ilmoitustiedosto_headers(),
+    FileType.VIEMARIVERKOSTO_LOPPU: get_viemari_lopetustiedosto_headers(),
+    FileType.KULJETUSTIETO: get_siirtotiedosto_headers(),
+    FileType.HAPATIEDOSTO: get_hapa_kohteet_headers(),
+    FileType.PERUSMAKSUAINEISTO: get_perusmaksu_headers(),
+    FileType.TIEDONTUOTTAJAT: get_tiedontuottajat_headers(),
 }
 
 # DVV files contain multiple named sheets, each with its own expected headers.
@@ -84,10 +90,10 @@ _DVV_SHEETS: Dict[str, List[str]] = {
 }
 
 # Sorted longest-first so more specific prefixes are tried before shorter ones.
-_FILE_TYPES_BY_PREFIX = sorted(fileType, key=lambda ft: len(ft.value), reverse=True)
+_FILE_TYPES_BY_PREFIX = sorted(FileType, key=lambda ft: len(ft.value), reverse=True)
 
 
-def _detect_file_type(filename: str) -> Optional[fileType]:
+def _detect_file_type(filename: str) -> Optional[FileType]:
     name_lower = filename.lower()
     for ft in _FILE_TYPES_BY_PREFIX:
         if name_lower.startswith(ft.value.lower()):
@@ -162,31 +168,32 @@ def _verify_dat_readable(target_path: str) -> bool:
         return False
 
 
-def verify_contents(file: Dict[str, Any]) -> Dict[str, Any]:
-    filename = file.get("filename", "")
-    target_path = file.get("target_path", "")
+def verify_contents(raw: Dict[str, Any]) -> FileInfo:
+    file = FileInfo(**raw)
+    filename = file.filename
+    target_path = file.target_path
     suffix = Path(filename).suffix.lower()
 
     detected_type = _detect_file_type(filename)
 
     if detected_type is None:
         logger.warning("Tuntematon tiedostotyyppi: %s", filename)
-        file["type"] = None
-        file["runnable"] = False
-        file["rows"] = None
+        file.type = None
+        file.runnable = False
+        file.rows = None
         return file
 
-    file["type"] = detected_type.value
+    file.type = detected_type
     logger.info("Tiedostotyyppi tunnistettu: %s → %s", filename, detected_type.name)
 
     if suffix == ".dat":
-        file["runnable"] = _verify_dat_readable(target_path)
-        file["rows"] = None
+        file.runnable = _verify_dat_readable(target_path)
+        file.rows = None
         return file
 
-    if detected_type == fileType.DVVTIEDOSTO:
-        file["runnable"] = _verify_dvv_sheets(target_path)
-        file["rows"] = file.get("size")
+    if detected_type == FileType.DVVTIEDOSTO:
+        file.runnable = _verify_dvv_sheets(target_path)
+        file.rows = file.size
         return file
 
     expected_headers = _HEADERS_BY_TYPE.get(detected_type)
@@ -195,17 +202,17 @@ def verify_contents(file: Dict[str, Any]) -> Dict[str, Any]:
             missing, rows = _verify_csv_headers(target_path, expected_headers)
         else:
             missing, rows = _verify_excel_headers(target_path, expected_headers)
-        file["rows"] = rows
+        file.rows = rows
         if missing:
             logger.error(
                 "Tiedosto: %s, puuttuvat sarakeotsikot: %s", filename, missing
             )
-            file["runnable"] = False
+            file.runnable = False
         else:
-            file["runnable"] = True
+            file.runnable = True
     else:
         # No header schema defined for this type, deny to inform user of possible misnaming.
-        file["runnable"] = False
-        file["rows"] = None
+        file.runnable = False
+        file.rows = None
 
     return file

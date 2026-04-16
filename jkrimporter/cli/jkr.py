@@ -97,6 +97,15 @@ app.add_typer(
 )
 
 
+@app.command("batch_import", help="Import data to JKR in a batch.")
+def import_data_batch(
+    tiedostolista: Path = typer.Argument(..., help="Lista tiedostoista jotka ajetaan järjestelmään"),
+):
+    with sisaanlukutapahtuma():
+        print(tiedostolista)
+    return 'ok'
+
+
 @app.command("import", help="Import transportation data to JKR.")
 def import_data(
     siirtotiedosto: Path = typer.Argument(..., help="Siirtotiedoston kansio"),

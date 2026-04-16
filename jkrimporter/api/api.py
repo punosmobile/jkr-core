@@ -37,9 +37,9 @@ import hashlib
 
 from jkrimporter import ws_log_handler
 from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin, validate_ws_token
-from jkrimporter.api import sharepoint as sp
+from jkrimporter.api import sharepoint as sp, util as utilities
 from jkrimporter.api import licenses as lic
-from jkrimporter.api import util as utilities
+from jkrimporter.api.util import FileInfo
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -551,6 +551,13 @@ async def cancel_task(task_id: str, user: CurrentUser = Depends(require_admin)):
 # ---------------------------------------------------------------------------
 # Endpointit: jkr CLI -komennot
 # ---------------------------------------------------------------------------
+@app.post("/jkr/batch_import", summary="Ajaa sisäänlukuoperaatiot tiedostoille annetuissa järjestyksissä", response_model=TaskResponse)
+async def jkr_batch_import(import_list: list[FileInfo], background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
+    cmd = f"jkr batch_import {import_list}"
+    task = _create_task(cmd, f"Tietojen joukko tuonti ({import_list})")
+    background_tasks.add_task(_run_task, task.id, cmd)
+    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+
 @app.post("/jkr/import", summary="jkr import – Kuljetustietojen tuonti", response_model=TaskResponse)
 async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
@@ -1514,7 +1521,7 @@ async def sharepoint_pull(
 
             verified_result = utilities.verify_contents(result)
             results.append(verified_result)
-            logger.info("SharePoint pull: %s -> %s", path, verified_result["target_path"])
+            logger.info("SharePoint pull: %s -> %s", path, verified_result.target_path)
         except Exception as e:
             logger.error("SharePoint pull epäonnistui: %s – %s", path, e)
             errors.append({"path": path, "error": str(e)})
