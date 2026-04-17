@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+import json
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import scoped_session
@@ -55,6 +56,7 @@ from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
 from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanlukutapahtuma
+from jkrimporter.api.util import FileType
 
 
 @dataclass
@@ -97,14 +99,82 @@ app.add_typer(
 )
 
 
+def _read_dvv_poimintapvm(path: Path) -> str:
+    """Read the collection date (poimintapäivä) from cell C3 of the 'Saate' sheet."""
+    wb = openpyxl.load_workbook(filename=path, data_only=True, read_only=True)
+    value = wb["Saate"]["C3"].value
+    wb.close()
+    if isinstance(value, datetime):
+        return f"{value.day}.{value.month}.{value.year}"
+    # Cell may already be a formatted string — return as-is
+    return str(value)
+
+
 @app.command("batch_import", help="Import data to JKR in a batch.")
 def import_data_batch(
-    tiedostolista: Path = typer.Argument(..., help="Lista tiedostoista jotka ajetaan järjestelmään"),
+    tiedostolista: str = typer.Argument(..., help="Lista tiedostoista jotka ajetaan järjestelmään"),
 ):
-    with sisaanlukutapahtuma():
-        print(tiedostolista)
-    return 'ok'
+    print('command starting')
+    import_list: list[dict[str, str | FileType | int | Path]] = json.loads(tiedostolista)
+    print(import_list)
+    for file_to_import in import_list:
+        operation_type: FileType | None = FileType(file_to_import.get('fileType'))
+        target_path = Path(str(file_to_import.get('target_path')))
+        match operation_type:
+            case FileType.DVVTIEDOSTO:
+                # TODO Lisää postin ja perusmaksuaineiston lisäys jos ne löytyvät, 
+                poimintapvm = _read_dvv_poimintapvm(target_path)
+                import_and_create_kohteet(poimintapvm, target_path)
+                break
+            case FileType.ILMOITUSTIEDOSTO:
+                import_ilmoitukset(target_path)
+                break
+            case FileType.KOMPOSTOINNIN_LOPETUS:
+                import_lopetusilmoitukset(target_path)
+                break
+            case FileType.PAATOSTIEDOSTO:
+                import_paatokset(target_path)
+                break
+            case FileType.KAIVOTIEDOT_ALKU:
+                import_kaivotiedot(target_path)
+                break
+            case FileType.KAIVOTIEDOT_LOPPU:
+                import_kaivotiedon_lopetukset(target_path)
+                break
+            case FileType.KULJETUSTIETO_LIETE:
+                import_liete(target_path)
+                break
+            case FileType.LIETE_KOMPOSTOINTI:
+                import_liete_ilmoitukset(target_path)
+                break
+            case FileType.VIEMARIVERKOSTO_ALKU:
+                import_viemarointi(target_path)
+                break
+            case FileType.VIEMARIVERKOSTO_LOPPU:
+                import_viemari_lopetusilmoitukset(target_path)
+                break
+            case FileType.KULJETUSTIETO:
+                import_data(target_path)
+                break
+            case FileType.HAPATIEDOSTO:
+                import_hapa(target_path)
+                break
+            case FileType.PERUSMAKSUAINEISTO:
+                print('IMPLEMENT perusmaksu')
+                break
+            case FileType.TIEDONTUOTTAJAT:
+                print('IMPORT TIEDONTUOTTAJA')
+                break
+            case FileType.POSTINUMEROT:
+                print('IMPLEMENT POSTI')
+                break
+            case FileType.TAAJAMAT:
+                print('IMPLEMENT TAAJAMA')
+                break
+            case _:
+                continue
 
+    return 'ok'
 
 @app.command("import", help="Import transportation data to JKR.")
 def import_data(

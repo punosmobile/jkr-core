@@ -59,7 +59,8 @@ class FileInfo(BaseModel):
     size: Optional[int] = None
     rows: Optional[int] = None
     sharepoint_path: str = ""
-    type: Optional[FileType] = None
+    type: str = ""
+    fileType: Optional[FileType] = None
     runnable: Optional[bool] = None
 
 
@@ -178,12 +179,13 @@ def verify_contents(raw: Dict[str, Any]) -> FileInfo:
 
     if detected_type is None:
         logger.warning("Tuntematon tiedostotyyppi: %s", filename)
-        file.type = None
+        file.type = ''
+        file.fileType = None
         file.runnable = False
         file.rows = None
         return file
 
-    file.type = detected_type
+    file.fileType = detected_type
     logger.info("Tiedostotyyppi tunnistettu: %s → %s", filename, detected_type.name)
 
     if suffix == ".dat":

@@ -16,9 +16,9 @@ import collections
 import json
 import logging
 import os
+import shlex
 import signal
 import re
-import shlex
 import subprocess
 import sys
 import uuid
@@ -553,10 +553,11 @@ async def cancel_task(task_id: str, user: CurrentUser = Depends(require_admin)):
 # ---------------------------------------------------------------------------
 @app.post("/jkr/batch_import", summary="Ajaa sisäänlukuoperaatiot tiedostoille annetuissa järjestyksissä", response_model=TaskResponse)
 async def jkr_batch_import(import_list: list[FileInfo], background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
-    cmd = f"jkr batch_import {import_list}"
-    task = _create_task(cmd, f"Tietojen joukko tuonti ({import_list})")
+    cmd = f"jkr batch_import {shlex.quote(json.dumps([item.dict() for item in import_list]))}"
+    task = _create_task(cmd, f"Tietojen joukko tuonti {import_list}")
     background_tasks.add_task(_run_task, task.id, cmd)
     return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+
 
 @app.post("/jkr/import", summary="jkr import – Kuljetustietojen tuonti", response_model=TaskResponse)
 async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
