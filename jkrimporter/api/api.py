@@ -16,7 +16,9 @@ import collections
 import json
 import logging
 import os
+import signal
 import subprocess
+import sys
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -105,6 +107,13 @@ class TaskInfo(BaseModel):
 # Yksinkertainen in-memory -varasto tehtäville
 _tasks: Dict[str, TaskInfo] = {}
 
+# Käynnissä olevien taustaprosessien seuranta task_id -> Process
+# Käytetään tehtävien pysäyttämiseen DELETE /tasks/{task_id} -endpointissa.
+_running_procs: Dict[str, asyncio.subprocess.Process] = {}
+
+# Tehtävät, jotka on merkitty pysäytettäväksi (kill-pyyntö vastaanotettu)
+_cancelled_tasks: set = set()
+
 
 def _create_task(command: str, description: str) -> TaskInfo:
     task = TaskInfo(
@@ -169,13 +178,23 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
 
     proc = None
     try:
+        # Käynnistä prosessi omaan session-/process-groupiin, jotta
+        # koko puu (esim. sh + psql) voidaan tappaa kerralla DELETE /tasks/{id}.
+        extra_kwargs = {}
+        if sys.platform == "win32":
+            extra_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            extra_kwargs["start_new_session"] = True
+
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=_db_env(),
             cwd=cwd,
+            **extra_kwargs,
         )
+        _running_procs[task_id] = proc
 
         await asyncio.gather(
             _read_stream(proc.stdout, output_buf, logging.INFO),
@@ -186,7 +205,14 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
         task.exit_code = proc.returncode
         task.output = "\n".join(output_buf)
         task.error = "\n".join(error_buf)
-        task.status = TaskStatus.completed if proc.returncode == 0 else TaskStatus.failed
+        if task_id in _cancelled_tasks:
+            task.status = TaskStatus.failed
+            if not task.error:
+                task.error = "Tehtävä pysäytettiin käyttäjän pyynnöstä."
+            else:
+                task.error += "\nTehtävä pysäytettiin käyttäjän pyynnöstä."
+        else:
+            task.status = TaskStatus.completed if proc.returncode == 0 else TaskStatus.failed
     except Exception as e:
         task.status = TaskStatus.failed
         task.error = "\n".join(error_buf) + "\n" + str(e) if error_buf else str(e)
@@ -203,6 +229,8 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
         task.finished_at = datetime.now()
         if task.started_at:
             task.duration_seconds = (task.finished_at - task.started_at).total_seconds()
+        # Siivoa taustaprosessin rekisteröinti
+        _running_procs.pop(task_id, None)
 
     logger.info(
         "Tehtävä %s (%s) valmis – status=%s, kesto=%.1fs",
@@ -388,6 +416,112 @@ async def get_task(task_id: str, user: CurrentUser = Depends(require_authenticat
     if task_id not in _tasks:
         raise HTTPException(status_code=404, detail="Tehtävää ei löydy")
     return _tasks[task_id]
+
+
+def _signal_process_group(proc: asyncio.subprocess.Process, sig: int) -> None:
+    """Lähettää signaalin koko prosessiryhmälle (sh + lapsiprosessit kuten psql).
+
+    Tämä on tärkeää, koska `asyncio.create_subprocess_shell` käynnistää komennon
+    shellin (sh/cmd) kautta. Pelkkä `proc.terminate()` tappaa vain shellin –
+    tietokannan kanssa juttelevat lapsiprosessit (esim. psql) jäisivät orvoiksi
+    ja kysely jatkuisi loppuun tietokannassa.
+    """
+    if proc.returncode is not None:
+        return
+    if sys.platform == "win32":
+        # CTRL_BREAK_EVENT menee koko process groupille (CREATE_NEW_PROCESS_GROUP).
+        try:
+            proc.send_signal(signal.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
+            return
+        except Exception:
+            # Fallback: tapa shell + sen puu TerminateProcessilla rekursiivisesti.
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    check=False,
+                    capture_output=True,
+                )
+                return
+            except Exception:
+                proc.terminate()
+                return
+    # POSIX: tapa koko session/process group (start_new_session=True).
+    try:
+        pgid = os.getpgid(proc.pid)
+    except ProcessLookupError:
+        return
+    try:
+        os.killpg(pgid, sig)
+    except ProcessLookupError:
+        return
+
+
+@app.delete("/tasks/{task_id}", summary="Pysäytä ajossa oleva tehtävä")
+async def cancel_task(task_id: str, user: CurrentUser = Depends(require_admin)):
+    """Pysäyttää ajossa olevan tehtävän tappamalla sen koko prosessiryhmän.
+
+    - Palauttaa 404, jos tehtävää ei löydy.
+    - Palauttaa 409, jos tehtävä on jo valmistunut (completed/failed).
+    - Muussa tapauksessa merkitsee tehtävän peruutetuksi ja lähettää
+      SIGTERM (Linux) / CTRL_BREAK (Windows) koko prosessipuulle; jos se ei
+      reagoi 5 sekunnissa, käytetään SIGKILLia.
+    """
+    task = _tasks.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Tehtävää ei löydy")
+
+    if task.status not in (TaskStatus.pending, TaskStatus.running):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Tehtävä ei ole ajossa (status={task.status.value})",
+        )
+
+    # Merkitse peruutetuksi heti, jotta _run_task saa oikean lopputilan
+    # riippumatta siitä, ehdimmekö tappaa prosessin.
+    _cancelled_tasks.add(task_id)
+    logger.info(
+        "Pysäytetään tehtävä %s (%s), käyttäjä=%s",
+        task.id,
+        task.description,
+        getattr(user, "name", None) or getattr(user, "email", None) or "?",
+    )
+
+    proc = _running_procs.get(task_id)
+    if proc is None:
+        # Taustaprosessia ei ole (vielä) rekisteröity – peruutus jää
+        # voimaan ja _run_task käsittelee sen kun/jos proc käynnistyy.
+        logger.warning(
+            "Tehtävän %s taustaprosessia ei löytynyt rekisteristä – peruutus merkitty.",
+            task_id,
+        )
+        return {
+            "task_id": task_id,
+            "status": task.status,
+            "message": "Taustaprosessia ei löytynyt; tehtävä merkitty peruutetuksi.",
+        }
+
+    # 1) Kohtelias terminointi koko prosessiryhmälle
+    _signal_process_group(proc, signal.SIGTERM)
+
+    # 2) Odota hetki; jos ei reagoi, pakkotappo
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=5.0)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Tehtävä %s ei reagoinut SIGTERMiin 5 s kuluessa – käytetään SIGKILLia.",
+            task_id,
+        )
+        _signal_process_group(proc, signal.SIGKILL if sys.platform != "win32" else signal.SIGTERM)
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.error("Tehtävän %s prosessi ei kuollut SIGKILLinkään jälkeen.", task_id)
+
+    return {
+        "task_id": task_id,
+        "status": task.status,
+        "message": "Tehtävän pysäytyssignaali lähetetty",
+    }
 
 
 # ---------------------------------------------------------------------------
