@@ -24,6 +24,7 @@ from jkrimporter.datasheets import (
     get_dvv_asukas_headers,
     get_perusmaksu_headers,
     get_tiedontuottajat_headers,
+    get_huoneistomaara_headers,
 )
 
 logger = logging.getLogger("jkr-sharepoint")
@@ -31,7 +32,7 @@ logger = logging.getLogger("jkr-sharepoint")
 
 class FileType(str, Enum):
     PERUSMAKSUAINEISTO = "Perusmaksuaineisto"
-    ILMOITUSTIEDOSTO = "Kompostointi_ilmoitukset"
+    ILMOITUSTIEDOSTO = "Kompostointi"
     TAAJAMAT = "asukkaan taajamat"
     KOMPOSTOINNIN_LOPETUS = "Kompostoinnin_lopettami"
     PAATOSTIEDOSTO = "Paatokset"
@@ -48,6 +49,7 @@ class FileType(str, Enum):
     VIEMARIVERKOSTO_ALKU = "Viemariverkosto"
     VIEMARIVERKOSTO_LOPPU = "Viemäriverkosto_lopetus"
     POSTINUMEROT = "PCF"
+    UNKNOWN = ""
 
 
 class FileInfo(BaseModel):
@@ -80,6 +82,7 @@ _HEADERS_BY_TYPE: Dict[FileType, List[str]] = {
     FileType.HAPATIEDOSTO: get_hapa_kohteet_headers(),
     FileType.PERUSMAKSUAINEISTO: get_perusmaksu_headers(),
     FileType.TIEDONTUOTTAJAT: get_tiedontuottajat_headers(),
+    FileType.HUONEISTOMAARAT: get_huoneistomaara_headers(),
 }
 
 # DVV files contain multiple named sheets, each with its own expected headers.
@@ -179,7 +182,6 @@ def verify_contents(raw: Dict[str, Any]) -> FileInfo:
 
     if detected_type is None:
         logger.warning("Tuntematon tiedostotyyppi: %s", filename)
-        file.type = ''
         file.fileType = None
         file.runnable = False
         file.rows = None

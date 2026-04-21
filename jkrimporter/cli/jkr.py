@@ -13,6 +13,7 @@ from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 import openpyxl
 from openpyxl.utils import get_column_letter
+from sys import platform
 
 from jkrimporter import __version__
 from jkrimporter.providers.db.dbprovider import DbProvider, engine
@@ -114,67 +115,81 @@ def _read_dvv_poimintapvm(path: Path) -> str:
 def import_data_batch(
     tiedostolista: str = typer.Argument(..., help="Lista tiedostoista jotka ajetaan järjestelmään"),
 ):
-    print('command starting')
+
     import_list: list[dict[str, str | FileType | int | Path]] = json.loads(tiedostolista)
-    print(import_list)
+    print(f'batch command starting for {len(import_list)} files')
     for file_to_import in import_list:
         operation_type: FileType | None = FileType(file_to_import.get('fileType'))
         target_path = Path(str(file_to_import.get('target_path')))
         match operation_type:
             case FileType.DVVTIEDOSTO:
-                # TODO Lisää postin ja perusmaksuaineiston lisäys jos ne löytyvät, 
+                perusmaksu_path: Path | None = None
+                posti_path: str | None = None
+                for muutiedosto in import_list:
+                    if FileType(muutiedosto.get('fileType')) == FileType.PERUSMAKSUAINEISTO:
+                        perusmaksu_path = Path(str(muutiedosto.get('target_path')))
+
+                    if FileType(muutiedosto.get('fileType')) == FileType.POSTINUMEROT:
+                        posti_path = str(muutiedosto.get('target_path'))
+
                 poimintapvm = _read_dvv_poimintapvm(target_path)
-                import_and_create_kohteet(poimintapvm, target_path)
-                break
+                print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}, {posti_path}")
+                import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, posti_path)
+                continue
+            case FileType.HUONEISTOMAARAT:
+                update_huoneistomaara(target_path)
+                continue
             case FileType.ILMOITUSTIEDOSTO:
                 import_ilmoitukset(target_path)
-                break
+                continue
             case FileType.KOMPOSTOINNIN_LOPETUS:
                 import_lopetusilmoitukset(target_path)
-                break
+                continue
             case FileType.PAATOSTIEDOSTO:
                 import_paatokset(target_path)
-                break
+                continue
             case FileType.KAIVOTIEDOT_ALKU:
-                import_kaivotiedot(target_path)
-                break
+                import_kaivotiedot(target_path, 'LSJ')
+                continue
             case FileType.KAIVOTIEDOT_LOPPU:
-                import_kaivotiedon_lopetukset(target_path)
-                break
+                import_kaivotiedon_lopetukset(target_path, 'LSJ')
+                continue
             case FileType.KULJETUSTIETO_LIETE:
-                import_liete(target_path)
-                break
+                import_liete(target_path, 'LSJ', '', '')
+                continue
             case FileType.LIETE_KOMPOSTOINTI:
                 import_liete_ilmoitukset(target_path)
-                break
+                continue
             case FileType.VIEMARIVERKOSTO_ALKU:
                 import_viemarointi(target_path)
-                break
+                continue
             case FileType.VIEMARIVERKOSTO_LOPPU:
                 import_viemari_lopetusilmoitukset(target_path)
-                break
+                continue
             case FileType.KULJETUSTIETO:
-                import_data(target_path)
-                break
+                import_data(target_path, 'LSJ', '', '')
+                continue
             case FileType.HAPATIEDOSTO:
                 import_hapa(target_path)
-                break
+                continue
             case FileType.PERUSMAKSUAINEISTO:
-                print('IMPLEMENT perusmaksu')
-                break
+                print('perusmaksuaineisto luetaan sisään DVV-sisäänluvussa')
+                continue
             case FileType.TIEDONTUOTTAJAT:
-                print('IMPORT TIEDONTUOTTAJA')
-                break
+                with open(target_path, newline='', encoding='utf-8') as f:
+                    for row in csv.DictReader(f, delimiter=';'):
+                        tiedontuottaja_add_new(row['tunnus'], row['nimi'])
+                continue
             case FileType.POSTINUMEROT:
-                print('IMPLEMENT POSTI')
-                break
+                print('Postinumerotietojen pohjustus luetaan sisään DVV-sisäänluvussa. Päivitystä ei vielä ole implementoitu')
+                continue
             case FileType.TAAJAMAT:
-                print('IMPLEMENT TAAJAMA')
-                break
+                print('Taajaman sisäänluku vaatii vielä hienosäätöä, sillä nykyinen ratkaisu odottaa vain tietyllä tavoin nimettyä tiedostoa')
+                continue
             case _:
                 continue
 
-    return 'ok'
+    return 'Käsittely valmis'
 
 @app.command("import", help="Import transportation data to JKR.")
 def import_data(
@@ -243,9 +258,13 @@ def import_and_create_kohteet(
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
 ):
     with sisaanlukutapahtuma():
-        bat_file = ".\\scripts\\import_and_create_kohteet.bat"
+        file_to_run: Optional[str] = None
+        if platform == "linux" or platform == "linux2":
+            file_to_run = "./scripts/import_and_create_kohteet.sh"
+        else:
+            file_to_run = ".\\scripts\\import_and_create_kohteet.bat"
 
-        cmd_args = [bat_file, dvv, poimintapvm]
+        cmd_args = [file_to_run, dvv, poimintapvm]
 
         if posti == "posti":
             cmd_args.append("posti")
@@ -265,9 +284,13 @@ def import_and_create_kohteet(
 def update_huoneistomaara(
     huoneisto_xlsx: Path = typer.Argument(None, help="Huoniestolukumäärä-tiedoston sijainti")
 ):
-    bat_file = ".\\scripts\\update_huoneistomaara.bat"
+    file_to_run: Optional[str] = None
+    if platform == "linux" or platform == "linux2":
+        file_to_run = "./scripts/update_huoneistomaara.sh"
+    else:
+        file_to_run = ".\\scripts\\update_huoneistomaara.bat"
 
-    cmd_args = [bat_file, huoneisto_xlsx]
+    cmd_args = [file_to_run, huoneisto_xlsx]
 
     subprocess.call(cmd_args)
 
@@ -357,6 +380,7 @@ def import_liete(
             raise typer.Exit(1)
 
         # Parsii päivämäärät
+        print(f"alkupvm {alkupvm}, loppupvm {loppupvm}")
         if alkupvm:
             alkupvm = parse_date_string(alkupvm)
         if loppupvm:
@@ -567,7 +591,7 @@ def import_hapa(
                 typer.echo(f"Error: File {aineistopolku} does not exist", err=True)
                 raise typer.Exit(1)
 
-            typer.echo(f"Importing HAPA data from {aineistopolku}")
+            print(f"Importing HAPA data from {aineistopolku}")
 
             # Create SQLAlchemy session
             Session = scoped_session(sessionmaker(bind=engine))
@@ -644,8 +668,8 @@ def import_hapa(
                     result = session.execute(text("SELECT COUNT(*) FROM jkr.hapa_aineisto WHERE tuonti_pvm >= CURRENT_DATE"))
                     count = result.scalar()
 
-                typer.echo(f"Successfully imported {count} HAPA records")
-                typer.echo("VALMIS!")
+                print(f"Successfully imported {count} HAPA records")
+                print("VALMIS!")
 
         except Exception as e:
             typer.echo(f"Error importing HAPA data: {str(e)}", err=True)

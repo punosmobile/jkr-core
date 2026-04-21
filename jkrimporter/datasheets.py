@@ -237,6 +237,14 @@ def get_liete_kuljetustiedosto_headers():
     ]
 
 
+def get_huoneistomaara_headers():
+    return [
+        "C_VTJ_PRT",
+        "I_HUONEISTOJEN_LKM",
+        "C_KAYTTARK"
+    ]
+
+
 def get_kaivotiedosto_headers():
     return [
         "Vastausaika",

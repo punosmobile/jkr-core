@@ -651,7 +651,7 @@ async def jkr_create_dvv_kohteet(req: JkrCreateDvvKohteetRequest, background_tas
 
 @app.post("/jkr/tiedontuottaja/add", summary="jkr tiedontuottaja add – Lisää tiedontuottaja", response_model=TaskResponse)
 async def jkr_tiedontuottaja_add(req: TiedontuottajaAddRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
-    cmd = f"jkr tiedontuottaja add {req.tunnus} '{req.nimi}'"
+    cmd = f"jkr add {req.tunnus} '{req.nimi}'"
     task = _create_task(cmd, f"Tiedontuottajan lisäys: {req.tunnus}")
     background_tasks.add_task(_run_task, task.id, cmd)
     return TaskResponse(task_id=task.id, status=task.status, description=task.description)
@@ -660,7 +660,7 @@ async def jkr_tiedontuottaja_add(req: TiedontuottajaAddRequest, background_tasks
 @app.get("/jkr/tiedontuottaja/list", summary="jkr tiedontuottaja list – Listaa tiedontuottajat")
 async def jkr_tiedontuottaja_list(user: CurrentUser = Depends(require_authenticated)):
     proc = subprocess.run(
-        "jkr tiedontuottaja list",
+        "jkr list",
         shell=True,
         capture_output=True,
         text=True,
