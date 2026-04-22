@@ -17,13 +17,15 @@ import json
 import logging
 import os
 import signal
+import re
+import shlex
 import subprocess
 import sys
 import uuid
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +38,7 @@ import hashlib
 from jkrimporter import ws_log_handler
 from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin, validate_ws_token
 from jkrimporter.api import sharepoint as sp
+from jkrimporter.api import licenses as lic
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -102,6 +105,8 @@ class TaskInfo(BaseModel):
     exit_code: Optional[int] = None
     output: str = ""
     error: str = ""
+    # Valmiin tehtävän tuottaman tiedoston tiedot (esim. raportti SharePointissa)
+    result_file: Optional[Dict[str, Any]] = None
 
 
 # Yksinkertainen in-memory -varasto tehtäville
@@ -362,6 +367,24 @@ class ImportViemariRequest(BaseModel):
 class RunFullPipelineRequest(BaseModel):
     """Aja koko 2024_start.sh -tyylinen pipeline."""
     script_path: str = Field("scripts/2024_start.sh", description="Skriptin polku")
+
+
+class RaporttiRequest(BaseModel):
+    """jkr raportti <output_path> <tarkastelupvm> <kunta> <huoneistomaara> <taajama> <kohde_tyyppi> <onko_viemari>
+
+    Kaikki rajausparametrit ovat valinnaisia; arvo "0" / 0 tarkoittaa ei rajausta
+    (vrt. CLI-komennon käyttäytyminen).
+    """
+    tarkastelupvm: str = Field("0", description="Tarkastelupäivämäärä (YYYY-MM-DD tai DD.MM.YYYY). '0' = ei rajausta.")
+    kunta: str = Field("0", description="Kunnan nimi (esim. 'Lahti'). '0' = ei rajausta.")
+    huoneistomaara: int = Field(0, description="Huoneistomäärä: 4 = ≤4, 5 = ≥5, 0 = ei rajausta.")
+    taajama: int = Field(0, description="Taajama: 0 ei rajausta, 1/200 = yli 200, 2/10000 = yli 10000, 3 = molemmat.")
+    kohde_tyyppi: int = Field(0, description="Kohdetyyppi: 5 hapa, 6 biohapa, 7 asuinkiinteistö, 8 muu, 0 = ei rajausta.")
+    onko_viemari: int = Field(0, description="Viemäriliitos: 0 ei väliä, 1 viemärissä, 2 ei viemärissä.")
+    filename: Optional[str] = Field(None, description="Valinnainen tiedostonimi (ilman polkua). Oletus: muodostetaan parametreista + aikaleimasta.")
+    output_path: Optional[str] = Field(None, description="Valinnainen koko tallennuspolku, esim. '/data/output/lahdentesti.xlsx'. Jos annetaan, raportti EI lataudu SharePointiin ja tiedosto jää annettuun polkuun.")
+    sharepoint_folder: Optional[str] = Field(None, description="SharePoint-kohdekansio. Oletus: SHAREPOINT_OUTPUT_FOLDER.")
+    upload_to_sharepoint: bool = Field(True, description="Ladataanko raportti SharePointiin valmistumisen jälkeen. Ohitetaan jos 'output_path' on annettu.")
 
 
 # ---------------------------------------------------------------------------
@@ -736,6 +759,189 @@ async def pipeline_run(req: RunFullPipelineRequest, background_tasks: Background
 
 
 # ---------------------------------------------------------------------------
+# Endpointit: Raportti
+# ---------------------------------------------------------------------------
+OUTPUT_DIR = Path("/data/output")
+
+
+def _sanitize_for_filename(s: str) -> str:
+    """Siistii merkkijonon tiedostonimeen turvalliseksi osaksi."""
+    if s is None:
+        return "0"
+    s = str(s).strip()
+    if not s:
+        return "0"
+    # Korvaa ei-sallitut merkit ja toistuvat alaviivat
+    s = re.sub(r"[^A-Za-z0-9._-]+", "_", s)
+    s = s.strip("._-")
+    return s or "0"
+
+
+def _build_raportti_filename(req: "RaporttiRequest") -> str:
+    """Muodostaa raportin tiedostonimen ajoparametreista ja aikaleimasta."""
+    if req.filename:
+        name = req.filename
+        if not name.lower().endswith(".xlsx"):
+            name += ".xlsx"
+        return name
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    parts = [
+        "jkr_raportti",
+        _sanitize_for_filename(req.tarkastelupvm),
+        _sanitize_for_filename(req.kunta),
+        f"hm{req.huoneistomaara}",
+        f"taaj{req.taajama}",
+        f"kt{req.kohde_tyyppi}",
+        f"vm{req.onko_viemari}",
+        ts,
+    ]
+    return "_".join(parts) + ".xlsx"
+
+
+async def _run_raportti_task(
+    task_id: str,
+    command: str,
+    output_path: Path,
+    upload_to_sharepoint: bool,
+    sharepoint_folder: Optional[str],
+    user_name: str,
+    user_email: str,
+):
+    """Ajaa raportti-komennon ja lataa valmiin tiedoston SharePointiin.
+
+    Päivittää task.result_file SharePoint-tiedot valmistumisen jälkeen.
+    """
+    # 1) Aja itse raportin generointi tavalliseen tapaan
+    await _run_task(task_id, command)
+
+    task = _tasks.get(task_id)
+    if task is None:
+        return
+    if task.status != TaskStatus.completed:
+        return
+    if not output_path.exists():
+        task.status = TaskStatus.failed
+        msg = f"Raporttitiedosto ei syntynyt: {output_path}"
+        task.error = (task.error + "\n" + msg) if task.error else msg
+        return
+
+    size = output_path.stat().st_size
+    task.result_file = {
+        "filename": output_path.name,
+        "local_path": str(output_path),
+        "size": size,
+    }
+
+    if not upload_to_sharepoint:
+        logger.info("Raportti valmis paikallisesti: %s (%d tavua)", output_path, size)
+        return
+
+    # 2) Lataa SharePointiin
+    try:
+        if not await sp.is_configured():
+            logger.warning(
+                "SharePoint-integraatio ei ole konfiguroitu – raportti jää vain paikallisesti: %s",
+                output_path,
+            )
+            task.result_file["sharepoint_error"] = "SharePoint-integraatio ei ole konfiguroitu"
+            return
+
+        async with aiofiles.open(str(output_path), "rb") as f:
+            content = await f.read()
+
+        result = await sp.upload_file(
+            file_content=content,
+            filename=output_path.name,
+            folder=sharepoint_folder,
+            user_name=user_name,
+            user_email=user_email,
+        )
+        task.result_file.update({
+            "sharepoint_id": result.get("id"),
+            "sharepoint_name": result.get("name"),
+            "sharepoint_size": result.get("size"),
+            "sharepoint_url": result.get("webUrl"),
+        })
+        logger.info(
+            "Raportti ladattu SharePointiin: %s (%s)",
+            result.get("name"), result.get("webUrl"),
+        )
+    except Exception as e:
+        logger.error("Raportin SharePoint-lataus epäonnistui: %s", e)
+        task.result_file["sharepoint_error"] = str(e)
+    finally:
+        # Siivoa väliaikainen paikallinen tiedosto vain jos SP-lataus onnistui
+        try:
+            if (
+                task.result_file
+                and task.result_file.get("sharepoint_url")
+                and output_path.exists()
+            ):
+                output_path.unlink()
+                task.result_file.pop("local_path", None)
+        except Exception as e:
+            logger.warning("Väliaikaisen raporttitiedoston poisto epäonnistui: %s", e)
+
+
+@app.post("/jkr/raportti", summary="jkr raportti – Luo Excel-raportti", response_model=TaskResponse)
+async def jkr_raportti(
+    req: RaporttiRequest,
+    background_tasks: BackgroundTasks,
+    user: CurrentUser = Depends(require_admin),
+):
+    """Ajaa `jkr raportti` -komennon annetuilla rajauksilla.
+
+    - Tiedosto tallennetaan aluksi `/data/output`-kansioon.
+    - Oletuksena tiedosto ladataan sen jälkeen SharePointin tuloskansioon
+      (`SHAREPOINT_OUTPUT_FOLDER`) ja paikallinen kopio poistetaan.
+    - Valmis tehtävä sisältää `result_file.sharepoint_url`-kentän, josta löytyy
+      suora linkki SharePoint-tiedostoon.
+    """
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Jos käyttäjä antoi koko polun, käytetään sitä ja ohitetaan SharePoint-lataus.
+    if req.output_path:
+        output_path = Path(req.output_path)
+        if not output_path.suffix:
+            output_path = output_path.with_suffix(".xlsx")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        upload_to_sharepoint = False
+    else:
+        filename = _build_raportti_filename(req)
+        output_path = OUTPUT_DIR / filename
+        upload_to_sharepoint = req.upload_to_sharepoint
+
+    # Rakenna komento (tarkastelupvm ja kunta vaativat lainausmerkit välilyöntien varalta)
+    cmd = (
+        f"jkr raportti {shlex.quote(str(output_path))} "
+        f"{shlex.quote(req.tarkastelupvm or '0')} "
+        f"{shlex.quote(req.kunta or '0')} "
+        f"{int(req.huoneistomaara)} "
+        f"{int(req.taajama)} "
+        f"{int(req.kohde_tyyppi)} "
+        f"{int(req.onko_viemari)}"
+    )
+
+    desc = (
+        f"Raportti: tarkastelupvm={req.tarkastelupvm}, kunta={req.kunta}, "
+        f"huoneistomaara={req.huoneistomaara}, taajama={req.taajama}, "
+        f"kohde_tyyppi={req.kohde_tyyppi}, onko_viemari={req.onko_viemari}"
+    )
+    task = _create_task(cmd, desc)
+    background_tasks.add_task(
+        _run_raportti_task,
+        task.id,
+        cmd,
+        output_path,
+        upload_to_sharepoint,
+        req.sharepoint_folder,
+        getattr(user, "name", "") or "",
+        getattr(user, "email", "") or "",
+    )
+    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+
+
+# ---------------------------------------------------------------------------
 # Endpointit: Yleinen komento (vapaa komento)
 # ---------------------------------------------------------------------------
 class GenericCommandRequest(BaseModel):
@@ -750,6 +956,41 @@ async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTa
     task = _create_task(req.command, req.description)
     background_tasks.add_task(_run_task, task.id, req.command, cwd=req.cwd)
     return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+
+
+# ---------------------------------------------------------------------------
+# Tuontiloki
+# ---------------------------------------------------------------------------
+@app.get("/tuontiloki", summary="Tuontilokin rivit (jkr.v_tuontiloki_rivit)")
+async def tuontiloki(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän rivit JSON-listana."""
+    env = _db_env()
+    sql = "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM jkr.v_tuontiloki_rivit t;"
+    try:
+        cmd = [
+            "psql", "-h", env.get("HOST", ""),
+            "-p", env.get("PORT", "5432"),
+            "-U", env.get("USER", ""),
+            "-d", env.get("DB_NAME", ""),
+            "-t", "-A",
+            "-c", sql,
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, env=env, timeout=60,
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=result.stderr.strip())
+
+        raw = result.stdout.strip()
+        if not raw:
+            return []
+        return json.loads(raw)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Tietokantakysely aikakatkaistiin")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ---------------------------------------------------------------------------
@@ -818,6 +1059,70 @@ SELECT json_agg(row_to_json(t)) FROM (
 
 
 # ---------------------------------------------------------------------------
+# Open Source Compliance / Third-Party Notices / SBOM
+# ---------------------------------------------------------------------------
+@app.get(
+    "/licenses",
+    summary="Backendin kirjastojen lisenssit (Open Source Compliance / SBOM)",
+)
+async def licenses_list(
+    format: str = Query("json", pattern="^(json|text)$", description="Palautusmuoto: 'json' tai 'text' (NOTICE-tiedosto)."),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Listaa kaikki asennetut Python-paketit lisenssitietoineen.
+
+    - `format=json` (oletus): rakenteinen lista SBOM-tyylisesti.
+    - `format=text`: tekstimuotoinen THIRD-PARTY-NOTICES attribuutiovaatimukseen.
+
+    Tiedot luetaan Python-pakettien omasta metadatasta (`importlib.metadata`),
+    joten listassa näkyvät myös transitiiviset riippuvuudet ja niiden
+    todelliset asennetut versiot.
+    """
+    try:
+        dists = lic.list_distributions()
+        app_info = {
+            "name": app.title,
+            "version": app.version,
+            "license": "GPL-3.0-or-later",
+        }
+        if format == "text":
+            from fastapi.responses import PlainTextResponse
+            body = lic.render_notices_text(dists)
+            header = (
+                f"{app_info['name']} v{app_info['version']}\n"
+                f"Päätuotteen lisenssi: {app_info['license']}\n\n"
+            )
+            return PlainTextResponse(content=header + body, media_type="text/plain; charset=utf-8")
+        return {
+            "application": app_info,
+            "count": len(dists),
+            "dependencies": dists,
+        }
+    except Exception as e:
+        logger.exception("Lisenssilistan haku epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/licenses/{package_name}",
+    summary="Yksittäisen kirjaston lisenssitiedot ja lisenssitiedoston sisältö",
+)
+async def license_detail(
+    package_name: str,
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Palauttaa paketin metatiedot, SPDX-lisenssi-ilmaisun ja mahdolliset
+    lisenssitiedostot (LICENSE/COPYING/NOTICE) kokonaisuudessaan."""
+    try:
+        return lic.get_distribution(package_name)
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Pakettia ei löydy: {package_name}")
+    except Exception as e:
+        logger.exception("Lisenssitietojen haku epäonnistui (%s): %s", package_name, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
 # Auth: Käyttäjätiedot (Flutter-frontin käyttöön)
 # ---------------------------------------------------------------------------
 @app.get("/auth/me", summary="Kirjautuneen käyttäjän tiedot ja roolit")
@@ -853,6 +1158,7 @@ async def health():
     status = "ok" if db_ok else "degraded"
     return {
         "status": status,
+        "version": app.version,
         "timestamp": datetime.now().isoformat(),
         "database": {
             "connected": db_ok,

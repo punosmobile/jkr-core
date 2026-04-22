@@ -93,10 +93,24 @@ class StreamToLogger(io.TextIOBase):
         self._buffer = ""
 
     def write(self, message):
-        if message and message.strip():
-            for line in message.rstrip("\n").splitlines():
+        if not message:
+            return 0
+        # Jotkin kirjastot (esim. click tietyissä tilanteissa) kirjoittavat
+        # stdoutiin bytesejä vaikka stream ilmoitettaisiin tekstityyppiseksi.
+        # Hyväksytään molemmat ja palautetaan oikea merkkimäärä.
+        if isinstance(message, (bytes, bytearray)):
+            length = len(message)
+            try:
+                text = bytes(message).decode(self.encoding or "utf-8", errors="replace")
+            except Exception:
+                text = bytes(message).decode("utf-8", errors="replace")
+        else:
+            text = message
+            length = len(message)
+        if text.strip():
+            for line in text.rstrip("\n").splitlines():
                 self._logger.log(self._level, line)
-        return len(message) if message else 0
+        return length
 
     def flush(self):
         if self._fallback and hasattr(self._fallback, "flush"):
