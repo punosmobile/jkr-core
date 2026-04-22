@@ -184,7 +184,7 @@ def import_data_batch(
                 print('Postinumerotietojen pohjustus luetaan sisään DVV-sisäänluvussa. Päivitystä ei vielä ole implementoitu')
                 continue
             case FileType.TAAJAMAT:
-                print('Taajaman sisäänluku vaatii vielä hienosäätöä, sillä nykyinen ratkaisu odottaa vain tietyllä tavoin nimettyä tiedostoa')
+                print('Taajaman sisäänluku vaatii vielä hienosäätöä, sillä nykyinen ratkaisu odottaa vain tietyllä tavoin nimettyjä tiedostoja')
                 continue
             case _:
                 continue

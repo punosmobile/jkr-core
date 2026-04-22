@@ -229,19 +229,61 @@ async def download_file_to_disk(
         resp.raise_for_status()
         meta = resp.json()
 
+    target_name = meta.get("name", file_path.split("/")[-1])
+    dest_dir = Path(target_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Folder ---
+    if "folder" in meta:
+        folder_dest = dest_dir / target_name
+        folder_dest.mkdir(parents=True, exist_ok=True)
+
+        # Fetch all children (follow @odata.nextLink for pagination)
+        children_url = f"{_graph_base()}/root:/{path}:/children"
+        total_size = 0
+        async with httpx.AsyncClient() as client:
+            while children_url:
+                resp = await client.get(
+                    children_url,
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=30.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                for child in data.get("value", []):
+                    if "folder" in child:
+                        continue  # skip subfolders
+                    child_url = child.get("@microsoft.graph.downloadUrl") or child.get("@content.downloadUrl")
+                    if not child_url:
+                        logger.warning("Ei download URL:ia tiedostolle: %s", child.get("name"))
+                        continue
+                    child_path = folder_dest / child["name"]
+                    written = 0
+                    async with client.stream("GET", child_url, timeout=300.0) as stream:
+                        stream.raise_for_status()
+                        async with aiofiles.open(str(child_path), "wb") as f:
+                            async for chunk in stream.aiter_bytes(chunk_size=1024 * 1024):
+                                await f.write(chunk)
+                                written += len(chunk)
+                    total_size += written
+                    logger.info("SharePoint -> disk: %s (%d tavua)", child["name"], written)
+                children_url = data.get("@odata.nextLink")
+
+        logger.info("Kansio ladattu: %s -> %s (%d tavua)", target_name, str(folder_dest), total_size)
+        return {
+            "filename": target_name,
+            "target_path": str(folder_dest),
+            "size": total_size,
+            "sharepoint_path": file_path,
+        }
+
+    # --- Single file ---
     download_url = meta.get("@microsoft.graph.downloadUrl") or meta.get("@content.downloadUrl")
     if not download_url:
         raise RuntimeError(f"Download URL ei saatavilla tiedostolle: {file_path}")
 
-    filename = meta.get("name", file_path.split("/")[-1])
-    file_size = meta.get("size", 0)
+    dest_path = dest_dir / target_name
 
-    # Varmista kohdehakemisto
-    dest_dir = Path(target_dir)
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / filename
-
-    # Streamaa tiedosto levylle
     written = 0
     async with httpx.AsyncClient() as client:
         async with client.stream("GET", download_url, timeout=300.0) as stream:
@@ -253,19 +295,18 @@ async def download_file_to_disk(
 
     logger.info(
         "SharePoint -> disk: %s (%d tavua) -> %s",
-        filename, written, str(dest_path),
+        target_name, written, str(dest_path),
     )
 
-    # Audit trail
     item_id = meta.get("id")
     if item_id and user_name:
         await _set_audit_description(
             token, item_id, "Download to server", user_name, user_email,
-            f"{filename} -> {target_dir}",
+            f"{target_name} -> {target_dir}",
         )
 
     return {
-        "filename": filename,
+        "filename": target_name,
         "target_path": str(dest_path),
         "size": written,
         "sharepoint_path": file_path,

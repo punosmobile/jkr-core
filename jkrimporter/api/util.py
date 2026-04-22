@@ -43,7 +43,7 @@ class FileType(str, Enum):
     KAIVOTIEDOT_ALKU = "Kaivotiedot_aloitus"
     KAIVOTIEDOT_LOPPU = "Kaivotiedot_lopetus"
     KULJETUSTIETO_LIETE = "Liete_kuljetustiedot"
-    KULJETUSTIETO = "Salpakierto"
+    KULJETUSTIETO = "Kiintea_kuljetustiedot"
     LIETE_KOMPOSTOINTI = "Lietteen_kompostointi"
     LIETE_PELTOLEVITYS = "Lietteenpeltolevitys"
     VIEMARIVERKOSTO_ALKU = "Viemariverkosto"
@@ -162,6 +162,27 @@ def _verify_dvv_sheets(target_path: str) -> bool:
         return False
 
 
+def _verify_csv_folder(folder_path: str, expected_headers: List[str]):
+    """Return (all_ok, total_data_rows) for all .csv files inside a folder."""
+    csv_files = list(Path(folder_path).glob("*.csv"))
+    if not csv_files:
+        logger.error("Kuljetustieto-kansiossa ei ole CSV-tiedostoja: %s", folder_path)
+        return False, 0
+
+    all_ok = True
+    total_rows = 0
+    for csv_path in csv_files:
+        missing, rows = _verify_csv_headers(str(csv_path), expected_headers)
+        if missing:
+            logger.error(
+                "Tiedosto: %s, puuttuvat sarakeotsikot: %s", csv_path.name, missing
+            )
+            all_ok = False
+        total_rows += rows or 0
+
+    return all_ok, total_rows
+
+
 def _verify_dat_readable(target_path: str) -> bool:
     """Check that a fixed-width .dat file can be opened and is non-empty."""
     try:
@@ -199,8 +220,17 @@ def verify_contents(raw: Dict[str, Any]) -> FileInfo:
         file.runnable = _verify_dvv_sheets(target_path)
         file.rows = file.size
         return file
-
+    
     expected_headers = _HEADERS_BY_TYPE.get(detected_type)
+    
+    # Kuljetustieto target_path is a folder containing multiple CSV files.
+    if detected_type == FileType.KULJETUSTIETO:
+        folder_headers = _HEADERS_BY_TYPE.get(FileType.KULJETUSTIETO, [])
+        all_ok, total_rows = _verify_csv_folder(target_path, folder_headers)
+        file.runnable = all_ok
+        file.rows = total_rows
+        return file
+
     if expected_headers:
         if suffix == ".csv":
             missing, rows = _verify_csv_headers(target_path, expected_headers)

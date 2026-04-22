@@ -707,8 +707,9 @@ async def psql_update_velvoitteet(background_tasks: BackgroundTasks, user: Curre
 
 @app.post("/psql/tallenna_velvoite_status", summary="Velvoite-statuksen tallennus", response_model=TaskResponse)
 async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
-    cmd = _psql_cmd(sql=f"SELECT jkr.tallenna_velvoite_status('{req.pvm}');")
-    task = _create_task(cmd, f"Velvoite-statuksen tallennus ({req.pvm})")
+    pvm = datetime.strptime(req.pvm, "%d.%m.%Y").strftime("%Y-%m-%d")
+    cmd = _psql_cmd(sql=f"SELECT jkr.tallenna_velvoite_status('{pvm}');")
+    task = _create_task(cmd, f"Velvoite-statuksen tallennus ({pvm})")
     background_tasks.add_task(_run_task, task.id, cmd)
     return TaskResponse(task_id=task.id, status=task.status, description=task.description)
 
