@@ -719,6 +719,7 @@ async def health():
     status = "ok" if db_ok else "degraded"
     return {
         "status": status,
+        "version": app.version,
         "timestamp": datetime.now().isoformat(),
         "database": {
             "connected": db_ok,
