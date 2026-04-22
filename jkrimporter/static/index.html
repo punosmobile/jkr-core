@@ -1189,7 +1189,7 @@
                 font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
                 font-size: 0.78rem;
                 line-height: 1.5;
-                height: 70vh;
+                height: 35vh;
                 overflow-y: auto;
                 white-space: pre-wrap;
                 word-break: break-all;
@@ -1200,6 +1200,31 @@
             </div>
             <div style="margin-top:8px;font-size:0.75rem;color:var(--text-muted);">
                 <span id="logCount">0</span> viestiä | WebSocket: <code>ws://&lt;host&gt;:8000/ws/logs</code>
+            </div>
+
+            <!-- Tuontiloki -->
+            <div
+                style="display:flex; justify-content:space-between; align-items:center; margin:24px 0 12px; flex-wrap:wrap; gap:10px;">
+                <h2 style="font-size:1.1rem;">Tuontiloki</h2>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input id="tuontilokiFilter" placeholder="Suodata..." oninput="renderTuontiloki()"
+                        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:0.8rem;min-width:220px;">
+                    <span id="tuontilokiCount" style="font-size:0.8rem;color:var(--text-muted);"></span>
+                    <button class="btn btn-sm btn-outline" onclick="refreshTuontiloki()">Päivitä</button>
+                </div>
+            </div>
+            <div id="tuontilokiContainer" style="
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 0;
+                font-size: 0.8rem;
+                max-height: 35vh;
+                overflow: auto;
+            ">
+                <div style="color:var(--text-muted);text-align:center;padding:24px;">
+                    Ladataan tuontilokia...
+                </div>
             </div>
         </div>
 
@@ -1377,7 +1402,7 @@
                 btn.classList.add('active');
                 document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
                 if (btn.dataset.tab === 'tasks') refreshTasks();
-                if (btn.dataset.tab === 'logs') { if (_wsAutoConnect) connectLogWs(); }
+                if (btn.dataset.tab === 'logs') { if (_wsAutoConnect) connectLogWs(); refreshTuontiloki(); }
                 if (btn.dataset.tab !== 'logs') disconnectLogWs();
                 if (btn.dataset.tab === 'files') refreshFileList();
                 if (btn.dataset.tab === 'docs' && !window._docsLoaded) loadDocs();
@@ -1633,6 +1658,51 @@
         ${t.error ? `<h4 style="margin:16px 0 8px;font-size:0.9rem;color:var(--error)">Virhe</h4><pre style="border-color:var(--error)">${esc(t.error)}</pre>` : ''}
     `;
             document.getElementById('modal').classList.add('open');
+        }
+
+        // ---- Tuontiloki ----
+        let _tuontilokiRows = [];
+        async function refreshTuontiloki() {
+            const container = document.getElementById('tuontilokiContainer');
+            container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;">Ladataan tuontilokia...</div>';
+            try {
+                const res = await fetch(API + '/tuontiloki');
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    container.innerHTML = `<div style="color:var(--error);text-align:center;padding:24px;">Virhe: ${esc(err.detail || res.statusText)}</div>`;
+                    return;
+                }
+                _tuontilokiRows = await res.json();
+                renderTuontiloki();
+            } catch (e) {
+                container.innerHTML = `<div style="color:var(--error);text-align:center;padding:24px;">Virhe: ${esc(String(e))}</div>`;
+            }
+        }
+
+        function renderTuontiloki() {
+            const container = document.getElementById('tuontilokiContainer');
+            const countEl = document.getElementById('tuontilokiCount');
+            const filter = (document.getElementById('tuontilokiFilter').value || '').toLowerCase().trim();
+            if (!_tuontilokiRows.length) {
+                container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px;">Ei rivejä</div>';
+                if (countEl) countEl.textContent = '0 riviä';
+                return;
+            }
+            const rows = filter
+                ? _tuontilokiRows.filter(r => Object.values(r).some(v => v != null && String(v).toLowerCase().includes(filter)))
+                : _tuontilokiRows;
+            const cols = Object.keys(_tuontilokiRows[0]);
+            const thead = '<tr>' + cols.map(c => `<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;white-space:nowrap;">${esc(c)}</th>`).join('') + '</tr>';
+            const tbody = rows.map(r => '<tr>' + cols.map(c => {
+                const v = r[c];
+                const s = v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+                return `<td style="padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:top;white-space:pre-wrap;word-break:break-word;">${esc(s)}</td>`;
+            }).join('') + '</tr>').join('');
+            container.innerHTML = `<table style="width:100%;border-collapse:collapse;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:0.78rem;">
+                <thead>${thead}</thead>
+                <tbody>${tbody}</tbody>
+            </table>`;
+            if (countEl) countEl.textContent = `${rows.length} / ${_tuontilokiRows.length} riviä`;
         }
 
         function closeModal() {

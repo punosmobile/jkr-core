@@ -825,6 +825,41 @@ async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTa
 
 
 # ---------------------------------------------------------------------------
+# Tuontiloki
+# ---------------------------------------------------------------------------
+@app.get("/tuontiloki", summary="Tuontilokin rivit (jkr.v_tuontiloki_rivit)")
+async def tuontiloki(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän rivit JSON-listana."""
+    env = _db_env()
+    sql = "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM jkr.v_tuontiloki_rivit t;"
+    try:
+        cmd = [
+            "psql", "-h", env.get("HOST", ""),
+            "-p", env.get("PORT", "5432"),
+            "-U", env.get("USER", ""),
+            "-d", env.get("DB_NAME", ""),
+            "-t", "-A",
+            "-c", sql,
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, env=env, timeout=60,
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=result.stderr.strip())
+
+        raw = result.stdout.strip()
+        if not raw:
+            return []
+        return json.loads(raw)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Tietokantakysely aikakatkaistiin")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
 # Tietokantadokumentaatio
 # ---------------------------------------------------------------------------
 @app.get("/db/documentation", summary="Tietokantadokumentaatio (jkr-skeemat)")
