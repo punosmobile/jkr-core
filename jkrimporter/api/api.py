@@ -36,6 +36,7 @@ import hashlib
 from jkrimporter import ws_log_handler
 from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin, validate_ws_token
 from jkrimporter.api import sharepoint as sp
+from jkrimporter.api import licenses as lic
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -885,6 +886,70 @@ SELECT json_agg(row_to_json(t)) FROM (
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Open Source Compliance / Third-Party Notices / SBOM
+# ---------------------------------------------------------------------------
+@app.get(
+    "/licenses",
+    summary="Backendin kirjastojen lisenssit (Open Source Compliance / SBOM)",
+)
+async def licenses_list(
+    format: str = Query("json", pattern="^(json|text)$", description="Palautusmuoto: 'json' tai 'text' (NOTICE-tiedosto)."),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Listaa kaikki asennetut Python-paketit lisenssitietoineen.
+
+    - `format=json` (oletus): rakenteinen lista SBOM-tyylisesti.
+    - `format=text`: tekstimuotoinen THIRD-PARTY-NOTICES attribuutiovaatimukseen.
+
+    Tiedot luetaan Python-pakettien omasta metadatasta (`importlib.metadata`),
+    joten listassa näkyvät myös transitiiviset riippuvuudet ja niiden
+    todelliset asennetut versiot.
+    """
+    try:
+        dists = lic.list_distributions()
+        app_info = {
+            "name": app.title,
+            "version": app.version,
+            "license": "GPL-3.0-or-later",
+        }
+        if format == "text":
+            from fastapi.responses import PlainTextResponse
+            body = lic.render_notices_text(dists)
+            header = (
+                f"{app_info['name']} v{app_info['version']}\n"
+                f"Päätuotteen lisenssi: {app_info['license']}\n\n"
+            )
+            return PlainTextResponse(content=header + body, media_type="text/plain; charset=utf-8")
+        return {
+            "application": app_info,
+            "count": len(dists),
+            "dependencies": dists,
+        }
+    except Exception as e:
+        logger.exception("Lisenssilistan haku epäonnistui: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/licenses/{package_name}",
+    summary="Yksittäisen kirjaston lisenssitiedot ja lisenssitiedoston sisältö",
+)
+async def license_detail(
+    package_name: str,
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Palauttaa paketin metatiedot, SPDX-lisenssi-ilmaisun ja mahdolliset
+    lisenssitiedostot (LICENSE/COPYING/NOTICE) kokonaisuudessaan."""
+    try:
+        return lic.get_distribution(package_name)
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Pakettia ei löydy: {package_name}")
+    except Exception as e:
+        logger.exception("Lisenssitietojen haku epäonnistui (%s): %s", package_name, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
