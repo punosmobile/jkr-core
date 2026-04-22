@@ -704,6 +704,7 @@
             <button class="tab-btn" data-tab="liete">Liete</button>
             <button class="tab-btn" data-tab="psql">Tietokanta</button>
             <button class="tab-btn" data-tab="scripts">Skriptit</button>
+            <button class="tab-btn" data-tab="raportti">Raportti</button>
             <button class="tab-btn" data-tab="tasks">Tehtävät</button>
             <button class="tab-btn" data-tab="logs">Loki</button>
             <button class="tab-btn" data-tab="files">Tiedostot</button>
@@ -1054,6 +1055,91 @@
                     </div>
                 </div>
                 <button class="btn" onclick="runCommand()">Suorita</button>
+            </div>
+        </div>
+
+        <!-- ============ RAPORTTI ============ -->
+        <div class="tab-content" id="tab-raportti">
+            <div class="card">
+                <h3>Excel-raportin luonti</h3>
+                <p class="card-desc">
+                    <code>jkr raportti</code> – luo Excel-raportin kohteista annetuilla rajauksilla.
+                    Oletuksena raportti ladataan SharePointin tuloskansioon. Jos annat koko tallennuspolun,
+                    tiedosto jää palvelimelle eikä sitä siirretä SharePointiin.
+                </p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Tarkastelupäivämäärä</label>
+                        <input id="rap-tarkastelupvm" placeholder="2024-03-31 tai 31.03.2024 (0 = ei rajausta)"
+                            value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Kunta</label>
+                        <input id="rap-kunta" placeholder="esim. Lahti (0 = ei rajausta)" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Huoneistomäärä</label>
+                        <select id="rap-huoneistomaara">
+                            <option value="0" selected>0 – ei rajausta</option>
+                            <option value="4">4 – ≤ 4 huoneistoa</option>
+                            <option value="5">5 – ≥ 5 huoneistoa</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Taajama</label>
+                        <select id="rap-taajama">
+                            <option value="0" selected>0 – ei rajausta</option>
+                            <option value="1">1 – yli 200 asukasta</option>
+                            <option value="2">2 – yli 10 000 asukasta</option>
+                            <option value="3">3 – molemmat</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Kohdetyyppi</label>
+                        <select id="rap-kohde-tyyppi">
+                            <option value="0" selected>0 – ei rajausta</option>
+                            <option value="5">5 – HAPA</option>
+                            <option value="6">6 – Biohapa</option>
+                            <option value="7">7 – Asuinkiinteistö</option>
+                            <option value="8">8 – Muu</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Viemäriliitos</label>
+                        <select id="rap-onko-viemari">
+                            <option value="0" selected>0 – ei väliä</option>
+                            <option value="1">1 – Viemäriverkossa</option>
+                            <option value="2">2 – Ei viemäriverkossa</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-grid" style="margin-top:12px;">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>
+                            Tallennuspolku (valinnainen)
+                            <span style="color:var(--text-muted);font-weight:normal;font-size:0.75rem;">
+                                – jos annettu, raporttia EI ladata SharePointiin
+                            </span>
+                        </label>
+                        <input id="rap-output-path" placeholder="/data/output/lahdentesti20260421.xlsx">
+                    </div>
+                    <div class="form-group">
+                        <label>SharePoint-kohdekansio (valinnainen)</label>
+                        <input id="rap-sp-folder" placeholder="Oletus: SHAREPOINT_OUTPUT_FOLDER">
+                    </div>
+                    <div class="form-group">
+                        <label>Tiedostonimi (valinnainen)</label>
+                        <input id="rap-filename" placeholder="Oletus: muodostetaan parametreista + aikaleimasta">
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; margin-top:12px;">
+                    <button class="btn" onclick="runRaportti()">Luo raportti</button>
+                    <label style="font-size:0.85rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="rap-upload-sp" checked>
+                        Lataa SharePointiin valmistumisen jälkeen
+                    </label>
+                    <span id="rap-status" style="font-size:0.85rem;color:var(--text-muted);"></span>
+                </div>
             </div>
         </div>
 
@@ -1451,6 +1537,50 @@
             post('/command/run', body);
         }
 
+        async function runRaportti() {
+            const outputPath = v('rap-output-path');
+            const filename = v('rap-filename');
+            const spFolder = v('rap-sp-folder');
+            const uploadSp = document.getElementById('rap-upload-sp').checked;
+            const body = {
+                tarkastelupvm: v('rap-tarkastelupvm') || '0',
+                kunta: v('rap-kunta') || '0',
+                huoneistomaara: parseInt(document.getElementById('rap-huoneistomaara').value, 10) || 0,
+                taajama: parseInt(document.getElementById('rap-taajama').value, 10) || 0,
+                kohde_tyyppi: parseInt(document.getElementById('rap-kohde-tyyppi').value, 10) || 0,
+                onko_viemari: parseInt(document.getElementById('rap-onko-viemari').value, 10) || 0,
+                upload_to_sharepoint: uploadSp,
+            };
+            if (outputPath) body.output_path = outputPath;
+            if (filename) body.filename = filename;
+            if (spFolder) body.sharepoint_folder = spFolder;
+
+            const statusEl = document.getElementById('rap-status');
+            statusEl.textContent = 'Käynnistetään...';
+            try {
+                const res = await fetch(API + '/jkr/raportti', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    statusEl.style.color = 'var(--error)';
+                    statusEl.textContent = 'Virhe: ' + (data.detail || res.statusText);
+                    toast(data.detail || 'Virhe', 'error');
+                    return;
+                }
+                statusEl.style.color = 'var(--text-muted)';
+                statusEl.textContent = 'Käynnistetty – task ' + data.task_id.slice(0, 8) + '... Seuraa Tehtävät-välilehdeltä.';
+                toast('Raportin luonti käynnistetty', 'success');
+                startPolling();
+            } catch (e) {
+                statusEl.style.color = 'var(--error)';
+                statusEl.textContent = 'Virhe: ' + e;
+                toast('Virhe: ' + e, 'error');
+            }
+        }
+
         // ---- Tasks ----
         async function refreshTasks() {
             const tasks = await get('/tasks');
@@ -1497,6 +1627,7 @@
         <div class="detail-row"><span class="detail-label">Päättynyt:</span><span>${t.finished_at || '-'}</span></div>
         <div class="detail-row"><span class="detail-label">Kesto:</span><span>${formatDuration(t.duration_seconds)}</span></div>
         <div class="detail-row"><span class="detail-label">Exit code:</span><span>${t.exit_code ?? '-'}</span></div>
+        ${renderResultFile(t.result_file)}
         <h4 style="margin:16px 0 8px;font-size:0.9rem;">Tuloste</h4>
         <pre>${esc(t.output || '(tyhjä)')}</pre>
         ${t.error ? `<h4 style="margin:16px 0 8px;font-size:0.9rem;color:var(--error)">Virhe</h4><pre style="border-color:var(--error)">${esc(t.error)}</pre>` : ''}
@@ -1514,6 +1645,20 @@
         // ---- Utils ----
         function v(id) { return document.getElementById(id).value.trim(); }
         function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function renderResultFile(rf) {
+            if (!rf) return '';
+            const rows = [];
+            if (rf.filename) rows.push(`<div class="detail-row"><span class="detail-label">Tiedosto:</span><span>${esc(rf.filename)}</span></div>`);
+            if (rf.size != null) rows.push(`<div class="detail-row"><span class="detail-label">Koko:</span><span>${formatBytes(rf.size)}</span></div>`);
+            if (rf.sharepoint_url) {
+                rows.push(`<div class="detail-row"><span class="detail-label">SharePoint:</span><span><a href="${esc(rf.sharepoint_url)}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;word-break:break-all;">${esc(rf.sharepoint_url)}</a></span></div>`);
+            }
+            if (rf.local_path) rows.push(`<div class="detail-row"><span class="detail-label">Paikallinen:</span><span style="font-family:monospace;font-size:0.85rem;word-break:break-all">${esc(rf.local_path)}</span></div>`);
+            if (rf.sharepoint_error) rows.push(`<div class="detail-row"><span class="detail-label">SP-virhe:</span><span style="color:var(--error)">${esc(rf.sharepoint_error)}</span></div>`);
+            if (!rows.length) return '';
+            return `<h4 style="margin:16px 0 8px;font-size:0.9rem;">Tulostiedosto</h4>${rows.join('')}`;
+        }
+
         function formatDuration(sec) {
             if (sec == null) return '-';
             if (sec < 60) return sec.toFixed(1) + 's';
