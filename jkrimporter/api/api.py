@@ -13,12 +13,13 @@ Tai:
 
 import asyncio
 import collections
+import hashlib
 import json
 import logging
 import os
-import signal
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import uuid
@@ -27,18 +28,34 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Query
+import aiofiles
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-import aiofiles
-import hashlib
 
 from jkrimporter import ws_log_handler
-from jkrimporter.api.auth import CurrentUser, require_admin, require_authenticated, require_viewer_or_admin, validate_ws_token
-from jkrimporter.api import sharepoint as sp
 from jkrimporter.api import licenses as lic
+from jkrimporter.api import sharepoint as sp
+from jkrimporter.api.auth import (
+    CurrentUser,
+    require_admin,
+    require_authenticated,
+    require_viewer_or_admin,
+    validate_ws_token,
+)
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -94,8 +111,19 @@ class TaskStatus(str, Enum):
     failed = "failed"
 
 
+class TaskType(str, Enum):
+    import_task = "import"
+    export = "export"
+    report = "report"
+    sync = "sync"
+    maintenance = "maintenance"
+    generic = "generic"
+    unknown = "unknown"
+
+
 class TaskInfo(BaseModel):
     id: str
+    taskType: str
     status: TaskStatus
     command: str
     description: str
@@ -120,9 +148,45 @@ _running_procs: Dict[str, asyncio.subprocess.Process] = {}
 _cancelled_tasks: set = set()
 
 
-def _create_task(command: str, description: str) -> TaskInfo:
+def _infer_task_type_from_command(command: str) -> str:
+    normalized = (command or "").strip().lower()
+    if not normalized:
+        return TaskType.unknown.value
+
+    if normalized.startswith("jkr raportti"):
+        return TaskType.report.value
+    if normalized.startswith("jkr export"):
+        return TaskType.export.value
+    if normalized.startswith("sharepoint ") or normalized.startswith("sync "):
+        return TaskType.sync.value
+    if (
+        normalized.startswith("jkr import")
+        or normalized.startswith("jkr create_dvv_kohteet")
+        or normalized.startswith("ogr2ogr ")
+        or normalized.startswith("sh import_")
+        or (normalized.startswith("psql ") and "\\copy" in normalized)
+    ):
+        return TaskType.import_task.value
+    if (
+        normalized.startswith("bash ")
+        or normalized.startswith("jkr tiedontuottaja add")
+        or normalized.startswith("psql ")
+    ):
+        return TaskType.maintenance.value
+
+    return TaskType.unknown.value
+
+
+def _resolve_task_type(command: str, task_type: Optional[TaskType] = None) -> str:
+    if task_type is not None:
+        return task_type.value
+    return _infer_task_type_from_command(command)
+
+
+def _create_task(command: str, description: str, task_type: Optional[TaskType] = None) -> TaskInfo:
     task = TaskInfo(
         id=str(uuid.uuid4()),
+        taskType=_resolve_task_type(command, task_type),
         status=TaskStatus.pending,
         command=command,
         description=description,
@@ -421,15 +485,25 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 # ---------------------------------------------------------------------------
 class TaskResponse(BaseModel):
     task_id: str
+    taskType: str
     status: TaskStatus
     description: str
     message: str = "Tehtävä käynnistetty. Seuraa tilaa GET /tasks/{task_id}"
 
 
+def _task_response(task: TaskInfo) -> TaskResponse:
+    return TaskResponse(
+        task_id=task.id,
+        taskType=task.taskType,
+        status=task.status,
+        description=task.description,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpointit: Tehtävien hallinta
 # ---------------------------------------------------------------------------
-@app.get("/tasks", summary="Listaa kaikki tehtävät")
+@app.get("/tasks", summary="Listaa kaikki tehtävät", response_model=List[TaskInfo])
 async def list_tasks(user: CurrentUser = Depends(require_authenticated)):
     return list(_tasks.values())
 
@@ -553,81 +627,81 @@ async def cancel_task(task_id: str, user: CurrentUser = Depends(require_admin)):
 @app.post("/jkr/import", summary="jkr import – Kuljetustietojen tuonti", response_model=TaskResponse)
 async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
-    task = _create_task(cmd, f"Kuljetustietojen tuonti ({req.tiedontuottajatunnus} {req.alkupvm}-{req.loppupvm})")
+    task = _create_task(cmd, f"Kuljetustietojen tuonti ({req.tiedontuottajatunnus} {req.alkupvm}-{req.loppupvm})", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_liete", summary="jkr import_liete – LIETE-kuljetustietojen tuonti", response_model=TaskResponse)
 async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
-    task = _create_task(cmd, f"LIETE-kuljetustietojen tuonti ({req.alkupvm}-{req.loppupvm})")
+    task = _create_task(cmd, f"LIETE-kuljetustietojen tuonti ({req.alkupvm}-{req.loppupvm})", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_paatokset", summary="jkr import_paatokset – Päätösten tuonti", response_model=TaskResponse)
 async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_paatokset {req.siirtotiedosto}"
-    task = _create_task(cmd, "Päätösten tuonti")
+    task = _create_task(cmd, "Päätösten tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_ilmoitukset", summary="jkr import_ilmoitukset – Ilmoitusten tuonti", response_model=TaskResponse)
 async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_ilmoitukset {req.siirtotiedosto}"
-    task = _create_task(cmd, "Kompostointi-ilmoitusten tuonti")
+    task = _create_task(cmd, "Kompostointi-ilmoitusten tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_liete_ilmoitukset", summary="jkr import_liete_ilmoitukset – Liete-ilmoitusten tuonti", response_model=TaskResponse)
 async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete_ilmoitukset {req.siirtotiedosto}"
-    task = _create_task(cmd, "Liete kompostointi-ilmoitusten tuonti")
+    task = _create_task(cmd, "Liete kompostointi-ilmoitusten tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_lopetusilmoitukset", summary="jkr import_lopetusilmoitukset – Lopetusilmoitusten tuonti", response_model=TaskResponse)
 async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopetusilmoitukset {req.siirtotiedosto}"
-    task = _create_task(cmd, "Lopetusilmoitusten tuonti")
+    task = _create_task(cmd, "Lopetusilmoitusten tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_kaivotiedot", summary="jkr import_kaivotiedot – Kaivotietojen tuonti", response_model=TaskResponse)
 async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedot {req.siirtotiedosto} {req.tiedontuottajatunnus}"
-    task = _create_task(cmd, "Kaivotietojen tuonti")
+    task = _create_task(cmd, "Kaivotietojen tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_kaivotiedon_lopetukset", summary="jkr import_kaivotiedon_lopetukset – Kaivotiedon lopetusten tuonti", response_model=TaskResponse)
 async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedon_lopetukset {req.siirtotiedosto} {req.tiedontuottajatunnus}"
-    task = _create_task(cmd, "Kaivotiedon lopetusten tuonti")
+    task = _create_task(cmd, "Kaivotiedon lopetusten tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_viemarit", summary="jkr import_viemarit – Viemäritietojen tuonti", response_model=TaskResponse)
 async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_viemarit {req.siirtotiedosto}"
-    task = _create_task(cmd, "Viemäritietojen tuonti")
+    task = _create_task(cmd, "Viemäritietojen tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/import_lopeta_viemarit", summary="jkr import_lopeta_viemarit – Viemärin lopetusten tuonti", response_model=TaskResponse)
 async def jkr_import_lopeta_viemarit(req: JkrImportLopetaViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopeta_viemarit {req.siirtotiedosto}"
-    task = _create_task(cmd, "Viemärin lopetusten tuonti")
+    task = _create_task(cmd, "Viemärin lopetusten tuonti", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/create_dvv_kohteet", summary="jkr create_dvv_kohteet – Kohteiden luonti DVV-aineistosta", response_model=TaskResponse)
@@ -635,17 +709,17 @@ async def jkr_create_dvv_kohteet(req: JkrCreateDvvKohteetRequest, background_tas
     cmd = f"jkr create_dvv_kohteet {req.poimintapvm}"
     if req.perusmaksutiedosto:
         cmd += f" {req.perusmaksutiedosto}"
-    task = _create_task(cmd, "Kohteiden luonti DVV-aineistosta")
+    task = _create_task(cmd, "Kohteiden luonti DVV-aineistosta", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/jkr/tiedontuottaja/add", summary="jkr tiedontuottaja add – Lisää tiedontuottaja", response_model=TaskResponse)
 async def jkr_tiedontuottaja_add(req: TiedontuottajaAddRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr tiedontuottaja add {req.tunnus} '{req.nimi}'"
-    task = _create_task(cmd, f"Tiedontuottajan lisäys: {req.tunnus}")
+    task = _create_task(cmd, f"Tiedontuottajan lisäys: {req.tunnus}", TaskType.maintenance)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.get("/jkr/tiedontuottaja/list", summary="jkr tiedontuottaja list – Listaa tiedontuottajat")
@@ -669,9 +743,9 @@ async def psql_exec(req: PsqlRequest, background_tasks: BackgroundTasks, user: C
         raise HTTPException(status_code=400, detail="Anna joko 'sql' tai 'file'")
     cmd = _psql_cmd(sql=req.sql, file=req.file)
     desc = f"psql: {req.sql or req.file}"
-    task = _create_task(cmd, desc)
+    task = _create_task(cmd, desc, TaskType.generic)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/psql/copy_csv", summary="psql \\copy CSV-tiedostosta", response_model=TaskResponse)
@@ -683,25 +757,25 @@ async def psql_copy_csv(req: CopyFromCsvRequest, background_tasks: BackgroundTas
         f"ENCODING '{req.encoding}', NULL '')"
     )
     cmd = _psql_cmd(sql=copy_cmd)
-    task = _create_task(cmd, f"CSV-tuonti: {req.file_path} → {req.table}")
+    task = _create_task(cmd, f"CSV-tuonti: {req.file_path} → {req.table}", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/psql/update_velvoitteet", summary="Velvoitteiden päivitys", response_model=TaskResponse)
 async def psql_update_velvoitteet(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = _psql_cmd(sql="SELECT jkr.update_velvoitteet();")
-    task = _create_task(cmd, "Velvoitteiden päivitys")
+    task = _create_task(cmd, "Velvoitteiden päivitys", TaskType.maintenance)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/psql/tallenna_velvoite_status", summary="Velvoite-statuksen tallennus", response_model=TaskResponse)
 async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = _psql_cmd(sql=f"SELECT jkr.tallenna_velvoite_status('{req.pvm}');")
-    task = _create_task(cmd, f"Velvoite-statuksen tallennus ({req.pvm})")
+    task = _create_task(cmd, f"Velvoite-statuksen tallennus ({req.pvm})", TaskType.maintenance)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 # ---------------------------------------------------------------------------
@@ -710,9 +784,9 @@ async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, back
 @app.post("/ogr2ogr/import", summary="ogr2ogr – Tuo aineisto PostgreSQL:ään", response_model=TaskResponse)
 async def ogr2ogr_import(req: Ogr2ogrRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = _ogr2ogr_cmd(req.source_file, req.layer_name, req.target_table, req.target_schema)
-    task = _create_task(cmd, f"ogr2ogr: {req.layer_name} → {req.target_schema}.{req.target_table}")
+    task = _create_task(cmd, f"ogr2ogr: {req.layer_name} → {req.target_schema}.{req.target_table}", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 # ---------------------------------------------------------------------------
@@ -721,26 +795,26 @@ async def ogr2ogr_import(req: Ogr2ogrRequest, background_tasks: BackgroundTasks,
 @app.post("/scripts/import_taajama", summary="Taajamarajausten tuonti (import_taajama.sh)", response_model=TaskResponse)
 async def scripts_import_taajama(req: ImportTaajamaRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"sh import_taajama.sh {req.alkupvm}"
-    task = _create_task(cmd, f"Taajamarajausten tuonti ({req.alkupvm})")
+    task = _create_task(cmd, f"Taajamarajausten tuonti ({req.alkupvm})", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd, cwd=str(SCRIPTS_DIR))
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/scripts/import_viemari", summary="Viemäriverkoston tuonti (import_viemari.sh)", response_model=TaskResponse)
 async def scripts_import_viemari(req: ImportViemariRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"sh import_viemari.sh {req.alkupvm} {req.shp_tiedosto}"
-    task = _create_task(cmd, f"Viemäriverkoston tuonti ({req.alkupvm})")
+    task = _create_task(cmd, f"Viemäriverkoston tuonti ({req.alkupvm})", TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd, cwd=str(SCRIPTS_DIR))
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 @app.post("/scripts/run", summary="Aja mikä tahansa shell-skripti", response_model=TaskResponse)
 async def scripts_run(req: ShellScriptRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     args_str = " ".join(req.args)
     cmd = f"sh {req.script} {args_str}".strip()
-    task = _create_task(cmd, f"Skripti: {req.script}")
+    task = _create_task(cmd, f"Skripti: {req.script}", TaskType.generic)
     background_tasks.add_task(_run_task, task.id, cmd, cwd=str(SCRIPTS_DIR))
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 # ---------------------------------------------------------------------------
@@ -753,9 +827,9 @@ async def pipeline_run(req: RunFullPipelineRequest, background_tasks: Background
     if not script.exists():
         raise HTTPException(status_code=404, detail=f"Skriptiä ei löydy: {req.script_path}")
     cmd = f"bash {script}"
-    task = _create_task(cmd, f"Pipeline: {req.script_path}")
+    task = _create_task(cmd, f"Pipeline: {req.script_path}", TaskType.maintenance)
     background_tasks.add_task(_run_task, task.id, cmd, cwd=str(SCRIPTS_DIR))
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 # ---------------------------------------------------------------------------
@@ -927,7 +1001,7 @@ async def jkr_raportti(
         f"huoneistomaara={req.huoneistomaara}, taajama={req.taajama}, "
         f"kohde_tyyppi={req.kohde_tyyppi}, onko_viemari={req.onko_viemari}"
     )
-    task = _create_task(cmd, desc)
+    task = _create_task(cmd, desc, TaskType.report)
     background_tasks.add_task(
         _run_raportti_task,
         task.id,
@@ -938,7 +1012,7 @@ async def jkr_raportti(
         getattr(user, "name", "") or "",
         getattr(user, "email", "") or "",
     )
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 # ---------------------------------------------------------------------------
@@ -953,9 +1027,9 @@ class GenericCommandRequest(BaseModel):
 
 @app.post("/command/run", summary="Aja vapaa komento", response_model=TaskResponse)
 async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
-    task = _create_task(req.command, req.description)
+    task = _create_task(req.command, req.description, TaskType.generic)
     background_tasks.add_task(_run_task, task.id, req.command, cwd=req.cwd)
-    return TaskResponse(task_id=task.id, status=task.status, description=task.description)
+    return _task_response(task)
 
 
 # ---------------------------------------------------------------------------
@@ -1146,8 +1220,9 @@ async def health():
     db_ok = False
     db_error = None
     try:
-        from jkrimporter.providers.db.database import engine
         from sqlalchemy import text as sa_text
+
+        from jkrimporter.providers.db.database import engine
         with engine.connect() as conn:
             conn.execute(sa_text("SELECT 1"))
             conn.commit()
