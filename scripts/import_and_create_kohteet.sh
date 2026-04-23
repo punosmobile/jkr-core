@@ -19,7 +19,10 @@ if [ -z "$JKR_USER" ]; then
     echo "Error: USER variable not set in .env file"
     exit 1
 fi
-
+if [ -z "$JKR_PASSWORD" ]; then
+    echo "Error: JKR_PASSWORD variable not set in .env file"
+    exit 1
+fi
 
 export PGPASSWORD=$JKR_PASSWORD
 
@@ -60,6 +63,13 @@ export LC_ALL="fi_FI.UTF-8"
 export PGCLIENTENCODING="UTF8"
 
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Tarkistetaan halutaanko importoida posti data.
+if [ "$3" = "posti" ]; then
+    psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f "$SCRIPT_DIR/jkr_posti.sql"
+fi
+
 echo "Rakennukset"
 ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" -nln rakennus $DVV "R1 rakennus"
 
@@ -73,4 +83,4 @@ echo "Asukkaat"
 ogr2ogr -f PostgreSQL -overwrite -progress PG:"host=$JKR_DB_HOST port=$JKR_DB_PORT dbname=$JKR_DB user=$JKR_USER ACTIVE_SCHEMA=jkr_dvv" -nln vanhin $DVV "R9 huon asukk"
 
 echo "Muunnetaan jkr-muotoon..."
-psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -v formatted_date="$formatted_date" -f import_dvv.sql
+psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -v formatted_date="$formatted_date" -f "$SCRIPT_DIR/import_dvv.sql"
