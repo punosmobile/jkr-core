@@ -793,7 +793,7 @@ async def psql_copy_csv(req: CopyFromCsvRequest, background_tasks: BackgroundTas
 @app.post("/psql/update_velvoitteet", summary="Velvoitteiden päivitys", response_model=TaskResponse)
 async def psql_update_velvoitteet(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = _psql_cmd(sql="SELECT jkr.update_velvoitteet();")
-    task = _create_task(cmd, "Velvoitteiden päivitys", username=user.name, task_type=TaskType.maintenance)
+    task = _create_task(cmd, "Velvoitteiden päivitys", username=user.name, task_type=TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
     return _task_response(task)
 
@@ -802,7 +802,7 @@ async def psql_update_velvoitteet(background_tasks: BackgroundTasks, user: Curre
 async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     pvm = datetime.strptime(req.pvm, "%d.%m.%Y").strftime("%Y-%m-%d")
     cmd = _psql_cmd(sql=f"SELECT jkr.tallenna_velvoite_status('{pvm}');")
-    task = _create_task(cmd, f"Velvoite-statuksen tallennus ({pvm})", username=user.name, task_type=TaskType.maintenance)
+    task = _create_task(cmd, f"Velvoite-statuksen tallennus ({pvm})", username=user.name, task_type=TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
     return _task_response(task)
 
