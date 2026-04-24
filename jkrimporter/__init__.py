@@ -138,7 +138,7 @@ logFormatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
 rootLogger = logging.getLogger()
 rootLogger.setLevel(_log_level)
 
-fileHandler = logging.FileHandler("jkr.log")
+fileHandler = logging.FileHandler("output/jkr.log")
 fileHandler.setFormatter(logFormatter)
 fileHandler.setLevel(logging.DEBUG)
 rootLogger.addHandler(fileHandler)
