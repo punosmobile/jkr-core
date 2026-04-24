@@ -57,6 +57,10 @@ from jkrimporter.api.auth import (
     require_viewer_or_admin,
     validate_ws_token,
 )
+from jkrimporter.api.dashboard import (
+    DashboardOverviewResponse,
+    build_dashboard_overview,
+)
 from jkrimporter.api.util import FileInfo
 from jkrimporter.__init__ import __log_path__
 
@@ -1059,6 +1063,14 @@ async def command_run(req: GenericCommandRequest, background_tasks: BackgroundTa
     task = _create_task(req.command, req.description, username=user.name, task_type=TaskType.generic)
     background_tasks.add_task(_run_task, task.id, req.command, cwd=req.cwd)
     return _task_response(task)
+
+
+# ---------------------------------------------------------------------------
+# Tuontiloki
+# ---------------------------------------------------------------------------
+@app.get("/dashboard/overview", summary="Dashboardin kooste", response_model=DashboardOverviewResponse)
+async def dashboard_overview(user: CurrentUser = Depends(require_authenticated)):
+    return build_dashboard_overview(list(_tasks.values()))
 
 
 # ---------------------------------------------------------------------------
