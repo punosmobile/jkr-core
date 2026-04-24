@@ -58,6 +58,7 @@ from jkrimporter.api.auth import (
     validate_ws_token,
 )
 from jkrimporter.api.util import FileInfo
+from jkrimporter.__init__ import __log_path__
 
 # ---------------------------------------------------------------------------
 # Logging (käyttää jkrimporter.__init__:ssä konfiguroitua root loggeria)
@@ -317,6 +318,16 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
         task.status,
         task.duration_seconds or 0,
     )
+
+    log_path = Path(__log_path__)
+    if log_path.exists() and log_path.stat().st_size > 0:
+        try:
+            log_content = log_path.read_bytes()
+            await sp.upload_file(file_content=log_content, filename=log_path.name, user_name="jkr-core")
+            log_path.write_bytes(b"")
+            logger.info("Lokitiedosto lähetetty SharePointiin ja tyhjennetty.")
+        except Exception:
+            logger.exception("Lokitiedoston SharePoint-lähetys epäonnistui.")
 
 
 # ---------------------------------------------------------------------------
