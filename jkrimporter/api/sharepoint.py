@@ -326,7 +326,10 @@ async def upload_file(
     """
     token = await _get_app_token()
     folder_path = _resolve_folder_path(folder, default=SHAREPOINT_OUTPUT_FOLDER)
-    target = f"{folder_path}/{filename}"
+    stem, _, ext = filename.rpartition(".")
+    timestamp = datetime.now().strftime("%Y%m%d%H%M")
+    stamped = f"{stem}_{timestamp}.{ext}" if stem else f"{filename}_{timestamp}"
+    target = f"{folder_path}/{stamped}"
 
     if len(file_content) < 4 * 1024 * 1024:
         result = await _upload_small(token, target, file_content)

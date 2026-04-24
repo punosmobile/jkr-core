@@ -1,6 +1,7 @@
 import csv
 import logging
 import os
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta, date
 from pathlib import Path
@@ -35,6 +36,7 @@ from jkrimporter.utils.kaivotieto import (
     export_kohdentumattomat_kaivotiedon_lopetukset,
 )
 from jkrimporter.utils.progress import Progress
+from jkrimporter.api import sharepoint as sp
 
 from . import codes
 from .codes import get_code_id, init_code_objects, keraysvalinetyypit
@@ -690,6 +692,8 @@ class DbProvider:
 
                     if csv_path and kohdentumattomatRivit > 0:
                         lisaa_lisatieto(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
+                        file_content = csv_path.read_bytes()
+                        asyncio.run(sp.upload_file(file_content=file_content, filename=csv_path.name, user_name="jkr-core"))
                     elif kohdentumattomatRivit == 0 and kohdentumattomat:
                         # LIETE-data tai muu data jota ei voitu tallentaa Lahden muodossa
                         lisaa_lisatieto(f"Kohdentumattomia tietoja ({len(kohdentumattomat)}) kpl, tallennetaan erilliseen tiedostoon")
@@ -848,7 +852,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat ilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_ilmoitukset(
-                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+                Path(ilmoitustiedosto).parent, kohdentumattomat
             )
 
 
@@ -973,7 +977,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat lieteilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_lieteIlmoitukset(
-                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+                Path(ilmoitustiedosto).parent, kohdentumattomat
             )
 
     def write_lopetusilmoitukset(
@@ -1034,7 +1038,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat lopetusilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_lopetusilmoitukset(
-                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+                Path(ilmoitustiedosto).parent, kohdentumattomat
             )
 
     def write_paatokset(
@@ -1096,7 +1100,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat päätökset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_paatokset(
-                os.path.dirname(paatostiedosto), kohdentumattomat
+                Path(paatostiedosto).parent, kohdentumattomat
             )
 
     def write_kaivotiedot(
@@ -1196,7 +1200,7 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat kaivotiedot ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_kaivotiedot(
-                os.path.dirname(kaivotiedosto_path), kohdentumattomat
+                Path(kaivotiedosto_path).parent, kohdentumattomat
             )
 
     def write_kaivotiedon_lopetukset(
@@ -1279,7 +1283,7 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat kaivotiedon lopetukset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_kaivotiedon_lopetukset(
-                os.path.dirname(lopetustiedosto_path), kohdentumattomat
+                Path(lopetustiedosto_path).parent, kohdentumattomat
             )
 
     def write_viemariliitos(
@@ -1351,7 +1355,7 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat viemäriliitokset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_viemariilmoitukset(
-                os.path.dirname(viemaritiedosto_path), kohdentumattomat, viemaritiedosto_path
+                Path(viemaritiedosto_path).parent, kohdentumattomat, viemaritiedosto_path
             )
 
 
@@ -1422,5 +1426,5 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat viemärilopetukset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_viemarilopetusilmoitukset(
-                os.path.dirname(lopetustiedosto_path), kohdentumattomat
+                Path(lopetustiedosto_path).parent, kohdentumattomat
             )

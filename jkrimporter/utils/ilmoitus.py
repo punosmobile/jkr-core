@@ -1,4 +1,5 @@
 import os
+import asyncio
 from pathlib import Path
 from typing import Dict, List
 
@@ -14,6 +15,7 @@ from jkrimporter.datasheets import (
     get_liete_ilmoitustiedosto_headers,
     get_lopetustiedosto_headers,
 )
+from jkrimporter.api import sharepoint as sp
 
 
 def export_kohdentumattomat_ilmoitukset(
@@ -22,11 +24,9 @@ def export_kohdentumattomat_ilmoitukset(
 ):
     expected_headers = get_ilmoitustiedosto_headers()
 
-    output_file_path_failed = os.path.join(
-        folder, get_kohdentumattomat_ilmoitus_filename()
-    )
+    output_file_path_failed = folder / get_kohdentumattomat_ilmoitus_filename()
 
-    if os.path.exists(output_file_path_failed):
+    if output_file_path_failed.exists():
         workbook_failed = openpyxl.load_workbook(output_file_path_failed)
         sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
     else:
@@ -63,17 +63,18 @@ def export_kohdentumattomat_ilmoitukset(
 
     workbook_failed.save(output_file_path_failed)
 
+    file_content = output_file_path_failed.read_bytes()
+    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
+
 def export_kohdentumattomat_lieteIlmoitukset(
         folder: Path,
         kohdentumattomat: List[Dict[str, str]]
 ):
     expected_headers = get_liete_ilmoitustiedosto_headers()
 
-    output_file_path_failed = os.path.join(
-        folder, get_kohdentumattomat_lieteilmoitus_filename()
-    )
+    output_file_path_failed = folder / get_kohdentumattomat_lieteilmoitus_filename()
 
-    if os.path.exists(output_file_path_failed):
+    if output_file_path_failed.exists():
         workbook_failed = openpyxl.load_workbook(output_file_path_failed)
         sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
     else:
@@ -89,6 +90,9 @@ def export_kohdentumattomat_lieteIlmoitukset(
         sheet_failed.append([row.get(header, "") for header in expected_headers])
 
     workbook_failed.save(output_file_path_failed)
+
+    file_content = output_file_path_failed.read_bytes()
+    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
 
 
 def export_kohdentumattomat_lopetusilmoitukset(
@@ -97,11 +101,10 @@ def export_kohdentumattomat_lopetusilmoitukset(
 ):
     expected_headers = get_lopetustiedosto_headers()
 
-    output_file_path_failed = os.path.join(
-        folder, get_kohdentumattomat_lopetusilmoitus_filename()
-    )
+    output_file_path_failed = folder / get_kohdentumattomat_lopetusilmoitus_filename()
+    
 
-    if os.path.exists(output_file_path_failed):
+    if output_file_path_failed.exists():
         workbook_failed = openpyxl.load_workbook(output_file_path_failed)
         sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
     else:
@@ -117,3 +120,6 @@ def export_kohdentumattomat_lopetusilmoitukset(
         sheet_failed.append([row.get(header, "") for header in expected_headers])
 
     workbook_failed.save(output_file_path_failed)
+
+    file_content = output_file_path_failed.read_bytes()
+    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))

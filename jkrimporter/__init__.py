@@ -8,6 +8,7 @@ import sys
 from datetime import datetime
 
 __version__ = "0.7.7"
+__log_path__ = "output/jkr.log"
 
 # ---------------------------------------------------------------------------
 # Custom log level: IMPORT (between INFO=20 and WARNING=30)
@@ -138,7 +139,7 @@ logFormatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
 rootLogger = logging.getLogger()
 rootLogger.setLevel(_log_level)
 
-fileHandler = logging.FileHandler("jkr.log")
+fileHandler = logging.FileHandler(__log_path__)
 fileHandler.setFormatter(logFormatter)
 fileHandler.setLevel(logging.DEBUG)
 rootLogger.addHandler(fileHandler)

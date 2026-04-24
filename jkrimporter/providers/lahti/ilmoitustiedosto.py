@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 
 from openpyxl.reader.excel import load_workbook
@@ -71,7 +70,7 @@ class Ilmoitustiedosto:
                 failed_validations.append(data)
 
         export_kohdentumattomat_ilmoitukset(
-            os.path.dirname(self._path), failed_validations
+            Path(self._path).parent, failed_validations
         )
 
         return ilmoitus_list
@@ -127,7 +126,7 @@ class LieteIlmoitustiedosto:
                 failed_validations.append(data)
 
         export_kohdentumattomat_lieteIlmoitukset(
-            os.path.dirname(self._path), failed_validations
+            Path(self._path).parent, failed_validations
         )
 
         return ilmoitus_list
@@ -183,7 +182,7 @@ class LopetusIlmoitustiedosto:
                 failed_validations.append(data)
 
         export_kohdentumattomat_lopetusilmoitukset(
-            os.path.dirname(self._path), failed_validations
+            Path(self._path).parent, failed_validations
         )
 
         return lopetus_list
