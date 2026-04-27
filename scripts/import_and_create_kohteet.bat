@@ -77,7 +77,7 @@ SET PGCLIENTENCODING=UTF8
 REM Tarkistetaan halutaanko importoida posti data.
 
 IF "%~3"=="posti" (
-    "%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f "./scripts/jkr_posti.sql"
+    "%QGIS_BIN_PATH%\\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v posti_file=%~4 -f "./scripts/jkr_posti.sql"
 )
 
 ECHO Rakennukset

@@ -100,7 +100,7 @@ log_exec "sh import_taajama.sh 2020-01-01" \
         "Taajamarajausten tuonti"
 
 # Vaihe 2: Kunnat ja postinumerot
-log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql" \
+log_exec "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v posti_file='../data/posti/PCF.dat' -f import_posti.sql" \
         "logs/import_posti.log" \
         "Kuntien ja postinumeroiden tuonti"
 

@@ -67,7 +67,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Tarkistetaan halutaanko importoida posti data.
 if [ "$3" = "posti" ]; then
-    psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER -f "$SCRIPT_DIR/jkr_posti.sql"
+    POSTI="${4:-../data/posti/PCF.dat}"
+    if [ ! -f "$POSTI" ]; then
+        echo "ERROR: Posti-tiedostoa ei löydy: $POSTI"
+        exit 1
+    fi
+    sed "s|<POSTI>|$POSTI|g" "$SCRIPT_DIR/jkr_posti.sql" | psql -h $JKR_DB_HOST -p $JKR_DB_PORT -d $JKR_DB -U $JKR_USER
 fi
 
 echo "Rakennukset"

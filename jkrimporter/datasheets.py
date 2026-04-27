@@ -55,15 +55,15 @@ def get_dvv_osoite_headers():
 
 def get_dvv_rakennus_headers():
     expected_headers = [
-        "rakennustunnus",
-        "sijaintikiinteistön tunnus",
-        "viemäri",
+        "Rakennustunnus",
+        "Sijaintikiinteistön tunnus",
+        "Viemäri",
         "Pohjois-koordinaatti",
         "Itä-koordinaatti",
         """Valmis-tumis-
 päivä""",
        "Käytössä-olotilanteen muutospäivä",
-        "Käyttö-tarkoitus"
+        "Käyttö-tarkoitus",
         "Käytös-säolo-tilanne",
         """Rakennus-
 luokka""",

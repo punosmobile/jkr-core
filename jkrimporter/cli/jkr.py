@@ -133,8 +133,15 @@ def import_data_batch(
                         posti_path = str(muutiedosto.get('target_path'))
 
                 poimintapvm = _read_dvv_poimintapvm(target_path)
-                print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}, {posti_path}")
-                import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, posti_path)
+                if (posti_path and perusmaksu_path):
+                    print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}, 'posti', {posti_path}")
+                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
+                elif perusmaksu_path:
+                    print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}")
+                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path)
+                else:
+                    print(f"DVV args: {poimintapvm}, {target_path}")
+                    import_and_create_kohteet(poimintapvm, target_path)
                 continue
             case FileType.HUONEISTOMAARAT:
                 update_huoneistomaara(target_path)
@@ -256,6 +263,7 @@ def import_and_create_kohteet(
     dvv: Path = typer.Argument(None, help="Dvv-tiedoston sijainti"),
     perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
+    posti_file: Optional[str] = typer.Argument(None, help="What file to use if provided, else defaults to data/posti/PCF.dat"),
 ):
     with sisaanlukutapahtuma():
         file_to_run: Optional[str] = None
@@ -268,6 +276,8 @@ def import_and_create_kohteet(
 
         if posti == "posti":
             cmd_args.append("posti")
+            if posti_file is not None:
+                cmd_args.append(posti_file)
 
         subprocess.call(cmd_args)
 

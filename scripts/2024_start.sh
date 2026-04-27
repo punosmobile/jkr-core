@@ -220,7 +220,7 @@ log_exec_with_sql_log "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_ka
         "Heinolan viemariverkoston tuonti"
 
 # Vaihe 2: Kunnat ja postinumerot
-log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql" \
+log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v posti_file='../data/posti/PCF.dat' -f import_posti.sql" \
         "logs/import_posti.log" \
         "Kuntien ja postinumeroiden tuonti"
 
