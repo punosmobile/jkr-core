@@ -191,8 +191,10 @@ def import_data_batch(
                 print('Postinumerotietojen pohjustus luetaan sisään DVV-sisäänluvussa. Päivitystä ei vielä ole implementoitu')
                 continue
             case FileType.TAAJAMAT:
-                print('Taajaman sisäänluku vaatii vielä hienosäätöä, sillä nykyinen ratkaisu odottaa vain tietyllä tavoin nimettyjä tiedostoja')
+                print('Taajaman sisäänluku ei ole valmis massana, sillä nykyinen ratkaisu odottaa vain tietyllä tavoin nimettyjä tiedostoja')
                 continue
+            case FileType.VIEMARIVERKOSTOT_KARTTA:
+                print('Viemäriverkostojen sisäänluku voidaan toteuttaa vain manuaalisesti')
             case _:
                 continue
 
@@ -255,6 +257,26 @@ def create_dvv_kohteet(
 
         print("VALMIS!")
 
+
+# Tämä funktio ei ole vielä käytettävissä, vaatii muutoksia import_taajama.sh/bat tiedostoihin
+@app.command("import_taajamat",
+             help="Imports taajama data and creates taajama areas")
+def import_taajamat(
+    taajaman_alkupvvm: Path = typer.Argument(None, help="Taajaman voimaan astumispäivä"),
+    taajama_polku: Optional[Path] = typer.Argument(None, help="Taajamatiedostojen kansio"),
+):
+    with sisaanlukutapahtuma():
+        file_to_run: Optional[str] = None
+        if platform == "linux" or platform == "linux2":
+            file_to_run = "./scripts/import_and_create_kohteet.sh"
+        else:
+            file_to_run = ".\\scripts\\import_and_create_kohteet.bat"
+
+        cmd_args = [file_to_run, taajaman_alkupvvm, taajama_polku]
+
+        subprocess.call(cmd_args)
+
+        print("VALMIS!")
 
 @app.command("import_and_create_kohteet",
              help="Imports dvv data and creates dvv kohteet(optionally with perusmaksu). Optionally imports posti data.")

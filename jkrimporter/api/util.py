@@ -33,7 +33,8 @@ logger = logging.getLogger("jkr-sharepoint")
 class FileType(str, Enum):
     PERUSMAKSUAINEISTO = "Perusmaksuaineisto"
     ILMOITUSTIEDOSTO = "Kompostointi"
-    TAAJAMAT = "asukkaan taajamat"
+    VIEMARIVERKOSTOT_KARTTA = "Karttarajaukset_viemariverkostot"
+    TAAJAMAT = "Karttarajaukset_taajamat"
     KOMPOSTOINNIN_LOPETUS = "Kompostoinnin_lopettami"
     PAATOSTIEDOSTO = "Paatokset"
     HAPATIEDOSTO = "Hapa-kohteet"
