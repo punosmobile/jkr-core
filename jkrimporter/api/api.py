@@ -661,12 +661,12 @@ async def _run_sharepoint_pull_task(
 # Endpointit: Tehtävien hallinta
 # ---------------------------------------------------------------------------
 @app.get("/tasks", summary="Listaa kaikki tehtävät", response_model=List[TaskInfo])
-async def list_tasks(user: CurrentUser = Depends(require_admin)):
+async def list_tasks(user: CurrentUser = Depends(require_authenticated)):
     return list(_tasks.values())
 
 
 @app.get("/tasks/{task_id}", summary="Hae tehtävän tila", response_model=TaskInfo)
-async def get_task(task_id: str, user: CurrentUser = Depends(require_admin)):
+async def get_task(task_id: str, user: CurrentUser = Depends(require_authenticated)):
     if task_id not in _tasks:
         raise HTTPException(status_code=404, detail="Tehtävää ei löydy")
     return _tasks[task_id]
