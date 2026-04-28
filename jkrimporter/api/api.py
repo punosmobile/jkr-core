@@ -22,10 +22,12 @@ import shlex
 import signal
 import subprocess
 import sys
+import time
 import uuid
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 import aiofiles
@@ -515,6 +517,18 @@ class TaskResponse(BaseModel):
     message: str = "Tehtävä käynnistetty. Seuraa tilaa GET /tasks/{task_id}"
 
 
+class SharepointPullError(BaseModel):
+    path: str
+    error: str
+
+
+class SharepointPullResponse(BaseModel):
+    downloaded: List[FileInfo] = Field(default_factory=list)
+    errors: List[SharepointPullError] = Field(default_factory=list)
+    target_dir: str
+    timing: Dict[str, Any]
+
+
 def _task_response(task: TaskInfo) -> TaskResponse:
     return TaskResponse(
         task_id=task.id,
@@ -522,6 +536,125 @@ def _task_response(task: TaskInfo) -> TaskResponse:
         status=task.status,
         description=task.description,
     )
+
+
+def _sharepoint_pull_concurrency() -> int:
+    raw_value = os.environ.get("SHAREPOINT_PULL_CONCURRENCY", "3")
+    try:
+        return max(1, int(raw_value))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Virheellinen SHAREPOINT_PULL_CONCURRENCY=%r, käytetään arvoa 3",
+            raw_value,
+        )
+        return 3
+
+
+async def _pull_sharepoint_paths(
+    paths: List[str],
+    target_dir: str,
+    user: Any,
+) -> Dict[str, Any]:
+    concurrency = _sharepoint_pull_concurrency()
+    started = time.perf_counter()
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def _download_and_verify(path: str) -> Dict[str, Any]:
+        try:
+            async with semaphore:
+                raw_result = await sp.download_file_to_disk(
+                    path,
+                    target_dir,
+                    user_name=getattr(user, "name", "") or "",
+                    user_email=getattr(user, "email", "") or "",
+                )
+                verified_result = await asyncio.to_thread(
+                    utilities.verify_contents,
+                    raw_result,
+                )
+
+            logger.info(
+                "SharePoint pull: %s -> %s",
+                path,
+                verified_result.target_path,
+            )
+            return {"downloaded": verified_result, "error": None}
+        except Exception as exc:
+            logger.error("SharePoint pull epäonnistui: %s – %s", path, exc)
+            return {
+                "downloaded": None,
+                "error": {"path": path, "error": str(exc)},
+            }
+
+    completed = await asyncio.gather(*[_download_and_verify(path) for path in paths])
+
+    downloaded = [item["downloaded"] for item in completed if item["downloaded"] is not None]
+    errors = [item["error"] for item in completed if item["error"] is not None]
+
+    return {
+        "downloaded": downloaded,
+        "errors": errors,
+        "target_dir": target_dir,
+        "timing": {
+            "seconds": round(time.perf_counter() - started, 3),
+            "concurrency": concurrency,
+            "requested": len(paths),
+        },
+    }
+
+
+def _format_sharepoint_pull_output(result: Dict[str, Any]) -> str:
+    downloaded = result.get("downloaded", [])
+    timing = result.get("timing", {})
+
+    lines = [
+        (
+            f"Ladattu {len(downloaded)}/{timing.get('requested', len(downloaded))} kohdetta "
+            f"kansioon {result.get('target_dir')} "
+            f"({timing.get('seconds', 0):.3f}s, rinnakkaisuus={timing.get('concurrency', 1)})"
+        )
+    ]
+    lines.extend(
+        f"OK {item.filename} -> {item.target_path}"
+        for item in downloaded
+    )
+    return "\n".join(lines)
+
+
+def _format_sharepoint_pull_errors(errors: List[Dict[str, str]]) -> str:
+    return "\n".join(
+        f"{item['path']}: {item['error']}"
+        for item in errors
+    )
+
+
+async def _run_sharepoint_pull_task(
+    task_id: str,
+    paths: List[str],
+    target_dir: str,
+    user_name: str,
+    user_email: str,
+) -> None:
+    task = _tasks[task_id]
+    task.status = TaskStatus.running
+    task.started_at = datetime.now()
+
+    try:
+        result = await _pull_sharepoint_paths(
+            paths,
+            target_dir,
+            SimpleNamespace(name=user_name, email=user_email),
+        )
+        task.output = _format_sharepoint_pull_output(result)
+        task.error = _format_sharepoint_pull_errors(result["errors"])
+        task.status = TaskStatus.completed if result["downloaded"] else TaskStatus.failed
+    except Exception as exc:
+        task.status = TaskStatus.failed
+        task.error = str(exc)
+    finally:
+        task.finished_at = datetime.now()
+        if task.started_at:
+            task.duration_seconds = (task.finished_at - task.started_at).total_seconds()
 
 
 # ---------------------------------------------------------------------------
@@ -1603,42 +1736,55 @@ async def sharepoint_download(
         raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
 
 
-@app.post("/sharepoint/pull", summary="Lataa tiedosto(t) SharePointista palvelimen /data/input -kansioon")
+@app.post(
+    "/sharepoint/pull",
+    summary="Lataa tiedosto(t) SharePointista palvelimen /data/input -kansioon",
+)
 async def sharepoint_pull(
+    background_tasks: BackgroundTasks,
     paths: List[str] = Query(..., description="SharePoint-tiedostopolut ladattavaksi"),
     subfolder: Optional[str] = Query(None, description="Alikansio /data/input alla"),
+    mode: str = Query(
+        "sync",
+        pattern="^(sync|task)$",
+        description="sync = odota rakenteinen tulos, task = käynnistä taustatehtävä",
+    ),
     user: CurrentUser = Depends(require_admin),
 ):
     """Lataa valitut tiedostot SharePointista suoraan palvelimen levylle.
 
     Tiedostot streamataan suoraan /data/input -hakemistoon ilman,
     että ne kulkevat selaimen kautta.
+
+    - `mode=sync`: palauttaa vanhan rakenteisen tuloksen (downloaded/errors)
+      esim. esianalyysiä varten.
+    - `mode=task`: käynnistää taustatehtävän ja palauttaa heti task_id:n,
+      jolloin pitkä lataus ei jää odottamaan yhden HTTP-pyynnön aikakatkaisua.
     """
     if not await sp.is_configured():
         raise HTTPException(status_code=503, detail="SharePoint-integraatio ei ole konfiguroitu")
 
     target_dir = str(UPLOAD_DIR / subfolder) if subfolder else str(UPLOAD_DIR)
-    results = []
-    errors = []
-    for path in paths:
-        try:
-            result = await sp.download_file_to_disk(
-                path, target_dir,
-                user_name=user.name, user_email=user.email,
-            )
+    if mode == "sync":
+        return SharepointPullResponse(**await _pull_sharepoint_paths(paths, target_dir, user))
 
-            verified_result = utilities.verify_contents(result)
-            results.append(verified_result)
-            logger.info("SharePoint pull: %s -> %s", path, verified_result.target_path)
-        except Exception as e:
-            logger.error("SharePoint pull epäonnistui: %s – %s", path, e)
-            errors.append({"path": path, "error": str(e)})
-
-    return {
-        "downloaded": results,
-        "errors": errors,
-        "target_dir": target_dir,
-    }
+    command = f"sharepoint pull --count {len(paths)} --target {shlex.quote(target_dir)}"
+    description = f"SharePoint-lataus ({len(paths)} kohdetta) -> {target_dir}"
+    task = _create_task(
+        command,
+        description,
+        username=getattr(user, "name", None),
+        task_type=TaskType.sync,
+    )
+    background_tasks.add_task(
+        _run_sharepoint_pull_task,
+        task.id,
+        list(paths),
+        target_dir,
+        getattr(user, "name", "") or "",
+        getattr(user, "email", "") or "",
+    )
+    return _task_response(task)
 
 
 @app.post("/sharepoint/upload", summary="Lataa tiedosto SharePointiin")

@@ -53,6 +53,7 @@ $ nano .env.local
 ```
 
 **Linux users only:** Before starting the database, you need to set up log directories and permissions:
+
 ```bash
 # 1. Create required log directories
 sudo mkdir -p ./docker/postgis/logs
@@ -65,13 +66,14 @@ sudo chmod 777 ./docker/postgis/logs
 sudo chmod 777 ./docker/postgis/test/logs
 ```
 
-
 Start database
+
 ```bash
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" up -d db
 ```
 
 Run migrations
+
 ```bash
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" up flyway
 ```
@@ -81,30 +83,35 @@ docker-compose -f dev.docker-compose.yml --env-file ".env.local" up flyway
 The application includes a FastAPI-based REST API for running JKR import commands via HTTP. The API runs on port **8000**.
 
 Start the API server:
+
 ```bash
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" up jkr-core-runner -d
 ```
 
 The API is available at `http://localhost:8000`. API documentation (Swagger UI) is at `http://localhost:8000/docs`.
 
+For large SharePoint pull operations, the API now runs `/sharepoint/pull` as a background task. You can tune the bounded parallelism with the `SHAREPOINT_PULL_CONCURRENCY` environment variable; the default is `3`.
+
 #### Port forwarding
 
-| Service | Host port | Container port | Description |
-|---------|-----------|----------------|-------------|
-| db | `${JKR_DB_PORT}` (default 5435) | 5432 | PostgreSQL database |
-| db_test | `${JKR_TEST_DB_PORT}` (default 5436) | 5433 | Test database |
-| jkr-core-runner | 8000 | 8000 | JKR REST API |
+| Service         | Host port                            | Container port | Description         |
+| --------------- | ------------------------------------ | -------------- | ------------------- |
+| db              | `${JKR_DB_PORT}` (default 5435)      | 5432           | PostgreSQL database |
+| db_test         | `${JKR_TEST_DB_PORT}` (default 5436) | 5433           | Test database       |
+| jkr-core-runner | 8000                                 | 8000           | JKR REST API        |
 
 When using `scriptsrunner.bat` (standalone `docker run`), port forwarding is included automatically (`-p 8000:8000`).
 
 ### Script runner container (optional)
 
 Scripts can be run in a container. First build the image:
+
 ```bash
 docker build --pull --rm -f "Dockerfile" -t jkr-core-runner:latest "."
 ```
 
 Start script-runner container
+
 ```bash
 docker-compose -f dev.docker-compose.yml --env-file ".env.local" run jkr-core-runner
 ```
@@ -228,14 +235,14 @@ QGIS project migrations are stored in `db/migrations/qgis-projektit/` directory.
 3. Generate the migration SQL by running the following query in the database:
 
 ```sql
-SELECT 
+SELECT
     format(
         'INSERT INTO jkr_qgis_projektit.qgis_projects VALUES (%L, %L, %L);',
         name,
         metadata::text,
         content
     )
-FROM jkr_qgis_projektit.qgis_projects 
+FROM jkr_qgis_projektit.qgis_projects
 WHERE name = 'Jätteenkuljetusrekisteri [Master]';
 ```
 
@@ -279,6 +286,7 @@ The scripts arguments look like this:
 python cherrypick_data.py --rip_path [File or directory] --must_contain [postalCode] [municipality] [start of a postal code]
 
 Example calls:
+
 - `python cherrypick_data.py --rip_path ../data/ --must_contain lahti heinola 171*`
 - `python cherrypick_data.py --rip_path ../data/ --must_contain 17100 17200`
 
@@ -372,49 +380,49 @@ The postal code data (`/tests/data/test_data_import`) is real data downloaded fr
 
 The automated tests test a wide variety of features within the data import processes
 
-| File | Test class | Test description |
-|-------|------------|-----------------|
-| akppoistosyy | test_akppoistosyyt | Verifies the AKP removal types in authority decisions |
-| data_import | test_osapuolenrooli | Verifies the existence of correct role types for parties |
-|  | test_import_dvv_kohteet | Verifies the number of objects created from the base fee register, start dates, owners, end date presence, number of oldest residents, the oldest resident's party link, formation and existence of transport contracts on the correct object |
-|  | test_update_dvv_kohteet | Verifies end date updates, correct parties, missing party for unknown object, transfer of decisions and notifications, formation of client role from transport, old decision ending and new one starting, composting changes and retention |
-| date_utils | test_parse_date | Verifies that date parsing still works correctly |
-|  | test_invalid_date_should_raise | Verifies that invalid date raises an error |
-| db_utils | test_is_asoy | Verifies that the housing company detector works correctly |
-|  | test_is_company | Verifies that the company detector works correctly |
-| interval | test_range_overlap | Verifies that interval overlap checking works |
-|  | test_range_contains | Verifies that number containment in interval works |
-|  | test_interval_counter_containing | Verifies that interval counter works |
-|  | test_interval_overlapping | Verifies the count of overlapping intervals |
-| kitu | test_short_kitu_2_long | Verifies the interpretation of short KITU codes |
-| kompostori_end_dates | test_readable | Verifies the readability of compost end notification xlsx file |
-|  | test_lopetusilmoitus | Verifies the ending of two composters and recording of two unmatched composters |
-| kompostori | test_readable | Verifies the readability of notification file |
-|  | test_kompostori | Verifies creation of two composters, two unmatched, one rejected, and three composter objects |
-|  | test_kompostori_osakkaan_lisays | Verifies importing additional composter owner notifications, existence of three composter objects |
-| lahti_siirtotiedosto | test_tiedontuottaja_add_new | Verifies adding a data producer |
-|  | test_readable | Verifies readability of CSV files in directory |
-|  | test_kohteet | Verifies that contractor ID exists in customer data |
-|  | test_import_faulty_data | Verifies error with faulty data |
-|  | test_import_data | Verifies no new objects are created, end dates are unchanged, contract count, contract types (including shared), client roles by waste type, shared owners, shared managers, area collection contracts, unknown contract and transport, fixed waste mass, emptying intervals including per waste type, interruptions, unmatched count, unmatched PRT correction and resulting contract |
-| päätöstulos | test_paatostulos | Verifies decision result types |
-| progress | test_progress | Verifies reporting progress |
-|  | test_progress_reset | Verifies reporting progress reset |
-| tapahtumalajit | test_tapahtumalajit | Verifies event types |
-| viranomaispäätöset | test_readable | Verifies readability of decision file |
-|  | test_import_faulty_data | Verifies failure with bad data |
-|  | test_import_paatokset | Verifies number of authority decisions, decision numbers, dates, positive and negative decisions, event type, AKP removal reason, matching, emptying interval, waste type, unmatched list |
-| liete_kuljetustiedot | TestLieteKuljetusRow | Verifies LIETE transport data parsing: dates, floats, identifiers |
-|  | TestLieteKuljetustiedosto | Verifies Excel file reading for LIETE transport data |
-|  | TestLieteJatelajiMap | Verifies waste type mapping (Musta→mustaliete, Harmaa→harmaaliete) |
-|  | TestLieteTranslator | Verifies translation to JKR format, customer grouping by PRT |
-| kaivotiedot | TestParseBool | Verifies boolean parsing from various formats (x, 1, type name) |
-|  | TestParseDate | Verifies date parsing from Finnish and ISO formats |
-|  | TestKaivotiedotRow | Verifies well data row model and type detection |
-|  | TestKaivotiedosto | Verifies Excel file reading for well data start/end |
-|  | TestKaivotietotyyppiIdMap | Verifies well type ID mapping |
-| liete_ilmoitukset | TestLieteIlmoitustiedosto | Verifies LIETE composting notification file reading |
-|  | TestLieteIlmoitusTranslator | Verifies translation to JKR format, pienpuhdistamo date handling |
+| File                 | Test class                       | Test description                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| akppoistosyy         | test_akppoistosyyt               | Verifies the AKP removal types in authority decisions                                                                                                                                                                                                                                                                                                                                  |
+| data_import          | test_osapuolenrooli              | Verifies the existence of correct role types for parties                                                                                                                                                                                                                                                                                                                               |
+|                      | test_import_dvv_kohteet          | Verifies the number of objects created from the base fee register, start dates, owners, end date presence, number of oldest residents, the oldest resident's party link, formation and existence of transport contracts on the correct object                                                                                                                                          |
+|                      | test_update_dvv_kohteet          | Verifies end date updates, correct parties, missing party for unknown object, transfer of decisions and notifications, formation of client role from transport, old decision ending and new one starting, composting changes and retention                                                                                                                                             |
+| date_utils           | test_parse_date                  | Verifies that date parsing still works correctly                                                                                                                                                                                                                                                                                                                                       |
+|                      | test_invalid_date_should_raise   | Verifies that invalid date raises an error                                                                                                                                                                                                                                                                                                                                             |
+| db_utils             | test_is_asoy                     | Verifies that the housing company detector works correctly                                                                                                                                                                                                                                                                                                                             |
+|                      | test_is_company                  | Verifies that the company detector works correctly                                                                                                                                                                                                                                                                                                                                     |
+| interval             | test_range_overlap               | Verifies that interval overlap checking works                                                                                                                                                                                                                                                                                                                                          |
+|                      | test_range_contains              | Verifies that number containment in interval works                                                                                                                                                                                                                                                                                                                                     |
+|                      | test_interval_counter_containing | Verifies that interval counter works                                                                                                                                                                                                                                                                                                                                                   |
+|                      | test_interval_overlapping        | Verifies the count of overlapping intervals                                                                                                                                                                                                                                                                                                                                            |
+| kitu                 | test_short_kitu_2_long           | Verifies the interpretation of short KITU codes                                                                                                                                                                                                                                                                                                                                        |
+| kompostori_end_dates | test_readable                    | Verifies the readability of compost end notification xlsx file                                                                                                                                                                                                                                                                                                                         |
+|                      | test_lopetusilmoitus             | Verifies the ending of two composters and recording of two unmatched composters                                                                                                                                                                                                                                                                                                        |
+| kompostori           | test_readable                    | Verifies the readability of notification file                                                                                                                                                                                                                                                                                                                                          |
+|                      | test_kompostori                  | Verifies creation of two composters, two unmatched, one rejected, and three composter objects                                                                                                                                                                                                                                                                                          |
+|                      | test_kompostori_osakkaan_lisays  | Verifies importing additional composter owner notifications, existence of three composter objects                                                                                                                                                                                                                                                                                      |
+| lahti_siirtotiedosto | test_tiedontuottaja_add_new      | Verifies adding a data producer                                                                                                                                                                                                                                                                                                                                                        |
+|                      | test_readable                    | Verifies readability of CSV files in directory                                                                                                                                                                                                                                                                                                                                         |
+|                      | test_kohteet                     | Verifies that contractor ID exists in customer data                                                                                                                                                                                                                                                                                                                                    |
+|                      | test_import_faulty_data          | Verifies error with faulty data                                                                                                                                                                                                                                                                                                                                                        |
+|                      | test_import_data                 | Verifies no new objects are created, end dates are unchanged, contract count, contract types (including shared), client roles by waste type, shared owners, shared managers, area collection contracts, unknown contract and transport, fixed waste mass, emptying intervals including per waste type, interruptions, unmatched count, unmatched PRT correction and resulting contract |
+| päätöstulos          | test_paatostulos                 | Verifies decision result types                                                                                                                                                                                                                                                                                                                                                         |
+| progress             | test_progress                    | Verifies reporting progress                                                                                                                                                                                                                                                                                                                                                            |
+|                      | test_progress_reset              | Verifies reporting progress reset                                                                                                                                                                                                                                                                                                                                                      |
+| tapahtumalajit       | test_tapahtumalajit              | Verifies event types                                                                                                                                                                                                                                                                                                                                                                   |
+| viranomaispäätöset   | test_readable                    | Verifies readability of decision file                                                                                                                                                                                                                                                                                                                                                  |
+|                      | test_import_faulty_data          | Verifies failure with bad data                                                                                                                                                                                                                                                                                                                                                         |
+|                      | test_import_paatokset            | Verifies number of authority decisions, decision numbers, dates, positive and negative decisions, event type, AKP removal reason, matching, emptying interval, waste type, unmatched list                                                                                                                                                                                              |
+| liete_kuljetustiedot | TestLieteKuljetusRow             | Verifies LIETE transport data parsing: dates, floats, identifiers                                                                                                                                                                                                                                                                                                                      |
+|                      | TestLieteKuljetustiedosto        | Verifies Excel file reading for LIETE transport data                                                                                                                                                                                                                                                                                                                                   |
+|                      | TestLieteJatelajiMap             | Verifies waste type mapping (Musta→mustaliete, Harmaa→harmaaliete)                                                                                                                                                                                                                                                                                                                     |
+|                      | TestLieteTranslator              | Verifies translation to JKR format, customer grouping by PRT                                                                                                                                                                                                                                                                                                                           |
+| kaivotiedot          | TestParseBool                    | Verifies boolean parsing from various formats (x, 1, type name)                                                                                                                                                                                                                                                                                                                        |
+|                      | TestParseDate                    | Verifies date parsing from Finnish and ISO formats                                                                                                                                                                                                                                                                                                                                     |
+|                      | TestKaivotiedotRow               | Verifies well data row model and type detection                                                                                                                                                                                                                                                                                                                                        |
+|                      | TestKaivotiedosto                | Verifies Excel file reading for well data start/end                                                                                                                                                                                                                                                                                                                                    |
+|                      | TestKaivotietotyyppiIdMap        | Verifies well type ID mapping                                                                                                                                                                                                                                                                                                                                                          |
+| liete_ilmoitukset    | TestLieteIlmoitustiedosto        | Verifies LIETE composting notification file reading                                                                                                                                                                                                                                                                                                                                    |
+|                      | TestLieteIlmoitusTranslator      | Verifies translation to JKR format, pienpuhdistamo date handling                                                                                                                                                                                                                                                                                                                       |
 
 ## Naming development branches
 
@@ -425,18 +433,20 @@ Because this repository is developed mostly in customer specific projects the la
 You can pseudonymize data for secure data transfer or development purposes using our two-way encryption script pseudonymisointi.py which can pseudonymize whole directory trees at once.
 
 Instructions:
- 1. Generate or decide on a password to use during encryption
- 2. Run python `luo_suola_pseydolle.py` to generate a random salt, save this securely if you intend to decrypt the data later
- 3. Run `python pseudonymisointi.py [Path to file or directory] --passw [Password] --salt [Random salt from luo_suola_pseydolle] --pseudo_fields [A list or a path to a json file containing a list of columns to pseudonymize] -d false` 
 
- To decrypt data, the process is otherwise the same but you must use the same salt and password as you used during encryption and add the `-d` flag with a value of `true` at which point the code will reverse the encryption
- 
- Example calls :
- - `python pseudonymisointi.py ../pseudonyms/ --passw test123 --salt FGKHNsGl6U8PtsMCBMw6AQ== --pseudo_fields @pseudofields.json -d true`
- - `python pseudonymisointi.py ../pseudonyms/ --passw test123 --salt FGKHNsGl6U8PtsMCBMw6AQ== --pseudo_fields '["Henkilötunnus","Nimi"]' -d false`
+1.  Generate or decide on a password to use during encryption
+2.  Run python `luo_suola_pseydolle.py` to generate a random salt, save this securely if you intend to decrypt the data later
+3.  Run `python pseudonymisointi.py [Path to file or directory] --passw [Password] --salt [Random salt from luo_suola_pseydolle] --pseudo_fields [A list or a path to a json file containing a list of columns to pseudonymize] -d false`
 
- Pseudofields.json should look like this:
- `[
+To decrypt data, the process is otherwise the same but you must use the same salt and password as you used during encryption and add the `-d` flag with a value of `true` at which point the code will reverse the encryption
+
+Example calls :
+
+- `python pseudonymisointi.py ../pseudonyms/ --passw test123 --salt FGKHNsGl6U8PtsMCBMw6AQ== --pseudo_fields @pseudofields.json -d true`
+- `python pseudonymisointi.py ../pseudonyms/ --passw test123 --salt FGKHNsGl6U8PtsMCBMw6AQ== --pseudo_fields '["Henkilötunnus","Nimi"]' -d false`
+
+Pseudofields.json should look like this:
+`[
     "Henkilötunnus",
     "Omistajan nimi",
     "Nimi",

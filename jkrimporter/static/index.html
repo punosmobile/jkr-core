@@ -2188,16 +2188,14 @@
             const status = document.getElementById('spPullStatus');
             status.textContent = 'Ladataan ' + paths.length + ' tiedostoa palvelimelle...';
             try {
-                let url = API + '/sharepoint/pull?' + paths.map(p => 'paths=' + encodeURIComponent(p)).join('&');
+                let url = API + '/sharepoint/pull?mode=task&' + paths.map(p => 'paths=' + encodeURIComponent(p)).join('&');
                 if (subfolder) url += '&subfolder=' + encodeURIComponent(subfolder);
                 const res = await fetch(url, { method: 'POST' });
                 const data = await res.json();
                 if (!res.ok) { toast(data.detail || 'Pull epäonnistui', 'error'); status.textContent = 'Virhe'; return; }
-                const ok = data.downloaded ? data.downloaded.length : 0;
-                const fail = data.errors ? data.errors.length : 0;
-                status.textContent = ok + ' ladattu' + (fail ? ', ' + fail + ' epäonnistui' : '') + ' → ' + data.target_dir;
-                toast(ok + ' tiedostoa ladattu palvelimelle', 'success');
-                if (fail) data.errors.forEach(e => toast(e.path + ': ' + e.error, 'error'));
+                status.textContent = paths.length + ' tiedoston lataus käynnistetty tehtävänä ' + data.task_id + '. Seuraa etenemistä Tehtävät-välilehdellä.';
+                toast(paths.length + ' tiedoston lataus käynnistetty', 'success');
+                startPolling();
             } catch (e) {
                 status.textContent = 'Virhe: ' + e.message;
                 toast('Pull epäonnistui: ' + e.message, 'error');
@@ -2210,14 +2208,14 @@
             const status = document.getElementById('spPullStatus');
             status.textContent = 'Ladataan ' + filename + '...';
             try {
-                let url = API + '/sharepoint/pull?paths=' + encodeURIComponent(filePath);
+                let url = API + '/sharepoint/pull?mode=task&paths=' + encodeURIComponent(filePath);
                 if (subfolder) url += '&subfolder=' + encodeURIComponent(subfolder);
                 const res = await fetch(url, { method: 'POST' });
                 const data = await res.json();
                 if (!res.ok) { toast(data.detail || 'Pull epäonnistui', 'error'); status.textContent = 'Virhe'; return; }
-                const dl = data.downloaded[0];
-                status.textContent = dl.filename + ' (' + formatBytes(dl.size) + ') → ' + dl.target_path;
-                toast(filename + ' ladattu palvelimelle', 'success');
+                status.textContent = filename + ' lataus käynnistetty tehtävänä ' + data.task_id + '. Seuraa etenemistä Tehtävät-välilehdellä.';
+                toast(filename + ' lataus käynnistetty', 'success');
+                startPolling();
             } catch (e) {
                 status.textContent = 'Virhe: ' + e.message;
                 toast('Pull epäonnistui: ' + e.message, 'error');
