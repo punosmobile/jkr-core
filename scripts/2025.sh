@@ -225,6 +225,10 @@ fi
 
 quarter="Q1"
 
+log_exec "jkr import_sote ../data/Sotekohteet/Sotekohteet_2025.csv \
+        "logs/sote_import.log" \
+        "SOTE-aineiston tuonti"
+
 log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -c \"\copy jkr.hapa_aineisto(rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro, rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero, postitoimipaikka_fi, kohdetyyppi) FROM '${CSV_FILE_PATH}' WITH (FORMAT csv, DELIMITER ';', HEADER true, ENCODING 'UTF8', NULL '');\"" \
         "logs/hapa_import.log" \
         "HAPA-aineiston tuonti"
