@@ -33,6 +33,21 @@ def get_hapa_kohteet_headers():
     return expected_headers
 
 
+def get_sote_kohteet_headers():
+    expected_headers = [
+        "Rakennus-ID", 
+        "Kohde id", 
+        "Sijaintikunta", 
+        "Asiakasnro",  
+        "Katunimi FI", 
+        "Talon numero", 
+        "Postinumero", 
+        "Postitoimipaikka fi", 
+        "kohdetyyppi"
+    ]
+    return expected_headers
+
+
 def get_tiedontuottajat_headers():
     expected_headers = [
         "tunnus",
