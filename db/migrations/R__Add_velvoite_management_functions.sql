@@ -22,14 +22,14 @@ BEGIN
   WHERE EXISTS (
     SELECT 1 FROM jkr.kohde k 
     WHERE k.id = v.kohde_id 
-    AND k.kohdetyyppi_id = 8
+    AND k.kohdetyyppi_id = (8,9)
   );
 
   DELETE FROM jkr.velvoiteyhteenveto vh
   WHERE EXISTS (
     SELECT 1 FROM jkr.kohde k 
     WHERE k.id = vh.kohde_id 
-    AND k.kohdetyyppi_id = 8
+    AND k.kohdetyyppi_id IN (8,9)
   );
 
   -- 2. Lisää velvoitteet
@@ -55,7 +55,7 @@ BEGIN
           from jkr.'||quote_ident(velvoitemalli.saanto)||' kohteet 
           where k.id = kohteet.id
         )
-        and k.kohdetyyppi_id != 8
+        and k.kohdetyyppi_id != 8 and k.kohdetyyppi_id != 9
         and (
           (k.kohdetyyppi_id = 5 and ''' || velvoitemalli.jatetyyppi_selite || ''' in (''Sekajäte'', ''Liete''))
           OR 
@@ -207,7 +207,7 @@ BEGIN
         vm.id = $3
         and k.voimassaolo && daterange($1, $2)
         and vm.voimassaolo && daterange($1, $2)
-        and k.kohdetyyppi_id != 8  -- Ei MUU-tyypin kohteille
+        and k.kohdetyyppi_id != 8 and k.kohdetyyppi_id != 9  -- Ei MUU tai SOTE-tyypin kohteille
         and (
           -- HAPA kohteet (tyyppi 5)
           k.kohdetyyppi_id = 5 
