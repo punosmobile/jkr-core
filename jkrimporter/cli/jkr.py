@@ -179,6 +179,9 @@ def import_data_batch(
             case FileType.HAPATIEDOSTO:
                 import_hapa(target_path)
                 continue
+            case FileType.SOTETIEDOSTO:
+                import_sote(target_path)
+                continue
             case FileType.PERUSMAKSUAINEISTO:
                 print('perusmaksuaineisto luetaan sisään DVV-sisäänluvussa')
                 continue
@@ -705,6 +708,110 @@ def import_hapa(
 
         except Exception as e:
             typer.echo(f"Error importing HAPA data: {str(e)}", err=True)
+            raise typer.Exit(1)
+        
+@app.command("import_sote", help="Import SOTE data from CSV file to JKR database.")
+def import_sote(
+    aineistopolku: Path = typer.Argument(..., help="Path to the SOTE CSV file"),
+):
+    """Import SOTE data from CSV file to JKR database.
+
+    The CSV file should have columns like:
+    Rakennus-ID, Kohde id, Sijaintikunta, Asiakasnro, Rakennus-ID, Katunimi FI, 
+    Talon numero, Postinumero, Postitoimipaikka FI, kohdetyyppi
+
+    The file must be in CSV format with semicolon (;) as delimiter, UTF-8 encoding, and include headers.
+    """
+    with sisaanlukutapahtuma():
+        try:
+            # Check if file exists and is readable
+            if not aineistopolku.exists():
+                typer.echo(f"Error: File {aineistopolku} does not exist", err=True)
+                raise typer.Exit(1)
+            
+
+            print(f"Importing SOTE data from {aineistopolku}")
+
+            # Create SQLAlchemy session
+            Session = scoped_session(sessionmaker(bind=engine))
+            with Session() as session:
+                # Read CSV file to verify structure before importing
+                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f, delimiter=';')
+                    headers = next(reader)
+
+                    # Check if all required headers are present
+                    required_headers = ['Rakennus-ID', 'Kohde id', 'Sijaintikunta', 'Asiakasnro',
+                                       'Katunimi FI', 'Talon numero', 'Postinumero',
+                                       'Postitoimipaikka FI', 'kohdetyyppi']
+
+                    missing_headers = [h for h in required_headers if h not in headers]
+                    if missing_headers:
+                        typer.echo(f"Error: CSV file is missing required headers: {missing_headers}", err=True)
+                        raise typer.Exit(1)
+
+                # Create a temporary file with renamed headers to match database columns
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.csv') as temp_file:
+                    temp_path = Path(temp_file.name)
+
+                    # Write header row with database column names
+                    db_headers = ['rakennus_id_tunnus', 'kohde_tunnus', 'sijaintikunta', 'asiakasnro',
+                                 'rakennus_id_tunnus2', 'katunimi_fi', 'talon_numero', 'postinumero',
+                                 'postitoimipaikka_fi', 'kohdetyyppi']
+                    temp_file.write(';'.join(db_headers) + '\n')
+
+                    # Read original CSV and write to temp file with correct column order
+                    with open(aineistopolku, 'r', encoding='utf-8') as f:
+                        reader = csv.reader(f, delimiter=';')
+                        next(reader)  # Skip header
+
+                        for row in reader:
+                            if len(row) >= 10:  # Ensure row has enough columns
+                                temp_file.write(';'.join(row) + '\n')
+
+                # Use SQL COPY command for efficient bulk loading with copy_expert
+                copy_sql = f"""
+                COPY jkr.sote_aineisto(
+                    rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro,
+                    rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero,
+                    postitoimipaikka_fi, kohdetyyppi
+                ) FROM STDIN WITH (
+                    FORMAT csv,
+                    DELIMITER ';',
+                    HEADER true,
+                    ENCODING 'UTF8',
+                    NULL ''
+                );
+                """
+
+                # Execute the COPY command with the temporary file using copy_expert
+                with Session() as session:
+                    connection = session.connection().connection
+                    cursor = connection.cursor()
+
+                    # Open the file and use copy_expert
+                    with open(temp_path, 'r', encoding='utf-8') as f:
+                        cursor.copy_expert(copy_sql, f)
+
+                    connection.commit()
+
+                # Clean up the temporary file
+                try:
+                    temp_path.unlink()
+                except Exception:
+                    pass
+
+                # Get count of imported rows
+                with Session() as session:
+                    result = session.execute(text("SELECT COUNT(*) FROM jkr.sote_aineisto WHERE tuonti_pvm >= CURRENT_DATE"))
+                    count = result.scalar()
+
+                print(f"Successfully imported {count} SOTE records")
+                print("VALMIS!")
+
+        except Exception as e:
+            typer.echo(f"Error importing SOTE data: {str(e)}", err=True)
             raise typer.Exit(1)
 
 

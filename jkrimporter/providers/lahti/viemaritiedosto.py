@@ -132,7 +132,7 @@ class ViemariLopetustiedosto:
         )
 
         return lopetus_list
-    
+
 
 
 def export_kohdentumattomat_viemariilmoitukset(

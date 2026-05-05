@@ -18,6 +18,7 @@ from jkrimporter.datasheets import (
     get_viemari_lopetustiedosto_headers,
     get_siirtotiedosto_headers,
     get_hapa_kohteet_headers,
+    get_sote_kohteet_headers,
     get_dvv_rakennus_headers,
     get_dvv_osoite_headers,
     get_dvv_omistaja_headers,
@@ -38,6 +39,7 @@ class FileType(str, Enum):
     KOMPOSTOINNIN_LOPETUS = "Kompostoinnin_lopettami"
     PAATOSTIEDOSTO = "Paatokset"
     HAPATIEDOSTO = "Hapa-kohteet"
+    SOTETIEDOSTO = "Sotekohteet"
     HUONEISTOMAARAT = "Huoneistomäärät"
     TIEDONTUOTTAJAT = "Tiedontuottajat"
     DVVTIEDOSTO = "DVV-aineisto"
@@ -81,6 +83,7 @@ _HEADERS_BY_TYPE: Dict[FileType, List[str]] = {
     FileType.VIEMARIVERKOSTO_LOPPU: get_viemari_lopetustiedosto_headers(),
     FileType.KULJETUSTIETO: get_siirtotiedosto_headers(),
     FileType.HAPATIEDOSTO: get_hapa_kohteet_headers(),
+    FileType.SOTETIEDOSTO: get_sote_kohteet_headers(), # SOTE and HAPA have identical headers
     FileType.PERUSMAKSUAINEISTO: get_perusmaksu_headers(),
     FileType.TIEDONTUOTTAJAT: get_tiedontuottajat_headers(),
     FileType.HUONEISTOMAARAT: get_huoneistomaara_headers(),
