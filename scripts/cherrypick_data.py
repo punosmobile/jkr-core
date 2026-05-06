@@ -139,6 +139,91 @@ def process_csv(file_path: Path, must_contain: set[str], must_contain_wild: set[
     except Exception as e:
         print(f"Error processing CSV {file_path}: {str(e)}", file=sys.stderr)
 
+def process_dvv(file_path: Path, output_path: Path, must_contain_wild: set[str]) -> None:
+    """
+    Process DVV files separately using only municipality to filter them
+
+    Args:
+        file_path: Path to the Excel file
+        must_contain: Set of municipality numbers that a row must contain one of to be included
+    """
+
+    from openpyxl import load_workbook
+
+    # Determine source and target files
+    print("Ladataan DVV-työkirjaa...")
+    wb = load_workbook(filename=file_path, data_only=False)
+    print("Työkirja ladattu!")
+    
+    file_has_matches = False
+    
+    # Process each sheet
+    for sheet_name in wb.sheetnames:
+        print(f"\nKäsitellään välilehteä: {sheet_name}")
+        ws = wb[sheet_name]
+        
+        max_row = ws.max_row
+        print(f"Välilehdellä {max_row} riviä")
+        
+        # Store the header row
+        header_row = []
+        for cell in ws[1]:
+            header_row.append(cell.value)
+
+        # Get header row indexes
+        col_index_to_name = {i: name for i, name in enumerate(header_row)}
+        column_indexes = [i for i, name in col_index_to_name.items() if name in ['sijainti-kunta']]
+        print(f"DVV-{sheet_name} sijainti-kunta index: {column_indexes}")
+        
+        if not column_indexes:
+            print(f'\nEi löytynyt sijainti-kuntaa \nfile: {file_path} sheet: {sheet_name}')
+
+        # Find matching rows and copy them to a list
+        matching_rows = []
+        current_row = 0
+        
+        print("Etsitään säilytettäviä DVV-rivejä...")
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2), start=2):
+            
+            current_row += 1
+            if current_row % 1000 == 0:
+                print(f"Käsitelty {current_row}/{max_row} riviä...")
+            
+            row_word_list = []
+            for cell in row:
+                row_word_list.append(cell.value)
+                if any(word in row_word_list[column_indexes[0]] for word in must_contain_wild):
+                    matching_rows.append(row)
+                    file_has_matches = True
+                    continue
+        
+        if matching_rows:
+            print(f"Löydettiin {len(matching_rows)} säilytettävää riviä sijainti-kunnalla")
+            
+            # Delete all rows except header
+            if max_row > 1:
+                print("Poistetaan kaikki rivit paitsi otsikko...")
+                ws.delete_rows(2, max_row - 1)
+            
+            # Append matching rows
+            print("Lisätään säilytetyt rivit takaisin...")
+            for row in matching_rows:
+                new_row = []
+                for cell in row:
+                    new_row.append(cell.value)
+                ws.append(new_row)
+            
+            print(f"Valmis! Lopullinen rivimäärä: {ws.max_row}")
+        else:
+            print("Ei löytynyt säilytettäviä rivejä tältä välilehdeltä")
+    
+    if not file_has_matches:
+        print(f"Ohitetaan {file_path} - ei löytynyt haettuja sanoja")
+    print("\nTallennetaan DVV-työkirjaa...")
+    wb.save(output_path)
+    print("Tallennus valmis!")
+    return
+
 def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: set[str], filter_fields: set[str]) -> None:
     """
     Process an Excel file by copying matching rows to the end and then removing original rows.
@@ -151,7 +236,7 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
         from openpyxl import load_workbook
         
         print(f"\nAlkaa prosessoida tiedostoa: {file_path}")
-        
+
         # Determine source and target files
         is_ripped = '_ripped' in file_path.name
         source_file = file_path
@@ -159,92 +244,96 @@ def process_excel(file_path: Path, must_contain: set[str], must_contain_wild: se
             output_path = file_path.parent / f"{file_path.stem}_ripped{file_path.suffix}"
         else:
             output_path = file_path
-            
-        print("Ladataan työkirjaa...")
-        wb = load_workbook(filename=source_file, data_only=False)
-        print("Työkirja ladattu!")
-        
-        file_has_matches = False
-        
-        # Process each sheet
-        for sheet_name in wb.sheetnames:
-            print(f"\nKäsitellään välilehteä: {sheet_name}")
-            ws = wb[sheet_name]
-            
-            max_row = ws.max_row
-            print(f"Välilehdellä {max_row} riviä")
-            
-            # Store the header row
-            header_row = []
-            for cell in ws[1]:
-                header_row.append(cell.value)
 
-            # Get header row indexes
-            col_index_to_name = {i: name for i, name in enumerate(header_row)}
-            wildcard_column_indexes = [i for i, name in col_index_to_name.items() if name in filter_fields]
-            print("wildcard_column_indexes list")
-            print(wildcard_column_indexes)
+        if file_path._str.startswith('DVV'):
+            print('Detected DVV file')
+            process_dvv(file_path, output_path, must_contain_wild)
+        else:
+            print("Ladataan työkirjaa...")
+            wb = load_workbook(filename=source_file, data_only=False)
+            print("Työkirja ladattu!")
             
-            if not wildcard_column_indexes:
-                print(f'\nEi löytynyt villikorttiotsikoita \nfile: {source_file} sheet: {sheet_name}')
-
-            # Find matching rows and copy them to a list
-            matching_rows = []
-            current_row = 0
+            file_has_matches = False
             
-            print("Etsitään säilytettäviä rivejä...")
-            for row_idx, row in enumerate(ws.iter_rows(min_row=2), start=2):
+            # Process each sheet
+            for sheet_name in wb.sheetnames:
+                print(f"\nKäsitellään välilehteä: {sheet_name}")
+                ws = wb[sheet_name]
                 
-                current_row += 1
-                if current_row % 1000 == 0:
-                    print(f"Käsitelty {current_row}/{max_row} riviä...")
+                max_row = ws.max_row
+                print(f"Välilehdellä {max_row} riviä")
                 
-                row_word_list = []
-                for cell in row:
-                    row_word_list.append(cell.value)
+                # Store the header row
+                header_row = []
+                for cell in ws[1]:
+                    header_row.append(cell.value)
 
-                if any(word in row_word_list for word in must_contain):
-                    matching_rows.append(row)
-                    file_has_matches = True
-                    continue
+                # Get header row indexes
+                col_index_to_name = {i: name for i, name in enumerate(header_row)}
+                wildcard_column_indexes = [i for i, name in col_index_to_name.items() if name in filter_fields]
+                print("wildcard_column_indexes list")
+                print(wildcard_column_indexes)
+                
+                if not wildcard_column_indexes:
+                    print(f'\nEi löytynyt villikorttiotsikoita \nfile: {source_file} sheet: {sheet_name}')
+
+                # Find matching rows and copy them to a list
+                matching_rows = []
+                current_row = 0
+                
+                print("Etsitään säilytettäviä rivejä...")
+                for row_idx, row in enumerate(ws.iter_rows(min_row=2), start=2):
                     
-                # 2. Match wildcard prefixes only in selected columns
-                if any(
-                    not row_word_list[i] is None and row_word_list[i].startswith(prefix)
-                    for i in wildcard_column_indexes if i < len(row_word_list)
-                    for prefix in must_contain_wild
-                ):
-                    matching_rows.append(row)
-                    file_has_matches = True
-                    continue
-            
-            if matching_rows:
-                print(f"Löydettiin {len(matching_rows)} säilytettävää riviä")
-                
-                # Delete all rows except header
-                if max_row > 1:
-                    print("Poistetaan kaikki rivit paitsi otsikko...")
-                    ws.delete_rows(2, max_row - 1)
-                
-                # Append matching rows
-                print("Lisätään säilytetyt rivit takaisin...")
-                for row in matching_rows:
-                    new_row = []
+                    current_row += 1
+                    if current_row % 1000 == 0:
+                        print(f"Käsitelty {current_row}/{max_row} riviä...")
+                    
+                    row_word_list = []
                     for cell in row:
-                        new_row.append(cell.value)
-                    ws.append(new_row)
+                        row_word_list.append(cell.value)
+
+                    if any(word in row_word_list for word in must_contain):
+                        matching_rows.append(row)
+                        file_has_matches = True
+                        continue
+                        
+                    # 2. Match wildcard prefixes only in selected columns
+                    if any(
+                        not row_word_list[i] is None and row_word_list[i].startswith(prefix)
+                        for i in wildcard_column_indexes if i < len(row_word_list)
+                        for prefix in must_contain_wild
+                    ):
+                        matching_rows.append(row)
+                        file_has_matches = True
+                        continue
                 
-                print(f"Valmis! Lopullinen rivimäärä: {ws.max_row}")
-            else:
-                print("Ei löytynyt säilytettäviä rivejä tältä välilehdeltä")
-        
-        if not file_has_matches:
-            print(f"Ohitetaan {source_file} - ei löytynyt haettuja sanoja")
-            return
-        
-        print("\nTallennetaan työkirjaa...")
-        wb.save(output_path)
-        print("Tallennus valmis!")
+                if matching_rows:
+                    print(f"Löydettiin {len(matching_rows)} säilytettävää riviä")
+                    
+                    # Delete all rows except header
+                    if max_row > 1:
+                        print("Poistetaan kaikki rivit paitsi otsikko...")
+                        ws.delete_rows(2, max_row - 1)
+                    
+                    # Append matching rows
+                    print("Lisätään säilytetyt rivit takaisin...")
+                    for row in matching_rows:
+                        new_row = []
+                        for cell in row:
+                            new_row.append(cell.value)
+                        ws.append(new_row)
+                    
+                    print(f"Valmis! Lopullinen rivimäärä: {ws.max_row}")
+                else:
+                    print("Ei löytynyt säilytettäviä rivejä tältä välilehdeltä")
+            
+            if not file_has_matches:
+                print(f"Ohitetaan {source_file} - ei löytynyt haettuja sanoja")
+                return
+            
+            print("\nTallennetaan työkirjaa...")
+            wb.save(output_path)
+            print("Tallennus valmis!")
         print(f"Käsitelty {source_file} -> {output_path}")
         print(f"Käsitellyt välilehdet: {', '.join(wb.sheetnames)}")
         
