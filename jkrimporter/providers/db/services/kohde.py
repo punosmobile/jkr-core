@@ -1822,6 +1822,34 @@ def update_or_create_kohde_from_buildings(
                 for linkki in vanhat_linkit:
                     session.delete(linkki)
 
+                # Varmista, ettei vanha kohde jää aktiiviseksi ilman rakennuksia.
+                # Jos kaikki rakennukset ovat siirtyneet pois eikä kohteella ole loppupvm:ää,
+                # päätetään kohde uuden kohteen alkupäivän perusteella.
+                if old_kohde.loppupvm is None:
+                    session.flush()
+                    jaljella = session.execute(
+                        select(func.count(KohteenRakennukset.rakennus_id))
+                        .where(KohteenRakennukset.kohde_id == old_kohde.id)
+                    ).scalar()
+                    if jaljella == 0:
+                        uusi_loppupvm = new_kohde.alkupvm - timedelta(days=1)
+                        if uusi_loppupvm < old_kohde.alkupvm:
+                            uusi_loppupvm = old_kohde.alkupvm
+                        old_kohde.loppupvm = uusi_loppupvm
+                        loppumisen_syy_lisays = (
+                            f"Kaikki rakennukset siirtyivät kohteelle {new_kohde.id}. "
+                            f"Loppu_pwm: {uusi_loppupvm}"
+                        )
+                        old_kohde.loppumisen_syy = (
+                            old_kohde.loppumisen_syy + " " + loppumisen_syy_lisays
+                            if old_kohde.loppumisen_syy
+                            else loppumisen_syy_lisays
+                        )
+                        print(
+                            f"Vanha kohde {old_kohde.id} päätetty (ei rakennuksia jäljellä), "
+                            f"loppupvm={uusi_loppupvm}"
+                        )
+
         
         print(f"Uusi kohde {new_kohde.id} muodostettu {len(rakennus_ids)} rakennukselle")
         return new_kohde
