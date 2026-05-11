@@ -22,7 +22,7 @@ BEGIN
   WHERE EXISTS (
     SELECT 1 FROM jkr.kohde k 
     WHERE k.id = v.kohde_id 
-    AND k.kohdetyyppi_id = (8,9)
+    AND k.kohdetyyppi_id IN (8,9)
   );
 
   DELETE FROM jkr.velvoiteyhteenveto vh

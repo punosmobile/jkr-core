@@ -171,13 +171,13 @@ def create_yhteyshenkilo(row: "Asiakas"):
 jatelaji_map = {
     Jatelaji.seka: JkrJatelaji.sekajate,
     Jatelaji.energia: JkrJatelaji.energia,
-    Jatelaji.bio: JkrJatelaji.bio,
-    Jatelaji.kartonki: JkrJatelaji.kartonki,
+    Jatelaji.biojäte: JkrJatelaji.biojäte,
+    Jatelaji.kartonkipakkaus: JkrJatelaji.kartonkipakkaus,
     Jatelaji.pahvi: JkrJatelaji.pahvi,
     Jatelaji.metalli: JkrJatelaji.metalli,
-    Jatelaji.lasi: JkrJatelaji.lasi,
+    Jatelaji.lasipakkaus: JkrJatelaji.lasipakkaus,
     Jatelaji.paperi: JkrJatelaji.paperi,
-    Jatelaji.muovi: JkrJatelaji.muovi,
+    Jatelaji.muovipakkaus: JkrJatelaji.muovipakkaus,
     Jatelaji.monilokero: JkrJatelaji.monilokero,
 }
 

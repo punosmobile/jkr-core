@@ -29,13 +29,13 @@ T = TypeVar("T")
 class Jatelaji(str, Enum):
     seka = "Sekajäte"
     energia = "Energia"
-    bio = "Biojäte"
-    kartonki = "Kartonki"
+    biojäte = "Biojäte"
+    kartonkipakkaus = "Kartonkipakkaus"
     pahvi = "Pahvi"
     metalli = "Metalli"
-    lasi = "Lasi"
+    lasipakkaus = "Lasipakkaus"
     paperi = "Paperi"
-    muovi = "Muovi"
+    muovipakkaus = "Muovipakkaus"
     liete = "Liete"
     musta_liete = "Musta liete"
     harmaa_liete = "Harmaa liete"
@@ -157,7 +157,7 @@ class Keraysvaline(BaseModel):
         tilavuus = values.get("tilavuus")
         if tilavuus is None:
             jatelaji = values.get("jatelaji")
-            if jatelaji in (Jatelaji.bio):
+            if jatelaji in (Jatelaji.biojäte):
                 raise ValidationError("Tilavuus pakollinen")
 
         return values
