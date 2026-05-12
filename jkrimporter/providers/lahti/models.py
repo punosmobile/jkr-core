@@ -14,13 +14,13 @@ class Jatelaji(str, Enum):
     aluekerays = "Aluekeräyspiste"
     seka = "Sekajäte"
     energia = "Energia"
-    bio = "Bio"
-    kartonki = "Kartonki"
+    biojäte = "Biojäte"
+    kartonkipakkaus = "Kartonkipakkaus"
     pahvi = "Pahvi"
     metalli = "Metalli"
-    lasi = "Lasi"
+    lasipakkaus = "Lasipakkaus"
     paperi = "Paperi"
-    muovi = "Muovi"
+    muovipakkaus = "Muovipakkaus"
     liete = "Liete"
     musta_liete = "Musta liete"
     harmaa_liete = "Harmaa liete"
@@ -133,13 +133,13 @@ class AsiakasRow(BaseModel):
         if value == "Sekaj":
             value = "Sekajäte"
         if value == "Biojäte":
-            value = "Bio"
+            value = "Biojäte"
         if value == "Kartonkipakkaus":
-            value = "Kartonki"
+            value = "Kartonkipakkaus"
         if value == "Muovipakkaus":
-            value = "Muovi"
+            value = "Muovipakkaus"
         if value == "Lasipakkaus":
-            value = "Lasi"
+            value = "Lasipakkaus"
         return value.title()
 
     @validator("Pvmalk", "Pvmasti", pre=True)

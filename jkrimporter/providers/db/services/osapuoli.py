@@ -41,17 +41,17 @@ def create_or_update_haltija_osapuoli(
             if sopimus.asiakas_on_isanta:
                 if sopimus.jatelaji == Jatelaji.sekajate:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_KIMPPAISANTA]
-                elif sopimus.jatelaji == Jatelaji.bio:
+                elif sopimus.jatelaji == Jatelaji.biojäte:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_KIMPPAISANTA]
-                elif sopimus.jatelaji == Jatelaji.lasi:
+                elif sopimus.jatelaji == Jatelaji.lasipakkaus:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_KIMPPAISANTA]
-                elif sopimus.jatelaji == Jatelaji.kartonki:
+                elif sopimus.jatelaji == Jatelaji.kartonkipakkaus:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAISANTA]
                 elif sopimus.jatelaji == Jatelaji.metalli:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAISANTA]
                 elif sopimus.jateli == Jatelaji.monilokero:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_KIMPPAOSAKAS]
-                elif sopimus.jatelaji == Jatelaji.muovi:
+                elif sopimus.jatelaji == Jatelaji.muovipakkaus:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAISANTA]
                 else:
                     print("Skipping sopimus with unknown jätelaji " + sopimus.jatelaji + " in kimppasopimus")
@@ -59,17 +59,17 @@ def create_or_update_haltija_osapuoli(
             else:
                 if sopimus.jatelaji == Jatelaji.sekajate:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_KIMPPAOSAKAS]
-                elif sopimus.jatelaji == Jatelaji.bio:
+                elif sopimus.jatelaji == Jatelaji.biojäte:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_KIMPPAOSAKAS]
-                elif sopimus.jatelaji == Jatelaji.lasi:
+                elif sopimus.jatelaji == Jatelaji.lasipakkaus:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_KIMPPAOSAKAS]
-                elif sopimus.jatelaji == Jatelaji.kartonki:
+                elif sopimus.jatelaji == Jatelaji.kartonkipakkaus:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_KIMPPAOSAKAS]
                 elif sopimus.jatelaji == Jatelaji.metalli:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_KIMPPAOSAKAS]
                 elif sopimus.jatelaji == Jatelaji.monilokero:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_KIMPPAOSAKAS]
-                elif sopimus.jatelaji == Jatelaji.muovi:
+                elif sopimus.jatelaji == Jatelaji.muovipakkaus:
                     asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_KIMPPAOSAKAS]
                 else:
                     print("Skipping sopimus with unknown jätelaji " + sopimus.jatelaji + " in kimppasopimus")
@@ -77,11 +77,11 @@ def create_or_update_haltija_osapuoli(
         else:
             if sopimus.jatelaji == Jatelaji.sekajate:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.SEKAJATE_TILAAJA]
-            elif sopimus.jatelaji == Jatelaji.bio:
+            elif sopimus.jatelaji == Jatelaji.biojäte:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.BIOJATE_TILAAJA]
-            elif sopimus.jatelaji == Jatelaji.lasi:
+            elif sopimus.jatelaji == Jatelaji.lasipakkaus:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LASI_TILAAJA]
-            elif sopimus.jatelaji == Jatelaji.kartonki:
+            elif sopimus.jatelaji == Jatelaji.kartonkipakkaus:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.KARTONKI_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.liete:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.LIETE_TILAAJA]
@@ -89,7 +89,7 @@ def create_or_update_haltija_osapuoli(
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.METALLI_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.monilokero:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MONILOKERO_TILAAJA]
-            elif sopimus.jatelaji == Jatelaji.muovi:
+            elif sopimus.jatelaji == Jatelaji.muovipakkaus:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.MUOVI_TILAAJA]
             elif sopimus.jatelaji == Jatelaji.aluekerays:
                 asiakasrooli = codes.osapuolenroolit[OsapuolenrooliTyyppi.ALUEKERAYS_TILAAJA]

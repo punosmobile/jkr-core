@@ -74,11 +74,11 @@ VALUES
     ),
     (
         36,
-        'Velvoiteyhteenveto kartonki puutteellinen',
+        'Velvoiteyhteenveto kartonkipakkaus puutteellinen',
         'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
         'kohteet_joilla_seka_ok_bio_enint_4_kartonki_puuttuu',
         '2022-1-1',
-        'Velvoiteyhteenveto kartonki puutteellinen',
+        'Velvoiteyhteenveto kartonkipakkaus puutteellinen',
         2
     ),
     (
@@ -92,11 +92,11 @@ VALUES
     ),
     (
         38,
-        'Velvoiteyhteenveto lasi puutteellinen',
+        'Velvoiteyhteenveto Lasipakkaus puutteellinen',
         'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
         'kohteet_joilla_seka_ok_bio_enint_4_lasi_puuttuu',
         '2022-1-1',
-        'Velvoiteyhteenveto lasi puutteellinen',
+        'Velvoiteyhteenveto Lasipakkaus puutteellinen',
         2
     ),
     (

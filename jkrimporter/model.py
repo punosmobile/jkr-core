@@ -102,22 +102,22 @@ class Tunnus(NamedTuple):
 
 
 class Jatelaji(str, Enum):
-    bio = "Biojäte"                    # 1
-    sekajate = "Sekajäte"              # 2
-    kartonki = "Kartonki"              # 3
-    lasi = "Lasi"                      # 4
-    liete = "Liete"                    # 5
-    mustaliete = "Musta liete"         # 6
-    harmaaliete = "Harmaa liete"       # 7
-    metalli = "Metalli"                # 8
-    muovi = "Muovi"                    # 9
-    pahvi = "Pahvi"                    # 10
-    paperi = "Paperi"                  # 11
-    perusmaksu = "Perusmaksu"          # 12
-    energia = "Energia"                # 13
-    aluekerays = "Aluekeräyspiste"     # 14
-    monilokero = "Monilokero"          # 15
-    muu = "Muu"                        # 99
+    biojäte = "Biojäte"                 # 1
+    sekajate = "Sekajäte"               # 2
+    kartonkipakkaus = "Kartonkipakkaus" # 3
+    lasipakkaus = "Lasipakkaus"         # 4
+    liete = "Liete"                     # 5
+    mustaliete = "Musta liete"          # 6
+    harmaaliete = "Harmaa liete"        # 7
+    metalli = "Metalli"                 # 8
+    muovipakkaus = "Muovipakkaus"       # 9
+    pahvi = "10"                        # 10
+    paperi = "11"                       # 11
+    perusmaksu = "12"                   # 12
+    energia = "13"                      # 13
+    aluekerays = "Aluekeräyspiste"      # 14
+    monilokero = "Monilokero"           # 15
+    muu = "Muu"                         # 99
 
 
 class KeraysvalineTyyppi(str, Enum):

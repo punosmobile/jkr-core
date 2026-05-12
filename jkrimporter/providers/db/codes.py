@@ -135,10 +135,10 @@ class RakennuksenOlotilaTyyppi(Enum):
 class KiinteatJatelajit(Enum):
     SEKAJATE = "Sekajäte"
     BIO = "Biojäte"
-    LASI = "Lasi"
+    LASIPAKKAUS = "Lasipakkaus"
     PAPERI = "Paperi"
-    KARTONKI = "Kartonki"
-    MUOVI = "Muovi"
+    KARTONKIPAKKAUS = "Kartonkipakkaus"
+    MUOVI = "Muovipakkaus"
     METALLI = "Metalli"
     PAHVI = "Pahvi"
     ENERGIA = "Energia"
