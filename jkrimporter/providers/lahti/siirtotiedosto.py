@@ -101,9 +101,22 @@ class LahtiSiirtotiedosto:
                     {key: value for key, value in data.items() if key in expected_headers}
                     for data in failed_validations
                 ]
-                print(f"validaatioon kaatuneita rivejä: {len(filtered_failed_validations)}")
+                # Ohitetaan täysin identtiset duplikaattirivit, jotta sama
+                # virherivi ei toistu virheraportissa.
+                seen_rows = set()
+                unique_failed_validations = []
+                for row_dict in filtered_failed_validations:
+                    row_key = tuple((header, row_dict.get(header)) for header in expected_headers)
+                    if row_key in seen_rows:
+                        continue
+                    seen_rows.add(row_key)
+                    unique_failed_validations.append(row_dict)
+                print(
+                    f"validaatioon kaatuneita rivejä: {len(filtered_failed_validations)}, "
+                    f"uniikkeja: {len(unique_failed_validations)}"
+                )
 
-                csv_writer.writerows(filtered_failed_validations)
+                csv_writer.writerows(unique_failed_validations)
 
         # Create asiakas objects from rows
         for asiakas_row in asiakas_rows:

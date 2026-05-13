@@ -108,6 +108,24 @@ from .services.sopimus import update_sopimukset_for_kohde
 logger = logging.getLogger(__name__)
 
 
+def _format_finnish_number(value):
+    """Format a numeric value for Finnish-locale CSV output.
+
+    Whole-number floats become integers (1.0 -> "1") and decimals use comma
+    as decimal separator to match the source data format. Non-numeric values
+    pass through unchanged.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        if value.is_integer():
+            return str(int(value))
+        return format(value, "g").replace(".", ",")
+    return value
+
+
 def count(jkr_data: JkrData):
     prt_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
     kitu_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
@@ -515,7 +533,11 @@ class DbProvider:
                 if kohdentumattomat:
                     kohdentumattomatRivit = 0
                     csv_path = None
-                    
+                    # Kerätään kaikkien kohdentumattomien rivit yhteen ja
+                    # poistetaan duplikaatit ennen kirjoittamista. Duplikaatti
+                    # = täysin identtinen rivi (kaikki kentät yhtenevät).
+                    kirjoitetut_avaimet = set()
+
                     for kohdentumaton in kohdentumattomat:
 
                         # Rebuild rows to insert into the error .csv
@@ -582,27 +604,29 @@ class DbProvider:
                                 "Pvmasti": kohdentumaton["voimassa"].upper.strftime(
                                     "%d.%m.%Y"
                                 ),
-                                "tyyppiIdEWC": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].tyyppiIdEWC,
-                                "COUNT(kaynnit)": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].kaynnit[ii],
-                                "SUM(astiamaara)": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].astiamaara,
-                                "koko": kohdentumaton["ulkoinen_asiakastieto"].koko,
-                                "SUM(paino)": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].paino[ii],
-                                "tyhjennysvali": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].tyhjennysvali[
-                                    ii * 2
-                                ],  # two tyhjennysvalis per row
-                                "kertaaviikossa": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].kertaaviikossa[ii * 2],
+                                "tyyppiIdEWC": getattr(
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyyppiIdEWC,
+                                    "value",
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyyppiIdEWC,
+                                ),
+                                "COUNT(kaynnit)": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].kaynnit[ii]
+                                ),
+                                "SUM(astiamaara)": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].astiamaara
+                                ),
+                                "koko": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].koko
+                                ),
+                                "SUM(paino)": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].paino[ii]
+                                ),
+                                "tyhjennysvali": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyhjennysvali[ii * 2]
+                                ),  # two tyhjennysvalis per row
+                                "kertaaviikossa": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].kertaaviikossa[ii * 2]
+                                ),
                                 "Voimassaoloviikotalkaen": kohdentumaton[
                                     "ulkoinen_asiakastieto"
                                 ].Voimassaoloviikotalkaen[ii * 2],
@@ -640,18 +664,18 @@ class DbProvider:
                                 ]
                                 is not None
                             ):
-                                row_data["tyhjennysvali2"] = kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].tyhjennysvali[ii * 2 + 1]
+                                row_data["tyhjennysvali2"] = _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyhjennysvali[ii * 2 + 1]
+                                )
                             if (
                                 kohdentumaton["ulkoinen_asiakastieto"].kertaaviikossa[
                                     ii * 2 + 1
                                 ]
                                 is not None
                             ):
-                                row_data["kertaaviikossa2"] = kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].kertaaviikossa[ii * 2 + 1]
+                                row_data["kertaaviikossa2"] = _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].kertaaviikossa[ii * 2 + 1]
+                                )
                             if (
                                 kohdentumaton[
                                     "ulkoinen_asiakastieto"
@@ -687,6 +711,15 @@ class DbProvider:
                                 quotechar='"',
                             )
                             for rd in rows:
+                                # Ohitetaan täysin identtiset duplikaattirivit,
+                                # jotta sama tieto ei toistu virheraportissa.
+                                rivin_avain = tuple(
+                                    (k, rd.get(k))
+                                    for k in get_siirtotiedosto_headers()
+                                )
+                                if rivin_avain in kirjoitetut_avaimet:
+                                    continue
+                                kirjoitetut_avaimet.add(rivin_avain)
                                 kohdentumattomatRivit = kohdentumattomatRivit + 1
                                 csv_writer.writerow(rd)
 

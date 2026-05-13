@@ -345,8 +345,16 @@ async def upload_file(
 
 
 async def _upload_small(token: str, target_path: str, content: bytes) -> Dict[str, Any]:
-    """PUT-upload pienille tiedostoille (< 4 MB)."""
-    url = f"{_graph_base()}/root:/{target_path}:/content"
+    """PUT-upload pienille tiedostoille (< 4 MB).
+
+    Käytetään conflictBehavior=replace, jotta samannimisen tiedoston
+    olemassaolo ei aiheuta 409 Conflict -virhettä — yhdenmukaisesti
+    _upload_large:n kanssa.
+    """
+    url = (
+        f"{_graph_base()}/root:/{target_path}:/content"
+        "?@microsoft.graph.conflictBehavior=replace"
+    )
     async with httpx.AsyncClient() as client:
         resp = await client.put(
             url,
