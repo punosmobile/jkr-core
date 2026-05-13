@@ -142,14 +142,7 @@ def export_kohdentumattomat_viemariilmoitukset(
 ):
     print(folder)
     expected_headers = get_viemari_ilmoitustiedosto_headers()
-    if '_' in str(fullpath):
-        lahettaja = str(fullpath).split('_')[1].split('.')[0]
-    else:
-        lahettaja = str(fullpath).split('.',maxsplit=1)[0]
-
-    print(lahettaja)
-
-    output_file_path_failed = folder / get_kohdentumattomat_viemari_ilmoitus_filename(lahettaja)
+    output_file_path_failed = folder / get_kohdentumattomat_viemari_ilmoitus_filename()
 
     if output_file_path_failed.exists():
         workbook_failed = openpyxl.load_workbook(output_file_path_failed)
