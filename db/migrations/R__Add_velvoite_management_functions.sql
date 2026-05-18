@@ -18,19 +18,67 @@ BEGIN
   RETURNING id INTO _tapahtuma_id;
 
   -- 1. Poistetaan vanhentuneet velvoitteet
-  DELETE FROM jkr.velvoite v
-  WHERE EXISTS (
-    SELECT 1 FROM jkr.kohde k 
-    WHERE k.id = v.kohde_id 
-    AND k.kohdetyyppi_id IN (8,9)
+
+  -- 1a. Kohdetyyppi tai jätelaji ei täsmää
+  UPDATE jkr.velvoite v
+  SET loppupvm = NOW()
+  FROM jkr.velvoitemalli vm
+  JOIN jkr_koodistot.jatetyyppi jt ON vm.jatetyyppi_id = jt.id,
+  jkr.kohde k
+  WHERE v.velvoitemalli_id = vm.id
+  AND v.kohde_id = k.id
+  AND v.loppupvm IS NULL
+  AND NOT (
+    (k.kohdetyyppi_id = 5 AND jt.selite IN ('Sekajäte', 'Liete'))
+    OR (k.kohdetyyppi_id = 6 AND jt.selite IN ('Sekajäte', 'Biojäte', 'Liete'))
+    OR (k.kohdetyyppi_id = 7)
   );
 
-  DELETE FROM jkr.velvoiteyhteenveto vh
-  WHERE EXISTS (
-    SELECT 1 FROM jkr.kohde k 
-    WHERE k.id = vh.kohde_id 
-    AND k.kohdetyyppi_id IN (8,9)
-  );
+  UPDATE jkr.velvoiteyhteenveto vh
+  SET loppupvm = NOW()
+  FROM jkr.kohde k
+  WHERE k.id = vh.kohde_id
+  AND vh.loppupvm IS NULL
+  AND k.kohdetyyppi_id NOT IN (5, 6, 7);
+
+  -- 1b. Kohde ei enää kuulu velvoitemalli-kohtaiseen saantoon
+  FOR velvoitemalli IN
+    SELECT vm.id, vm.saanto
+    FROM jkr.velvoitemalli vm
+    WHERE vm.saanto IS NOT NULL
+  LOOP
+    EXECUTE '
+      UPDATE jkr.velvoite v
+      SET loppupvm = NOW()
+      FROM jkr.kohde k
+      WHERE v.kohde_id = k.id
+      AND v.velvoitemalli_id = $1
+      AND v.loppupvm IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM jkr.' || quote_ident(velvoitemalli.saanto) || ' kohteet
+        WHERE kohteet.id = k.id
+      )
+    ' USING velvoitemalli.id;
+  END LOOP;
+
+  FOR yhteenvetomalli IN
+    SELECT id, saanto
+    FROM jkr.velvoiteyhteenvetomalli
+    WHERE saanto IS NOT NULL
+  LOOP
+    EXECUTE '
+      UPDATE jkr.velvoiteyhteenveto vh
+      SET loppupvm = NOW()
+      FROM jkr.kohde k
+      WHERE k.id = vh.kohde_id
+      AND vh.velvoiteyhteenvetomalli_id = $1
+      AND vh.loppupvm IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM jkr.' || quote_ident(yhteenvetomalli.saanto) || ' kohteet
+        WHERE kohteet.id = k.id
+      )
+    ' USING yhteenvetomalli.id;
+  END LOOP;
 
   -- 2. Lisää velvoitteet
   FOR velvoitemalli in select vm.id, vm.saanto, vm.voimassaolo, jt.selite as jatetyyppi_selite
@@ -49,6 +97,7 @@ BEGIN
           select 1 from jkr.velvoite v 
           where v.kohde_id = k.id 
           and v.velvoitemalli_id = $1
+          and v.loppupvm IS NULL
         )
         and exists (
           select 1 
@@ -86,6 +135,7 @@ BEGIN
           select 1 from jkr.velvoiteyhteenveto vh 
           where vh.kohde_id = k.id 
           and vh.velvoiteyhteenvetomalli_id = $1
+          and vh.loppupvm IS NULL
         )
         and exists (
           select 1 
@@ -146,6 +196,7 @@ BEGIN
           on v.kohde_id = ok.kohde_id
       where
         vm.id = $3
+        and (v.loppupvm IS NULL or v.loppupvm < jakso_loppu)
         and k.voimassaolo && daterange($1, $2)
         and vm.voimassaolo && daterange($1, $2)
         and (
@@ -205,6 +256,7 @@ BEGIN
           on v.kohde_id = ok.kohde_id
       where
         vm.id = $3
+        and (v.loppupvm IS NULL or v.loppupvm < jakso_loppu)
         and k.voimassaolo && daterange($1, $2)
         and vm.voimassaolo && daterange($1, $2)
         and k.kohdetyyppi_id != 8 and k.kohdetyyppi_id != 9  -- Ei MUU tai SOTE-tyypin kohteille
