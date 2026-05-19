@@ -8,7 +8,18 @@ import sys
 from datetime import datetime
 
 __version__ = "0.7.7"
-__log_path__ = "output/jkr.log"
+# Tiedostomuotoiset lokit kirjoitetaan oletuksena /data/output/logs-kansioon
+# (mapattu Docker-volume). Polkua voi yliajaa JKR_LOG_DIR-ympäristömuuttujalla.
+_default_log_dir = "/data/output/logs"
+__log_dir__ = os.environ.get("JKR_LOG_DIR", _default_log_dir)
+try:
+    os.makedirs(__log_dir__, exist_ok=True)
+except OSError:
+    # Esim. paikallinen Windows-ympäristö, jossa /data/output/logs ei ole olemassa
+    # eikä sitä voi luoda. Käytetään silloin CWD:n alapuolista output/logs-kansiota.
+    __log_dir__ = os.path.join("output", "logs")
+    os.makedirs(__log_dir__, exist_ok=True)
+__log_path__ = os.path.join(__log_dir__, "jkr.log")
 
 # ---------------------------------------------------------------------------
 # Custom log level: IMPORT (between INFO=20 and WARNING=30)

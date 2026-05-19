@@ -11,15 +11,14 @@ from jkrimporter.providers.lahti.kaivotiedosto import _parse_date
 
 
 class Jatelaji(str, Enum):
+    # LAH-603: Pahvi, Paperi ja Energia on poistettu Lahden määrittelyistä.
+    # Kuljetustiedoissa ne menevät virheraporttiin.
     aluekerays = "Aluekeräyspiste"
     seka = "Sekajäte"
-    energia = "Energia"
     biojäte = "Biojäte"
     kartonkipakkaus = "Kartonkipakkaus"
-    pahvi = "Pahvi"
     metalli = "Metalli"
     lasipakkaus = "Lasipakkaus"
-    paperi = "Paperi"
     muovipakkaus = "Muovipakkaus"
     liete = "Liete"
     musta_liete = "Musta liete"
@@ -132,15 +131,19 @@ class AsiakasRow(BaseModel):
             value = "AluekeräysPiste"
         if value == "Sekaj":
             value = "Sekajäte"
-        if value == "Biojäte":
-            value = "Biojäte"
-        if value == "Kartonkipakkaus":
-            value = "Kartonkipakkaus"
-        if value == "Muovipakkaus":
-            value = "Muovipakkaus"
-        if value == "Lasipakkaus":
-            value = "Lasipakkaus"
-        return value.title()
+        # Lähdedatassa esiintyy sekä lyhyt että pitkä muoto: mappaa lyhyet
+        # variantit kanonisiin (LAH-603:n jälkeisiin) pitkiin nimiin niin että
+        # validointi menee läpi molemmilla muodoilla.
+        normalized = value.title() if isinstance(value, str) else value
+        short_to_canonical = {
+            "Bio": "Biojäte",
+            "Kartonki": "Kartonkipakkaus",
+            "Lasi": "Lasipakkaus",
+            "Muovi": "Muovipakkaus",
+        }
+        if normalized in short_to_canonical:
+            return short_to_canonical[normalized]
+        return normalized
 
     @validator("Pvmalk", "Pvmasti", pre=True)
     def parse_date(value: Union[date, str]):
