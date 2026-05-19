@@ -196,7 +196,7 @@ BEGIN
           on v.kohde_id = ok.kohde_id
       where
         vm.id = $3
-        and (v.loppupvm IS NULL or v.loppupvm < jakso_loppu)
+        and (v.loppupvm IS NULL or v.loppupvm < $2)
         and k.voimassaolo && daterange($1, $2)
         and vm.voimassaolo && daterange($1, $2)
         and (
@@ -256,7 +256,7 @@ BEGIN
           on v.kohde_id = ok.kohde_id
       where
         vm.id = $3
-        and (v.loppupvm IS NULL or v.loppupvm < jakso_loppu)
+        and (v.loppupvm IS NULL or v.loppupvm < $2)
         and k.voimassaolo && daterange($1, $2)
         and vm.voimassaolo && daterange($1, $2)
         and k.kohdetyyppi_id != 8 and k.kohdetyyppi_id != 9  -- Ei MUU tai SOTE-tyypin kohteille
