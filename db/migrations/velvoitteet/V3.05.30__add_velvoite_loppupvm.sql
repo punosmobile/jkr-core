@@ -56,7 +56,7 @@ CREATE OR REPLACE VIEW jkr.v_kohdevelvoitteet_distinct
     kohde_id,
     velvoitemalli_id,
     velvoitemalli_selite,
-    velvoitemalli_kuvaus || CASE WHEN velvoite_loppupvm IS NOT NULL THEN ('(' || velvoite_loppupvm || ')') ELSE '' END,
+    velvoitemalli_kuvaus || CASE WHEN velvoite_loppupvm IS NOT NULL THEN ('(' || velvoite_loppupvm || ')') ELSE '' END AS velvoitemalli_kuvaus,
     voimassaolo,
     voimassa,
     status_id,
