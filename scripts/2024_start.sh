@@ -40,6 +40,7 @@ export USER=$JKR_USER
 export PGPASSWORD=$JKR_PASSWORD
 export APPDATA=/$HOME/.config/jkr/.env
 export HOOK_URL=$HOOK_URL
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Funktio edistymistä varten
 status() {
@@ -220,7 +221,8 @@ log_exec_with_sql_log "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_ka
         "Heinolan viemariverkoston tuonti"
 
 # Vaihe 2: Kunnat ja postinumerot
-log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v posti_file='../data/posti/PCF.dat' -f import_posti.sql" \
+POSTI_FILE="$SCRIPT_DIR/../data/posti/PCF.dat"
+log_exec_with_sql_log "sed 's|<POSTI>|$POSTI_FILE|g' $SCRIPT_DIR/jkr_posti.sql | psql -h $HOST -p $PORT -d $DB_NAME -U $USER" \
         "logs/import_posti.log" \
         "Kuntien ja postinumeroiden tuonti"
 
