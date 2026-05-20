@@ -225,7 +225,7 @@ fi
 
 quarter="Q1"
 
-log_exec "jkr import_sote ../data/Sotekohteet/Sotekohteet_2025.csv \
+log_exec "jkr import_sote ../data/Sotekohteet/Sotekohteet_2025.csv" \
         "logs/sote_import.log" \
         "SOTE-aineiston tuonti"
 
