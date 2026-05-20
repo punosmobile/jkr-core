@@ -172,3 +172,56 @@ VALUES
         1
     )
 ON CONFLICT DO NOTHING;
+
+-- LAH-591: Päivitetään saannon_selite ja tayttymissaannon_selite kaikille olemassa
+-- oleville velvoiteyhteenvetomalleille.
+UPDATE jkr.velvoiteyhteenvetomalli vym
+SET saannon_selite = v.saannon_selite,
+    tayttymissaannon_selite = v.tayttymissaannon_selite
+FROM (VALUES
+    -- Saannon_selite avaa saanto-kentän näkymän tai erikoisarvon 'kohde' kohderyhmän:
+    --   'kohde'                                              = sääntöä ei rajata, sovelletaan kaikkiin kohteisiin
+    --   v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue    = >=5 huoneiston kohteet taajamassa
+    --   v_enint_4_huoneistoa_biojatteen_erilliskeraysalue    = <=4 huoneiston kohteet >=10 000 as. taajamassa
+    --   v_erilliskeraysalueet                                = molempien erilliskeräysalueiden yhdistelmä
+    --   v_ei_erilliskeraysalueet                             = erilliskeräysalueen ulkopuoliset kohteet
+    (1,  'Sääntöä ei rajata näkymällä - sääntöä sovelletaan kaikkiin kohteisiin riippumatta kohdetyypistä, sijainnista tai huoneistomäärästä.',
+         'Kohteen kaikilla velvoiterakennuksilla on voimassa oleva myönteinen AKP- tai Perusmaksu-päätös.'),
+    (2,  'Sääntöä ei rajata näkymällä - sääntöä sovelletaan kaikkiin kohteisiin.',
+         'Kohteella on voimassa oleva myönteinen Keskeyttämispäätös.'),
+    (30, 'Erilliskeräysalueen ulkopuoliset kohteet: <=4 huoneiston kohteet jotka eivät ole biojätteen erilliskeräysalueella, sekä >=5 huoneiston kohteet jotka eivät ole hyötyjätteen erilliskeräysalueella.',
+         'Kohteen sekajätekeräys on kunnossa (jokin sekajäte-kunnossa-tila täyttyy tai voimassa oleva aluekeräys).'),
+    (31, 'Biojätteen erilliskeräysalueen kohteet: kohteella on rakennus vähintään 10 000 asukkaan taajamassa ja kohteen rakennusten huoneistomäärä on yhteensä enintään 4.',
+         'Kohteen sekajätekeräys on kunnossa ja voimassa oleva kompostointi-ilmoitus.'),
+    (32, 'Biojätteen erilliskeräysalueen kohteet: kohteella on rakennus vähintään 10 000 asukkaan taajamassa ja kohteen rakennusten huoneistomäärä on yhteensä enintään 4.',
+         'Kohteen sekajätekeräys on kunnossa ja biojätteen tyhjennysväli enintään 4 viikkoa.'),
+    (33, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Kohteen sekajätekeräys on kunnossa, biojätteen tyhjennysväli enintään 4 viikkoa ja kartonki-, metalli-, lasi- sekä muovipakkaussopimukset voimassa.'),
+    (34, 'Sääntöä ei rajata näkymällä - sääntöä sovelletaan kaikkiin kohteisiin.',
+         'Kohteelta puuttuu voimassa oleva sekajätesopimus eikä sillä ole voimassa olevaa vapauttavaa, keskeyttävää tai pidentävää päätöstä.'),
+    (35, 'Erilliskeräysalueen kohteet: yhdistelmä biojätteen (enintään 4 huoneistoa, taajaman väestö >=10 000) ja hyötyjätteen (vähintään 5 huoneistoa, mikä tahansa taajama) erilliskeräysalueiden kohteista.',
+         'Kohteen sekajätekeräys on kunnossa, mutta voimassa oleva biojätesopimus puuttuu.'),
+    (36, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Kohteen sekajätekeräys on kunnossa ja biojätteen tyhjennysväli enintään 4 viikkoa, mutta kartonkipakkaussopimus puuttuu.'),
+    (37, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Kohteen sekajätekeräys on kunnossa ja biojätteen tyhjennysväli enintään 4 viikkoa, mutta metallisopimus puuttuu.'),
+    (38, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Kohteen sekajätekeräys on kunnossa ja biojätteen tyhjennysväli enintään 4 viikkoa, mutta lasipakkaussopimus puuttuu.'),
+    (39, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Kohteen sekajätekeräys on kunnossa ja biojätteen tyhjennysväli enintään 4 viikkoa, mutta muovipakkaussopimus puuttuu.'),
+    (40, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Sekajätteen tyhjennysväli on väärä, mutta biojäte-, kartonki-, metalli-, lasi- ja muovipakkaussopimukset voimassa.'),
+    (41, 'Biojätteen erilliskeräysalueen kohteet: kohteella on rakennus vähintään 10 000 asukkaan taajamassa ja kohteen rakennusten huoneistomäärä on yhteensä enintään 4.',
+         'Sekajätteen tyhjennysväli on väärä, mutta biojätesopimus voimassa.'),
+    (42, 'Biojätteen erilliskeräysalueen kohteet: kohteella on rakennus vähintään 10 000 asukkaan taajamassa ja kohteen rakennusten huoneistomäärä on yhteensä enintään 4.',
+         'Sekajätteen tyhjennysväli on väärä, mutta kompostointi-ilmoitus voimassa.'),
+    (43, 'Erilliskeräysalueen ulkopuoliset kohteet: <=4 huoneiston kohteet jotka eivät ole biojätteen erilliskeräysalueella, sekä >=5 huoneiston kohteet jotka eivät ole hyötyjätteen erilliskeräysalueella.',
+         'Sekajätteen tyhjennysväli on väärä (jokin sekajäte-väärä-väli-tila täyttyy).'),
+    (44, 'Biojätteen erilliskeräysalueen kohteet: kohteella on rakennus vähintään 10 000 asukkaan taajamassa ja kohteen rakennusten huoneistomäärä on yhteensä enintään 4.',
+         'Biojätteen tyhjennysväli on väärä ja sekajätesopimus voimassa.'),
+    (45, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Biojätteen tyhjennysväli on väärä ja sekajäte-, kartonki-, metalli-, lasi- ja muovipakkaussopimukset voimassa.'),
+    (46, 'Erilliskeräysalueen kohteet: yhdistelmä biojätteen (enintään 4 huoneistoa, taajaman väestö >=10 000) ja hyötyjätteen (vähintään 5 huoneistoa, mikä tahansa taajama) erilliskeräysalueiden kohteista.',
+         'Sekajätteen tyhjennysväli on väärä ja voimassa oleva biojätesopimus puuttuu.')
+) AS v(id, saannon_selite, tayttymissaannon_selite)
+WHERE vym.id = v.id;
