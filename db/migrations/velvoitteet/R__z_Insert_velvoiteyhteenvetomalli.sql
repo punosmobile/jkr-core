@@ -165,11 +165,20 @@ VALUES
     (
         46,
         'Velvoiteyhteenveto biojäte puuttuu',
-        'v_erilliskeraysalueet',
+        'v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue',
         'kohteet_joilla_seka_vaara_tvali_bio_puuttuu',
         '2022-1-1',
         'Velvoiteyhteenveto biojäte puuttuu',
-        1
+        2
+    ),
+    (
+        47,
+        'Velvoiteyhteenveto biojäte puuttuu',
+        'v_enint_4_huoneistoa_biojatteen_erilliskeraysalue',
+        'kohteet_joilla_seka_vaara_tvali_bio_puuttuu_ei_kompostointia',
+        '2022-1-1',
+        'Velvoiteyhteenveto biojäte puuttuu',
+        2
     )
 ON CONFLICT DO NOTHING;
 
@@ -221,7 +230,9 @@ FROM (VALUES
          'Biojätteen tyhjennysväli on väärä ja sekajätesopimus voimassa.'),
     (45, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
          'Biojätteen tyhjennysväli on väärä ja sekajäte-, kartonki-, metalli-, lasi- ja muovipakkaussopimukset voimassa.'),
-    (46, 'Erilliskeräysalueen kohteet: yhdistelmä biojätteen (enintään 4 huoneistoa, taajaman väestö >=10 000) ja hyötyjätteen (vähintään 5 huoneistoa, mikä tahansa taajama) erilliskeräysalueiden kohteista.',
-         'Sekajätteen tyhjennysväli on väärä ja voimassa oleva biojätesopimus puuttuu.')
+    (46, 'Hyötyjätteen erilliskeräysalueen kohteet: kohteella on rakennus taajaman aluerajauksen sisällä ja kohteen rakennusten huoneistomäärä on yhteensä vähintään 5.',
+         'Sekajätteen tyhjennysväli on väärä ja voimassa oleva biojätesopimus puuttuu.'),
+    (47, 'Biojätteen erilliskeräysalueen kohteet: kohteella on rakennus vähintään 10 000 asukkaan taajamassa ja kohteen rakennusten huoneistomäärä on yhteensä enintään 4.',
+         'Sekajätteen tyhjennysväli on väärä, voimassa oleva biojätesopimus puuttuu eikä kohteella ole voimassa olevaa kompostointi-ilmoitusta.')
 ) AS v(id, saannon_selite, tayttymissaannon_selite)
 WHERE vym.id = v.id;
