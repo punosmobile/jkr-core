@@ -1,0 +1,95 @@
+# Git & VCS
+.git
+.github
+.gitattributes
+.gitignore
+.hooks
+
+# Editor / IDE
+.vscode
+.windsurf
+.editorconfig
+.flake8
+*.swp
+*.swo
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.pytest_cache
+**/.pytest_cache
+.coverage
+htmlcov
+.tox
+.mypy_cache
+.ruff_cache
+dist
+build
+
+# Virtuaaliympäristöt
+.venv
+venv
+env
+
+# Datakansiot (ei saa mennä imageen)
+data
+input
+output
+jira-lah-310-attachments
+JKR_pbit_extracted
+
+# Lokit
+*.log
+logs
+**/logs
+scripts/logs
+docker/postgis/logs
+docker/postgis/test/logs
+
+# Ympäristötiedostot ja salaisuudet
+.env
+.env.*
+!.env.template
+
+# Dumpit ja raportit
+*.xlsx
+*.xls
+*.dump
+*.sql.gz
+*.tar
+*.tar.gz
+*.zip
+raportti.xlsx
+
+# Docker / Compose (ei tarvita imagen sisälle)
+docker
+docker-compose.yml
+dev.docker-compose.yml
+testing.docker-compose.yml
+.dockerignore
+Dockerfile
+
+# Dokumentaatio (valinnainen — pienentää kuvaa)
+docs
+CHANGELOG.md
+dokumentaatio.md
+README.md
+LICENSE
+
+# PowerShell / bat -skriptit, joita image ei tarvitse
+*.ps1
+*.bat
+!startdev.sh
+runmigrations.sh
+
+# Testit: EI saa ignorata, koska pyproject.toml viittaa niihin
+# ({ include = "tests", format = "sdist" }). Ilman tätä Poetry install
+# kaatuu: "/app/tests does not contain any element".
+# tests
+
+# QGIS-projektitiedostot
+qgis
+JKR_pbit_extracted

@@ -45,8 +45,8 @@ ENV PATH="/root/.local/bin:$PATH"
 # Päivitä pip
 RUN pip install --upgrade pip
 
-# Varmista /data/input -kansio
-RUN mkdir -p /data/input
+# Varmista /data/input -kansio ja /app/output (lokia varten)
+RUN mkdir -p /data/input /app/output
 
 # Määritä työhakemisto
 WORKDIR /app

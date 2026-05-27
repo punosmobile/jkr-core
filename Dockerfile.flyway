@@ -1,0 +1,6 @@
+FROM flyway/flyway:11.18.0
+
+COPY db/migrations /flyway/sql
+COPY db/flyway.conf /flyway/conf/flyway.conf
+
+CMD ["migrate"]
