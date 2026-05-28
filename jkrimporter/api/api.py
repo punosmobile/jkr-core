@@ -1386,6 +1386,117 @@ async def auth_me(user: CurrentUser = Depends(require_authenticated)):
     }
 
 
+@app.get(
+    "/auth/debug",
+    summary="Debug: tokenista puretut kaikki tiedot ja roolimäärityksen diagnostiikka",
+)
+async def auth_debug(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa tokenista puretut KAIKKI claimit + palvelimen näkemän roolimäärityksen.
+
+    Käyttötarkoitus: selvittää miksi käyttäjä ei saa admin/viewer-roolia vaikka
+    kuuluu oikeaan Security Groupiin Azure AD:ssä. Vertaa palvelimen konfiguroituja
+    group-ID:itä tokenissa oleviin ryhmiin.
+
+    Vaatii vain voimassa olevan tokenin (sama valtuutus kuin /auth/me).
+    """
+    from jkrimporter.api.auth import (
+        AZURE_ADMIN_APP_ROLE,
+        AZURE_ADMIN_GROUP_ID,
+        AZURE_CLIENT_ID,
+        AZURE_TENANT_ID,
+        AZURE_VIEWER_APP_ROLE,
+        AZURE_VIEWER_GROUP_ID,
+        fetch_app_registration_diagnostics,
+    )
+
+    claims = user.claims or {}
+    token_groups = claims.get("groups", [])
+    groups_is_list = isinstance(token_groups, list)
+    token_app_roles = claims.get("roles", [])
+    roles_is_list = isinstance(token_app_roles, list)
+
+    admin_via_groups = bool(
+        AZURE_ADMIN_GROUP_ID and groups_is_list and AZURE_ADMIN_GROUP_ID in token_groups
+    )
+    admin_via_app_role = bool(
+        AZURE_ADMIN_APP_ROLE and roles_is_list and AZURE_ADMIN_APP_ROLE in token_app_roles
+    )
+    viewer_via_groups = bool(
+        AZURE_VIEWER_GROUP_ID and groups_is_list and AZURE_VIEWER_GROUP_ID in token_groups
+    )
+    viewer_via_app_role = bool(
+        AZURE_VIEWER_APP_ROLE and roles_is_list and AZURE_VIEWER_APP_ROLE in token_app_roles
+    )
+
+    def _resolved_via(via_groups: bool, via_app_role: bool) -> str:
+        if via_groups and via_app_role:
+            return "groups + app_role"
+        if via_groups:
+            return "groups"
+        if via_app_role:
+            return "app_role"
+        return "(ei mitään)"
+
+    role_diagnostics = {
+        # --- Groups-reitti (alkuperäinen) ---
+        "admin_group_id_configured": AZURE_ADMIN_GROUP_ID or "(EI ASETETTU palvelimella)",
+        "admin_group_in_token": admin_via_groups,
+        "viewer_group_id_configured": AZURE_VIEWER_GROUP_ID or "(EI ASETETTU palvelimella)",
+        "viewer_group_in_token": viewer_via_groups,
+        "token_has_groups_claim": "groups" in claims,
+        "token_groups_count": len(token_groups) if groups_is_list else None,
+        "token_groups_overage": claims.get("_claim_names", {}).get("groups") is not None,
+        # --- App Roles -reitti (toimii myös overage-tilanteessa) ---
+        "admin_app_role_configured": AZURE_ADMIN_APP_ROLE or "(EI ASETETTU palvelimella)",
+        "admin_app_role_in_token": admin_via_app_role,
+        "viewer_app_role_configured": AZURE_VIEWER_APP_ROLE or "(EI ASETETTU palvelimella)",
+        "viewer_app_role_in_token": viewer_via_app_role,
+        "token_app_roles": token_app_roles if roles_is_list else [],
+        # --- Lopullinen päätelmä ---
+        "admin_resolved_via": _resolved_via(admin_via_groups, admin_via_app_role),
+        "viewer_resolved_via": _resolved_via(viewer_via_groups, viewer_via_app_role),
+    }
+
+    token_metadata = {
+        "issuer": claims.get("iss"),
+        "audience": claims.get("aud"),
+        "subject": claims.get("sub"),
+        "tenant_id_in_token": claims.get("tid"),
+        "app_id_in_token": claims.get("appid"),
+        "app_displayname": claims.get("app_displayname"),
+        "scopes": claims.get("scp"),
+        "app_roles_in_token": claims.get("roles"),
+        "expires_at": claims.get("exp"),
+        "issued_at": claims.get("iat"),
+        "not_before": claims.get("nbf"),
+        "auth_method_reference": claims.get("amr"),
+    }
+
+    app_registration = await fetch_app_registration_diagnostics()
+
+    return {
+        "summary": {
+            "oid": user.oid,
+            "name": user.name,
+            "email": user.email,
+            "roles_resolved": user.roles,
+            "is_admin": user.is_admin,
+            "is_viewer": user.is_viewer,
+        },
+        "role_diagnostics": role_diagnostics,
+        "token_metadata": token_metadata,
+        "token_header": user.unverified_header,
+        "token_claims_full": claims,
+        "server_config": {
+            "azure_tenant_id": AZURE_TENANT_ID,
+            "azure_client_id": AZURE_CLIENT_ID,
+            "azure_admin_group_id": AZURE_ADMIN_GROUP_ID,
+            "azure_viewer_group_id": AZURE_VIEWER_GROUP_ID,
+        },
+        "app_registration": app_registration,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------

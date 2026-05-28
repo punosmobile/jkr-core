@@ -1,16 +1,23 @@
 """
 SharePoint Graph API -integraatio.
 
-Käyttää client credentials -flowta (AZURE_CLIENT_ID + AZURE_CLIENT_SECRET)
-ja Sites.Selected -oikeutta SharePoint-siten tiedostojen hallintaan.
+Käyttää client credentials -flowta omalla, SharePointia varten luodulla App
+Registrationilla, jolla on Sites.Selected -oikeus ja kirjoitusoikeus SP-siteen.
+Pää-App Reg (AZURE_*) on käyttäjäautentikointia varten eikä yleensä omista
+SharePoint-oikeuksia.
 
-Ympäristömuuttujat:
-    AZURE_TENANT_ID        - Azure AD tenant ID
-    AZURE_CLIENT_ID        - App Registration client ID
-    AZURE_CLIENT_SECRET    - App Registrationin client secret
-    SHAREPOINT_SITE_ID     - SharePoint Site ID (esim. contoso.sharepoint.com,guid1,guid2)
-    SHAREPOINT_INPUT_FOLDER  - Syöttökansio (esim. /Shared Documents/JKR-input)
-    SHAREPOINT_OUTPUT_FOLDER - Tuloskansio (esim. /Shared Documents/JKR-output)
+Ympäristömuuttujat (ensisijaiset):
+    SHAREPOINT_TENANT_ID     - SharePoint App Reg:n tenant
+    SHAREPOINT_CLIENT_ID     - SharePoint App Reg client ID
+    SHAREPOINT_CLIENT_SECRET - SharePoint App Reg client secret
+    SHAREPOINT_SITE_ID       - SharePoint Site ID
+    SHAREPOINT_INPUT_FOLDER  - Syöttökansio
+    SHAREPOINT_OUTPUT_FOLDER - Tuloskansio
+
+Taaksepäin yhteensopivuus: jos SHAREPOINT_TENANT_ID / _CLIENT_ID / _CLIENT_SECRET
+on tyhjä, käytetään pää-App Reg:n vastaavia (AZURE_TENANT_ID, AZURE_CLIENT_ID,
+AZURE_CLIENT_SECRET). Tämä toimii vain jos pää-App Reg:lle on annettu
+Sites.Selected ja site grant.
 """
 
 import logging
@@ -24,11 +31,24 @@ import httpx
 logger = logging.getLogger("jkr-sharepoint")
 
 # ---------------------------------------------------------------------------
-# Konfiguraatio
+# Konfiguraatio — käytä SP-spesifisiä env-arvoja, fallback pää-App Reg:iin
 # ---------------------------------------------------------------------------
-AZURE_TENANT_ID = os.environ.get("AZURE_TENANT_ID", "")
-AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "")
-AZURE_CLIENT_SECRET = os.environ.get("AZURE_CLIENT_SECRET", "")
+_SP_TENANT_ID = os.environ.get("SHAREPOINT_TENANT_ID", "").strip()
+_SP_CLIENT_ID = os.environ.get("SHAREPOINT_CLIENT_ID", "").strip()
+_SP_CLIENT_SECRET = os.environ.get("SHAREPOINT_CLIENT_SECRET", "").strip()
+
+AZURE_TENANT_ID = _SP_TENANT_ID or os.environ.get("AZURE_TENANT_ID", "")
+AZURE_CLIENT_ID = _SP_CLIENT_ID or os.environ.get("AZURE_CLIENT_ID", "")
+AZURE_CLIENT_SECRET = _SP_CLIENT_SECRET or os.environ.get("AZURE_CLIENT_SECRET", "")
+
+if _SP_CLIENT_ID:
+    logger.info("SharePoint käyttää omaa App Reg:tä (client_id=%s)", _SP_CLIENT_ID)
+else:
+    logger.warning(
+        "SharePoint käyttää pää-App Reg:tä (SHAREPOINT_CLIENT_ID ei asetettu). "
+        "Toimii vain jos pää-App Reg:lle on annettu Sites.Selected + site grant."
+    )
+
 SHAREPOINT_SITE_ID = os.environ.get("SHAREPOINT_SITE_ID", "")
 SHAREPOINT_INPUT_FOLDER = os.environ.get("SHAREPOINT_INPUT_FOLDER", "/Shared Documents/JKR-input")
 SHAREPOINT_OUTPUT_FOLDER = os.environ.get("SHAREPOINT_OUTPUT_FOLDER", "/Shared Documents/JKR-output")

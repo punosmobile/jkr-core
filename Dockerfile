@@ -56,6 +56,12 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-root --no-dev
 
 COPY . .
+
+# Varmista shell-skriptien execute-bitit. Windowsista buildatessa Git Bash:n
+# tallentamat 100755-tilat eivät välttämättä säily Docker buildissa, joten
+# asetetaan ne eksplisiittisesti.
+RUN find /app -type f \( -name "*.sh" -o -name "startdev.sh" -o -name "runmigrations.sh" \) -exec chmod +x {} \;
+
 RUN poetry install --no-dev
 
 # Avaa API-portti

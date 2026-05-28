@@ -1,9 +1,29 @@
 import subprocess
 import csv
+import io
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+
+def _open_csv_source(path):
+    """Avaa lähde-CSV:n teksti-streaminä, tunnistaa enkoodauksen automaattisesti.
+
+    Yrittää UTF-8 (BOMin kanssa tai ilman), fallbackaa cp1252:een (Suomalainen
+    Excel-default). Tämä on tarpeen koska osa testidatasta on tallennettu
+    Windows-Excelistä cp1252-muodossa, osa taas UTF-8:na.
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+    if data.startswith(b"\xef\xbb\xbf"):
+        text_data = data[3:].decode("utf-8")
+    else:
+        try:
+            text_data = data.decode("utf-8")
+        except UnicodeDecodeError:
+            text_data = data.decode("cp1252")
+    return io.StringIO(text_data)
 
 import typer
 import json
@@ -186,7 +206,7 @@ def import_data_batch(
                 print('perusmaksuaineisto luetaan sisään DVV-sisäänluvussa')
                 continue
             case FileType.TIEDONTUOTTAJAT:
-                with open(target_path, newline='', encoding='utf-8') as f:
+                with _open_csv_source(target_path) as f:
                     for row in csv.DictReader(f, delimiter=';'):
                         tiedontuottaja_add_new(row['tunnus'], row['nimi'])
                 continue
@@ -632,7 +652,7 @@ def import_hapa(
             Session = scoped_session(sessionmaker(bind=engine))
             with Session() as session:
                 # Read CSV file to verify structure before importing
-                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                with _open_csv_source(aineistopolku) as f:
                     reader = csv.reader(f, delimiter=';')
                     headers = next(reader)
 
@@ -658,7 +678,7 @@ def import_hapa(
                     temp_file.write(';'.join(db_headers) + '\n')
 
                     # Read original CSV and write to temp file with correct column order
-                    with open(aineistopolku, 'r', encoding='utf-8') as f:
+                    with _open_csv_source(aineistopolku) as f:
                         reader = csv.reader(f, delimiter=';')
                         next(reader)  # Skip header
 
@@ -736,7 +756,7 @@ def import_sote(
             Session = scoped_session(sessionmaker(bind=engine))
             with Session() as session:
                 # Read CSV file to verify structure before importing
-                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                with _open_csv_source(aineistopolku) as f:
                     reader = csv.reader(f, delimiter=';')
                     headers = next(reader)
 
@@ -762,7 +782,7 @@ def import_sote(
                     temp_file.write(';'.join(db_headers) + '\n')
 
                     # Read original CSV and write to temp file with correct column order
-                    with open(aineistopolku, 'r', encoding='utf-8') as f:
+                    with _open_csv_source(aineistopolku) as f:
                         reader = csv.reader(f, delimiter=';')
                         next(reader)  # Skip header
 
