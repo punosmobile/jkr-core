@@ -169,15 +169,13 @@ def create_yhteyshenkilo(row: "Asiakas"):
 
 
 jatelaji_map = {
+    # LAH-603: Pahvi, Paperi, Energia poistettu — eivät kuulu Lahden määrittelyihin.
     Jatelaji.seka: JkrJatelaji.sekajate,
-    Jatelaji.energia: JkrJatelaji.energia,
-    Jatelaji.bio: JkrJatelaji.bio,
-    Jatelaji.kartonki: JkrJatelaji.kartonki,
-    Jatelaji.pahvi: JkrJatelaji.pahvi,
+    Jatelaji.biojäte: JkrJatelaji.biojäte,
+    Jatelaji.kartonkipakkaus: JkrJatelaji.kartonkipakkaus,
     Jatelaji.metalli: JkrJatelaji.metalli,
-    Jatelaji.lasi: JkrJatelaji.lasi,
-    Jatelaji.paperi: JkrJatelaji.paperi,
-    Jatelaji.muovi: JkrJatelaji.muovi,
+    Jatelaji.lasipakkaus: JkrJatelaji.lasipakkaus,
+    Jatelaji.muovipakkaus: JkrJatelaji.muovipakkaus,
     Jatelaji.monilokero: JkrJatelaji.monilokero,
 }
 

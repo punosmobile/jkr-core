@@ -1,21 +1,20 @@
-import os
 from pathlib import Path
 from typing import Dict, List
+import asyncio
 
 import openpyxl
 
 from jkrimporter.conf import get_kohdentumattomat_paatos_filename
 from jkrimporter.datasheets import get_paatostiedosto_headers
+from jkrimporter.api import sharepoint as sp
 
 
 def export_kohdentumattomat_paatokset(folder: Path, kohdentumattomat: List[Dict[str, str]]):
     expected_headers = get_paatostiedosto_headers()
 
-    output_file_path_failed = os.path.join(
-        folder, get_kohdentumattomat_paatos_filename()
-    )
+    output_file_path_failed = folder / get_kohdentumattomat_paatos_filename()
 
-    if os.path.exists(output_file_path_failed):
+    if output_file_path_failed.exists():
         workbook_failed = openpyxl.load_workbook(output_file_path_failed)
         sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
     else:
@@ -31,3 +30,6 @@ def export_kohdentumattomat_paatokset(folder: Path, kohdentumattomat: List[Dict[
         sheet_failed.append([row.get(header, "") for header in expected_headers])
 
     workbook_failed.save(output_file_path_failed)
+
+    file_content = output_file_path_failed.read_bytes()
+    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))

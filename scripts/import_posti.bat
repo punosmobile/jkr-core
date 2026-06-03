@@ -47,7 +47,7 @@ set PGPASSWORD=%JKR_PASSWORD%
 
 ECHO Kunnat ja postinumerot
 REM # Kunnat ja postinumerot on tuotava tietokantaan ennen dvv-aineiston tuontia
-"%QGIS_BIN_PATH%\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -f "import_posti.sql"
+"%QGIS_BIN_PATH%\psql" -h %JKR_DB_HOST% -p %JKR_DB_PORT% -d %JKR_DB% -U %JKR_USER% -v posti_file="../data/posti/PCF.dat" -f "import_posti.sql"
 
 REM Kadut
 REM Katuja ei tarvitse tuoda; tarvittavat kadut löytyvät dvv-osoiteaineistosta

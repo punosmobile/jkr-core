@@ -5,9 +5,9 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 START_TIME=$(date +%s)
 
 rm -rf logs
-rm jkr.log
-rm cluster_debug.log
-rm kiinteisto_debug.log
+rm -f jkr.log
+rm -f cluster_debug.log
+rm -f kiinteisto_debug.log
 
 # Luo logs-hakemisto jos ei ole olemassa
 mkdir -p logs/arkisto
@@ -40,6 +40,7 @@ export USER=$JKR_USER
 export PGPASSWORD=$JKR_PASSWORD
 export APPDATA=/$HOME/.config/jkr/.env
 export HOOK_URL=$HOOK_URL
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Funktio edistymistä varten
 status() {
@@ -72,8 +73,8 @@ log_exec() {
    echo "Aloitusaika: $(date)" >> "$log_file"
    echo "===================" >> "$log_file"
 
-   eval "$cmd" >> "$log_file" 2>&1
-   local exit_code=$?
+   eval "$cmd" 2>&1 | tee -a "$log_file"
+   local exit_code=${PIPESTATUS[0]}
 
    # Lopetusaika ja keston laskeminen
    local STEP_END=$(date +%s)
@@ -137,8 +138,8 @@ EOSQL
    local CMD_OUTPUT_FILE
    CMD_OUTPUT_FILE=$(mktemp)
    local EXIT_CODE
-   eval "$cmd" > "$CMD_OUTPUT_FILE" 2>&1
-   EXIT_CODE=$?
+   eval "$cmd" 2>&1 | tee "$CMD_OUTPUT_FILE"
+   EXIT_CODE=${PIPESTATUS[0]}
    cat "$CMD_OUTPUT_FILE" >> "$log_file"
 
    rm -f "$CMD_OUTPUT_FILE"
@@ -220,7 +221,8 @@ log_exec_with_sql_log "sh import_viemari.sh 2023-01-01 ../data/Taajama-alueet_ka
         "Heinolan viemariverkoston tuonti"
 
 # Vaihe 2: Kunnat ja postinumerot
-log_exec_with_sql_log "psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql" \
+POSTI_FILE="$SCRIPT_DIR/../data/posti/PCF.dat"
+log_exec_with_sql_log "sed 's|<POSTI>|$POSTI_FILE|g' $SCRIPT_DIR/jkr_posti.sql | psql -h $HOST -p $PORT -d $DB_NAME -U $USER" \
         "logs/import_posti.log" \
         "Kuntien ja postinumeroiden tuonti"
 
@@ -348,10 +350,6 @@ log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2024$quarter.xlsx 
         "logs/tietovirrat/2024_$quarter/liete_kuljetukset.log" \
         "Q1 LIETE-kuljetustietojen tuonti"
 
-log_exec "jkr import_paatokset ../data/Liete/Paatokset_2024$quarter.xlsx" \
-        "logs/tietovirrat/2024_$quarter/liete_paatokset.log" \
-        "Q1 LIETE-päätösten tuonti"
-
 # Tavalliset päätökset ja ilmoitukset
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \
         "logs/tietovirrat/2024_$quarter/paatokset.log" \
@@ -393,10 +391,6 @@ quarter="Q2"
 log_exec "jkr import_liete ../data/Liete/Liete_kuljetustiedot_2024$quarter.xlsx LSJ 1.4.2024 30.6.2024" \
         "logs/tietovirrat/2024_$quarter/liete_kuljetukset.log" \
         "Q2 LIETE-kuljetustietojen tuonti"
-
-log_exec "jkr import_paatokset ../data/Liete/Paatokset_2024$quarter.xlsx" \
-        "logs/tietovirrat/2024_$quarter/liete_paatokset.log" \
-        "Q2 LIETE-päätösten tuonti"
 
 # Tavalliset päätökset ja ilmoitukset
 log_exec "jkr import_paatokset ../data/Ilmoitus-_ja_päätöstiedot/Päätös-_ja_ilmoitustiedot_2024/$quarter/Paatokset_2024$quarter.xlsx" \

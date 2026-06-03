@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ from jkrimporter.datasheets import (
     get_viemari_ilmoitustiedosto_headers
 )
 from jkrimporter.providers.lahti.models import ViemariIlmoitus, ViemariLopetusIlmoitus
+from jkrimporter.api import sharepoint as sp
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +73,7 @@ class ViemariIlmoitustiedosto:
                 failed_validations.append(data)
 
         export_kohdentumattomat_viemariilmoitukset(
-            os.path.dirname(self._path), failed_validations, self._path
+            Path(self._path).parent, failed_validations, self._path
         )
 
         return lopetus_list
@@ -126,11 +128,11 @@ class ViemariLopetustiedosto:
                 failed_validations.append(data)
 
         export_kohdentumattomat_viemarilopetusilmoitukset(
-            os.path.dirname(self._path), failed_validations
+            Path(self._path).parent, failed_validations
         )
 
         return lopetus_list
-    
+
 
 
 def export_kohdentumattomat_viemariilmoitukset(
@@ -140,18 +142,9 @@ def export_kohdentumattomat_viemariilmoitukset(
 ):
     print(folder)
     expected_headers = get_viemari_ilmoitustiedosto_headers()
-    if '_' in str(fullpath):
-        lahettaja = str(fullpath).split('_')[1].split('.')[0]
-    else:
-        lahettaja = str(fullpath).split('.',maxsplit=1)[0]
+    output_file_path_failed = folder / get_kohdentumattomat_viemari_ilmoitus_filename()
 
-    print(lahettaja)
-
-    output_file_path_failed = os.path.join(
-        folder, get_kohdentumattomat_viemari_ilmoitus_filename(lahettaja)
-    )
-
-    if os.path.exists(output_file_path_failed):
+    if output_file_path_failed.exists():
         workbook_failed = openpyxl.load_workbook(output_file_path_failed)
         sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
     else:
@@ -167,6 +160,9 @@ def export_kohdentumattomat_viemariilmoitukset(
         sheet_failed.append([row.get(header, "") for header in expected_headers])
 
     workbook_failed.save(output_file_path_failed)
+
+    file_content = output_file_path_failed.read_bytes()
+    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
 
 
 def export_kohdentumattomat_viemarilopetusilmoitukset(
@@ -175,11 +171,10 @@ def export_kohdentumattomat_viemarilopetusilmoitukset(
 ):
     expected_headers = get_viemari_lopetustiedosto_headers()
 
-    output_file_path_failed = os.path.join(
-        folder, get_kohdentumattomat_viemarin_lopetus_filename()
-    )
+    output_file_path_failed = folder / get_kohdentumattomat_viemarin_lopetus_filename()
+    
 
-    if os.path.exists(output_file_path_failed):
+    if output_file_path_failed.exists():
         workbook_failed = openpyxl.load_workbook(output_file_path_failed)
         sheet_failed = workbook_failed[workbook_failed.sheetnames[0]]
     else:
@@ -195,3 +190,6 @@ def export_kohdentumattomat_viemarilopetusilmoitukset(
         sheet_failed.append([row.get(header, "") for header in expected_headers])
 
     workbook_failed.save(output_file_path_failed)
+    
+    file_content = output_file_path_failed.read_bytes()
+    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))

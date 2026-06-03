@@ -133,15 +133,13 @@ class RakennuksenOlotilaTyyppi(Enum):
 
 
 class KiinteatJatelajit(Enum):
+    # LAH-603: Pahvi, Paperi ja Energia poistettu Lahden määrittelyistä.
     SEKAJATE = "Sekajäte"
     BIO = "Biojäte"
-    LASI = "Lasi"
-    PAPERI = "Paperi"
-    KARTONKI = "Kartonki"
-    MUOVI = "Muovi"
+    LASIPAKKAUS = "Lasipakkaus"
+    KARTONKIPAKKAUS = "Kartonkipakkaus"
+    MUOVI = "Muovipakkaus"
     METALLI = "Metalli"
-    PAHVI = "Pahvi"
-    ENERGIA = "Energia"
 
 
 def _init_lookup_codes(session, model, enumtype: Enum):

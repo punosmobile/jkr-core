@@ -9,7 +9,8 @@ export PGPASSWORD=$JKR_PASSWORD
 
 # Kunnat ja postinumerot
 # Kunnat ja postinumerot on tuotava tietokantaan ennen dvv-aineiston tuontia
-psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql
+POSTI_FILE=${1:-../data/posti/PCF.dat}
+psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v posti_file="$POSTI_FILE" -f import_posti.sql
 
 # Kadut
 # Katuja ei tarvitse tuoda; tarvittavat kadut löytyvät dvv-osoiteaineistosta

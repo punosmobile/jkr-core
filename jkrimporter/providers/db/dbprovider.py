@@ -1,6 +1,7 @@
 import csv
 import logging
 import os
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta, date
 from pathlib import Path
@@ -35,6 +36,7 @@ from jkrimporter.utils.kaivotieto import (
     export_kohdentumattomat_kaivotiedon_lopetukset,
 )
 from jkrimporter.utils.progress import Progress
+from jkrimporter.api import sharepoint as sp
 
 from . import codes
 from .codes import get_code_id, init_code_objects, keraysvalinetyypit
@@ -106,6 +108,24 @@ from .services.sopimus import update_sopimukset_for_kohde
 logger = logging.getLogger(__name__)
 
 
+def _format_finnish_number(value):
+    """Format a numeric value for Finnish-locale CSV output.
+
+    Whole-number floats become integers (1.0 -> "1") and decimals use comma
+    as decimal separator to match the source data format. Non-numeric values
+    pass through unchanged.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        if value.is_integer():
+            return str(int(value))
+        return format(value, "g").replace(".", ",")
+    return value
+
+
 def count(jkr_data: JkrData):
     prt_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
     kitu_counts: Dict[str, IntervalCounter] = defaultdict(IntervalCounter)
@@ -132,6 +152,8 @@ def insert_kuljetukset(
     raportointi_loppupvm: Optional[date],
     urakoitsija: Tiedontuottaja,
 ):
+    inserted_count = 0
+    duplicate_count = 0
     for tyhjennys in tyhjennystapahtumat:
         print("importing tyhjennys")
         print(tyhjennys)
@@ -176,6 +198,18 @@ def insert_kuljetukset(
                 jatteen_kuvaus=tyhjennys.jatteen_kuvaus,  # LAH-449: Jätteen kuvaus
             )
             session.add(db_kuljetus)
+            inserted_count += 1
+        else:
+            # Duplikaatti olemassa olevaa DB-dataa vastaan: rivi vastaa
+            # täysin tietokannassa jo olevaa kuljetusta (sama jätetyyppi,
+            # alkupvm ja loppupvm). Lasketaan duplikaatti, jotta kutsuja
+            # voi tarvittaessa raportoida sen virheraporttiin.
+            duplicate_count += 1
+            logger.info(
+                "Ohitetaan kuljetus duplikaattina olemassa olevaan dataan: "
+                f"jatetyyppi={jatetyyppi} alkupvm={alkupvm} loppupvm={loppupvm}"
+            )
+    return inserted_count, duplicate_count
 
 
 def find_and_update_kohde(session, asiakas, do_update_kohde, prt_counts, kitu_counts, address_counts):
@@ -255,7 +289,7 @@ def import_asiakastiedot(
     create_or_update_haltija_osapuoli(session, kohde, asiakas, do_update_contact)
 
     update_sopimukset_for_kohde(session, kohde, asiakas, loppupvm, urakoitsija)
-    insert_kuljetukset(
+    inserted_kuljetukset, duplicate_kuljetukset = insert_kuljetukset(
         session,
         kohde,
         asiakas.tyhjennystapahtumat,
@@ -265,6 +299,17 @@ def import_asiakastiedot(
     )
 
     session.commit()
+
+    # Jos asiakkaalla oli tyhjennystapahtumia, mutta KAIKKI olivat
+    # duplikaatteja olemassa olevaa DB-dataa vastaan (mikään ei mennyt läpi),
+    # raportoidaan asiakas kohdentumattomana, jotta käyttäjä näkee duplikaatit
+    # virheraportissa eikä vain hiljaisina ohituksina.
+    if (
+        asiakas.tyhjennystapahtumat
+        and inserted_kuljetukset == 0
+        and duplicate_kuljetukset > 0
+    ):
+        return asiakas
 
 
 def import_dvv_kohteet(
@@ -511,9 +556,13 @@ class DbProvider:
                 lisaa_lisatieto(f"Asiakkaita yhteensä: {len(jkr_data.asiakkaat)}, kohdentuneet: {kohdentuneet_count}, kohdentumattomat: {len(kohdentumattomat)}")
 
                 if kohdentumattomat:
-                    kohdentumattomatRivit = 0
+                    kohdentumattomat_rivit = 0
                     csv_path = None
-                    
+                    # Kerätään kaikkien kohdentumattomien rivit yhteen ja
+                    # poistetaan duplikaatit ennen kirjoittamista. Duplikaatti
+                    # = täysin identtinen rivi (kaikki kentät yhtenevät).
+                    kirjoitetut_avaimet = set()
+
                     for kohdentumaton in kohdentumattomat:
 
                         # Rebuild rows to insert into the error .csv
@@ -580,27 +629,29 @@ class DbProvider:
                                 "Pvmasti": kohdentumaton["voimassa"].upper.strftime(
                                     "%d.%m.%Y"
                                 ),
-                                "tyyppiIdEWC": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].tyyppiIdEWC,
-                                "COUNT(kaynnit)": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].kaynnit[ii],
-                                "SUM(astiamaara)": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].astiamaara,
-                                "koko": kohdentumaton["ulkoinen_asiakastieto"].koko,
-                                "SUM(paino)": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].paino[ii],
-                                "tyhjennysvali": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].tyhjennysvali[
-                                    ii * 2
-                                ],  # two tyhjennysvalis per row
-                                "kertaaviikossa": kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].kertaaviikossa[ii * 2],
+                                "tyyppiIdEWC": getattr(
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyyppiIdEWC,
+                                    "value",
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyyppiIdEWC,
+                                ),
+                                "COUNT(kaynnit)": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].kaynnit[ii]
+                                ),
+                                "SUM(astiamaara)": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].astiamaara
+                                ),
+                                "koko": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].koko
+                                ),
+                                "SUM(paino)": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].paino[ii]
+                                ),
+                                "tyhjennysvali": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyhjennysvali[ii * 2]
+                                ),  # two tyhjennysvalis per row
+                                "kertaaviikossa": _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].kertaaviikossa[ii * 2]
+                                ),
                                 "Voimassaoloviikotalkaen": kohdentumaton[
                                     "ulkoinen_asiakastieto"
                                 ].Voimassaoloviikotalkaen[ii * 2],
@@ -638,18 +689,18 @@ class DbProvider:
                                 ]
                                 is not None
                             ):
-                                row_data["tyhjennysvali2"] = kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].tyhjennysvali[ii * 2 + 1]
+                                row_data["tyhjennysvali2"] = _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].tyhjennysvali[ii * 2 + 1]
+                                )
                             if (
                                 kohdentumaton["ulkoinen_asiakastieto"].kertaaviikossa[
                                     ii * 2 + 1
                                 ]
                                 is not None
                             ):
-                                row_data["kertaaviikossa2"] = kohdentumaton[
-                                    "ulkoinen_asiakastieto"
-                                ].kertaaviikossa[ii * 2 + 1]
+                                row_data["kertaaviikossa2"] = _format_finnish_number(
+                                    kohdentumaton["ulkoinen_asiakastieto"].kertaaviikossa[ii * 2 + 1]
+                                )
                             if (
                                 kohdentumaton[
                                     "ulkoinen_asiakastieto"
@@ -685,12 +736,23 @@ class DbProvider:
                                 quotechar='"',
                             )
                             for rd in rows:
-                                kohdentumattomatRivit = kohdentumattomatRivit + 1
+                                # Ohitetaan täysin identtiset duplikaattirivit,
+                                # jotta sama tieto ei toistu virheraportissa.
+                                rivin_avain = tuple(
+                                    (k, rd.get(k))
+                                    for k in get_siirtotiedosto_headers()
+                                )
+                                if rivin_avain in kirjoitetut_avaimet:
+                                    continue
+                                kirjoitetut_avaimet.add(rivin_avain)
+                                kohdentumattomat_rivit += 1
                                 csv_writer.writerow(rd)
 
-                    if csv_path and kohdentumattomatRivit > 0:
-                        lisaa_lisatieto(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomatRivit} riviä lisätty CSV-tiedostoon: {csv_path}")
-                    elif kohdentumattomatRivit == 0 and kohdentumattomat:
+                    if csv_path and kohdentumattomat_rivit > 0:
+                        lisaa_lisatieto(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomat_rivit} riviä lisätty CSV-tiedostoon: {csv_path}")
+                        file_content = csv_path.read_bytes()
+                        asyncio.run(sp.upload_file(file_content=file_content, filename=csv_path.name, user_name="jkr-core"))
+                    elif kohdentumattomat_rivit == 0 and kohdentumattomat:
                         # LIETE-data tai muu data jota ei voitu tallentaa Lahden muodossa
                         lisaa_lisatieto(f"Kohdentumattomia tietoja ({len(kohdentumattomat)}) kpl, tallennetaan erilliseen tiedostoon")
                         try:
@@ -848,7 +910,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat ilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_ilmoitukset(
-                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+                Path(ilmoitustiedosto).parent, kohdentumattomat
             )
 
 
@@ -973,7 +1035,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat lieteilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_lieteIlmoitukset(
-                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+                Path(ilmoitustiedosto).parent, kohdentumattomat
             )
 
     def write_lopetusilmoitukset(
@@ -1034,7 +1096,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat lopetusilmoitukset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_lopetusilmoitukset(
-                os.path.dirname(ilmoitustiedosto), kohdentumattomat
+                Path(ilmoitustiedosto).parent, kohdentumattomat
             )
 
     def write_paatokset(
@@ -1096,7 +1158,7 @@ class DbProvider:
                 f"Tallennetaan kohdentumattomat päätökset ({len(kohdentumattomat)}) tiedostoon"
             )
             export_kohdentumattomat_paatokset(
-                os.path.dirname(paatostiedosto), kohdentumattomat
+                Path(paatostiedosto).parent, kohdentumattomat
             )
 
     def write_kaivotiedot(
@@ -1196,7 +1258,7 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat kaivotiedot ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_kaivotiedot(
-                os.path.dirname(kaivotiedosto_path), kohdentumattomat
+                Path(kaivotiedosto_path).parent, kohdentumattomat
             )
 
     def write_kaivotiedon_lopetukset(
@@ -1279,7 +1341,7 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat kaivotiedon lopetukset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_kaivotiedon_lopetukset(
-                os.path.dirname(lopetustiedosto_path), kohdentumattomat
+                Path(lopetustiedosto_path).parent, kohdentumattomat
             )
 
     def write_viemariliitos(
@@ -1351,7 +1413,7 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat viemäriliitokset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_viemariilmoitukset(
-                os.path.dirname(viemaritiedosto_path), kohdentumattomat, viemaritiedosto_path
+                Path(viemaritiedosto_path).parent, kohdentumattomat, viemaritiedosto_path
             )
 
 
@@ -1422,5 +1484,5 @@ class DbProvider:
         if kohdentumattomat:
             lisaa_lisatieto(f"Tallennetaan kohdentumattomat viemärilopetukset ({len(kohdentumattomat)}) tiedostoon")
             export_kohdentumattomat_viemarilopetusilmoitukset(
-                os.path.dirname(lopetustiedosto_path), kohdentumattomat
+                Path(lopetustiedosto_path).parent, kohdentumattomat
             )

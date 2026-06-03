@@ -61,6 +61,8 @@ wb-xlate*
 
 # jkr
 /data
+/input
+/output
 /dump
 /scripts/logs
 muistiot/

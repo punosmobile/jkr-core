@@ -16,7 +16,7 @@ year=$(date +"%Y")
 
 # (Vaihe 1) Kunnat ja postinumerot
 # Kunnat ja postinumerot on tuotava tietokantaan ennen dvv-aineiston tuontia
-psql -h $HOST -p $PORT -d $DB_NAME -U $USER -f import_posti.sql
+psql -h $HOST -p $PORT -d $DB_NAME -U $USER -v posti_file='../data/posti/PCF.dat' -f import_posti.sql
 
 
 

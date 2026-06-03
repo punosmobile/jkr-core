@@ -63,6 +63,6 @@ class Paatostiedosto:
 
         if failed_validations:
             print(f"Päätostiedosto sisältää {len(failed_validations)} virheellistä riviä.")
-            export_kohdentumattomat_paatokset(os.path.dirname(self._path), failed_validations)
+            export_kohdentumattomat_paatokset(Path(self._path).parent, failed_validations)
 
         return paatos_list

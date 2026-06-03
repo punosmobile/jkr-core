@@ -2,16 +2,18 @@
 LIETE-aineiston apufunktiot.
 """
 
+import asyncio
 import csv
 import logging
 from pathlib import Path
 from typing import List, Dict, Any
+from jkrimporter.api import sharepoint as sp
 
 logger = logging.getLogger(__name__)
 
 
 def export_kohdentumattomat_liete_kuljetukset(
-    output_dir: str, 
+    output_dir: str,
     kohdentumattomat: List[Dict[str, Any]]
 ) -> None:
     """
@@ -72,6 +74,8 @@ def export_kohdentumattomat_liete_kuljetukset(
                     row_dict = {k: str(v) if v is not None else '' for k, v in row_dict.items()}
                     writer.writerow(row_dict)
         
+        file_content = output_path.read_bytes()
+        asyncio.run(sp.upload_file(file_content=file_content, filename=output_path.name, user_name="jkr-core"))
         logger.info(f"Tallennettu {len(kohdentumattomat)} kohdentamatonta LIETE-kuljetusta tiedostoon: {output_path}")
         print(f"Kohdentamattomat LIETE-kuljetukset ({len(kohdentumattomat)} kpl) tallennettu: {output_path}")
         

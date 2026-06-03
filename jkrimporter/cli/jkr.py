@@ -6,12 +6,14 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+import json
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 import openpyxl
 from openpyxl.utils import get_column_letter
+from sys import platform
 
 from jkrimporter import __version__
 from jkrimporter.providers.db.dbprovider import DbProvider, engine
@@ -55,6 +57,7 @@ from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
 from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanlukutapahtuma
+from jkrimporter.api.util import FileType
 
 
 @dataclass
@@ -96,6 +99,109 @@ app.add_typer(
     provider_app, name="tiedontuottaja", help="Muokkaa ja tarkastele tiedontuottajia."
 )
 
+
+def _read_dvv_poimintapvm(path: Path) -> str:
+    """Read the collection date (poimintapäivä) from cell C3 of the 'Saate' sheet."""
+    wb = openpyxl.load_workbook(filename=path, data_only=True, read_only=True)
+    value = wb["Saate"]["C3"].value
+    wb.close()
+    if isinstance(value, datetime):
+        return f"{value.day}.{value.month}.{value.year}"
+    # Cell may already be a formatted string — return as-is
+    return str(value)
+
+
+@app.command("batch_import", help="Import data to JKR in a batch.")
+def import_data_batch(
+    tiedostolista: str = typer.Argument(..., help="Lista tiedostoista jotka ajetaan järjestelmään"),
+):
+
+    import_list: list[dict[str, str | FileType | int | Path]] = json.loads(tiedostolista)
+    print(f'batch command starting for {len(import_list)} files')
+    for file_to_import in import_list:
+        operation_type: FileType | None = FileType(file_to_import.get('fileType'))
+        target_path = Path(str(file_to_import.get('target_path')))
+        match operation_type:
+            case FileType.DVVTIEDOSTO:
+                perusmaksu_path: Path | None = None
+                posti_path: str | None = None
+                for muutiedosto in import_list:
+                    if FileType(muutiedosto.get('fileType')) == FileType.PERUSMAKSUAINEISTO:
+                        perusmaksu_path = Path(str(muutiedosto.get('target_path')))
+
+                    if FileType(muutiedosto.get('fileType')) == FileType.POSTINUMEROT:
+                        posti_path = str(muutiedosto.get('target_path'))
+
+                poimintapvm = _read_dvv_poimintapvm(target_path)
+                if (posti_path and perusmaksu_path):
+                    print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}, 'posti', {posti_path}")
+                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
+                elif perusmaksu_path:
+                    print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}")
+                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path)
+                else:
+                    print(f"DVV args: {poimintapvm}, {target_path}")
+                    import_and_create_kohteet(poimintapvm, target_path)
+                continue
+            case FileType.HUONEISTOMAARAT:
+                update_huoneistomaara(target_path)
+                continue
+            case FileType.ILMOITUSTIEDOSTO:
+                import_ilmoitukset(target_path)
+                continue
+            case FileType.KOMPOSTOINNIN_LOPETUS:
+                import_lopetusilmoitukset(target_path)
+                continue
+            case FileType.PAATOSTIEDOSTO:
+                import_paatokset(target_path)
+                continue
+            case FileType.KAIVOTIEDOT_ALKU:
+                import_kaivotiedot(target_path, 'LSJ')
+                continue
+            case FileType.KAIVOTIEDOT_LOPPU:
+                import_kaivotiedon_lopetukset(target_path, 'LSJ')
+                continue
+            case FileType.KULJETUSTIETO_LIETE:
+                import_liete(target_path, 'LSJ', '', '')
+                continue
+            case FileType.LIETE_KOMPOSTOINTI:
+                import_liete_ilmoitukset(target_path)
+                continue
+            case FileType.VIEMARIVERKOSTO_ALKU:
+                import_viemarointi(target_path)
+                continue
+            case FileType.VIEMARIVERKOSTO_LOPPU:
+                import_viemari_lopetusilmoitukset(target_path)
+                continue
+            case FileType.KULJETUSTIETO:
+                import_data(target_path, 'LSJ', '', '')
+                continue
+            case FileType.HAPATIEDOSTO:
+                import_hapa(target_path)
+                continue
+            case FileType.SOTETIEDOSTO:
+                import_sote(target_path)
+                continue
+            case FileType.PERUSMAKSUAINEISTO:
+                print('perusmaksuaineisto luetaan sisään DVV-sisäänluvussa')
+                continue
+            case FileType.TIEDONTUOTTAJAT:
+                with open(target_path, newline='', encoding='utf-8') as f:
+                    for row in csv.DictReader(f, delimiter=';'):
+                        tiedontuottaja_add_new(row['tunnus'], row['nimi'])
+                continue
+            case FileType.POSTINUMEROT:
+                print('Postinumerotietojen pohjustus luetaan sisään DVV-sisäänluvussa. Päivitystä ei vielä ole implementoitu')
+                continue
+            case FileType.TAAJAMAT:
+                print('Taajaman sisäänluku ei ole valmis massana, sillä nykyinen ratkaisu odottaa vain tietyllä tavoin nimettyjä tiedostoja')
+                continue
+            case FileType.VIEMARIVERKOSTOT_KARTTA:
+                print('Viemäriverkostojen sisäänluku voidaan toteuttaa vain manuaalisesti')
+            case _:
+                continue
+
+    return 'Käsittely valmis'
 
 @app.command("import", help="Import transportation data to JKR.")
 def import_data(
@@ -155,6 +261,26 @@ def create_dvv_kohteet(
         print("VALMIS!")
 
 
+# Tämä funktio ei ole vielä käytettävissä, vaatii muutoksia import_taajama.sh/bat tiedostoihin
+@app.command("import_taajamat",
+             help="Imports taajama data and creates taajama areas")
+def import_taajamat(
+    taajaman_alkupvvm: Path = typer.Argument(None, help="Taajaman voimaan astumispäivä"),
+    taajama_polku: Optional[Path] = typer.Argument(None, help="Taajamatiedostojen kansio"),
+):
+    with sisaanlukutapahtuma():
+        file_to_run: Optional[str] = None
+        if platform == "linux" or platform == "linux2":
+            file_to_run = "./scripts/import_and_create_kohteet.sh"
+        else:
+            file_to_run = ".\\scripts\\import_and_create_kohteet.bat"
+
+        cmd_args = [file_to_run, taajaman_alkupvvm, taajama_polku]
+
+        subprocess.call(cmd_args)
+
+        print("VALMIS!")
+
 @app.command("import_and_create_kohteet",
              help="Imports dvv data and creates dvv kohteet(optionally with perusmaksu). Optionally imports posti data.")
 def import_and_create_kohteet(
@@ -162,14 +288,21 @@ def import_and_create_kohteet(
     dvv: Path = typer.Argument(None, help="Dvv-tiedoston sijainti"),
     perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
+    posti_file: Optional[str] = typer.Argument(None, help="What file to use if provided, else defaults to data/posti/PCF.dat"),
 ):
     with sisaanlukutapahtuma():
-        bat_file = ".\\scripts\\import_and_create_kohteet.bat"
+        file_to_run: Optional[str] = None
+        if platform == "linux" or platform == "linux2":
+            file_to_run = "./scripts/import_and_create_kohteet.sh"
+        else:
+            file_to_run = ".\\scripts\\import_and_create_kohteet.bat"
 
-        cmd_args = [bat_file, dvv, poimintapvm]
+        cmd_args = [file_to_run, dvv, poimintapvm]
 
         if posti == "posti":
             cmd_args.append("posti")
+            if posti_file is not None:
+                cmd_args.append(posti_file)
 
         subprocess.call(cmd_args)
 
@@ -186,9 +319,13 @@ def import_and_create_kohteet(
 def update_huoneistomaara(
     huoneisto_xlsx: Path = typer.Argument(None, help="Huoniestolukumäärä-tiedoston sijainti")
 ):
-    bat_file = ".\\scripts\\update_huoneistomaara.bat"
+    file_to_run: Optional[str] = None
+    if platform == "linux" or platform == "linux2":
+        file_to_run = "./scripts/update_huoneistomaara.sh"
+    else:
+        file_to_run = ".\\scripts\\update_huoneistomaara.bat"
 
-    cmd_args = [bat_file, huoneisto_xlsx]
+    cmd_args = [file_to_run, huoneisto_xlsx]
 
     subprocess.call(cmd_args)
 
@@ -278,6 +415,7 @@ def import_liete(
             raise typer.Exit(1)
 
         # Parsii päivämäärät
+        print(f"alkupvm {alkupvm}, loppupvm {loppupvm}")
         if alkupvm:
             alkupvm = parse_date_string(alkupvm)
         if loppupvm:
@@ -488,7 +626,7 @@ def import_hapa(
                 typer.echo(f"Error: File {aineistopolku} does not exist", err=True)
                 raise typer.Exit(1)
 
-            typer.echo(f"Importing HAPA data from {aineistopolku}")
+            print(f"Importing HAPA data from {aineistopolku}")
 
             # Create SQLAlchemy session
             Session = scoped_session(sessionmaker(bind=engine))
@@ -565,11 +703,115 @@ def import_hapa(
                     result = session.execute(text("SELECT COUNT(*) FROM jkr.hapa_aineisto WHERE tuonti_pvm >= CURRENT_DATE"))
                     count = result.scalar()
 
-                typer.echo(f"Successfully imported {count} HAPA records")
-                typer.echo("VALMIS!")
+                print(f"Successfully imported {count} HAPA records")
+                print("VALMIS!")
 
         except Exception as e:
             typer.echo(f"Error importing HAPA data: {str(e)}", err=True)
+            raise typer.Exit(1)
+        
+@app.command("import_sote", help="Import SOTE data from CSV file to JKR database.")
+def import_sote(
+    aineistopolku: Path = typer.Argument(..., help="Path to the SOTE CSV file"),
+):
+    """Import SOTE data from CSV file to JKR database.
+
+    The CSV file should have columns like:
+    Rakennus-ID, Kohde id, Sijaintikunta, Asiakasnro, Rakennus-ID, Katunimi FI, 
+    Talon numero, Postinumero, Postitoimipaikka FI, kohdetyyppi
+
+    The file must be in CSV format with semicolon (;) as delimiter, UTF-8 encoding, and include headers.
+    """
+    with sisaanlukutapahtuma():
+        try:
+            # Check if file exists and is readable
+            if not aineistopolku.exists():
+                typer.echo(f"Error: File {aineistopolku} does not exist", err=True)
+                raise typer.Exit(1)
+            
+
+            print(f"Importing SOTE data from {aineistopolku}")
+
+            # Create SQLAlchemy session
+            Session = scoped_session(sessionmaker(bind=engine))
+            with Session() as session:
+                # Read CSV file to verify structure before importing
+                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f, delimiter=';')
+                    headers = next(reader)
+
+                    # Check if all required headers are present
+                    required_headers = ['Rakennus-ID', 'Kohde id', 'Sijaintikunta', 'Asiakasnro',
+                                       'Katunimi FI', 'Talon numero', 'Postinumero',
+                                       'Postitoimipaikka FI', 'kohdetyyppi']
+
+                    missing_headers = [h for h in required_headers if h not in headers]
+                    if missing_headers:
+                        typer.echo(f"Error: CSV file is missing required headers: {missing_headers}", err=True)
+                        raise typer.Exit(1)
+
+                # Create a temporary file with renamed headers to match database columns
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, suffix='.csv') as temp_file:
+                    temp_path = Path(temp_file.name)
+
+                    # Write header row with database column names
+                    db_headers = ['rakennus_id_tunnus', 'kohde_tunnus', 'sijaintikunta', 'asiakasnro',
+                                 'rakennus_id_tunnus2', 'katunimi_fi', 'talon_numero', 'postinumero',
+                                 'postitoimipaikka_fi', 'kohdetyyppi']
+                    temp_file.write(';'.join(db_headers) + '\n')
+
+                    # Read original CSV and write to temp file with correct column order
+                    with open(aineistopolku, 'r', encoding='utf-8') as f:
+                        reader = csv.reader(f, delimiter=';')
+                        next(reader)  # Skip header
+
+                        for row in reader:
+                            if len(row) >= 10:  # Ensure row has enough columns
+                                temp_file.write(';'.join(row) + '\n')
+
+                # Use SQL COPY command for efficient bulk loading with copy_expert
+                copy_sql = f"""
+                COPY jkr.sote_aineisto(
+                    rakennus_id_tunnus, kohde_tunnus, sijaintikunta, asiakasnro,
+                    rakennus_id_tunnus2, katunimi_fi, talon_numero, postinumero,
+                    postitoimipaikka_fi, kohdetyyppi
+                ) FROM STDIN WITH (
+                    FORMAT csv,
+                    DELIMITER ';',
+                    HEADER true,
+                    ENCODING 'UTF8',
+                    NULL ''
+                );
+                """
+
+                # Execute the COPY command with the temporary file using copy_expert
+                with Session() as session:
+                    connection = session.connection().connection
+                    cursor = connection.cursor()
+
+                    # Open the file and use copy_expert
+                    with open(temp_path, 'r', encoding='utf-8') as f:
+                        cursor.copy_expert(copy_sql, f)
+
+                    connection.commit()
+
+                # Clean up the temporary file
+                try:
+                    temp_path.unlink()
+                except Exception:
+                    pass
+
+                # Get count of imported rows
+                with Session() as session:
+                    result = session.execute(text("SELECT COUNT(*) FROM jkr.sote_aineisto WHERE tuonti_pvm >= CURRENT_DATE"))
+                    count = result.scalar()
+
+                print(f"Successfully imported {count} SOTE records")
+                print("VALMIS!")
+
+        except Exception as e:
+            typer.echo(f"Error importing SOTE data: {str(e)}", err=True)
             raise typer.Exit(1)
 
 
