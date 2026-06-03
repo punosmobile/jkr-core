@@ -316,4 +316,45 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Jätelaji naming has been slightly changed to match source data
--
+
+## [0.7.8] - 2026-06-03
+
+### Added
+
+- REST API with authentication for the new frontend:
+  - Azure App Registration scripts and authentication flow
+  - Endpoints for import log, reports, licences, dashboard overview and task management
+  - Ability to start and stop (abort) running tasks
+  - Version info added to the healthcheck response
+  - Secure WebSocket log streaming
+- SharePoint integration:
+  - Download files and folders from SharePoint to the server
+  - Move, delete and create folders in SharePoint
+  - Upload kohdentumattomat files and log files to SharePoint for review
+  - SharePoint audit logging
+- Batch jobs for running commands en masse without requiring user actions
+- File upload with analysis of row count, data type and header validation
+- Tool for searching a kohde by address (Kohdehaku)
+- New kohdetyyppi "Sote" with data import support and QGIS layers
+- Handling for kompostointi lopetusilmoitukset, including liete kompostointi
+- Explanations for velvoite rules and fulfilment rules
+
+### Fixed
+
+- Fixed issue where reports would sometimes miss the PRT
+- Fixed viemäri import error report fetching usernames incorrectly
+- Fixed kiinteä jäte velvoiteyhteenveto "vapautettu" check not considering all buildings
+- Fixed velvoiteyhteenveto result when biojäte is missing and sekajäte has the wrong tyhjennysväli
+- Jätelaji_id values now match Lahti definitions in kuljetustiedot and sopimukset
+- Fixed several error reports (virheraportit)
+- Fixed postal code file import to accept other values and to be read from the data folder correctly
+- Fixed a migration error
+- Ensured an old kohde does not remain active without buildings
+
+### Changed
+
+- Velvoiteajo now reassigns velvoitteet for all kohteet
+- Updated velvoite views to show velvoite loppupvm
+- DVV data is re-checked when a kohde is terminated
+- Updated the QGIS project
+- Updated system documentation
