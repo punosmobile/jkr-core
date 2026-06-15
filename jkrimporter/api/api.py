@@ -214,6 +214,122 @@ def _create_task(
 _TASK_OUTPUT_TAIL = 100  # task.output/error säilyttää vain viimeiset N riviä
 
 
+# ---------------------------------------------------------------------------
+# Tuontiloki (jkr.sisaanluku_tapahtuma)
+# ---------------------------------------------------------------------------
+# Osa ajoista kirjaa tuontilokirivinsä itse, jolloin _run_task EI saa kirjata
+# toista riviä samasta ajosta:
+#   - jkr-CLI:n import-alikomennot kirjaavat rivin
+#     jkrimporter.providers.db.sisaanlukutapahtuma.sisaanlukutapahtuma():n kautta
+#     (ja keräävät samalla rikkaan lisatiedot-koosteen lisaa_lisatieto()-kutsuista).
+#   - velvoite-PL/pgSQL-funktiot update_velvoitteet() ja tallenna_velvoite_status()
+#     kirjaavat oman rivinsä.
+# Kaikki muut sisäänlukukomennot (psql \copy, psql -f, ogr2ogr, sh import_*.sh)
+# eivät kirjaa itse, joten _run_task kääräisee ne tähän lokille.
+_SELF_LOGGING_JKR_SUBCOMMANDS = {
+    "import",
+    "batch_import",
+    "import_liete",
+    "import_paatokset",
+    "import_ilmoitukset",
+    "import_liete_ilmoitukset",
+    "import_lopetusilmoitukset",
+    "import_kaivotiedot",
+    "import_kaivotiedon_lopetukset",
+    "import_viemarit",
+    "import_lopeta_viemarit",
+    "import_taajamat",
+    "import_and_create_kohteet",
+    "create_dvv_kohteet",
+    "import_hapa",
+    "import_sote",
+}
+_SELF_LOGGING_SQL_FUNCTIONS = (
+    "jkr.update_velvoitteet",
+    "jkr.tallenna_velvoite_status",
+)
+
+
+def _command_self_logs(command: str) -> bool:
+    """Kirjaako komento itse tuontilokirivinsä (→ _run_task ei saa kirjata toista)."""
+    cmd = (command or "").strip()
+    if not cmd:
+        return False
+    if any(fn in cmd for fn in _SELF_LOGGING_SQL_FUNCTIONS):
+        return True
+    try:
+        tokens = shlex.split(cmd)
+    except ValueError:
+        tokens = cmd.split()
+    for i, tok in enumerate(tokens):
+        if os.path.basename(tok) == "jkr" and i + 1 < len(tokens):
+            return tokens[i + 1] in _SELF_LOGGING_JKR_SUBCOMMANDS
+    return False
+
+
+def _build_loki_lisatiedot(task: TaskInfo) -> Optional[str]:
+    """Kokoaa tuontilokin lisatiedot-kentän tehtävän tulosteesta."""
+    parts: List[str] = []
+    if task.exit_code is not None:
+        parts.append(f"exit_code={task.exit_code}")
+    out_tail = "\n".join((task.output or "").splitlines()[-20:]).strip()
+    err_tail = "\n".join((task.error or "").splitlines()[-20:]).strip()
+    if out_tail:
+        parts.append(out_tail)
+    if err_tail:
+        parts.append("--- stderr ---\n" + err_tail)
+    return "\n".join(parts) if parts else None
+
+
+def _tuontiloki_alku(command: str) -> int:
+    """Kirjaa sisäänlukutapahtuman alun ja palauttaa rivin id:n (sync)."""
+    from sqlalchemy.orm import Session
+
+    from jkrimporter.providers.db.database import engine
+    from jkrimporter.providers.db.sisaanlukutapahtuma import kirjaa_sisaanluku_alku
+
+    komento = re.sub(r"password=\S+", "password=***", command or "")
+    with Session(engine) as session:
+        return kirjaa_sisaanluku_alku(session, komento)
+
+
+def _tuontiloki_loppu(loki_id: int, status: str, lisatiedot: Optional[str]) -> None:
+    """Päivittää sisäänlukutapahtuman loppuajan ja statuksen (sync)."""
+    from sqlalchemy.orm import Session
+
+    from jkrimporter.providers.db.database import engine
+    from jkrimporter.providers.db.sisaanlukutapahtuma import kirjaa_sisaanluku_loppu
+
+    with Session(engine) as session:
+        kirjaa_sisaanluku_loppu(session, loki_id, status=status, lisatiedot=lisatiedot)
+
+
+async def _aloita_tuontiloki(task: TaskInfo, command: str) -> Optional[int]:
+    """Kirjaa tuontilokin aloitusrivin, jos tehtävä on tuonti eikä kirjaa itse."""
+    if task.taskType != TaskType.import_task.value:
+        return None
+    if _command_self_logs(command):
+        return None
+    try:
+        return await asyncio.to_thread(_tuontiloki_alku, command)
+    except Exception:
+        logger.exception("Tuontilokin aloitusrivin kirjaus epäonnistui (task=%s)", task.id)
+        return None
+
+
+async def _paata_tuontiloki(loki_id: Optional[int], task: TaskInfo) -> None:
+    """Päivittää tuontilokin lopetusrivin tehtävän lopputilan mukaan."""
+    if loki_id is None:
+        return
+    status = "valmis" if task.status == TaskStatus.completed else "virhe"
+    try:
+        await asyncio.to_thread(
+            _tuontiloki_loppu, loki_id, status, _build_loki_lisatiedot(task)
+        )
+    except Exception:
+        logger.exception("Tuontilokin lopetusrivin kirjaus epäonnistui (task=%s)", task.id)
+
+
 async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
     """Suorittaa komennon taustalla ja päivittää tehtävän tilan.
 
@@ -225,6 +341,9 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
     task.status = TaskStatus.running
     task.started_at = datetime.now()
     task_logger = logging.getLogger(f"task.{task_id[:8]}")
+
+    # Tuontiloki: kirjaa aloitusrivi niille tuonneille, jotka eivät kirjaa itse.
+    loki_id = await _aloita_tuontiloki(task, command)
 
     output_buf: collections.deque = collections.deque(maxlen=_TASK_OUTPUT_TAIL)
     error_buf: collections.deque = collections.deque(maxlen=_TASK_OUTPUT_TAIL)
@@ -324,6 +443,9 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
         task.status,
         task.duration_seconds or 0,
     )
+
+    # Tuontiloki: päivitä lopetusrivi tehtävän lopputilan mukaan (valmis/virhe).
+    await _paata_tuontiloki(loki_id, task)
 
     """ log_path = Path(__log_path__)
     if log_path.exists() and log_path.stat().st_size > 0:
