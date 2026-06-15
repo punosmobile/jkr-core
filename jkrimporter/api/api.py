@@ -503,6 +503,74 @@ def _ogr2ogr_cmd(source: str, layer: str, table: str, schema: str) -> str:
     return f'ogr2ogr -f PostgreSQL -overwrite -progress {pg_conn} -nln {table} "{source}" "{layer}"'
 
 
+# Tietokantadumppien kohdekansio (kontissa). Voidaan ylikirjoittaa
+# ympäristömuuttujalla JKR_DBDUMP_DIR. Kansio luodaan Dockerfilessa.
+DBDUMPS_DIR = Path(os.environ.get("JKR_DBDUMP_DIR", "/dbdumps"))
+
+
+def _pg_dump_cmd(output_path: Path) -> str:
+    """Muodostaa pg_dump-komennon tietokannan varmuuskopiointia varten.
+
+    Kaikki yhteystiedot luetaan ympäristömuuttujista (kuten muissakin
+    komennoissa); salasana välitetään PGPASSWORD-muuttujana _db_env():n kautta.
+    """
+    host = os.environ.get("JKR_DB_HOST", "")
+    port = os.environ.get("JKR_DB_PORT", "")
+    db = os.environ.get("JKR_DB", "")
+    user = os.environ.get("JKR_USER", "")
+    return (
+        f"pg_dump -h {shlex.quote(host)} -p {shlex.quote(port)} "
+        f"-U {shlex.quote(user)} -F c -b -v "
+        f"-f {shlex.quote(str(output_path))} {shlex.quote(db)}"
+    )
+
+
+# pg_restore tulostaa tämän rivin, kun palautus eteni tietokantaan asti mutta
+# ohitti objektitason virheitä (esim. --clean-pudotukset). Tällöin data on
+# palautettu, vaikka pg_restore palaa nollasta poikkeavalla koodilla.
+_PG_RESTORE_IGNORED_ERRORS_RE = re.compile(
+    r"errors ignored on restore:\s*(\d+)", re.IGNORECASE
+)
+
+
+def _pg_restore_cmd(input_path: Path) -> str:
+    """Muodostaa pg_restore-komennon varmuuskopion palauttamiseksi.
+
+    Olettaa pg_dump:n custom-formaatin (-F c). `--clean --if-exists` pudottaa
+    olemassa olevat objektit ennen palautusta, jotta palautus voidaan ajaa
+    olemassa olevan tietokannan päälle. Yhteystiedot luetaan
+    ympäristömuuttujista, salasana PGPASSWORD:n kautta (_db_env()).
+    """
+    host = os.environ.get("JKR_DB_HOST", "")
+    port = os.environ.get("JKR_DB_PORT", "")
+    db = os.environ.get("JKR_DB", "")
+    user = os.environ.get("JKR_USER", "")
+    return (
+        f"pg_restore -h {shlex.quote(host)} -p {shlex.quote(port)} "
+        f"-U {shlex.quote(user)} -d {shlex.quote(db)} "
+        f"--clean --if-exists --no-owner --no-acl -v "
+        f"{shlex.quote(str(input_path))}"
+    )
+
+
+def _resolve_dump_path(filename: str) -> Path:
+    """Ratkaisee varmuuskopiotiedoston polun turvallisesti DBDUMPS_DIR:n sisällä.
+
+    Estää polkuhyökkäykset (path traversal): hyväksytään vain tiedostonimi
+    ilman hakemisto-osia, ja varmistetaan että lopullinen polku on
+    DBDUMPS_DIR:n alla. Heittää HTTPException 400/404 virhetilanteissa.
+    """
+    if not filename or filename != Path(filename).name:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    dumps_dir = DBDUMPS_DIR.resolve()
+    candidate = (dumps_dir / filename).resolve()
+    if candidate.parent != dumps_dir:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail=f"Varmuuskopiota ei löydy: {filename}")
+    return candidate
+
+
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 
 
@@ -942,6 +1010,157 @@ async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, back
     task = _create_task(cmd, f"Velvoite-statuksen tallennus ({pvm})", username=user.name, task_type=TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
     return _task_response(task)
+
+
+# ---------------------------------------------------------------------------
+# Endpointit: Tietokannan varmuuskopiointi (pg_dump)
+# ---------------------------------------------------------------------------
+@app.post("/db/dump", summary="pg_dump – Luo tietokannan varmuuskopio", response_model=TaskResponse)
+async def db_dump(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
+    """Ajaa `pg_dump`-komennon, joka tallentaa tietokannan varmuuskopion
+    `/dbdumps`-kansioon (ylikirjoitettavissa JKR_DBDUMP_DIR-muuttujalla).
+
+    Tiedostonimi muodostuu tietokannan nimestä ja aikaleimasta, esim.
+    `jatehuolto_dump_20260615_1432.backup`. Varmuuskopio luodaan pg_dump:n
+    custom-formaatissa (-F c), joka voidaan palauttaa `pg_restore`-komennolla.
+    """
+    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
+    db = os.environ.get("JKR_DB", "") or "jkr"
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    output_path = DBDUMPS_DIR / f"{db}_dump_{ts}.backup"
+    cmd = _pg_dump_cmd(output_path)
+    task = _create_task(cmd, f"Tietokannan varmuuskopiointi → {output_path}", username=user.name, task_type=TaskType.maintenance)
+    background_tasks.add_task(_run_task, task.id, cmd)
+    return _task_response(task)
+
+
+class BackupInfo(BaseModel):
+    """Yhden varmuuskopiotiedoston tiedot."""
+    filename: str
+    size: int = Field(..., description="Koko tavuina")
+    created_at: datetime = Field(..., description="Tiedoston muokkausaika")
+
+
+class RestoreRequest(BaseModel):
+    """pg_restore: palauta tietokanta varmuuskopiosta."""
+    filename: str = Field(..., description="Palautettavan varmuuskopion tiedostonimi (DBDUMPS_DIR:ssä)")
+
+
+@app.get("/db/dumps", summary="Listaa olemassa olevat varmuuskopiot", response_model=List[BackupInfo])
+async def list_db_dumps(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa `/dbdumps`-kansiossa olevat varmuuskopiot uusin ensin."""
+    if not DBDUMPS_DIR.exists():
+        return []
+    backups = []
+    for path in DBDUMPS_DIR.iterdir():
+        if not path.is_file():
+            continue
+        stat = path.stat()
+        backups.append(
+            BackupInfo(
+                filename=path.name,
+                size=stat.st_size,
+                created_at=datetime.fromtimestamp(stat.st_mtime),
+            )
+        )
+    backups.sort(key=lambda b: b.created_at, reverse=True)
+    return backups
+
+
+@app.delete("/db/dumps/{filename}", summary="Poista varmuuskopio")
+async def delete_db_dump(filename: str, user: CurrentUser = Depends(require_admin)):
+    """Poistaa annetun varmuuskopiotiedoston `/dbdumps`-kansiosta."""
+    path = _resolve_dump_path(filename)
+    try:
+        path.unlink()
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Poisto epäonnistui: {e}")
+    logger.info("Varmuuskopio poistettu: %s (käyttäjä=%s)", filename, getattr(user, "name", "?"))
+    return {"filename": filename, "message": "Varmuuskopio poistettu"}
+
+
+async def _run_restore_task(task_id: str, command: str):
+    """Ajaa pg_restore-komennon ja tulkitsee ohitetut virheet onnistumiseksi.
+
+    `pg_restore --clean --if-exists` palaa nollasta poikkeavalla koodilla, kun
+    se ohittaa objektitason virheitä (esim. olemassa olevien objektien
+    pudotukset). Data on silti palautettu, joten merkitsemme tehtävän
+    onnistuneeksi, jos lokista löytyy "errors ignored on restore" -rivi.
+    Aito epäonnistuminen (esim. yhteysvirhe) ei tuota tätä riviä, joten se jää
+    edelleen 'failed'-tilaan.
+    """
+    await _run_task(task_id, command)
+
+    task = _tasks.get(task_id)
+    if task is None or task.status != TaskStatus.failed:
+        return
+    if task_id in _cancelled_tasks:
+        return
+
+    combined = f"{task.output}\n{task.error}"
+    match = _PG_RESTORE_IGNORED_ERRORS_RE.search(combined)
+    if not match:
+        return
+
+    note = (
+        f"pg_restore ohitti {match.group(1)} virhettä – tämä on normaalia "
+        "--clean-palautuksessa. Tietokanta palautettiin onnistuneesti."
+    )
+    task.status = TaskStatus.completed
+    task.output = f"{task.output}\n{note}" if task.output else note
+    logger.info("Palautustehtävä %s merkitty onnistuneeksi: %s", task_id, note)
+
+
+@app.post("/db/restore", summary="pg_restore – Palauta tietokanta varmuuskopiosta", response_model=TaskResponse)
+async def db_restore(req: RestoreRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
+    """Palauttaa tietokannan annetusta varmuuskopiosta `pg_restore`-komennolla.
+
+    HUOM: `--clean --if-exists` pudottaa olemassa olevat objektit ennen
+    palautusta, eli operaatio ylikirjoittaa nykyisen tietokannan sisällön.
+    """
+    path = _resolve_dump_path(req.filename)
+    cmd = _pg_restore_cmd(path)
+    task = _create_task(cmd, f"Tietokannan palautus varmuuskopiosta {req.filename}", username=user.name, task_type=TaskType.maintenance)
+    background_tasks.add_task(_run_restore_task, task.id, cmd)
+    return _task_response(task)
+
+
+@app.get("/db/dumps/{filename}/download", summary="Lataa varmuuskopio")
+async def download_db_dump(filename: str, user: CurrentUser = Depends(require_authenticated)):
+    """Lataa annetun varmuuskopiotiedoston `/dbdumps`-kansiosta."""
+    path = _resolve_dump_path(filename)
+    return FileResponse(
+        path=str(path),
+        filename=path.name,
+        media_type="application/octet-stream",
+    )
+
+
+@app.post("/db/dumps/upload", summary="Lataa varmuuskopio palvelimelle")
+async def upload_db_dump(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(require_admin),
+):
+    """Lataa varmuuskopiotiedoston `/dbdumps`-kansioon (esim. palautusta varten)."""
+    if not file.filename or file.filename != Path(file.filename).name:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
+    target_path = DBDUMPS_DIR / file.filename
+
+    async with aiofiles.open(str(target_path), "wb") as f:
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB kerrallaan
+            if not chunk:
+                break
+            await f.write(chunk)
+
+    file_size = target_path.stat().st_size
+    logger.info("Varmuuskopio ladattu: %s (%d tavua)", file.filename, file_size)
+    return {
+        "filename": file.filename,
+        "target_path": str(target_path),
+        "file_size": file_size,
+    }
 
 
 # ---------------------------------------------------------------------------

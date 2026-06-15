@@ -48,6 +48,9 @@ RUN pip install --upgrade pip
 # Varmista /data/input -kansio
 RUN mkdir -p /data/input
 
+# Varmista /dbdumps -kansio tietokannan varmuuskopioille
+RUN mkdir -p /dbdumps
+
 # Määritä työhakemisto
 WORKDIR /app
 
