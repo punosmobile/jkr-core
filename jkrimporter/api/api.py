@@ -1015,6 +1015,58 @@ async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, back
 # ---------------------------------------------------------------------------
 # Endpointit: Tietokannan varmuuskopiointi (pg_dump)
 # ---------------------------------------------------------------------------
+# Käynnissä olevat dump/restore-operaatiot: task_id -> {"kind", "filename"}.
+# Vain yksi varmuuskopiointi/palautus sallitaan kerrallaan (ks. _ensure_no_db_op).
+# Lukko perustuu tehtävän live-statukseen, joten kaatunut tehtävä ei jätä
+# pysyvää lukkoa.
+_db_operations: Dict[str, Dict[str, Any]] = {}
+
+
+def _prune_db_operations() -> None:
+    """Poistaa rekisteristä jo valmistuneet/kadonneet operaatiot."""
+    stale = [
+        task_id for task_id in _db_operations
+        if (_tasks.get(task_id) is None
+            or _tasks[task_id].status in (TaskStatus.completed, TaskStatus.failed))
+    ]
+    for task_id in stale:
+        _db_operations.pop(task_id, None)
+
+
+def _active_db_task() -> Optional[TaskInfo]:
+    """Palauttaa käynnissä (pending/running) olevan dump/restore-tehtävän, jos on."""
+    for task_id in _db_operations:
+        task = _tasks.get(task_id)
+        if task is not None and task.status in (TaskStatus.pending, TaskStatus.running):
+            return task
+    return None
+
+
+def _ensure_no_db_op_running() -> None:
+    """Estää uuden dump/restore-operaation, jos sellainen on jo käynnissä.
+
+    Varmuuskopiointi ja palautus käsittelevät samaa tietokantaa (pg_restore
+    jopa pudottaa ja luo objektit uudelleen), joten ne suoritetaan toisensa
+    poissulkevasti: kerrallaan vain yksi. Heittää HTTP 409:n, jos käynnissä on jo
+    operaatio.
+    """
+    _prune_db_operations()
+    busy = _active_db_task()
+    if busy is None:
+        return
+    meta = _db_operations.get(busy.id, {})
+    kind_fi = "palautus" if meta.get("kind") == "restore" else "varmuuskopiointi"
+    runner = busy.runner or "toinen käyttäjä"
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"Tietokannan {kind_fi} on jo käynnissä (käynnistäjä: {runner}). "
+            "Odota, että se valmistuu ennen uuden varmuuskopioinnin tai "
+            "palautuksen aloittamista."
+        ),
+    )
+
+
 @app.post("/db/dump", summary="pg_dump – Luo tietokannan varmuuskopio", response_model=TaskResponse)
 async def db_dump(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     """Ajaa `pg_dump`-komennon, joka tallentaa tietokannan varmuuskopion
@@ -1024,12 +1076,14 @@ async def db_dump(background_tasks: BackgroundTasks, user: CurrentUser = Depends
     `jatehuolto_dump_20260615_1432.backup`. Varmuuskopio luodaan pg_dump:n
     custom-formaatissa (-F c), joka voidaan palauttaa `pg_restore`-komennolla.
     """
+    _ensure_no_db_op_running()
     DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
     db = os.environ.get("JKR_DB", "") or "jkr"
     ts = datetime.now().strftime("%Y%m%d_%H%M")
     output_path = DBDUMPS_DIR / f"{db}_dump_{ts}.backup"
     cmd = _pg_dump_cmd(output_path)
     task = _create_task(cmd, f"Tietokannan varmuuskopiointi → {output_path}", username=user.name, task_type=TaskType.maintenance)
+    _db_operations[task.id] = {"kind": "dump", "filename": output_path.name}
     background_tasks.add_task(_run_task, task.id, cmd)
     return _task_response(task)
 
@@ -1118,11 +1172,55 @@ async def db_restore(req: RestoreRequest, background_tasks: BackgroundTasks, use
     HUOM: `--clean --if-exists` pudottaa olemassa olevat objektit ennen
     palautusta, eli operaatio ylikirjoittaa nykyisen tietokannan sisällön.
     """
+    _ensure_no_db_op_running()
     path = _resolve_dump_path(req.filename)
     cmd = _pg_restore_cmd(path)
     task = _create_task(cmd, f"Tietokannan palautus varmuuskopiosta {req.filename}", username=user.name, task_type=TaskType.maintenance)
+    _db_operations[task.id] = {"kind": "restore", "filename": req.filename}
     background_tasks.add_task(_run_restore_task, task.id, cmd)
     return _task_response(task)
+
+
+class ActiveDbOperation(BaseModel):
+    """Käynnissä oleva varmuuskopiointi/palautus (edistymisindikaattorin palautusta varten)."""
+    task_id: str
+    kind: str = Field(..., description='"dump" tai "restore"')
+    filename: Optional[str] = None
+    status: TaskStatus
+    message: Optional[str] = Field(None, description="Tehtävän viimeisin lokirivi")
+
+
+@app.get(
+    "/db/active-operation",
+    summary="Käynnissä oleva varmuuskopiointi/palautus",
+    response_model=Optional[ActiveDbOperation],
+)
+async def db_active_operation(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa käynnissä olevan dump/restore-operaation tai `null`.
+
+    Frontend kutsuu tätä sivulle saapuessaan, jotta edistymisindikaattori voidaan
+    palauttaa, vaikka taustatehtävä olisi aloitettu eri istunnossa tai sivulta
+    poistuttiin välillä. Tehtävä jatkuu palvelimella riippumatta näkymästä.
+    """
+    busy = _active_db_task()
+    if busy is None:
+        return None
+    meta = _db_operations.get(busy.id, {})
+    last_line: Optional[str] = None
+    for source in (busy.error, busy.output):
+        for line in reversed((source or "").splitlines()):
+            if line.strip():
+                last_line = line.strip()
+                break
+        if last_line:
+            break
+    return ActiveDbOperation(
+        task_id=busy.id,
+        kind=meta.get("kind", "dump"),
+        filename=meta.get("filename"),
+        status=busy.status,
+        message=last_line,
+    )
 
 
 @app.get("/db/dumps/{filename}/download", summary="Lataa varmuuskopio")
@@ -1602,6 +1700,43 @@ async def auth_me(user: CurrentUser = Depends(require_authenticated)):
         "roles": user.roles,
         "is_admin": user.is_admin,
         "is_viewer": user.is_viewer,
+    }
+
+
+@app.get("/auth/me/debug", summary="Debug: kirjautuneen käyttäjän kaikki token-tiedot")
+async def auth_me_debug(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa kaiken kirjautuneesta käyttäjästä: johdetut roolit, ryhmät,
+    Azure App Rolet (tokenin `roles`-claim) sekä KAIKKI token-claimit.
+
+    Tarkoitettu diagnostiikkaan – esim. selvittämään miksi käyttäjä ei saa
+    oikeuksia (puuttuvat group-claimit / groups overage) ja mitä app-roolinimiä
+    tokenissa todella on. Jokainen käyttäjä näkee vain oman tokeninsa tiedot.
+    """
+    claims = getattr(user, "claims", {}) or {}
+    # Groups overage: kun käyttäjä on liian monessa ryhmässä, Azure EI laita
+    # `groups`-taulukkoa tokeniin vaan `_claim_names`/`_claim_sources`-osoittimen.
+    groups_overage = "_claim_names" in claims or "_claim_sources" in claims
+    return {
+        "oid": user.oid,
+        "name": user.name,
+        "email": user.email,
+        # Sovelluksen johtamat roolit (admin/viewer) – mitä käyttäjä TÄLLÄ hetkellä saa.
+        "derived_roles": user.roles,
+        "is_admin": user.is_admin,
+        "is_viewer": user.is_viewer,
+        # Tokenista luetut raakatiedot.
+        "groups": user.groups,
+        "app_roles": claims.get("roles", []),  # Azure App Roles (esim. editor_role/viewer_role)
+        "groups_overage": groups_overage,
+        # Palvelimen konfiguraatio vertailua varten (ei salaisuuksia, vain tunnisteita).
+        "server_config": {
+            "admin_group_id": os.environ.get("AZURE_ADMIN_GROUP_ID", ""),
+            "viewer_group_id": os.environ.get("AZURE_VIEWER_GROUP_ID", ""),
+            "admin_app_role": os.environ.get("AZURE_ADMIN_APP_ROLE", ""),
+            "viewer_app_role": os.environ.get("AZURE_VIEWER_APP_ROLE", ""),
+        },
+        # Kaikki token-claimit sellaisenaan.
+        "claims": claims,
     }
 
 
