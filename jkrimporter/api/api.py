@@ -625,6 +625,74 @@ def _ogr2ogr_cmd(source: str, layer: str, table: str, schema: str) -> str:
     return f'ogr2ogr -f PostgreSQL -overwrite -progress {pg_conn} -nln {table} "{source}" "{layer}"'
 
 
+# Tietokantadumppien kohdekansio (kontissa). Voidaan ylikirjoittaa
+# ympäristömuuttujalla JKR_DBDUMP_DIR. Kansio luodaan Dockerfilessa.
+DBDUMPS_DIR = Path(os.environ.get("JKR_DBDUMP_DIR", "/dbdumps"))
+
+
+def _pg_dump_cmd(output_path: Path) -> str:
+    """Muodostaa pg_dump-komennon tietokannan varmuuskopiointia varten.
+
+    Kaikki yhteystiedot luetaan ympäristömuuttujista (kuten muissakin
+    komennoissa); salasana välitetään PGPASSWORD-muuttujana _db_env():n kautta.
+    """
+    host = os.environ.get("JKR_DB_HOST", "")
+    port = os.environ.get("JKR_DB_PORT", "")
+    db = os.environ.get("JKR_DB", "")
+    user = os.environ.get("JKR_USER", "")
+    return (
+        f"pg_dump -h {shlex.quote(host)} -p {shlex.quote(port)} "
+        f"-U {shlex.quote(user)} -F c -b -v "
+        f"-f {shlex.quote(str(output_path))} {shlex.quote(db)}"
+    )
+
+
+# pg_restore tulostaa tämän rivin, kun palautus eteni tietokantaan asti mutta
+# ohitti objektitason virheitä (esim. --clean-pudotukset). Tällöin data on
+# palautettu, vaikka pg_restore palaa nollasta poikkeavalla koodilla.
+_PG_RESTORE_IGNORED_ERRORS_RE = re.compile(
+    r"errors ignored on restore:\s*(\d+)", re.IGNORECASE
+)
+
+
+def _pg_restore_cmd(input_path: Path) -> str:
+    """Muodostaa pg_restore-komennon varmuuskopion palauttamiseksi.
+
+    Olettaa pg_dump:n custom-formaatin (-F c). `--clean --if-exists` pudottaa
+    olemassa olevat objektit ennen palautusta, jotta palautus voidaan ajaa
+    olemassa olevan tietokannan päälle. Yhteystiedot luetaan
+    ympäristömuuttujista, salasana PGPASSWORD:n kautta (_db_env()).
+    """
+    host = os.environ.get("JKR_DB_HOST", "")
+    port = os.environ.get("JKR_DB_PORT", "")
+    db = os.environ.get("JKR_DB", "")
+    user = os.environ.get("JKR_USER", "")
+    return (
+        f"pg_restore -h {shlex.quote(host)} -p {shlex.quote(port)} "
+        f"-U {shlex.quote(user)} -d {shlex.quote(db)} "
+        f"--clean --if-exists --no-owner --no-acl -v "
+        f"{shlex.quote(str(input_path))}"
+    )
+
+
+def _resolve_dump_path(filename: str) -> Path:
+    """Ratkaisee varmuuskopiotiedoston polun turvallisesti DBDUMPS_DIR:n sisällä.
+
+    Estää polkuhyökkäykset (path traversal): hyväksytään vain tiedostonimi
+    ilman hakemisto-osia, ja varmistetaan että lopullinen polku on
+    DBDUMPS_DIR:n alla. Heittää HTTPException 400/404 virhetilanteissa.
+    """
+    if not filename or filename != Path(filename).name:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    dumps_dir = DBDUMPS_DIR.resolve()
+    candidate = (dumps_dir / filename).resolve()
+    if candidate.parent != dumps_dir:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail=f"Varmuuskopiota ei löydy: {filename}")
+    return candidate
+
+
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 
 
@@ -1067,6 +1135,255 @@ async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, back
 
 
 # ---------------------------------------------------------------------------
+# Endpointit: Tietokannan varmuuskopiointi (pg_dump)
+# ---------------------------------------------------------------------------
+# Käynnissä olevat dump/restore-operaatiot: task_id -> {"kind", "filename"}.
+# Vain yksi varmuuskopiointi/palautus sallitaan kerrallaan (ks. _ensure_no_db_op).
+# Lukko perustuu tehtävän live-statukseen, joten kaatunut tehtävä ei jätä
+# pysyvää lukkoa.
+_db_operations: Dict[str, Dict[str, Any]] = {}
+
+
+def _prune_db_operations() -> None:
+    """Poistaa rekisteristä jo valmistuneet/kadonneet operaatiot."""
+    stale = [
+        task_id for task_id in _db_operations
+        if (_tasks.get(task_id) is None
+            or _tasks[task_id].status in (TaskStatus.completed, TaskStatus.failed))
+    ]
+    for task_id in stale:
+        _db_operations.pop(task_id, None)
+
+
+def _active_db_task() -> Optional[TaskInfo]:
+    """Palauttaa käynnissä (pending/running) olevan dump/restore-tehtävän, jos on."""
+    for task_id in _db_operations:
+        task = _tasks.get(task_id)
+        if task is not None and task.status in (TaskStatus.pending, TaskStatus.running):
+            return task
+    return None
+
+
+def _ensure_no_db_op_running() -> None:
+    """Estää uuden dump/restore-operaation, jos sellainen on jo käynnissä.
+
+    Varmuuskopiointi ja palautus käsittelevät samaa tietokantaa (pg_restore
+    jopa pudottaa ja luo objektit uudelleen), joten ne suoritetaan toisensa
+    poissulkevasti: kerrallaan vain yksi. Heittää HTTP 409:n, jos käynnissä on jo
+    operaatio.
+    """
+    _prune_db_operations()
+    busy = _active_db_task()
+    if busy is None:
+        return
+    meta = _db_operations.get(busy.id, {})
+    kind_fi = "palautus" if meta.get("kind") == "restore" else "varmuuskopiointi"
+    runner = busy.runner or "toinen käyttäjä"
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"Tietokannan {kind_fi} on jo käynnissä (käynnistäjä: {runner}). "
+            "Odota, että se valmistuu ennen uuden varmuuskopioinnin tai "
+            "palautuksen aloittamista."
+        ),
+    )
+
+
+@app.post("/db/dump", summary="pg_dump – Luo tietokannan varmuuskopio", response_model=TaskResponse)
+async def db_dump(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
+    """Ajaa `pg_dump`-komennon, joka tallentaa tietokannan varmuuskopion
+    `/dbdumps`-kansioon (ylikirjoitettavissa JKR_DBDUMP_DIR-muuttujalla).
+
+    Tiedostonimi muodostuu tietokannan nimestä ja aikaleimasta, esim.
+    `jatehuolto_dump_20260615_1432.backup`. Varmuuskopio luodaan pg_dump:n
+    custom-formaatissa (-F c), joka voidaan palauttaa `pg_restore`-komennolla.
+    """
+    _ensure_no_db_op_running()
+    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
+    db = os.environ.get("JKR_DB", "") or "jkr"
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    output_path = DBDUMPS_DIR / f"{db}_dump_{ts}.backup"
+    cmd = _pg_dump_cmd(output_path)
+    task = _create_task(cmd, f"Tietokannan varmuuskopiointi → {output_path}", username=user.name, task_type=TaskType.maintenance)
+    _db_operations[task.id] = {"kind": "dump", "filename": output_path.name}
+    background_tasks.add_task(_run_task, task.id, cmd)
+    return _task_response(task)
+
+
+class BackupInfo(BaseModel):
+    """Yhden varmuuskopiotiedoston tiedot."""
+    filename: str
+    size: int = Field(..., description="Koko tavuina")
+    created_at: datetime = Field(..., description="Tiedoston muokkausaika")
+
+
+class RestoreRequest(BaseModel):
+    """pg_restore: palauta tietokanta varmuuskopiosta."""
+    filename: str = Field(..., description="Palautettavan varmuuskopion tiedostonimi (DBDUMPS_DIR:ssä)")
+
+
+@app.get("/db/dumps", summary="Listaa olemassa olevat varmuuskopiot", response_model=List[BackupInfo])
+async def list_db_dumps(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa `/dbdumps`-kansiossa olevat varmuuskopiot uusin ensin."""
+    if not DBDUMPS_DIR.exists():
+        return []
+    backups = []
+    for path in DBDUMPS_DIR.iterdir():
+        if not path.is_file():
+            continue
+        stat = path.stat()
+        backups.append(
+            BackupInfo(
+                filename=path.name,
+                size=stat.st_size,
+                created_at=datetime.fromtimestamp(stat.st_mtime),
+            )
+        )
+    backups.sort(key=lambda b: b.created_at, reverse=True)
+    return backups
+
+
+@app.delete("/db/dumps/{filename}", summary="Poista varmuuskopio")
+async def delete_db_dump(filename: str, user: CurrentUser = Depends(require_admin)):
+    """Poistaa annetun varmuuskopiotiedoston `/dbdumps`-kansiosta."""
+    path = _resolve_dump_path(filename)
+    try:
+        path.unlink()
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Poisto epäonnistui: {e}")
+    logger.info("Varmuuskopio poistettu: %s (käyttäjä=%s)", filename, getattr(user, "name", "?"))
+    return {"filename": filename, "message": "Varmuuskopio poistettu"}
+
+
+async def _run_restore_task(task_id: str, command: str):
+    """Ajaa pg_restore-komennon ja tulkitsee ohitetut virheet onnistumiseksi.
+
+    `pg_restore --clean --if-exists` palaa nollasta poikkeavalla koodilla, kun
+    se ohittaa objektitason virheitä (esim. olemassa olevien objektien
+    pudotukset). Data on silti palautettu, joten merkitsemme tehtävän
+    onnistuneeksi, jos lokista löytyy "errors ignored on restore" -rivi.
+    Aito epäonnistuminen (esim. yhteysvirhe) ei tuota tätä riviä, joten se jää
+    edelleen 'failed'-tilaan.
+    """
+    await _run_task(task_id, command)
+
+    task = _tasks.get(task_id)
+    if task is None or task.status != TaskStatus.failed:
+        return
+    if task_id in _cancelled_tasks:
+        return
+
+    combined = f"{task.output}\n{task.error}"
+    match = _PG_RESTORE_IGNORED_ERRORS_RE.search(combined)
+    if not match:
+        return
+
+    note = (
+        f"pg_restore ohitti {match.group(1)} virhettä – tämä on normaalia "
+        "--clean-palautuksessa. Tietokanta palautettiin onnistuneesti."
+    )
+    task.status = TaskStatus.completed
+    task.output = f"{task.output}\n{note}" if task.output else note
+    logger.info("Palautustehtävä %s merkitty onnistuneeksi: %s", task_id, note)
+
+
+@app.post("/db/restore", summary="pg_restore – Palauta tietokanta varmuuskopiosta", response_model=TaskResponse)
+async def db_restore(req: RestoreRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
+    """Palauttaa tietokannan annetusta varmuuskopiosta `pg_restore`-komennolla.
+
+    HUOM: `--clean --if-exists` pudottaa olemassa olevat objektit ennen
+    palautusta, eli operaatio ylikirjoittaa nykyisen tietokannan sisällön.
+    """
+    _ensure_no_db_op_running()
+    path = _resolve_dump_path(req.filename)
+    cmd = _pg_restore_cmd(path)
+    task = _create_task(cmd, f"Tietokannan palautus varmuuskopiosta {req.filename}", username=user.name, task_type=TaskType.maintenance)
+    _db_operations[task.id] = {"kind": "restore", "filename": req.filename}
+    background_tasks.add_task(_run_restore_task, task.id, cmd)
+    return _task_response(task)
+
+
+class ActiveDbOperation(BaseModel):
+    """Käynnissä oleva varmuuskopiointi/palautus (edistymisindikaattorin palautusta varten)."""
+    task_id: str
+    kind: str = Field(..., description='"dump" tai "restore"')
+    filename: Optional[str] = None
+    status: TaskStatus
+    message: Optional[str] = Field(None, description="Tehtävän viimeisin lokirivi")
+
+
+@app.get(
+    "/db/active-operation",
+    summary="Käynnissä oleva varmuuskopiointi/palautus",
+    response_model=Optional[ActiveDbOperation],
+)
+async def db_active_operation(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa käynnissä olevan dump/restore-operaation tai `null`.
+
+    Frontend kutsuu tätä sivulle saapuessaan, jotta edistymisindikaattori voidaan
+    palauttaa, vaikka taustatehtävä olisi aloitettu eri istunnossa tai sivulta
+    poistuttiin välillä. Tehtävä jatkuu palvelimella riippumatta näkymästä.
+    """
+    busy = _active_db_task()
+    if busy is None:
+        return None
+    meta = _db_operations.get(busy.id, {})
+    last_line: Optional[str] = None
+    for source in (busy.error, busy.output):
+        for line in reversed((source or "").splitlines()):
+            if line.strip():
+                last_line = line.strip()
+                break
+        if last_line:
+            break
+    return ActiveDbOperation(
+        task_id=busy.id,
+        kind=meta.get("kind", "dump"),
+        filename=meta.get("filename"),
+        status=busy.status,
+        message=last_line,
+    )
+
+
+@app.get("/db/dumps/{filename}/download", summary="Lataa varmuuskopio")
+async def download_db_dump(filename: str, user: CurrentUser = Depends(require_authenticated)):
+    """Lataa annetun varmuuskopiotiedoston `/dbdumps`-kansiosta."""
+    path = _resolve_dump_path(filename)
+    return FileResponse(
+        path=str(path),
+        filename=path.name,
+        media_type="application/octet-stream",
+    )
+
+
+@app.post("/db/dumps/upload", summary="Lataa varmuuskopio palvelimelle")
+async def upload_db_dump(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(require_admin),
+):
+    """Lataa varmuuskopiotiedoston `/dbdumps`-kansioon (esim. palautusta varten)."""
+    if not file.filename or file.filename != Path(file.filename).name:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
+    target_path = DBDUMPS_DIR / file.filename
+
+    async with aiofiles.open(str(target_path), "wb") as f:
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB kerrallaan
+            if not chunk:
+                break
+            await f.write(chunk)
+
+    file_size = target_path.stat().st_size
+    logger.info("Varmuuskopio ladattu: %s (%d tavua)", file.filename, file_size)
+    return {
+        "filename": file.filename,
+        "target_path": str(target_path),
+        "file_size": file_size,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Endpointit: ogr2ogr (DVV-aineiston tuonti)
 # ---------------------------------------------------------------------------
 @app.post("/ogr2ogr/import", summary="ogr2ogr – Tuo aineisto PostgreSQL:ään", response_model=TaskResponse)
@@ -1505,6 +1822,43 @@ async def auth_me(user: CurrentUser = Depends(require_authenticated)):
         "roles": user.roles,
         "is_admin": user.is_admin,
         "is_viewer": user.is_viewer,
+    }
+
+
+@app.get("/auth/me/debug", summary="Debug: kirjautuneen käyttäjän kaikki token-tiedot")
+async def auth_me_debug(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa kaiken kirjautuneesta käyttäjästä: johdetut roolit, ryhmät,
+    Azure App Rolet (tokenin `roles`-claim) sekä KAIKKI token-claimit.
+
+    Tarkoitettu diagnostiikkaan – esim. selvittämään miksi käyttäjä ei saa
+    oikeuksia (puuttuvat group-claimit / groups overage) ja mitä app-roolinimiä
+    tokenissa todella on. Jokainen käyttäjä näkee vain oman tokeninsa tiedot.
+    """
+    claims = getattr(user, "claims", {}) or {}
+    # Groups overage: kun käyttäjä on liian monessa ryhmässä, Azure EI laita
+    # `groups`-taulukkoa tokeniin vaan `_claim_names`/`_claim_sources`-osoittimen.
+    groups_overage = "_claim_names" in claims or "_claim_sources" in claims
+    return {
+        "oid": user.oid,
+        "name": user.name,
+        "email": user.email,
+        # Sovelluksen johtamat roolit (admin/viewer) – mitä käyttäjä TÄLLÄ hetkellä saa.
+        "derived_roles": user.roles,
+        "is_admin": user.is_admin,
+        "is_viewer": user.is_viewer,
+        # Tokenista luetut raakatiedot.
+        "groups": user.groups,
+        "app_roles": claims.get("roles", []),  # Azure App Roles (esim. editor_role/viewer_role)
+        "groups_overage": groups_overage,
+        # Palvelimen konfiguraatio vertailua varten (ei salaisuuksia, vain tunnisteita).
+        "server_config": {
+            "admin_group_id": os.environ.get("AZURE_ADMIN_GROUP_ID", ""),
+            "viewer_group_id": os.environ.get("AZURE_VIEWER_GROUP_ID", ""),
+            "admin_app_role": os.environ.get("AZURE_ADMIN_APP_ROLE", ""),
+            "viewer_app_role": os.environ.get("AZURE_VIEWER_APP_ROLE", ""),
+        },
+        # Kaikki token-claimit sellaisenaan.
+        "claims": claims,
     }
 
 

@@ -9,6 +9,12 @@ Ympäristömuuttujat:
     AZURE_CLIENT_ID     - App Registration client ID (yleisö/audience)
     AZURE_ADMIN_GROUP_ID  - sg-jkr-admin-sql Security Groupin Object ID
     AZURE_VIEWER_GROUP_ID - sg-jkr-viewer-sql Security Groupin Object ID (valinnainen)
+    AZURE_ADMIN_APP_ROLE  - App Role -arvo (esim. "editor_role"), joka antaa admin-oikeudet
+    AZURE_VIEWER_APP_ROLE - App Role -arvo (esim. "viewer_role"), joka antaa viewer-oikeudet (valinnainen)
+
+Oikeudet ratkaistaan ensisijaisesti App Roleista (tokenin roles-claim) ja
+toissijaisesti ryhmäjäsenyydestä, jotta ne toimivat myös groups overage
+-tilanteessa.
 
 Flutter-front hakee tokenin MSAL:lla ja lähettää sen Authorization-headerissa:
     Authorization: Bearer <access_token>
@@ -16,7 +22,7 @@ Flutter-front hakee tokenin MSAL:lla ja lähettää sen Authorization-headerissa
 
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import Depends, HTTPException, Request, status
@@ -32,6 +38,10 @@ AZURE_TENANT_ID = os.environ.get("AZURE_TENANT_ID", "")
 AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "")
 AZURE_ADMIN_GROUP_ID = os.environ.get("AZURE_ADMIN_GROUP_ID", "")
 AZURE_VIEWER_GROUP_ID = os.environ.get("AZURE_VIEWER_GROUP_ID", "")
+# Azure App Roles (tokenin roles-claim). Ensisijainen oikeuksien lähde – toimii
+# myös groups overage -tilanteessa, jossa ryhmät eivät mahdu tokeniin.
+AZURE_ADMIN_APP_ROLE = os.environ.get("AZURE_ADMIN_APP_ROLE", "")
+AZURE_VIEWER_APP_ROLE = os.environ.get("AZURE_VIEWER_APP_ROLE", "")
 
 # Jos UNSECURE=1 tai UNSECURE=true, autentikointi ohitetaan kokonaan (vain testauskäyttöön!)
 _UNSECURE = os.environ.get("UNSECURE", "").strip().lower() in ("1", "true")
@@ -91,12 +101,22 @@ class UserRole:
 
 class CurrentUser:
     """Autentikoitu käyttäjä."""
-    def __init__(self, oid: str, name: str, email: str, roles: List[str], groups: List[str]):
+    def __init__(
+        self,
+        oid: str,
+        name: str,
+        email: str,
+        roles: List[str],
+        groups: List[str],
+        claims: Optional[Dict[str, Any]] = None,
+    ):
         self.oid = oid
         self.name = name
         self.email = email
         self.roles = roles
         self.groups = groups
+        # Tokenin kaikki raakaclaimit (debug-/diagnostiikkaendpointia varten).
+        self.claims = claims or {}
 
     @property
     def is_admin(self) -> bool:
@@ -211,11 +231,19 @@ async def _validate_token(
     email = payload.get("preferred_username", payload.get("email", ""))
     groups = payload.get("groups", [])
 
-    # Määritä roolit ryhmäjäsenyyksien perusteella
+    # Määritä roolit: ensisijaisesti Azure App Roles (tokenin roles-claim),
+    # ryhmäjäsenyys fallbackinä. App role tarkistetaan ensin, eikä ryhmää
+    # tarvitse tarkastaa jos app role löytyy. Tämä toimii myös groups overage
+    # -tilanteessa, jossa "groups"-claimia ei ole tokenissa lainkaan.
+    app_roles = payload.get("roles", [])
     roles = []
-    if AZURE_ADMIN_GROUP_ID and AZURE_ADMIN_GROUP_ID in groups:
+    if AZURE_ADMIN_APP_ROLE and AZURE_ADMIN_APP_ROLE in app_roles:
         roles.append(UserRole.ADMIN)
-    if AZURE_VIEWER_GROUP_ID and AZURE_VIEWER_GROUP_ID in groups:
+    elif AZURE_ADMIN_GROUP_ID and AZURE_ADMIN_GROUP_ID in groups:
+        roles.append(UserRole.ADMIN)
+    if AZURE_VIEWER_APP_ROLE and AZURE_VIEWER_APP_ROLE in app_roles:
+        roles.append(UserRole.VIEWER)
+    elif AZURE_VIEWER_GROUP_ID and AZURE_VIEWER_GROUP_ID in groups:
         roles.append(UserRole.VIEWER)
 
     logger.info(
@@ -223,7 +251,7 @@ async def _validate_token(
         name, email, roles or ["ei roolia"],
     )
 
-    return CurrentUser(oid=oid, name=name, email=email, roles=roles, groups=groups)
+    return CurrentUser(oid=oid, name=name, email=email, roles=roles, groups=groups, claims=payload)
 
 
 async def require_admin(

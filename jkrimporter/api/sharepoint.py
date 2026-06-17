@@ -1,14 +1,21 @@
 """
 SharePoint Graph API -integraatio.
 
-Käyttää client credentials -flowta (AZURE_CLIENT_ID + AZURE_CLIENT_SECRET)
-ja Sites.Selected -oikeutta SharePoint-siten tiedostojen hallintaan.
+Käyttää client credentials -flowta dedikoidulla SharePoint-App
+Registrationilla (SHAREPOINT_CLIENT_ID + SHAREPOINT_CLIENT_SECRET) ja
+Sites.Selected -oikeutta SharePoint-siten tiedostojen hallintaan.
+
+HUOM: SharePoint-Graph-pääsy käyttää OMAA app registrationiaan (SHAREPOINT_*),
+ei sovelluksen käyttäjätunnistuksen app registrationia (AZURE_*). Näin
+SharePoint-oikeudet pysyvät erillään käyttäjien autentikoinnista. Jos
+SHAREPOINT_*-muuttujia ei ole asetettu, palataan AZURE_*-arvoihin
+taaksepäinyhteensopivuuden vuoksi.
 
 Ympäristömuuttujat:
-    AZURE_TENANT_ID        - Azure AD tenant ID
-    AZURE_CLIENT_ID        - App Registration client ID
-    AZURE_CLIENT_SECRET    - App Registrationin client secret
-    SHAREPOINT_SITE_ID     - SharePoint Site ID (esim. contoso.sharepoint.com,guid1,guid2)
+    SHAREPOINT_TENANT_ID     - Azure AD tenant ID (fallback: AZURE_TENANT_ID)
+    SHAREPOINT_CLIENT_ID     - SharePoint-App Registrationin client ID (fallback: AZURE_CLIENT_ID)
+    SHAREPOINT_CLIENT_SECRET - SharePoint-App Registrationin client secret (fallback: AZURE_CLIENT_SECRET)
+    SHAREPOINT_SITE_ID       - SharePoint Site ID (esim. contoso.sharepoint.com,guid1,guid2)
     SHAREPOINT_INPUT_FOLDER  - Syöttökansio (esim. /Shared Documents/JKR-input)
     SHAREPOINT_OUTPUT_FOLDER - Tuloskansio (esim. /Shared Documents/JKR-output)
 """
@@ -26,9 +33,12 @@ logger = logging.getLogger("jkr-sharepoint")
 # ---------------------------------------------------------------------------
 # Konfiguraatio
 # ---------------------------------------------------------------------------
-AZURE_TENANT_ID = os.environ.get("AZURE_TENANT_ID", "")
-AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "")
-AZURE_CLIENT_SECRET = os.environ.get("AZURE_CLIENT_SECRET", "")
+# SharePoint-Graph käyttää dedikoitua app registrationia (SHAREPOINT_*).
+# Fallback AZURE_*:iin säilyttää taaksepäinyhteensopivuuden ympäristöissä,
+# joissa SHAREPOINT_*-muuttujia ei (vielä) ole asetettu.
+AZURE_TENANT_ID = os.environ.get("SHAREPOINT_TENANT_ID") or os.environ.get("AZURE_TENANT_ID", "")
+AZURE_CLIENT_ID = os.environ.get("SHAREPOINT_CLIENT_ID") or os.environ.get("AZURE_CLIENT_ID", "")
+AZURE_CLIENT_SECRET = os.environ.get("SHAREPOINT_CLIENT_SECRET") or os.environ.get("AZURE_CLIENT_SECRET", "")
 SHAREPOINT_SITE_ID = os.environ.get("SHAREPOINT_SITE_ID", "")
 SHAREPOINT_INPUT_FOLDER = os.environ.get("SHAREPOINT_INPUT_FOLDER", "/Shared Documents/JKR-input")
 SHAREPOINT_OUTPUT_FOLDER = os.environ.get("SHAREPOINT_OUTPUT_FOLDER", "/Shared Documents/JKR-output")
@@ -47,8 +57,9 @@ async def _get_app_token() -> str:
 
     if not all([AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET]):
         raise RuntimeError(
-            "SharePoint-konfiguraatio puuttuu: AZURE_TENANT_ID, AZURE_CLIENT_ID "
-            "ja AZURE_CLIENT_SECRET ympäristömuuttujat vaaditaan."
+            "SharePoint-konfiguraatio puuttuu: SHAREPOINT_TENANT_ID, "
+            "SHAREPOINT_CLIENT_ID ja SHAREPOINT_CLIENT_SECRET (tai vastaavat "
+            "AZURE_*-fallbackit) ympäristömuuttujat vaaditaan."
         )
 
     token_url = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/oauth2/v2.0/token"
