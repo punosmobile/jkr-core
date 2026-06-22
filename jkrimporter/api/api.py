@@ -24,6 +24,7 @@ import subprocess
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -59,6 +60,7 @@ from jkrimporter.api.auth import (
     require_viewer_or_admin,
     validate_ws_token,
 )
+from jkrimporter.api import events_store
 from jkrimporter.api.dashboard import (
     DashboardOverviewResponse,
     build_dashboard_overview,
@@ -72,12 +74,44 @@ from jkrimporter.__init__ import __log_path__
 logger = logging.getLogger("jkr-api")
 
 # ---------------------------------------------------------------------------
+# Järjestelmätapahtumien pysyvyys (LAH-623)
+# ---------------------------------------------------------------------------
+# Kuinka monta tapahtumaa ladataan kannasta muistiin käynnistyksessä.
+EVENTS_HYDRATE_LIMIT = int(os.environ.get("JKR_EVENTS_HYDRATE", "50"))
+# Kuinka monta tapahtumaa kantaan säilytetään (vanhemmat siivotaan).
+EVENTS_KEEP = int(os.environ.get("JKR_EVENTS_KEEP", "2000"))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Sovelluksen elinkaari: alustaa tapahtumakannan ja lataa viimeisimmät
+    tapahtumat muistiin, jottei kontin uudelleenkäynnistys hukkaa niitä."""
+    events_store.ensure_schema()
+    try:
+        loaded = 0
+        for row in events_store.recent(limit=EVENTS_HYDRATE_LIMIT):
+            try:
+                task = TaskInfo(**row)
+            except Exception:
+                logger.exception("Tapahtuman lataus muistiin epäonnistui: %s", row.get("id"))
+                continue
+            _tasks[task.id] = task
+            loaded += 1
+        logger.info("Ladattiin %d järjestelmätapahtumaa kannasta muistiin.", loaded)
+        events_store.prune(keep=EVENTS_KEEP)
+    except Exception:
+        logger.exception("Tapahtumien lataus käynnistyksessä epäonnistui.")
+    yield
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="JKR API",
     description="REST-rajapinta JKR-tiedontuontikomentojen ajamiseen.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
@@ -193,6 +227,15 @@ def _resolve_task_type(command: str, task_type: Optional[TaskType] = None) -> st
     return _infer_task_type_from_command(command)
 
 
+def _persist_event(task: TaskInfo) -> None:
+    """Tallentaa tapahtuman pysyvään kantaan. Ei koskaan nosta poikkeusta,
+    jotta tallennuksen epäonnistuminen ei kaada tehtävän ajoa."""
+    try:
+        events_store.upsert(task)
+    except Exception:
+        logger.exception("Tapahtuman pysyvä tallennus epäonnistui (id=%s)", task.id)
+
+
 def _create_task(
     command: str,
     description: str,
@@ -208,6 +251,7 @@ def _create_task(
         description=description,
     )
     _tasks[task.id] = task
+    _persist_event(task)
     return task
 
 
@@ -340,6 +384,7 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
     task = _tasks[task_id]
     task.status = TaskStatus.running
     task.started_at = datetime.now()
+    await asyncio.to_thread(_persist_event, task)
     task_logger = logging.getLogger(f"task.{task_id[:8]}")
 
     # Tuontiloki: kirjaa aloitusrivi niille tuonneille, jotka eivät kirjaa itse.
@@ -443,6 +488,9 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
         task.status,
         task.duration_seconds or 0,
     )
+
+    # Järjestelmätapahtuma: tallenna lopputila pysyvään kantaan (LAH-623).
+    await asyncio.to_thread(_persist_event, task)
 
     # Tuontiloki: päivitä lopetusrivi tehtävän lopputilan mukaan (valmis/virhe).
     await _paata_tuontiloki(loki_id, task)
@@ -1285,6 +1333,8 @@ async def _run_restore_task(task_id: str, command: str):
     task.status = TaskStatus.completed
     task.output = f"{task.output}\n{note}" if task.output else note
     logger.info("Palautustehtävä %s merkitty onnistuneeksi: %s", task_id, note)
+    # Lopputila muuttui _run_taskin jälkeen → päivitä pysyvä tapahtuma.
+    await asyncio.to_thread(_persist_event, task)
 
 
 @app.post("/db/restore", summary="pg_restore – Palauta tietokanta varmuuskopiosta", response_model=TaskResponse)

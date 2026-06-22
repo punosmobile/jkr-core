@@ -14,7 +14,7 @@ from jkrimporter.providers.db.models import Kompostori, Kuljetus, Viranomaispaat
 logger = logging.getLogger("jkr-dashboard")
 
 _LIETE_JATETYYPPI_IDS = (5, 6, 7)
-_RECENT_EVENTS_LIMIT = 10
+_RECENT_EVENTS_LIMIT = 50
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:,\d+)? \[[A-Z]+\]\s*")
 _FILEINFO_FILENAME_RE = re.compile(r"filename='([^']+)'")
 _FILEINFO_FILETYPE_RE = re.compile(r"fileType=<FileType\.[^:]+: '([^']+)'>")
