@@ -39,3 +39,13 @@ FROM
   LEFT JOIN jkr.osapuoli op
     ON op.id = ko.osapuoli_id
 );
+
+COMMENT ON VIEW jkr.v_kohteen_yhteystiedot IS E'Kohteen yhteystiedot koottuna: Yhteystieto-roolin osapuolen tiedot sekä kohteen rakennusten kiinteistötunnukset ja pysyvät rakennustunnukset (PRT) listana. Apunäkymä muille näkymille.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.kohde_id IS E'Viittaus kohteeseen.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.kiinteistotunnus IS E'Kohteen rakennusten kiinteistötunnukset lyhyessä muodossa, pilkulla eroteltuna.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.prt IS E'Kohteen rakennusten pysyvät rakennustunnukset (PRT), pilkulla eroteltuna.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.yhteyshenkilo IS E'Kohteen yhteystieto-roolisen osapuolen nimi.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.katuosoite IS E'Yhteyshenkilön katuosoite.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.postitoimipaikka IS E'Yhteyshenkilön postitoimipaikka.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.postinumero IS E'Yhteyshenkilön postinumero.';
+COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.erikoisosoite IS E'Yhteyshenkilön ulkomaanosoite.';
