@@ -64,6 +64,7 @@ wb-xlate*
 /input
 /output
 /dump
+/dbdumps
 /scripts/logs
 muistiot/
 pjh-virheelliset-osoitteet.csv
