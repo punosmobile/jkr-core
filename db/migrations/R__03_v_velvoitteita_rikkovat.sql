@@ -85,3 +85,9 @@ CREATE MATERIALIZED VIEW jkr.v_velvoiteyhteenvetojen_kohteet AS
   WHERE
     k.voimassaolo @> CURRENT_DATE
     AND vs.ok;
+
+-- Näkymäkommentit (LAH-622). Pidetään näkymän luonnin yhteydessä, koska
+-- materialisoitu näkymä luodaan DROP + CREATE -tavalla ja kommentti häviäisi,
+-- jos se annettaisiin versioidussa migraatiossa ennen tämän ajamista.
+COMMENT ON MATERIALIZED VIEW jkr.v_velvoiteyhteenvetojen_kohteet IS E'Kohteet, joilla on voimassa oleva ja kunnossa (ok) oleva velvoiteyhteenvedon tuorein status. Sisältää velvoiteyhteenvetomallin selitteen ja yhteystiedot QGIS-karttatasoa varten.';
+COMMENT ON MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet IS E'Kohteet, joilla on voimassa oleva ja kunnossa (ok) oleva velvoitteen tuorein status. Sisältää velvoitemallin selitteen ja yhteystiedot QGIS-karttatasoa varten.';

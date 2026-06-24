@@ -275,10 +275,10 @@ COMMENT ON COLUMN jkr_qgis_projektit.qgis_api_credentials.updated_at IS E'Rivin 
 -- =====================================================================
 
 COMMENT ON MATERIALIZED VIEW jkr.nearby_buildings IS E'Esilaskettu pareittainen etäisyystaulu rakennuksista, jotka sijaitsevat enintään 300 metrin päässä toisistaan. Käytetään lähekkäisten rakennusten tunnistamiseen mm. kohteiden muodostuksessa.';
-COMMENT ON MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista IS E'Kohteet, joilla on voimassa oleva (ei-liete) kompostori-ilmoitus kolmen viimeisimmän vuosineljänneksen ajalta. Sisältää kompostorin yhteystiedot QGIS-karttatasoa varten.';
-COMMENT ON MATERIALIZED VIEW jkr.v_kuljetustietojen_kohteet_kolmeviimeista IS E'Kohteet, joilla on kuljetustietoja kolmelta viimeisimmältä vuosineljännekseltä. Sisältää jätetyypin ja kohteen yhteystiedot QGIS-karttatasoa varten.';
-COMMENT ON MATERIALIZED VIEW jkr.v_velvoiteyhteenvetojen_kohteet IS E'Kohteet, joilla on voimassa oleva ja kunnossa (ok) oleva velvoiteyhteenvedon tuorein status. Sisältää velvoiteyhteenvetomallin selitteen ja yhteystiedot QGIS-karttatasoa varten.';
-COMMENT ON MATERIALIZED VIEW jkr.v_velvoitteiden_kohteet IS E'Kohteet, joilla on voimassa oleva ja kunnossa (ok) oleva velvoitteen tuorein status. Sisältää velvoitemallin selitteen ja yhteystiedot QGIS-karttatasoa varten.';
+-- HUOM: Materialisoidut näkymät v_kompostorien_kohteet_kolmeviimeista,
+-- v_kuljetustietojen_kohteet_kolmeviimeista, v_velvoiteyhteenvetojen_kohteet ja
+-- v_velvoitteiden_kohteet luodaan R__-migraatioissa, jotka ajetaan vasta tämän
+-- jälkeen. Niiden kommentit on annettu kyseisissä migraatioissa (LAH-622).
 
 COMMENT ON VIEW jkr.v_ei_erilliskeraysalueet IS E'Kohteet, jotka eivät kuulu biojätteen tai hyötyjätteen erilliskeräysvelvoitteen piiriin. Yhdistää enintään 4 huoneiston ei-biojätekohteet ja vähintään 5 huoneiston ei-hyötyjätekohteet.';
 COMMENT ON VIEW jkr.v_enint_4_huoneistoa_biojatteen_erilliskeraysalue IS E'Enintään 4 huoneiston kohteet, jotka kuuluvat biojätteen erilliskeräysvelvoitteen piiriin (sijaitsevat vähintään 10000 asukkaan taajamassa). Käytetään jätelain erilliskeräysvelvoitteiden määrittelyyn.';
@@ -290,7 +290,6 @@ COMMENT ON VIEW jkr.v_kohdevelvoitteet_status IS E'Apunäkymä kohteen velvoitte
 COMMENT ON VIEW jkr.v_kohteen_kompostorin_tiedot IS E'Kohteiden ja niihin liittyvien (ei-liete) kompostorien tiedot QGIS-karttatasoa varten. Sisältää kompostorin voimassaolon, kimppatiedon, osoitteen ja osapuolen.';
 COMMENT ON VIEW jkr.v_kohteen_osapuolet IS E'Kohteen osapuolet rooleineen yhdistettynä osapuolen tietoihin (nimi, osoite, tunnukset). Apunäkymä kohteen osapuolien hakuun.';
 COMMENT ON VIEW jkr.v_kohteen_osapuolet_roolilla IS E'Kohteen osapuolet osapuolenroolin selitteellä täydennettynä. Käytetään osapuolien esittämiseen roolin nimellä QGIS-karttatasolla.';
-COMMENT ON VIEW jkr.v_kohteen_yhteystiedot IS E'Kohteen yhteystiedot koottuna: Yhteystieto-roolin osapuolen tiedot sekä kohteen rakennusten kiinteistötunnukset ja pysyvät rakennustunnukset (PRT) listana. Apunäkymä muille näkymille.';
 COMMENT ON VIEW jkr.v_kohteet_ilman_rakennuksia IS E'Kohteet, joihin ei ole liitetty yhtään rakennusta. Käytetään puutteellisten kohteiden tunnistamiseen.';
 COMMENT ON VIEW jkr.v_kuljetukset_tiedontuottajalla IS E'Kuljetustapahtumat tiedontuottajan nimellä, jätetyypin selitteellä ja sopimuksen tyhjennysvälillä täydennettynä. Apunäkymä kuljetustietojen tarkasteluun.';
 COMMENT ON VIEW jkr.v_sopimus_tiedontuottajalla IS E'Sopimukset tiedontuottajan nimellä sekä jätetyypin ja sopimustyypin selitteillä täydennettynä. Apunäkymä sopimustietojen tarkasteluun.';
@@ -299,7 +298,6 @@ COMMENT ON VIEW jkr.v_vah_5_huoneistoa_ei_hyotyjatteen_erilliskeraysalue IS E'V�
 COMMENT ON VIEW jkr.v_vah_5_huoneistoa_hyotyjatteen_erilliskeraysalue IS E'Vähintään 5 huoneiston kohteet, jotka kuuluvat hyötyjätteen erilliskeräysvelvoitteen piiriin (sijaitsevat vähintään 10000 asukkaan taajamassa). Käytetään jätelain erilliskeräysvelvoitteiden määrittelyyn.';
 COMMENT ON VIEW jkr.v_velvoite_status IS E'Velvoitteiden statushistoria luettavalla jaksomerkinnällä (alku - loppu), uusin jakso ensin. Apunäkymä velvoitteen tilan tarkasteluun.';
 COMMENT ON VIEW jkr.v_velvoiteyhteenveto_status IS E'Velvoiteyhteenvetojen statushistoria luettavalla jaksomerkinnällä (alku - loppu), uusin jakso ensin. Apunäkymä velvoiteyhteenvedon tilan tarkasteluun.';
-COMMENT ON VIEW jkr.v_yli_5_asunnon_kohteet IS E'Kohteet, joiden rakennusten yhteenlaskettu huoneistomäärä on vähintään 5. Sisältää lasketun huoneistomäärän ja käytetään suurten kohteiden tunnistamiseen.';
 
 
 -- =====================================================================
@@ -363,19 +361,6 @@ COMMENT ON COLUMN jkr.v_kaivotiedot.tiedontuottaja_tunnus IS E'Tiedontuottajan t
 COMMENT ON COLUMN jkr.v_kaivotiedot.tiedontuottaja_nimi IS E'Tiedontuottajan nimi.';
 COMMENT ON COLUMN jkr.v_kaivotiedot.luotu IS E'Rivin luontiajankohta.';
 COMMENT ON COLUMN jkr.v_kaivotiedot.muokattu IS E'Rivin viimeisin muokkausajankohta.';
--- v_keraysvalineet
-COMMENT ON COLUMN jkr.v_keraysvalineet.kohde_id IS E'Viittaus kohteeseen.';
-COMMENT ON COLUMN jkr.v_keraysvalineet.sopimus_id IS E'Viittaus sopimukseen, johon keräysväline liittyy.';
-COMMENT ON COLUMN jkr.v_keraysvalineet.sopimus_voimassaolo IS E'Sopimuksen voimassaoloaikaväli.';
-COMMENT ON COLUMN jkr.v_keraysvalineet.pvm IS E'Päivämäärä, jolloin kuljettajat ovat keränneet raportoitavat tiedot.';
-COMMENT ON COLUMN jkr.v_keraysvalineet.jatetyyppi_selite IS E'Jätetyypin selite (jkr_koodistot.jatetyyppi.selite).';
-COMMENT ON COLUMN jkr.v_keraysvalineet.keraysvalinetyyppi_selite IS E'Keräysvälinetyypin selite (jkr_koodistot.keraysvalinetyyppi.selite).';
--- v_keskeytys
-COMMENT ON COLUMN jkr.v_keskeytys.kohde_id IS E'Viittaus kohteeseen.';
-COMMENT ON COLUMN jkr.v_keskeytys.sopimus_id IS E'Viittaus sopimukseen, jota keskeytys koskee.';
-COMMENT ON COLUMN jkr.v_keskeytys.sopimus_voimassaolo IS E'Sopimuksen voimassaoloaikaväli.';
-COMMENT ON COLUMN jkr.v_keskeytys.jatetyyppi_selite IS E'Jätetyypin selite (jkr_koodistot.jatetyyppi.selite).';
-COMMENT ON COLUMN jkr.v_keskeytys.keskeytys_voimassa IS E'Keskeytyksen voimassaoloaikaväli (jkr.keskeytys.voimassaolo).';
 -- v_kohdehaku
 COMMENT ON COLUMN jkr.v_kohdehaku.kohde_id IS E'Viittaus kohteeseen.';
 COMMENT ON COLUMN jkr.v_kohdehaku.kohteen_nimi IS E'Kohteen nimi.';
@@ -466,29 +451,6 @@ COMMENT ON COLUMN jkr.v_kohteen_osapuolet_roolilla.kohde_id IS E'Viittaus kohtee
 COMMENT ON COLUMN jkr.v_kohteen_osapuolet_roolilla.osapuoli_id IS E'Viittaus osapuoleen.';
 COMMENT ON COLUMN jkr.v_kohteen_osapuolet_roolilla.osapuolenrooli_id IS E'Viittaus osapuolen rooliin kohteessa (jkr_koodistot.osapuolenrooli).';
 COMMENT ON COLUMN jkr.v_kohteen_osapuolet_roolilla.osapuoli IS E'Osapuolenroolin selite (jkr_koodistot.osapuolenrooli.selite).';
--- v_kohteen_viranomaispaatokset
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.id IS E'Viranomaispäätöksen yksilöivä tunniste (jkr.viranomaispaatokset.id).';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.paatosnumero IS E'Viranomaispäätöksen päätösnumero.';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.alkupvm IS E'Päätöksen voimassaolon alkamispäivämäärä.';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.loppupvm IS E'Päätöksen voimassaolon päättymispäivämäärä.';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.voimassaolo IS E'Automaattisesti luotu aikaväli-kenttä päätöksen voimassaololle.';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.vastaanottaja IS E'Päätöksen vastaanottaja.';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.tyhjennysvali IS E'Päätöksen mukainen tyhjennysväli (tyhjennyskertojen lukumäärä).';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.paatostulos_koodi IS E'Viittaus päätöksen tulokseen (jkr_koodistot.paatostulos).';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.tapahtumalaji_koodi IS E'Viittaus päätöksen tapahtumalajiin (jkr_koodistot.tapahtumalaji).';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.akppoistosyy_id IS E'Viittaus aluekeräyspisteeseen liittyvään poikkeamissyyhyn (jkr_koodistot.akppoistosyy).';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.jatetyyppi_id IS E'Viittaus päätöksen jätetyyppiin (jkr_koodistot.jatetyyppi).';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.rakennus_id IS E'Viittaus rakennukseen, jota päätös koskee.';
-COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.kohde_id IS E'Viittaus kohteeseen, jonka rakennusta päätös koskee.';
--- v_kohteen_yhteystiedot
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.kohde_id IS E'Viittaus kohteeseen.';
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.kiinteistotunnus IS E'Kohteen rakennusten kiinteistötunnukset lyhyessä muodossa, pilkulla eroteltuna.';
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.prt IS E'Kohteen rakennusten pysyvät rakennustunnukset (PRT), pilkulla eroteltuna.';
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.yhteyshenkilo IS E'Kohteen yhteystieto-roolisen osapuolen nimi.';
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.katuosoite IS E'Yhteyshenkilön katuosoite.';
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.postitoimipaikka IS E'Yhteyshenkilön postitoimipaikka.';
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.postinumero IS E'Yhteyshenkilön postinumero.';
-COMMENT ON COLUMN jkr.v_kohteen_yhteystiedot.erikoisosoite IS E'Yhteyshenkilön ulkomaanosoite.';
 -- v_kohteet_ilman_rakennuksia
 COMMENT ON COLUMN jkr.v_kohteet_ilman_rakennuksia.id IS E'Kohteen yksilöivä tunniste (jkr.kohde.id).';
 COMMENT ON COLUMN jkr.v_kohteet_ilman_rakennuksia.nimi IS E'Kohteen nimi.';
@@ -513,21 +475,6 @@ COMMENT ON COLUMN jkr.v_kuljetukset_tiedontuottajalla.tiedontuottaja_nimi IS E'T
 COMMENT ON COLUMN jkr.v_kuljetukset_tiedontuottajalla.tyhjennysvali IS E'Kuljetukseen liittyvän sopimuksen tyhjennysväli viikoissa.';
 COMMENT ON COLUMN jkr.v_kuljetukset_tiedontuottajalla.lietteentyhjennyspaiva IS E'Lietteen tyhjennyspäivämäärä (LIETE-aineisto).';
 COMMENT ON COLUMN jkr.v_kuljetukset_tiedontuottajalla.jatelaji IS E'Jätteen kuvaus LIETE-aineistosta (jkr.kuljetus.jatteen_kuvaus).';
--- v_rakennukset
-COMMENT ON COLUMN jkr.v_rakennukset.id IS E'Rakennuksen yksilöivä tunniste (jkr.rakennus.id).';
-COMMENT ON COLUMN jkr.v_rakennukset.prt IS E'Yksilöivä 10-merkkinen rakennustunnus.';
-COMMENT ON COLUMN jkr.v_rakennukset.huoneistomaara IS E'Rakennukseen kuuluvien huoneistojen lukumäärä.';
-COMMENT ON COLUMN jkr.v_rakennukset.kiinteistotunnus IS E'Tekstimuotoinen kiinteistötunnus.';
-COMMENT ON COLUMN jkr.v_rakennukset.onko_viemari IS E'Totuusarvo, joka kertoo sen kuuluuko rakennus viemäriverkostoon vai ei.';
-COMMENT ON COLUMN jkr.v_rakennukset.geom IS E'Rakennuksen geometria.';
-COMMENT ON COLUMN jkr.v_rakennukset.rakennuksenkayttotarkoitus_koodi IS E'Viittaus rakennuksen käyttötarkoitukseen (jkr_koodistot.rakennuksenkayttotarkoitus).';
-COMMENT ON COLUMN jkr.v_rakennukset.rakennuksenolotila_koodi IS E'Viittaus rakennuksen olotilaan (jkr_koodistot.rakennuksenolotila).';
-COMMENT ON COLUMN jkr.v_rakennukset.kayttoonotto_pvm IS E'Rakennuksen käyttöönottopäivämäärä.';
-COMMENT ON COLUMN jkr.v_rakennukset.kaytostapoisto_pvm IS E'Rakennuksen käytöstäpoistopäivämäärä.';
-COMMENT ON COLUMN jkr.v_rakennukset.rakennusluokka_selite IS E'Rakennusluokan selite (jkr_koodistot.rakennusluokka_2018.selite).';
-COMMENT ON COLUMN jkr.v_rakennukset.rakennusluokka_2018 IS E'Rakennusluokka 2018 -luokituksen mukainen rakennuksen käyttötarkoitus.';
-COMMENT ON COLUMN jkr.v_rakennukset.on_kohde_ehdokkaita IS E'Totuusarvo siitä, onko rakennus ehdolla jonkin kohteen rakennukseksi (jkr.kohteen_rakennusehdokkaat).';
-COMMENT ON COLUMN jkr.v_rakennukset.kunta IS E'Tieto rakennuksen sijaintikunnasta.';
 -- v_rakennusten_osoitteet
 COMMENT ON COLUMN jkr.v_rakennusten_osoitteet.id IS E'Osoitteen yksilöivä tunniste (jkr.osoite.id).';
 COMMENT ON COLUMN jkr.v_rakennusten_osoitteet.rakennus_id IS E'Viittaus rakennukseen, jolle osoite kuuluu.';
@@ -536,12 +483,6 @@ COMMENT ON COLUMN jkr.v_rakennusten_osoitteet.osoitenumero IS E'Katuosoitteeseen
 COMMENT ON COLUMN jkr.v_rakennusten_osoitteet.kunta IS E'Kunnan nimi suomeksi (jkr_osoite.kunta.nimi_fi).';
 COMMENT ON COLUMN jkr.v_rakennusten_osoitteet.postinumero IS E'Osoitteen postinumero (jkr_osoite.posti.numero).';
 COMMENT ON COLUMN jkr.v_rakennusten_osoitteet.postitoimipaikka IS E'Postitoimipaikan nimi suomeksi (jkr_osoite.posti.nimi_fi).';
--- v_sopimukset
-COMMENT ON COLUMN jkr.v_sopimukset.sopimus_id IS E'Sopimuksen yksilöivä tunniste (jkr.sopimus.id).';
-COMMENT ON COLUMN jkr.v_sopimukset.kohde_id IS E'Viittaus kohteeseen, jota sopimus koskee.';
-COMMENT ON COLUMN jkr.v_sopimukset.jatetyyppi_selite IS E'Jätetyypin selite (jkr_koodistot.jatetyyppi.selite).';
-COMMENT ON COLUMN jkr.v_sopimukset.sopimus_voimassaolo IS E'Sopimuksen voimassaoloaikaväli.';
-COMMENT ON COLUMN jkr.v_sopimukset.kimppaisanta_kohde_id IS E'Kimppasopimuksessa viittaus kimppaisäntänä toimivaan kohteeseen.';
 -- v_sopimus_tiedontuottajalla
 COMMENT ON COLUMN jkr.v_sopimus_tiedontuottajalla.id IS E'Sopimuksen yksilöivä tunniste (jkr.sopimus.id).';
 COMMENT ON COLUMN jkr.v_sopimus_tiedontuottajalla.alkupvm IS E'Sopimuksen voimaantulopäivämäärä.';
@@ -556,14 +497,6 @@ COMMENT ON COLUMN jkr.v_sopimus_tiedontuottajalla.sopimustyyppi_id IS E'Viittaus
 COMMENT ON COLUMN jkr.v_sopimus_tiedontuottajalla.sopimustyyppi_selite IS E'Sopimustyypin selite (jkr_koodistot.sopimustyyppi.selite).';
 COMMENT ON COLUMN jkr.v_sopimus_tiedontuottajalla.tiedontuottaja_tunnus IS E'Sopimustiedon toimittaneen tiedontuottajan tunnus.';
 COMMENT ON COLUMN jkr.v_sopimus_tiedontuottajalla.tiedontuottaja_nimi IS E'Tiedontuottajan nimi.';
--- v_tyhjennysvalit
-COMMENT ON COLUMN jkr.v_tyhjennysvalit.kohde_id IS E'Viittaus kohteeseen.';
-COMMENT ON COLUMN jkr.v_tyhjennysvalit.sopimus_id IS E'Viittaus sopimukseen, jota tyhjennysväli koskee.';
-COMMENT ON COLUMN jkr.v_tyhjennysvalit.sopimus_voimassaolo IS E'Sopimuksen voimassaoloaikaväli.';
-COMMENT ON COLUMN jkr.v_tyhjennysvalit.jatetyyppi_selite IS E'Jätetyypin selite (jkr_koodistot.jatetyyppi.selite).';
-COMMENT ON COLUMN jkr.v_tyhjennysvalit.alkuvko IS E'Viikkonumero, josta alkaen astiat tyhjennetään X viikon välein.';
-COMMENT ON COLUMN jkr.v_tyhjennysvalit.loppuvko IS E'Viikkonumero, johon päättyy astioiden tyhjentäminen X viikon välein.';
-COMMENT ON COLUMN jkr.v_tyhjennysvalit.tyhjennysvali IS E'Tyhjennysväli viikoissa.';
 -- v_ulkoinen_asiakastieto_tiedontuottajalla
 COMMENT ON COLUMN jkr.v_ulkoinen_asiakastieto_tiedontuottajalla.id IS E'Ulkoisen asiakastiedon yksilöivä tunniste (jkr.ulkoinen_asiakastieto.id).';
 COMMENT ON COLUMN jkr.v_ulkoinen_asiakastieto_tiedontuottajalla.tiedontuottaja_tunnus IS E'Asiakastiedon toimittaneen tiedontuottajan tunnus.';
@@ -626,12 +559,3 @@ COMMENT ON COLUMN jkr.v_velvoiteyhteenveto_status.jakso IS E'Tarkistusjakso teks
 COMMENT ON COLUMN jkr.v_velvoiteyhteenveto_status.ok IS E'Täyttyykö velvoiteyhteenveto kyseisellä ajanjaksolla.';
 COMMENT ON COLUMN jkr.v_velvoiteyhteenveto_status.velvoiteyhteenveto_id IS E'Viittaus velvoiteyhteenvetoon, jonka tilaa rivi kuvaa.';
 COMMENT ON COLUMN jkr.v_velvoiteyhteenveto_status.tallennuspvm IS E'Velvoiteyhteenvedon tilanteen tallennuspäivämäärä.';
--- v_yli_5_asunnon_kohteet
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.id IS E'Kohteen yksilöivä tunniste (jkr.kohde.id).';
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.nimi IS E'Kohteen nimi.';
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.geom IS E'Kohteen pseudogeometria (konveksi peite kohteeseen kuuluvista rakennuksista).';
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.alkupvm IS E'Kohteen jätehuoltovelvollisuuden alkupäivämäärä.';
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.loppupvm IS E'Kohteen jätehuoltovelvollisuuden loppupäivämäärä.';
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.voimassaolo IS E'Kohteen jätehuoltovelvollisuuden voimassaoloaikaväli.';
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.kohdetyyppi_id IS E'Viittaus kohteen tyyppiin (jkr_koodistot.kohdetyyppi).';
-COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.huoneistomaara IS E'Kohteen rakennusten yhteenlaskettu huoneistomäärä (vähintään 5).';
