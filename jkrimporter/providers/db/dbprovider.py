@@ -55,6 +55,9 @@ from .models import (
     Keraysvaline,
     KohteenRakennukset
 )
+from ..lahti.models import (
+    Jatelaji
+)
 from .services.buildings import counts as building_counts
 from .services.buildings import (
     find_buildings_for_kohde,
@@ -234,7 +237,11 @@ def find_and_update_kohde(session, asiakas, do_update_kohde, prt_counts, kitu_co
 
     if not kohde:
         print("trying to find via customer id.")
-        ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
+        # Ohitetaan haku jos asiakas on tullut lietekuljetuksesta
+        if asiakas.tyhjennystapahtumat[0].jatelaji in (Jatelaji.musta_liete, Jatelaji.harmaa_liete, Jatelaji.liete):
+            ulkoinen_asiakastieto = None
+        else:
+            ulkoinen_asiakastieto = get_ulkoinen_asiakastieto(session, asiakas.asiakasnumero)
 
         # 2. Etsi kohde asiakasnumeron perusteella
         if ulkoinen_asiakastieto:

@@ -89,7 +89,7 @@ class LieteTranslator:
             
             # Luo tai hae asiakas
             asiakas = self._get_or_create_asiakas(data, kuljetus_row)
-            
+
             if not asiakas:
                 logger.warning(
                     f"Ohitetaan kuljetus {kuljetus_row.id_tunnus}: "
@@ -97,21 +97,21 @@ class LieteTranslator:
                 )
                 skipped_count += 1
                 continue
-            
+
             # Luo tyhjennystapahtuma
             tapahtuma = self._create_tyhjennystapahtuma(kuljetus_row)
-            
+
             if tapahtuma:
                 asiakas.tyhjennystapahtumat.append(tapahtuma)
             else:
                 logger.warning(
                     f"Ohitetaan kuljetus {kuljetus_row.id_tunnus}: "
-                    f"Ei voitu luoda tyhjennystapahtumaata"
+                    f"Ei voitu luoda tyhjennystapahtumaa"
                 )
                 skipped_count += 1
-        
+
         asiakas_count = len(data.asiakkaat)
-        
+
         logger.info(
             f"LIETE-datan muunnos valmis: "
             f"{kuljetus_count} kuljetusta, "
