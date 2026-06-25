@@ -6,7 +6,6 @@ LAH-415: Kaivotiedot ja kaivotiedon lopetus tietojen vienti kantaan.
 
 import csv
 import logging
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Union
@@ -58,7 +57,7 @@ def export_kohdentumattomat_kaivotiedot(
         writer.writerows(kohdentumattomat)
     
     file_content = filepath.read_bytes()
-    asyncio.run(sp.upload_file(file_content=file_content, filename=filepath.name, user_name="jkr-core"))
+    sp.upload_file_best_effort(file_content=file_content, filename=filepath.name, user_name="jkr-core")
     logger.info(f"Kohdentumattomat kaivotiedot ({len(kohdentumattomat)} kpl) tallennettu: {filepath}")
     
     return filepath
