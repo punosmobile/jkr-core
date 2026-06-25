@@ -20,6 +20,7 @@ Ympäristömuuttujat:
     SHAREPOINT_OUTPUT_FOLDER - Tuloskansio (esim. /Shared Documents/JKR-output)
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -47,6 +48,16 @@ SHAREPOINT_OUTPUT_FOLDER = os.environ.get("SHAREPOINT_OUTPUT_FOLDER", "/Shared D
 # Token-välimuisti
 # ---------------------------------------------------------------------------
 _token_cache: Dict[str, Any] = {"access_token": None, "expires_at": 0}
+
+
+def has_credentials() -> bool:
+    """Kertoo onko SharePoint-Graph-pääsyn tunnukset asetettu (synkroninen).
+
+    Käytetään eräajojen best-effort-lähetyksessä: jos tunnuksia ei ole,
+    lähetys ohitetaan eikä tuontia kaadeta. Vrt. async is_configured(), joka
+    tarkistaa lisäksi SHAREPOINT_SITE_ID:n API-käyttöä varten.
+    """
+    return all([AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET])
 
 
 async def _get_app_token() -> str:
@@ -353,6 +364,44 @@ async def upload_file(
             f"{filename} ({len(file_content)} tavua)",
         )
     return result
+
+
+def upload_file_best_effort(
+    file_content: bytes,
+    filename: str,
+    folder: Optional[str] = None,
+    user_name: str = "jkr-core",
+) -> bool:
+    """Lähettää tiedoston SharePointiin parhaan kyvyn mukaan (synkroninen).
+
+    Tarkoitettu eräajojen (CLI/DVV-tuonti) kohdentumattomien tiedostojen
+    lähetykseen, joissa paikallinen tiedosto on jo kirjoitettu levylle.
+    EI kaada tuontia, jos:
+      - SharePoint-konfiguraatio puuttuu (esim. testiympäristö), tai
+      - lähetys epäonnistuu (esim. SharePoint alhaalla / verkkovirhe).
+
+    Palauttaa True jos lähetys onnistui, muutoin False (lokitetaan varoitus).
+    """
+    if not has_credentials():
+        logger.warning(
+            "SharePoint-konfiguraatio puuttuu — ohitetaan tiedoston %r lähetys. "
+            "Paikallinen tiedosto on tallennettu.",
+            filename,
+        )
+        return False
+    try:
+        asyncio.run(
+            upload_file(file_content=file_content, filename=filename,
+                        folder=folder, user_name=user_name)
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001 — eräajoa ei saa kaataa lähetysvirheeseen
+        logger.warning(
+            "SharePoint-lähetys epäonnistui tiedostolle %r: %s. "
+            "Paikallinen tiedosto on tallennettu.",
+            filename, exc,
+        )
+        return False
 
 
 async def _upload_small(token: str, target_path: str, content: bytes) -> Dict[str, Any]:

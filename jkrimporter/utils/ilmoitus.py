@@ -1,5 +1,4 @@
 import os
-import asyncio
 from pathlib import Path
 from typing import Dict, List
 
@@ -64,7 +63,7 @@ def export_kohdentumattomat_ilmoitukset(
     workbook_failed.save(output_file_path_failed)
 
     file_content = output_file_path_failed.read_bytes()
-    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
+    sp.upload_file_best_effort(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core")
 
 def export_kohdentumattomat_lieteIlmoitukset(
         folder: Path,
@@ -92,7 +91,7 @@ def export_kohdentumattomat_lieteIlmoitukset(
     workbook_failed.save(output_file_path_failed)
 
     file_content = output_file_path_failed.read_bytes()
-    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
+    sp.upload_file_best_effort(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core")
 
 
 def export_kohdentumattomat_lopetusilmoitukset(
@@ -122,4 +121,4 @@ def export_kohdentumattomat_lopetusilmoitukset(
     workbook_failed.save(output_file_path_failed)
 
     file_content = output_file_path_failed.read_bytes()
-    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
+    sp.upload_file_best_effort(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core")

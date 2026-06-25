@@ -2,7 +2,6 @@
 LIETE-aineiston apufunktiot.
 """
 
-import asyncio
 import csv
 import logging
 from pathlib import Path
@@ -75,7 +74,7 @@ def export_kohdentumattomat_liete_kuljetukset(
                     writer.writerow(row_dict)
         
         file_content = output_path.read_bytes()
-        asyncio.run(sp.upload_file(file_content=file_content, filename=output_path.name, user_name="jkr-core"))
+        sp.upload_file_best_effort(file_content=file_content, filename=output_path.name, user_name="jkr-core")
         logger.info(f"Tallennettu {len(kohdentumattomat)} kohdentamatonta LIETE-kuljetusta tiedostoon: {output_path}")
         print(f"Kohdentamattomat LIETE-kuljetukset ({len(kohdentumattomat)} kpl) tallennettu: {output_path}")
         

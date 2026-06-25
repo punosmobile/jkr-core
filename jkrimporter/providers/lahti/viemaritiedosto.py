@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from pathlib import Path
@@ -162,7 +161,7 @@ def export_kohdentumattomat_viemariilmoitukset(
     workbook_failed.save(output_file_path_failed)
 
     file_content = output_file_path_failed.read_bytes()
-    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
+    sp.upload_file_best_effort(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core")
 
 
 def export_kohdentumattomat_viemarilopetusilmoitukset(
@@ -192,4 +191,4 @@ def export_kohdentumattomat_viemarilopetusilmoitukset(
     workbook_failed.save(output_file_path_failed)
     
     file_content = output_file_path_failed.read_bytes()
-    asyncio.run(sp.upload_file(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core"))
+    sp.upload_file_best_effort(file_content=file_content, filename=output_file_path_failed.name, user_name="jkr-core")
