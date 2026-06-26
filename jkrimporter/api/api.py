@@ -191,6 +191,50 @@ _running_procs: Dict[str, asyncio.subprocess.Process] = {}
 # Tehtävät, jotka on merkitty pysäytettäväksi (kill-pyyntö vastaanotettu)
 _cancelled_tasks: set = set()
 
+# SharePointista pullatut tiedostot: paikallinen polku -> SharePoint-lähdepolku.
+# Käytetään käsitellyn tiedoston arkistointiin ("viedyt") onnistuneen tuonnin
+# jälkeen. In-memory (kuten _tasks): palvelimen uudelleenkäynnistys nollaa
+# rekisterin, jolloin tiedosto jää JKR-input-kansioon (turvallinen oletus,
+# voidaan siirtää käsin /sharepoint/move-endpointilla).
+_sharepoint_sources: Dict[str, str] = {}
+
+
+def _sp_source_keys(local_path: str) -> List[str]:
+    """Palauttaa hakuavaimet paikalliselle polulle (absoluuttinen + tiedostonimi)."""
+    keys = [local_path]
+    try:
+        keys.append(str(Path(local_path).resolve()))
+    except (OSError, ValueError):
+        pass
+    keys.append(os.path.basename(local_path.rstrip("/\\")))
+    # Säilytä järjestys, poista duplikaatit
+    seen: set = set()
+    return [k for k in keys if k and not (k in seen or seen.add(k))]
+
+
+def _register_sp_source(local_path: str, sharepoint_path: str) -> None:
+    """Tallentaa paikallinen polku -> SharePoint-lähdepolku -kytkennän."""
+    if not local_path or not sharepoint_path:
+        return
+    for key in _sp_source_keys(local_path):
+        _sharepoint_sources[key] = sharepoint_path
+
+
+def _pop_sp_source(local_path: str) -> Optional[str]:
+    """Hakee ja poistaa SharePoint-lähdepolun paikalliselle polulle (None jos ei löydy)."""
+    sp_path = None
+    for key in _sp_source_keys(local_path):
+        if key in _sharepoint_sources:
+            sp_path = _sharepoint_sources[key]
+            break
+    if sp_path is None:
+        return None
+    # Poista kaikki samaan lähteeseen osoittavat avaimet (täysi polku, resolvattu
+    # polku, tiedostonimi), jottei rekisteriin jää roikkuvia kytkentöjä.
+    for key in [k for k, v in _sharepoint_sources.items() if v == sp_path]:
+        _sharepoint_sources.pop(key, None)
+    return sp_path
+
 
 def _infer_task_type_from_command(command: str) -> str:
     normalized = (command or "").strip().lower()
@@ -374,7 +418,50 @@ async def _paata_tuontiloki(loki_id: Optional[int], task: TaskInfo) -> None:
         logger.exception("Tuontilokin lopetusrivin kirjaus epäonnistui (task=%s)", task.id)
 
 
-async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
+async def _archive_processed_sources(
+    local_paths: List[str],
+    user_name: str,
+) -> None:
+    """Siirtää käsitellyt SharePoint-lähdetiedostot arkistoon ("viedyt").
+
+    Best-effort: arkistoidaan vain ne paikalliset tiedostot, jotka on
+    rekisteröity SharePointista pullatuiksi (_sharepoint_sources). Käsin
+    palvelimelle ladatut tiedostot ohitetaan. Virhe arkistoinnissa EI kaada
+    tuontia – tiedosto jää tällöin JKR-input-kansioon ja sen voi siirtää käsin.
+    """
+    if not sp.SHAREPOINT_ARCHIVE_AFTER_IMPORT:
+        return
+    for local_path in local_paths:
+        sp_path = _pop_sp_source(local_path)
+        if not sp_path:
+            continue  # ei SharePoint-alkuperää → ei arkistoida
+        if not sp.has_credentials() or not sp.SHAREPOINT_SITE_ID:
+            logger.warning(
+                "SharePoint-arkistointi ohitettu (konfiguraatio puuttuu): %s",
+                sp_path,
+            )
+            continue
+        try:
+            await sp.archive_file(sp_path, user_name=user_name or "jkr-core")
+            logger.info(
+                "Käsitelty tiedosto arkistoitu SharePointissa: %s -> %s",
+                sp_path,
+                sp.SHAREPOINT_ARCHIVE_FOLDER,
+            )
+        except Exception as exc:  # noqa: BLE001 — arkistointi ei saa kaataa tuontia
+            logger.warning(
+                "SharePoint-arkistointi epäonnistui (%s): %s. "
+                "Tiedosto jää JKR-input-kansioon.",
+                sp_path, exc,
+            )
+
+
+async def _run_task(
+    task_id: str,
+    command: str,
+    cwd: Optional[str] = None,
+    archive_sources: Optional[List[str]] = None,
+):
     """Suorittaa komennon taustalla ja päivittää tehtävän tilan.
 
     Lukee stdout/stderr rivi kerrallaan reaaliajassa, jotta:
@@ -494,6 +581,16 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
 
     # Tuontiloki: päivitä lopetusrivi tehtävän lopputilan mukaan (valmis/virhe).
     await _paata_tuontiloki(loki_id, task)
+
+    # Arkistointi: onnistuneen tuonnin jälkeen siirrä SharePointista pullatut
+    # lähdetiedostot "viedyt"-kansioon (LAH-625). Vain jos tehtävä onnistui
+    # eikä sitä pysäytetty.
+    if (
+        archive_sources
+        and task.status == TaskStatus.completed
+        and task_id not in _cancelled_tasks
+    ):
+        await _archive_processed_sources(archive_sources, task.runner or "")
 
     """ log_path = Path(__log_path__)
     if log_path.exists() and log_path.stat().st_size > 0:
@@ -811,6 +908,10 @@ async def _pull_sharepoint_paths(
                     raw_result,
                 )
 
+            # Kirjaa lähdepolku, jotta käsitelty tiedosto voidaan tuonnin
+            # jälkeen siirtää arkistoon ("viedyt").
+            _register_sp_source(verified_result.target_path, path)
+
             logger.info(
                 "SharePoint pull: %s -> %s",
                 path,
@@ -1023,7 +1124,8 @@ async def cancel_task(task_id: str, user: CurrentUser = Depends(require_admin)):
 async def jkr_batch_import(import_list: list[FileInfo], background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr batch_import {shlex.quote(json.dumps([item.dict() for item in import_list]))}"
     task = _create_task(cmd, f"Tietojen joukko tuonti {import_list}", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    archive_sources = [item.target_path for item in import_list if item.target_path]
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=archive_sources)
     return _task_response(task)
 
 
@@ -1031,7 +1133,7 @@ async def jkr_batch_import(import_list: list[FileInfo], background_tasks: Backgr
 async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
     task = _create_task(cmd, f"Kuljetustietojen tuonti ({req.tiedontuottajatunnus} {req.alkupvm}-{req.loppupvm})", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1039,7 +1141,7 @@ async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, u
 async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
     task = _create_task(cmd, f"LIETE-kuljetustietojen tuonti ({req.alkupvm}-{req.loppupvm})", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1047,7 +1149,7 @@ async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: Backgro
 async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_paatokset {req.siirtotiedosto}"
     task = _create_task(cmd, "Päätösten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1055,7 +1157,7 @@ async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks:
 async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_ilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Kompostointi-ilmoitusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1063,7 +1165,7 @@ async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_ta
 async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete_ilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Liete kompostointi-ilmoitusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1071,7 +1173,7 @@ async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, ba
 async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopetusilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Lopetusilmoitusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1079,7 +1181,7 @@ async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest,
 async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedot {req.siirtotiedosto} {req.tiedontuottajatunnus}"
     task = _create_task(cmd, "Kaivotietojen tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1087,7 +1189,7 @@ async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_ta
 async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedon_lopetukset {req.siirtotiedosto} {req.tiedontuottajatunnus}"
     task = _create_task(cmd, "Kaivotiedon lopetusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1095,7 +1197,7 @@ async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetR
 async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_viemarit {req.siirtotiedosto}"
     task = _create_task(cmd, "Viemäritietojen tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -1103,7 +1205,7 @@ async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: B
 async def jkr_import_lopeta_viemarit(req: JkrImportLopetaViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopeta_viemarit {req.siirtotiedosto}"
     task = _create_task(cmd, "Viemärin lopetusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -2224,6 +2326,8 @@ async def sharepoint_status(user: CurrentUser = Depends(require_authenticated)):
         "site_id": sp.SHAREPOINT_SITE_ID or None,
         "input_folder": sp.SHAREPOINT_INPUT_FOLDER or None,
         "output_folder": sp.SHAREPOINT_OUTPUT_FOLDER or None,
+        "archive_folder": sp.SHAREPOINT_ARCHIVE_FOLDER or None,
+        "archive_after_import": sp.SHAREPOINT_ARCHIVE_AFTER_IMPORT,
     }
 
 

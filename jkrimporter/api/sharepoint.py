@@ -18,6 +18,10 @@ Ympäristömuuttujat:
     SHAREPOINT_SITE_ID       - SharePoint Site ID (esim. contoso.sharepoint.com,guid1,guid2)
     SHAREPOINT_INPUT_FOLDER  - Syöttökansio (esim. /Shared Documents/JKR-input)
     SHAREPOINT_OUTPUT_FOLDER - Tuloskansio (esim. /Shared Documents/JKR-output)
+    SHAREPOINT_ARCHIVE_FOLDER - Arkistokansio käsitellyille tiedostoille
+                                (ns. "viedyt", oletus: /Shared Documents/viedyt)
+    SHAREPOINT_ARCHIVE_AFTER_IMPORT - Siirretäänkö syötetiedosto arkistoon
+                                onnistuneen tuonnin jälkeen (oletus: true)
 """
 
 import asyncio
@@ -43,6 +47,13 @@ AZURE_CLIENT_SECRET = os.environ.get("SHAREPOINT_CLIENT_SECRET") or os.environ.g
 SHAREPOINT_SITE_ID = os.environ.get("SHAREPOINT_SITE_ID", "")
 SHAREPOINT_INPUT_FOLDER = os.environ.get("SHAREPOINT_INPUT_FOLDER", "/Shared Documents/JKR-input")
 SHAREPOINT_OUTPUT_FOLDER = os.environ.get("SHAREPOINT_OUTPUT_FOLDER", "/Shared Documents/JKR-output")
+# Arkistokansio ("viedyt"): tänne siirretään JKR-input-kansiosta käsitellyt
+# tiedostot onnistuneen tuonnin jälkeen.
+SHAREPOINT_ARCHIVE_FOLDER = os.environ.get("SHAREPOINT_ARCHIVE_FOLDER", "/Shared Documents/viedyt")
+SHAREPOINT_ARCHIVE_AFTER_IMPORT = (
+    os.environ.get("SHAREPOINT_ARCHIVE_AFTER_IMPORT", "true").strip().lower()
+    in ("1", "true", "yes", "on")
+)
 
 # ---------------------------------------------------------------------------
 # Token-välimuisti
@@ -588,6 +599,58 @@ async def move_file(source_path: str, dest_folder: str, new_name: Optional[str] 
         "name": result.get("name"),
         "webUrl": result.get("webUrl"),
     }
+
+
+async def folder_exists(folder_path: str) -> bool:
+    """Tarkistaa onko kansio olemassa SharePointissa."""
+    token = await _get_app_token()
+    path = folder_path.strip("/")
+    url = f"{_graph_base()}/root:/{path}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"$select": "id"},
+            timeout=30.0,
+        )
+    if resp.status_code == 200:
+        return True
+    if resp.status_code == 404:
+        return False
+    resp.raise_for_status()
+    return False
+
+
+async def ensure_folder(folder_path: str, user_name: str = "", user_email: str = "") -> None:
+    """Varmistaa että kansio on olemassa; luo sen jos puuttuu.
+
+    Best-effort kansion luonnin osalta: jos kansio ehti syntyä rinnakkaisesti
+    (409 Conflict), se ei ole virhe.
+    """
+    if await folder_exists(folder_path):
+        return
+    try:
+        await create_folder(folder_path, user_name=user_name, user_email=user_email)
+    except httpx.HTTPStatusError as exc:
+        if exc.response is not None and exc.response.status_code == 409:
+            return  # kansio luotiin rinnakkaisesti
+        raise
+
+
+async def archive_file(source_path: str, user_name: str = "", user_email: str = "") -> Dict[str, Any]:
+    """Siirtää käsitellyn tiedoston arkistokansioon (SHAREPOINT_ARCHIVE_FOLDER, "viedyt").
+
+    Käyttää natiivia SharePoint-siirtoa (move_file) — tiedosto ei lataudu
+    palvelimen kautta, vaan SharePoint vaihtaa vain tiedoston parent-kansion.
+    Varmistaa että arkistokansio on olemassa ennen siirtoa.
+    """
+    await ensure_folder(SHAREPOINT_ARCHIVE_FOLDER, user_name=user_name, user_email=user_email)
+    return await move_file(
+        source_path,
+        SHAREPOINT_ARCHIVE_FOLDER,
+        user_name=user_name,
+        user_email=user_email,
+    )
 
 
 async def create_folder(folder_path: str, user_name: str = "", user_email: str = "") -> Dict[str, Any]:
