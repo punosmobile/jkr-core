@@ -643,14 +643,37 @@ async def archive_file(source_path: str, user_name: str = "", user_email: str = 
     Käyttää natiivia SharePoint-siirtoa (move_file) — tiedosto ei lataudu
     palvelimen kautta, vaan SharePoint vaihtaa vain tiedoston parent-kansion.
     Varmistaa että arkistokansio on olemassa ennen siirtoa.
+
+    Jos arkistokansiossa on jo samanniminen tiedosto (Graph palauttaa 409
+    Conflict), siirretään aikaleimalla varustetulla nimellä — näin sama
+    tiedostonimi voidaan tuoda useita kertoja menettämättä aiempia versioita.
     """
     await ensure_folder(SHAREPOINT_ARCHIVE_FOLDER, user_name=user_name, user_email=user_email)
-    return await move_file(
-        source_path,
-        SHAREPOINT_ARCHIVE_FOLDER,
-        user_name=user_name,
-        user_email=user_email,
-    )
+    try:
+        return await move_file(
+            source_path,
+            SHAREPOINT_ARCHIVE_FOLDER,
+            user_name=user_name,
+            user_email=user_email,
+        )
+    except httpx.HTTPStatusError as exc:
+        if exc.response is None or exc.response.status_code != 409:
+            raise
+        # Nimi on jo varattu viedyt-kansiossa → lisätään aikaleima ja yritetään uudelleen.
+        filename = source_path.strip("/").split("/")[-1]
+        stem, _, ext = filename.rpartition(".")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        stamped = f"{stem}_{timestamp}.{ext}" if stem else f"{filename}_{timestamp}"
+        logger.info(
+            "Arkistossa on jo tiedosto %r — siirretään nimellä %r", filename, stamped,
+        )
+        return await move_file(
+            source_path,
+            SHAREPOINT_ARCHIVE_FOLDER,
+            new_name=stamped,
+            user_name=user_name,
+            user_email=user_email,
+        )
 
 
 async def create_folder(folder_path: str, user_name: str = "", user_email: str = "") -> Dict[str, Any]:
