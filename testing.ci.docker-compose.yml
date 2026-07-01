@@ -1,0 +1,27 @@
+# CI-override testing.docker-compose.yml:lle (LAH-629).
+#
+# Korvaa vain testiajurin (jkr-core-runner) raskaan QGIS-tuotantoimagen
+# kevyellä testi-imagella (docker/test-runner/Dockerfile). Kaikki muu —
+# db_test, flyway_test, sekä runnerin command/volumes/environment/depends_on —
+# peritään sellaisenaan pohjatiedostosta (compose yhdistää tiedostot).
+#
+# Käyttö (CI):
+#   docker compose -f testing.docker-compose.yml -f testing.ci.docker-compose.yml build
+#   docker compose -f testing.docker-compose.yml -f testing.ci.docker-compose.yml run --rm jkr-core-runner
+#
+# Paikallinen kehitys käyttää edelleen pelkkää testing.docker-compose.yml:ää
+# (run_tests.ps1), joten tämä ei muuta kehittäjien nykyistä flow'ta.
+services:
+  # Pohjatiedostossa db_test:n build-konteksti on ./docker/postgis/test, jossa
+  # EI ole Dockerfileä — paikallisesti se toimii vain koska jkr/postgis-image on
+  # jo cachessa. Tuoreessa CI-ympäristössä (ei cachea) build kaatuu. Korjataan
+  # konteksti oikeaan paikkaan (./docker/postgis, jossa Dockerfile on). Testi-DB:n
+  # init (init_test_db) ja postgresql.conf tulevat edelleen volume-mounteista.
+  db_test:
+    build:
+      context: ./docker/postgis
+
+  jkr-core-runner:
+    build:
+      context: .
+      dockerfile: docker/test-runner/Dockerfile
