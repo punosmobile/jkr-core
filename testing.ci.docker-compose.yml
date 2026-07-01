@@ -20,6 +20,13 @@ services:
   db_test:
     build:
       context: ./docker/postgis
+    # CI: logita stderriin (kontin loki), ei /var/log/postgresql-bind-mounttiin.
+    # Tuoreessa CI-checkoutissa ./docker/postgis/test/logs -hakemistoa ei ole
+    # (ei git-seurannassa, .gitignore: *.log), jolloin Docker luo sen Linuxissa
+    # root-omisteisena eikä postgres (uid 999) voi kirjoittaa lokia -> kaatuu
+    # (exit 1). Komentoriviltä annettu -c ohittaa postgresql.conf:n
+    # logging_collector=on -asetuksen ja poistaa koko riippuvuuden lokihakemistoon.
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c logging_collector=off
 
   jkr-core-runner:
     build:
