@@ -1,0 +1,35 @@
+# Build-kontekstin rajaus `az acr build` / docker build -ajoille.
+# Ilman tätä kontekstiin pakattiin mm. output/ (~8 GB lokit) ja docker/postgis
+# (~4.5 GB volume), jolloin tarballin upload jumitti ACR:ään minuuttikaupalla.
+# Image tarvitsee vain Python-paketin + pienet tuki-/SQL-hakemistot; runtime
+# käyttää absoluuttisia /data- ja /dbdumps-mountteja, ei repo-suhteellisia polkuja.
+
+# Suuret paikalliset hakemistot joita image EI tarvitse
+output/
+docker/
+data/
+dbdumps/
+
+# Versionhallinta ja CI
+.git/
+.github/
+.hooks/
+
+# Python-välimuistit ja virtuaaliympäristöt
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Editorit ja paikalliset lokit
+.vscode/
+.idea/
+*.log
+
+# Paikalliset env-tiedostot (älä vie salaisuuksia imageen)
+.env
+.env.*
+!.env.template

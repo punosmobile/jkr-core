@@ -69,8 +69,21 @@ def _connect() -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), timeout=30.0)
     conn.row_factory = sqlite3.Row
-    # WAL kestää paremmin samanaikaiset luvut kirjoituksen rinnalla.
-    conn.execute("PRAGMA journal_mode=WAL")
+    # Odota lukon vapautumista jopa 30 s sen sijaan että kaadutaan heti
+    # "database is locked" -virheeseen (esim. revisiovaihdon päällekkäisyys,
+    # jolloin vanha ja uusi revisio kirjoittavat hetken samaan kantaan).
+    conn.execute("PRAGMA busy_timeout=30000")
+    # HUOM: EI WAL-moodia. Tapahtumakanta sijaitsee /dbdumps-Azure Files (SMB)
+    # -jaolla, eikä SMB tue WAL:n vaatimaa jaettua muistia (-shm). WAL aiheutti
+    # "database is locked" -virheitä etenkin revisiovaihdossa. Rollback-journal
+    # (DELETE) on verkkolevyturvallinen ja sallii usean prosessin kirjoituksen
+    # (peräkkäin, busy_timeoutin puitteissa). Asetus on ei-fataali: jos lukko on
+    # hetkellisesti varattu, yhteys palautetaan silti käyttökelpoisena ja itse
+    # kirjoitus odottaa busy_timeoutin verran.
+    try:
+        conn.execute("PRAGMA journal_mode=DELETE")
+    except sqlite3.OperationalError:
+        logger.warning("journal_mode-asetus ohitettu (kanta hetkellisesti lukittu)")
     conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
