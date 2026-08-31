@@ -59,6 +59,16 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-root --no-dev
 
 COPY . .
+
+# Palauta shell-skriptien suoritusbitti.
+# jkr.py ajaa skriptit suoraan polkuna ("./scripts/import_and_create_kohteet.sh"),
+# joten ne tarvitsevat +x:n. Gitissä ne ovat 100755, mutta Windowsilla
+# core.filemode=false eikä NTFS kanna suoritusbittiä -- jolloin `az acr build`
+# pakkaa ne kontekstiin 0644:nä ja tuonti kaatuu ajossa virheeseen
+# "permission denied". Linuxilla/CI:ssä bitti säilyy, joten vika näkyy vain
+# Windowsilta buildattaessa. Tämä rivi tekee buildista isäntäriippumattoman.
+RUN chmod +x scripts/*.sh
+
 RUN poetry install --no-dev
 
 # Avaa API-portti
