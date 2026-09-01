@@ -135,13 +135,13 @@ def import_data_batch(
                 poimintapvm = _read_dvv_poimintapvm(target_path)
                 if (posti_path and perusmaksu_path):
                     print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}, 'posti', {posti_path}")
-                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
+                    _import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
                 elif perusmaksu_path:
                     print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}")
-                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path)
+                    _import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path)
                 else:
                     print(f"DVV args: {poimintapvm}, {target_path}")
-                    import_and_create_kohteet(poimintapvm, target_path)
+                    _import_and_create_kohteet(poimintapvm, target_path)
                 continue
             case FileType.HUONEISTOMAARAT:
                 update_huoneistomaara(target_path)
@@ -289,6 +289,19 @@ def import_and_create_kohteet(
     perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
     posti_file: Optional[str] = typer.Argument(None, help="What file to use if provided, else defaults to data/posti/PCF.dat"),
+):
+    _import_and_create_kohteet(poimintapvm, dvv, perusmaksutiedosto, posti, posti_file)
+
+
+# app.command structure fails to parse default argument values, resulting in the passing of typer.argument itself
+# The result is incorrectly viewed as truthy and fails the function call unexpectedly
+# This function acts as a straight function call to avoid the issue while the old command simply calls it instead
+def _import_and_create_kohteet(
+    poimintapvm: Optional[str] = None,
+    dvv: Optional[Path] = None,
+    perusmaksutiedosto: Optional[Path] = None,
+    posti: Optional[str] = None,
+    posti_file: Optional[str] = None,
 ):
     with sisaanlukutapahtuma():
         file_to_run: Optional[str] = None
