@@ -3,13 +3,43 @@ Järjestelmätapahtumien pysyvä tallennus (LAH-623).
 
 Dashboardin "viimeisimmät järjestelmätapahtumat" pidetään ajon aikana
 muistissa (api._tasks), mutta ne katoavat kontin uudelleenkäynnistyksessä.
-Tämä moduuli tallentaa tapahtumat SQLite-kantaan, joka sijaitsee
-varmuuskopioiden kanssa samalla levyllä mutta omassa alikansiossaan, jolloin
-se ei näy varmuuskopiolistauksessa (api.list_db_dumps iteroi vain juuren
-tiedostot, ei alikansioita).
+Tämä moduuli tallentaa tapahtumat pysyvästi.
 
-Käyttö:
-    events_store.ensure_schema()          # luo kansio + kanta jos puuttuu
+MIKSI OMA POSTGRES-KANTA (muutettu 31.8.2026)
+---------------------------------------------
+Aiemmin tapahtumat tallennettiin SQLite-kantaan `/dbdumps`-hakemistoon.
+Se ei toiminut kertaakaan: `/dbdumps` on Azure Files (SMB) -verkkolevy, eikä
+SMB tue luotettavasti SQLiten vaatimia tiedostotason lukkoja. Skeeman luonti
+kaatui joka käynnistyksessä virheeseen
+
+    sqlite3.OperationalError: database is locked
+
+ja kaikki luku- ja kirjoitusyritykset sen jälkeen virheeseen
+"no such table: jarjestelmatapahtuma". Kanta jäi 0-tavuiseksi tiedostoksi.
+Todennettu 31.8.2026: tiedoston poisto ja kontin uudelleenkäynnistys toistivat
+saman virheen, joten kyse ei ollut jumiin jääneestä tiedostosta vaan SMB:stä.
+Container Apps tukee vain Azure Files- ja ephemeral-tallennusta, joten SQLitelle
+ei ole tässä ajoympäristössä kelvollista pysyvää sijaintia lainkaan.
+
+Tapahtumat ovat nyt OMASSA Postgres-kannassaan (oletus `systemevents`), samalla
+palvelininstanssilla kuin `jatehuolto` mutta eri kantana. Tämä on tarkoituksellista
+eikä vain siisteyssyy:
+
+    Varmuuskopion palautus ja kannan nollaus OVAT itsessään järjestelmätapahtumia.
+    Jos tämä taulu olisi `jatehuolto`-kannassa, palautus pyyhkisi juuri sen
+    merkinnän joka kertoo palautuksen tapahtuneen — loki ei voi elää kannassa
+    jonka elinkaarta se seuraa.
+
+Erillinen kanta ratkaisee samalla sen, mitä SQLite ei olisi tässä ympäristössä
+koskaan kestänyt: usean replikan yhtäaikaisen kirjoituksen ja revisiovaihdon
+päällekkäisyyden.
+
+EDELLYTYS: kannan `systemevents` on oltava olemassa ja JKR_USER-käyttäjällä on
+oltava siihen oikeudet. Luonti on infra-askel (ks. create-systemevents-db.ps1);
+tämä moduuli luo vain taulun ja indeksin.
+
+Käyttö (rajapinta ennallaan):
+    events_store.ensure_schema()          # luo taulu jos puuttuu
     events_store.upsert(task)             # tallenna/päivitä tapahtuma
     events_store.recent(limit=50)         # viimeisimmät tapahtumat (dict-listana)
     events_store.prune(keep=2000)         # siivoa vanhat pois
@@ -19,83 +49,93 @@ import json
 import logging
 import os
 import re
-import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
 from typing import Any, List, Optional
+
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger("jkr-events")
 
 # Sama salasanasensurointi kuin tuontilokissa (api._tuontiloki_alku).
 _PASSWORD_RE = re.compile(r"password=\S+")
 
-# Kannan sijainti: oletuksena varmuuskopiokansion (JKR_DBDUMP_DIR) alikansio.
-# Alikansio on tarkoituksella – api.list_db_dumps ohittaa alikansiot, joten
-# tapahtumakanta ei valu käyttöliittymän varmuuskopiolistaan.
-_DEFAULT_DB_PATH = Path(os.environ.get("JKR_DBDUMP_DIR", "/dbdumps")) / "system" / "jarjestelmatapahtumat.db"
+
+def _conn_params() -> dict:
+    """Yhteysasetukset: sama palvelin ja tunnus kuin jatehuolto-kannalla, ERI kanta.
+
+    Kannan nimi on ylikirjoitettavissa JKR_EVENTS_DB-muuttujalla. HUOM: aiemmin
+    sama muuttuja tarkoitti SQLite-tiedoston polkua; nyt se on kannan NIMI.
+    """
+    return {
+        "host": os.environ.get("JKR_DB_HOST", ""),
+        "port": os.environ.get("JKR_DB_PORT", "5432") or "5432",
+        "dbname": os.environ.get("JKR_EVENTS_DB", "systemevents"),
+        "user": os.environ.get("JKR_USER", ""),
+        "password": os.environ.get("JKR_PASSWORD", ""),
+        # Sama oletus kuin sovelluksen muulla yhteydellä (SQLAlchemy ei aseta
+        # sslmodea, jolloin psycopg2 kayttaa 'prefer'). Azure vaatii SSL:n,
+        # joten 'prefer' neuvottelee sen kayttoon.
+        "sslmode": os.environ.get("JKR_DB_SSLMODE", "prefer"),
+        "connect_timeout": 10,
+    }
 
 
-def db_path() -> Path:
-    """Tapahtumakannan polku (ylikirjoitettavissa JKR_EVENTS_DB-muuttujalla)."""
-    return Path(os.environ.get("JKR_EVENTS_DB", str(_DEFAULT_DB_PATH)))
+def target() -> str:
+    """Kuvaus kohteesta lokitusta varten (ei sisällä salasanaa)."""
+    p = _conn_params()
+    return f"{p['user']}@{p['host']}:{p['port']}/{p['dbname']}"
 
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS jarjestelmatapahtuma (
-    id               TEXT PRIMARY KEY,
-    task_type        TEXT NOT NULL,
-    status           TEXT NOT NULL,
-    command          TEXT,
-    runner           TEXT,
-    description      TEXT,
-    started_at       TEXT,
-    finished_at      TEXT,
-    duration_seconds REAL,
-    exit_code        INTEGER,
-    output           TEXT,
-    error            TEXT,
-    result_file      TEXT,
-    occurred_at      TEXT
+    id               text PRIMARY KEY,
+    task_type        text NOT NULL,
+    status           text NOT NULL,
+    command          text,
+    runner           text,
+    description      text,
+    started_at       text,
+    finished_at      text,
+    duration_seconds double precision,
+    exit_code        integer,
+    output           text,
+    error            text,
+    result_file      text,
+    occurred_at      text
 );
 CREATE INDEX IF NOT EXISTS ix_tapahtuma_occurred
-    ON jarjestelmatapahtuma(occurred_at DESC);
+    ON jarjestelmatapahtuma (occurred_at DESC NULLS LAST);
 """
 
 
-def _connect() -> sqlite3.Connection:
-    """Avaa yhteyden tapahtumakantaan. Kansio ja tiedosto luodaan tarvittaessa."""
-    path = db_path()
-    # Jos kansio puuttuu, se luodaan. Jos kanta puuttuu, sqlite3.connect luo sen.
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), timeout=30.0)
-    conn.row_factory = sqlite3.Row
-    # Odota lukon vapautumista jopa 30 s sen sijaan että kaadutaan heti
-    # "database is locked" -virheeseen (esim. revisiovaihdon päällekkäisyys,
-    # jolloin vanha ja uusi revisio kirjoittavat hetken samaan kantaan).
-    conn.execute("PRAGMA busy_timeout=30000")
-    # HUOM: EI WAL-moodia. Tapahtumakanta sijaitsee /dbdumps-Azure Files (SMB)
-    # -jaolla, eikä SMB tue WAL:n vaatimaa jaettua muistia (-shm). WAL aiheutti
-    # "database is locked" -virheitä etenkin revisiovaihdossa. Rollback-journal
-    # (DELETE) on verkkolevyturvallinen ja sallii usean prosessin kirjoituksen
-    # (peräkkäin, busy_timeoutin puitteissa). Asetus on ei-fataali: jos lukko on
-    # hetkellisesti varattu, yhteys palautetaan silti käyttökelpoisena ja itse
-    # kirjoitus odottaa busy_timeoutin verran.
+@contextmanager
+def _connect():
+    """Avaa yhteyden tapahtumakantaan, commitoi onnistuessa ja sulkee aina."""
+    conn = psycopg2.connect(**_conn_params())
     try:
-        conn.execute("PRAGMA journal_mode=DELETE")
-    except sqlite3.OperationalError:
-        logger.warning("journal_mode-asetus ohitettu (kanta hetkellisesti lukittu)")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    return conn
+        yield conn
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 
 def ensure_schema() -> None:
-    """Varmistaa että kansio, kanta ja taulu ovat olemassa (luo puuttuvat)."""
+    """Varmistaa että taulu ja indeksi ovat olemassa (luo puuttuvat)."""
     try:
         with _connect() as conn:
-            conn.executescript(_SCHEMA)
-        logger.info("Järjestelmätapahtumakanta valmiina: %s", db_path())
+            with conn.cursor() as cur:
+                cur.execute(_SCHEMA)
+        logger.info("Järjestelmätapahtumakanta valmiina: %s", target())
     except Exception:
-        logger.exception("Tapahtumakannan alustus epäonnistui (%s)", db_path())
+        logger.exception("Tapahtumakannan alustus epäonnistui (%s)", target())
 
 
 def _iso(value: Optional[datetime]) -> Optional[str]:
@@ -135,34 +175,36 @@ def upsert(task: Any) -> None:
             "occurred_at": finished or started,
         }
         with _connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO jarjestelmatapahtuma (
-                    id, task_type, status, command, runner, description,
-                    started_at, finished_at, duration_seconds, exit_code,
-                    output, error, result_file, occurred_at
-                ) VALUES (
-                    :id, :task_type, :status, :command, :runner, :description,
-                    :started_at, :finished_at, :duration_seconds, :exit_code,
-                    :output, :error, :result_file, :occurred_at
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO jarjestelmatapahtuma (
+                        id, task_type, status, command, runner, description,
+                        started_at, finished_at, duration_seconds, exit_code,
+                        output, error, result_file, occurred_at
+                    ) VALUES (
+                        %(id)s, %(task_type)s, %(status)s, %(command)s, %(runner)s,
+                        %(description)s, %(started_at)s, %(finished_at)s,
+                        %(duration_seconds)s, %(exit_code)s, %(output)s, %(error)s,
+                        %(result_file)s, %(occurred_at)s
+                    )
+                    ON CONFLICT (id) DO UPDATE SET
+                        task_type=EXCLUDED.task_type,
+                        status=EXCLUDED.status,
+                        command=EXCLUDED.command,
+                        runner=EXCLUDED.runner,
+                        description=EXCLUDED.description,
+                        started_at=EXCLUDED.started_at,
+                        finished_at=EXCLUDED.finished_at,
+                        duration_seconds=EXCLUDED.duration_seconds,
+                        exit_code=EXCLUDED.exit_code,
+                        output=EXCLUDED.output,
+                        error=EXCLUDED.error,
+                        result_file=EXCLUDED.result_file,
+                        occurred_at=EXCLUDED.occurred_at
+                    """,
+                    row,
                 )
-                ON CONFLICT(id) DO UPDATE SET
-                    task_type=excluded.task_type,
-                    status=excluded.status,
-                    command=excluded.command,
-                    runner=excluded.runner,
-                    description=excluded.description,
-                    started_at=excluded.started_at,
-                    finished_at=excluded.finished_at,
-                    duration_seconds=excluded.duration_seconds,
-                    exit_code=excluded.exit_code,
-                    output=excluded.output,
-                    error=excluded.error,
-                    result_file=excluded.result_file,
-                    occurred_at=excluded.occurred_at
-                """,
-                row,
-            )
     except Exception:
         logger.exception("Tapahtuman tallennus epäonnistui (id=%s)", getattr(task, "id", "?"))
 
@@ -171,17 +213,21 @@ def recent(limit: int = 50) -> List[dict]:
     """Palauttaa viimeisimmät tapahtumat dict-listana (TaskInfo-kentännimillä).
 
     Lajittelu occurred_at DESC; NULL-arvot (esim. ajamattomat) jäävät loppuun.
+    HUOM: Postgres asettaa DESC-lajittelussa NULLit ENSIN, toisin kuin SQLite,
+    joten NULLS LAST on kirjoitettava näkyviin jotta järjestys säilyy ennallaan.
     """
     try:
         with _connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT * FROM jarjestelmatapahtuma
-                ORDER BY occurred_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT * FROM jarjestelmatapahtuma
+                    ORDER BY occurred_at DESC NULLS LAST
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cur.fetchall()
     except Exception:
         logger.exception("Tapahtumien luku epäonnistui")
         return []
@@ -212,16 +258,17 @@ def prune(keep: int = 2000) -> None:
     """Säilyttää vain keep viimeisintä tapahtumaa, poistaa loput."""
     try:
         with _connect() as conn:
-            conn.execute(
-                """
-                DELETE FROM jarjestelmatapahtuma
-                WHERE id NOT IN (
-                    SELECT id FROM jarjestelmatapahtuma
-                    ORDER BY occurred_at DESC
-                    LIMIT ?
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    DELETE FROM jarjestelmatapahtuma
+                    WHERE id NOT IN (
+                        SELECT id FROM jarjestelmatapahtuma
+                        ORDER BY occurred_at DESC NULLS LAST
+                        LIMIT %s
+                    )
+                    """,
+                    (keep,),
                 )
-                """,
-                (keep,),
-            )
     except Exception:
         logger.exception("Tapahtumien siivous epäonnistui")
