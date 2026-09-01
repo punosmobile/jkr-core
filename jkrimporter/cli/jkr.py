@@ -294,7 +294,7 @@ def import_and_create_kohteet(
 
 
 # app.command structure fails to parse default argument values, resulting in the passing of typer.argument itself
-# The result is incorrectly be viewed as truthy and fail the function call unexpectedly
+# The result is incorrectly viewed as truthy and fails the function call unexpectedly
 # This function acts as a straight function call to avoid the issue while the old command simply calls it instead
 def _import_and_create_kohteet(
     poimintapvm: Optional[str] = None,
