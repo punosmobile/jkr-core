@@ -592,15 +592,23 @@ async def _run_task(
     ):
         await _archive_processed_sources(archive_sources, task.runner or "")
 
-    """ log_path = Path(__log_path__)
+    log_path = Path(__log_path__)
     if log_path.exists() and log_path.stat().st_size > 0:
         try:
             log_content = log_path.read_bytes()
-            await sp.upload_file(file_content=log_content, filename=log_path.name, user_name="jkr-core")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            runner = _sanitize_for_filename(task.runner or "unknown")
+            new_file_name = f"{log_path.stem}_{timestamp}_{runner}{log_path.suffix}"
+            await sp.upload_file(
+                file_content=log_content,
+                filename=new_file_name,
+                user_name="jkr-core",
+                add_timestamp=False,
+            )
             log_path.write_bytes(b"")
             logger.info("Lokitiedosto lähetetty SharePointiin ja tyhjennetty.")
         except Exception:
-            logger.exception("Lokitiedoston SharePoint-lähetys epäonnistui.") """
+            logger.exception("Lokitiedoston SharePoint-lähetys epäonnistui.")
 
 
 # ---------------------------------------------------------------------------

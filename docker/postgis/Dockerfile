@@ -1,4 +1,4 @@
-FROM postgres:16-bullseye
+FROM postgres:16-bookworm
 
 ENV POSTGIS_MAJOR 3
 
