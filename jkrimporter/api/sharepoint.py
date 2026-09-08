@@ -352,16 +352,22 @@ async def upload_file(
     folder: Optional[str] = None,
     user_name: str = "",
     user_email: str = "",
+    add_timestamp: bool = True,
 ) -> Dict[str, Any]:
     """Lataa tiedoston SharePointiin.
 
     Käyttää yksinkertaista PUT-uploadia (< 4 MB) tai upload sessionia (>= 4 MB).
+    Jos add_timestamp on True (oletus), tiedostonimeen lisätään aikaleima ennen
+    tallennusta. Aseta False, jos tiedostonimi on jo aikaleimattu.
     """
     token = await _get_app_token()
     folder_path = _resolve_folder_path(folder, default=SHAREPOINT_OUTPUT_FOLDER)
-    stem, _, ext = filename.rpartition(".")
-    timestamp = datetime.now().strftime("%Y%m%d%H%M")
-    stamped = f"{stem}_{timestamp}.{ext}" if stem else f"{filename}_{timestamp}"
+    if add_timestamp:
+        stem, _, ext = filename.rpartition(".")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M")
+        stamped = f"{stem}_{timestamp}.{ext}" if stem else f"{filename}_{timestamp}"
+    else:
+        stamped = filename
     target = f"{folder_path}/{stamped}"
 
     if len(file_content) < 4 * 1024 * 1024:
