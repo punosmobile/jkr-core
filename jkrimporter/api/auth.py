@@ -43,10 +43,6 @@ AZURE_VIEWER_GROUP_ID = os.environ.get("AZURE_VIEWER_GROUP_ID", "")
 AZURE_ADMIN_APP_ROLE = os.environ.get("AZURE_ADMIN_APP_ROLE", "")
 AZURE_VIEWER_APP_ROLE = os.environ.get("AZURE_VIEWER_APP_ROLE", "")
 
-# Jos UNSECURE=1 tai UNSECURE=true, autentikointi ohitetaan kokonaan (vain testauskäyttöön!)
-_UNSECURE = os.environ.get("UNSECURE", "").strip().lower() in ("1", "true")
-if _UNSECURE:
-    logger.warning("⚠️  UNSECURE-tila on päällä! Autentikointi on ohitettu. ÄLÄ käytä tuotannossa!")
 
 def _jwks_url() -> str:
     """JWKS URL muodostetaan dynaamisesti, jotta AZURE_TENANT_ID voi tulla myöhemmin."""
@@ -130,22 +126,13 @@ class CurrentUser:
 # ---------------------------------------------------------------------------
 # Bearer-token security scheme
 # ---------------------------------------------------------------------------
-_bearer_scheme = HTTPBearer(auto_error=not _UNSECURE)
+_bearer_scheme = HTTPBearer()
 
 
 async def _validate_token(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
 ) -> CurrentUser:
     """Validoi Azure AD Bearer -tokenin ja palauttaa käyttäjätiedot."""
-    if _UNSECURE:
-        return CurrentUser(
-            oid="unsecure-test-user",
-            name="Test User (UNSECURE)",
-            email="test@unsecure.local",
-            roles=[UserRole.ADMIN, UserRole.VIEWER],
-            groups=[],
-        )
-
     token = credentials.credentials
 
     if not AZURE_TENANT_ID or not AZURE_CLIENT_ID:
@@ -286,15 +273,6 @@ async def validate_ws_token(token: Optional[str]) -> CurrentUser:
 
     Palauttaa CurrentUser tai nostaa HTTPException.
     """
-    if _UNSECURE:
-        return CurrentUser(
-            oid="unsecure-test-user",
-            name="Test User (UNSECURE)",
-            email="test@unsecure.local",
-            roles=[UserRole.ADMIN, UserRole.VIEWER],
-            groups=[],
-        )
-
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
