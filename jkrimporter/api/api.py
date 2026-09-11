@@ -45,8 +45,6 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from jkrimporter import ws_log_handler
@@ -124,7 +122,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 UPLOAD_DIR = Path("/data/input")
 
 
@@ -1505,17 +1502,6 @@ async def db_active_operation(user: CurrentUser = Depends(require_authenticated)
     )
 
 
-@app.get("/db/dumps/{filename}/download", summary="Lataa varmuuskopio")
-async def download_db_dump(filename: str, user: CurrentUser = Depends(require_authenticated)):
-    """Lataa annetun varmuuskopiotiedoston `/dbdumps`-kansiosta."""
-    path = _resolve_dump_path(filename)
-    return FileResponse(
-        path=str(path),
-        filename=path.name,
-        media_type="application/octet-stream",
-    )
-
-
 @app.post("/db/dumps/upload", summary="Lataa varmuuskopio palvelimelle")
 async def upload_db_dump(
     file: UploadFile = File(...),
@@ -2492,12 +2478,6 @@ async def sharepoint_create_folder(
         logger.error("SharePoint folder creation epäonnistui: %s", e)
         raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
 
-
-# ---------------------------------------------------------------------------
-# Staattisten tiedostojen tarjoilu (HUOM: tämä pitää olla viimeisenä,
-# jotta API-reitit ovat prioriteetissa)
-# ---------------------------------------------------------------------------
-app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 # ---------------------------------------------------------------------------
 # Käynnistys
