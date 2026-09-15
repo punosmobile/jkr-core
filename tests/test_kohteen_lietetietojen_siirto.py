@@ -14,13 +14,13 @@ Testaa:
 """
 
 import json
-import os
 from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+from jkrimporter import conf
 from jkrimporter.providers.db.utils import JSONEncoderWithDateSupport
 
 
@@ -29,24 +29,12 @@ def json_dumps(value):
     return json.dumps(value, cls=JSONEncoderWithDateSupport)
 
 
-def get_db_config():
-    """Hakee tietokantakonfiguraation ympäristömuuttujista."""
-    return {
-        "host": os.environ.get("JKR_DB_HOST", "localhost"),
-        "port": os.environ.get("JKR_DB_PORT", "5432"),
-        "username": os.environ.get("JKR_USER", "jkr_admin"),
-        "password": os.environ.get("JKR_PASSWORD", "qwerty"),
-        "dbname": os.environ.get("JKR_DB", "jatehuolto"),
-    }
-
-
 @pytest.fixture(scope="module")
 def engine():
     """Luo tietokantayhteys testeille."""
-    dbconf = get_db_config()
     engine = create_engine(
         "postgresql://{username}:{password}@{host}:{port}/{dbname}".format(
-            **dbconf
+            **conf.dbconf
         ),
         future=True,
         json_serializer=json_dumps,
