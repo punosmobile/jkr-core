@@ -820,7 +820,7 @@ def _pg_restore_cmd(input_path: Path) -> str:
     return (
         f"pg_restore -h {shlex.quote(host)} -p {shlex.quote(port)} "
         f"-U {shlex.quote(user)} -d {shlex.quote(db)} "
-        f"--clean --if-exists --no-owner --no-acl -v "
+        f"--clean --if-exists -v "
         f"{shlex.quote(str(input_path))}"
     )
 
