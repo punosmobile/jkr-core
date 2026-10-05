@@ -189,7 +189,7 @@ def import_data_batch(
                 print('perusmaksuaineisto luetaan sisään DVV-sisäänluvussa')
                 continue
             case FileType.TIEDONTUOTTAJAT:
-                with open(target_path, newline='', encoding='utf-8') as f:
+                with open(target_path, newline='', encoding='cp1252') as f:
                     for row in csv.DictReader(f, delimiter=';'):
                         tiedontuottaja_add_new(row['tunnus'], row['nimi'])
                 continue
@@ -648,7 +648,7 @@ def import_hapa(
             Session = scoped_session(sessionmaker(bind=engine))
             with Session() as session:
                 # Read CSV file to verify structure before importing
-                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                with open(aineistopolku, 'r', encoding='cp1252') as f:
                     reader = csv.reader(f, delimiter=';')
                     headers = next(reader)
 
@@ -752,7 +752,7 @@ def import_sote(
             Session = scoped_session(sessionmaker(bind=engine))
             with Session() as session:
                 # Read CSV file to verify structure before importing
-                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                with open(aineistopolku, 'r', encoding='cp1252') as f:
                     reader = csv.reader(f, delimiter=';')
                     headers = next(reader)
 
