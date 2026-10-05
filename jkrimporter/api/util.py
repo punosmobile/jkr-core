@@ -33,14 +33,14 @@ logger = logging.getLogger("jkr-sharepoint")
 
 class FileType(str, Enum):
     PERUSMAKSUAINEISTO = "Perusmaksuaineisto"
-    ILMOITUSTIEDOSTO = "Kompostointi"
+    ILMOITUSTIEDOSTO = "Kompostointi-ilmoitus"
     VIEMARIVERKOSTOT_KARTTA = "Karttarajaukset_viemariverkostot"
     TAAJAMAT = "Karttarajaukset_taajamat"
     KOMPOSTOINNIN_LOPETUS = "Kompostoinnin_lopettami"
     PAATOSTIEDOSTO = "Paatokset"
     HAPATIEDOSTO = "Hapa-kohteet"
     SOTETIEDOSTO = "Sotekohteet"
-    HUONEISTOMAARAT = "Huoneistomäärät"
+    HUONEISTOMAARAT = "Huoneistomaarat"
     TIEDONTUOTTAJAT = "Tiedontuottajat"
     DVVTIEDOSTO = "DVV-aineisto"
     KAIVOTIEDOT_ALKU = "Kaivotiedot_aloitus"
@@ -48,7 +48,7 @@ class FileType(str, Enum):
     KULJETUSTIETO_LIETE = "Liete_kuljetustiedot"
     KULJETUSTIETO = "Kiintea_kuljetustiedot"
     LIETE_KOMPOSTOINTI = "Lietteen_kompostointi"
-    LIETE_PELTOLEVITYS = "Lietteenpeltolevitys"
+    LIETE_PELTOLEVITYS = "Lietteen_peltolevitys"
     VIEMARIVERKOSTO_ALKU = "Viemariverkosto"
     VIEMARIVERKOSTO_LOPPU = "Viemäriverkosto_lopetus"
     POSTINUMEROT = "PCF"
@@ -78,6 +78,7 @@ _HEADERS_BY_TYPE: Dict[FileType, List[str]] = {
     FileType.KAIVOTIEDOT_ALKU: get_kaivotiedosto_headers(),
     FileType.KAIVOTIEDOT_LOPPU: get_kaivotiedosto_headers(),
     FileType.KULJETUSTIETO_LIETE: get_liete_kuljetustiedosto_headers(),
+    FileType.LIETE_PELTOLEVITYS: get_liete_kuljetustiedosto_headers(),
     FileType.LIETE_KOMPOSTOINTI: get_liete_ilmoitustiedosto_headers(),
     FileType.VIEMARIVERKOSTO_ALKU: get_viemari_ilmoitustiedosto_headers(),
     FileType.VIEMARIVERKOSTO_LOPPU: get_viemari_lopetustiedosto_headers(),

@@ -164,6 +164,9 @@ def import_data_batch(
             case FileType.KULJETUSTIETO_LIETE:
                 import_liete(target_path, 'LSJ', '', '')
                 continue
+            case FileType.LIETE_PELTOLEVITYS:
+                import_liete(target_path, 'LSJ', '', '')
+                continue
             case FileType.LIETE_KOMPOSTOINTI:
                 import_liete_ilmoitukset(target_path)
                 continue
