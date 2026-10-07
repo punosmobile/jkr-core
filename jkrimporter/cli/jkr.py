@@ -553,34 +553,23 @@ def raportti(
             
             # Create DataFrame
             df = pd.DataFrame(results, columns=columns)
-            
-            # Save to Excel
-            df.to_excel(output_path, index=False, engine='openpyxl')
-            
-            # Open the workbook to adjust column widths
-            wb = openpyxl.load_workbook(output_path)
-            ws = wb.active
-            
-            # Adjust column widths based on content
-            for column in ws.columns:
-                max_length = 0
-                column_letter = get_column_letter(column[0].column)
-                
-                # Find the maximum length of content in each column
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                
-                # Set width with a small padding
-                adjusted_width = max_length + 2
-                ws.column_dimensions[column_letter].width = adjusted_width
-            
-            # Save the workbook with adjusted column widths
-            wb.save(output_path)
-            
+            # Vapautetaan rivit heti, ettei data ole muistissa kahteen kertaan
+            del results
+
+            # Save to Excel and adjust column widths in the same pass, without
+            # re-loading the whole workbook (which ran out of memory on large reports)
+            with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+                ws = writer.sheets[next(iter(writer.sheets))]
+
+                for i, col in enumerate(df.columns, start=1):
+                    max_length = len(str(col))
+                    if len(df):
+                        max_length = max(max_length, int(df[col].map(lambda v: len(str(v))).max()))
+
+                    # Set width with a small padding
+                    ws.column_dimensions[get_column_letter(i)].width = max_length + 2
+
             typer.echo(f"Raportti luotu onnistuneesti: {output_path}")
             
     except ValueError as e:
