@@ -31,6 +31,7 @@ RUN sed -i '/fi_FI.UTF-8/s/^# //g' /etc/locale.gen && \
 ENV LANG fi_FI.UTF-8
 ENV LANGUAGE fi_FI:fi
 ENV LC_ALL fi_FI.UTF-8
+ENV TZ=Europe/Helsinki
 
 # Set GDAL configuration paths
 ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
