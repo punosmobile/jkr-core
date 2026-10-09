@@ -98,9 +98,7 @@ def _import_subject_from_description(description: Optional[str], command: Option
         return "Aineisto"
 
     pretty_labels = [_title_case_label(label) for label in labels]
-    if len(pretty_labels) == 1:
-        return pretty_labels[0]
-    return f"{pretty_labels[0]} + {len(pretty_labels) - 1} muuta"
+    return ", ".join(pretty_labels)
 
 
 def _format_event_title(task: Any) -> str:
