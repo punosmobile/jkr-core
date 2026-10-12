@@ -7,11 +7,12 @@ from typing import Optional
 
 import typer
 import json
-import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 import openpyxl
+from openpyxl.cell import WriteOnlyCell
+from openpyxl.styles import Alignment, Border, Font, Side
 from openpyxl.utils import get_column_letter
 from sys import platform
 
@@ -551,24 +552,32 @@ def raportti(
             # Fetch all results
             results = result.fetchall()
             
-            # Create DataFrame
-            df = pd.DataFrame(results, columns=columns)
-            # Vapautetaan rivit heti, ettei data ole muistissa kahteen kertaan
-            del results
+            # write_only-tilassa openpyxl kirjoittaa rivit suoraan levylle eikä pidä
+            # jokaista solua Python-oliona muistissa, kuten tavallinen tila
+            # (jota pandas.to_excel käyttää) tekee. Iso raportti kaatui muistin
+            # loppumiseen ilman rajauksia.
+            wb = openpyxl.Workbook(write_only=True)
+            ws = wb.create_sheet("Sheet1")
 
-            # Save to Excel and adjust column widths in the same pass, without
-            # re-loading the whole workbook (which ran out of memory on large reports)
-            with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False)
-                ws = writer.sheets[next(iter(writer.sheets))]
+            # write_only-tilassa leveydet pitää asettaa ennen ensimmäistä riviä
+            for i, col in enumerate(columns):
+                max_length = max([len(str(col))] + [len(str(row[i])) for row in results])
+                ws.column_dimensions[get_column_letter(i + 1)].width = max_length + 2
 
-                for i, col in enumerate(df.columns, start=1):
-                    max_length = len(str(col))
-                    if len(df):
-                        max_length = max(max_length, int(df[col].map(lambda v: len(str(v))).max()))
+            # Otsikkorivi samalla tyylillä kuin pandas.to_excel
+            thin = Side(style="thin")
+            header = []
+            for col in columns:
+                cell = WriteOnlyCell(ws, value=col)
+                cell.font = Font(bold=True)
+                cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+                cell.alignment = Alignment(horizontal="center")
+                header.append(cell)
+            ws.append(header)
 
-                    # Set width with a small padding
-                    ws.column_dimensions[get_column_letter(i)].width = max_length + 2
+            for row in results:
+                ws.append(list(row))
+            wb.save(output_path)
 
             typer.echo(f"Raportti luotu onnistuneesti: {output_path}")
             
