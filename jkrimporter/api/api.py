@@ -355,6 +355,8 @@ def _command_self_logs(command: str) -> bool:
 def _build_loki_lisatiedot(task: TaskInfo) -> Optional[str]:
     """Kokoaa tuontilokin lisatiedot-kentän tehtävän tulosteesta."""
     parts: List[str] = []
+    if task.runner:
+        parts.append(f"runner={task.runner}")
     if task.exit_code is not None:
         parts.append(f"exit_code={task.exit_code}")
     out_tail = "\n".join((task.output or "").splitlines()[-20:]).strip()
@@ -523,7 +525,9 @@ async def _run_task(
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env=_db_env(),
+            # JKR_RUNNER: itse tuontilokinsa kirjaavat jkr-komennot lukevat
+            # käynnistäjän tästä (ks. sisaanlukutapahtuma.sisaanlukutapahtuma).
+            env={**_db_env(), "JKR_RUNNER": task.runner or ""},
             cwd=cwd,
             **extra_kwargs,
         )

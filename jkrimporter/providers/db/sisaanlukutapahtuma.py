@@ -1,3 +1,4 @@
+import os
 import sys
 import traceback
 import threading
@@ -82,8 +83,12 @@ def sisaanlukutapahtuma(komento: str = None):
     if komento is None:
         komento = _build_komento_string()
 
-    # Alustetaan koosteen kerääjä
+    # Alustetaan koosteen kerääjä. API asettaa JKR_RUNNER-muuttujaan ajon
+    # käynnistäjän; komentoriviltä ajettaessa sitä ei ole.
     _local.kooste = []
+    runner = os.environ.get("JKR_RUNNER")
+    if runner:
+        _local.kooste.append(f"runner={runner}")
 
     with Session(engine) as session:
         tapahtuma_id = kirjaa_sisaanluku_alku(session, komento)
