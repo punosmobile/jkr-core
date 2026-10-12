@@ -7,11 +7,12 @@ from typing import Optional
 
 import typer
 import json
-import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 import openpyxl
+from openpyxl.cell import WriteOnlyCell
+from openpyxl.styles import Alignment, Border, Font, Side
 from openpyxl.utils import get_column_letter
 from sys import platform
 
@@ -554,36 +555,33 @@ def raportti(
             # Fetch all results
             results = result.fetchall()
             
-            # Create DataFrame
-            df = pd.DataFrame(results, columns=columns)
-            
-            # Save to Excel
-            df.to_excel(output_path, index=False, engine='openpyxl')
-            
-            # Open the workbook to adjust column widths
-            wb = openpyxl.load_workbook(output_path)
-            ws = wb.active
-            
-            # Adjust column widths based on content
-            for column in ws.columns:
-                max_length = 0
-                column_letter = get_column_letter(column[0].column)
-                
-                # Find the maximum length of content in each column
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                
-                # Set width with a small padding
-                adjusted_width = max_length + 2
-                ws.column_dimensions[column_letter].width = adjusted_width
-            
-            # Save the workbook with adjusted column widths
+            # write_only-tilassa openpyxl kirjoittaa rivit suoraan levylle eikä pidä
+            # jokaista solua Python-oliona muistissa, kuten tavallinen tila
+            # (jota pandas.to_excel käyttää) tekee. Iso raportti kaatui muistin
+            # loppumiseen ilman rajauksia.
+            wb = openpyxl.Workbook(write_only=True)
+            ws = wb.create_sheet("Sheet1")
+
+            # write_only-tilassa leveydet pitää asettaa ennen ensimmäistä riviä
+            for i, col in enumerate(columns):
+                max_length = max([len(str(col))] + [len(str(row[i])) for row in results])
+                ws.column_dimensions[get_column_letter(i + 1)].width = max_length + 2
+
+            # Otsikkorivi samalla tyylillä kuin pandas.to_excel
+            thin = Side(style="thin")
+            header = []
+            for col in columns:
+                cell = WriteOnlyCell(ws, value=col)
+                cell.font = Font(bold=True)
+                cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+                cell.alignment = Alignment(horizontal="center")
+                header.append(cell)
+            ws.append(header)
+
+            for row in results:
+                ws.append(list(row))
             wb.save(output_path)
-            
+
             typer.echo(f"Raportti luotu onnistuneesti: {output_path}")
             
     except ValueError as e:
