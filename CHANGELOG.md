@@ -359,5 +359,4 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Fixed issue where large report would cause the process to stop due to excess memory usage
-- Fixed issue with dump restore where all access rights were dropped
+- Fixed issue where sharepoint upload would crash process and prevent saving of data to db
