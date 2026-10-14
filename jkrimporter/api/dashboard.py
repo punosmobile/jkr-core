@@ -15,6 +15,7 @@ logger = logging.getLogger("jkr-dashboard")
 
 _LIETE_JATETYYPPI_IDS = (5, 6, 7)
 _RECENT_EVENTS_LIMIT = 50
+_OVERVIEW_EVENTS_LIMIT = 15
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:,\d+)? \[[A-Z]+\]\s*")
 _FILEINFO_FILENAME_RE = re.compile(r"filename='([^']+)'")
 _FILEINFO_FILETYPE_RE = re.compile(r"fileType=<FileType\.[^:]+: '([^']+)'>")
@@ -254,7 +255,7 @@ def _latest_matching_task(tasks: Sequence[Any], predicate) -> Optional[Any]:
     return matching_tasks[0]
 
 
-def _recent_task_events(tasks: Sequence[Any], limit: int = _RECENT_EVENTS_LIMIT) -> list[DashboardEventItem]:
+def _recent_task_events(tasks: Sequence[Any], limit: Optional[int] = _RECENT_EVENTS_LIMIT) -> list[DashboardEventItem]:
     ordered_tasks = sorted(
         (task for task in tasks if _task_occurred_at(task) is not None),
         key=lambda task: _task_occurred_at(task) or datetime.min,
@@ -352,5 +353,9 @@ def build_dashboard_overview(tasks: Sequence[Any]) -> DashboardOverviewResponse:
         viimeisin_tuonti=_task_to_summary(
             _latest_matching_task(tasks, lambda task: getattr(task, "taskType", None) == "import")
         ),
-        viimeisimmat_jarjestelmatapahtumat=_recent_task_events(tasks),
+        viimeisimmat_jarjestelmatapahtumat=_recent_task_events(tasks, limit=_OVERVIEW_EVENTS_LIMIT),
     )
+
+
+def build_system_events(tasks: Sequence[Any], limit: Optional[int] = _RECENT_EVENTS_LIMIT) -> list[DashboardEventItem]:
+    return _recent_task_events(tasks, limit=limit)

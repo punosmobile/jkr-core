@@ -60,8 +60,10 @@ from jkrimporter.api.auth import (
 )
 from jkrimporter.api import events_store
 from jkrimporter.api.dashboard import (
+    DashboardEventItem,
     DashboardOverviewResponse,
     build_dashboard_overview,
+    build_system_events,
 )
 from jkrimporter.api.util import FileInfo
 from jkrimporter.__init__ import __log_path__
@@ -1795,14 +1797,46 @@ async def dashboard_overview(user: CurrentUser = Depends(require_authenticated))
     return build_dashboard_overview(list(_tasks.values()))
 
 
+@app.get(
+    "/jarjestelmatapahtumat",
+    summary="Viimeisimmät järjestelmätapahtumat",
+    response_model=list[DashboardEventItem],
+)
+async def jarjestelmatapahtumat(
+    limit: int = Query(50, ge=1, description="Palautettavien tapahtumien enimmäismäärä"),
+    kaikki: bool = Query(False, description="Palauta koko historia (ohittaa limitin)"),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Lukee tapahtumat tapahtumakannasta, jotta myös muistista (EVENTS_HYDRATE_LIMIT)
+    puuttuva historia saadaan. Muistissa olevat tehtävät ovat tuoreimpia (esim.
+    käynnissä olevat), joten ne ylikirjoittavat kannan rivit saman id:n osalta."""
+    rajaus = None if kaikki else limit
+    tasks: dict[str, TaskInfo] = {}
+    for row in await asyncio.to_thread(events_store.recent, rajaus):
+        try:
+            task = TaskInfo(**row)
+        except Exception:
+            logger.exception("Tapahtuman muunnos epäonnistui: %s", row.get("id"))
+            continue
+        tasks[task.id] = task
+    tasks.update(_tasks)
+    return build_system_events(list(tasks.values()), limit=rajaus)
+
+
 # ---------------------------------------------------------------------------
 # Tuontiloki
 # ---------------------------------------------------------------------------
-@app.get("/tuontiloki", summary="Tuontilokin rivit (jkr.v_tuontiloki_rivit)")
-async def tuontiloki(user: CurrentUser = Depends(require_authenticated)):
-    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän rivit JSON-listana."""
+def _hae_tuontiloki(limit: Optional[int]) -> list:
+    """Hakee `jkr.v_tuontiloki_rivit` -näkymän uusimmat rivit JSON-listana.
+
+    limit=None palauttaa kaikki rivit (Postgresissa LIMIT NULL = ei rajaa).
+    """
     env = _db_env()
-    sql = "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM jkr.v_tuontiloki_rivit t;"
+    rajaus = "NULL" if limit is None else str(int(limit))
+    sql = (
+        "SELECT COALESCE(json_agg(row_to_json(t) ORDER BY t.id DESC), '[]'::json) "
+        f"FROM (SELECT * FROM jkr.v_tuontiloki_rivit ORDER BY id DESC LIMIT {rajaus}) t;"
+    )
     try:
         cmd = [
             "psql", "-h", env.get("HOST", ""),
@@ -1829,6 +1863,21 @@ async def tuontiloki(user: CurrentUser = Depends(require_authenticated)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/tuontiloki", summary="Tuontilokin rivit (jkr.v_tuontiloki_rivit)")
+async def tuontiloki(
+    limit: int = Query(50, ge=1, description="Palautettavien rivien enimmäismäärä"),
+    kaikki: bool = Query(False, description="Palauta koko historia (ohittaa limitin)"),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän uusimmat rivit JSON-listana."""
+    return await asyncio.to_thread(_hae_tuontiloki, None if kaikki else limit)
+
+
+@app.get("/tuontiloki_dashboard", summary="Tuontilokin rivit dashboardille (jkr.v_tuontiloki_rivit)")
+async def tuontiloki_dashboard(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän ensimmäiset 15 riviä JSON-listana."""
+    return await asyncio.to_thread(_hae_tuontiloki, 15)
 
 # ---------------------------------------------------------------------------
 # Tietokantadokumentaatio

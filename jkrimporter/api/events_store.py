@@ -41,7 +41,7 @@ tämä moduuli luo vain taulun ja indeksin.
 Käyttö (rajapinta ennallaan):
     events_store.ensure_schema()          # luo taulu jos puuttuu
     events_store.upsert(task)             # tallenna/päivitä tapahtuma
-    events_store.recent(limit=50)         # viimeisimmät tapahtumat (dict-listana)
+    events_store.recent(limit=50)         # viimeisimmät tapahtumat (dict-listana), None = kaikki
     events_store.prune(keep=2000)         # siivoa vanhat pois
 """
 
@@ -209,8 +209,10 @@ def upsert(task: Any) -> None:
         logger.exception("Tapahtuman tallennus epäonnistui (id=%s)", getattr(task, "id", "?"))
 
 
-def recent(limit: int = 50) -> List[dict]:
+def recent(limit: Optional[int] = 50) -> List[dict]:
     """Palauttaa viimeisimmät tapahtumat dict-listana (TaskInfo-kentännimillä).
+
+    limit=None palauttaa kaikki tapahtumat (Postgresissa LIMIT NULL = ei rajaa).
 
     Lajittelu occurred_at DESC; NULL-arvot (esim. ajamattomat) jäävät loppuun.
     HUOM: Postgres asettaa DESC-lajittelussa NULLit ENSIN, toisin kuin SQLite,
