@@ -1,7 +1,6 @@
 import csv
 import logging
 import os
-import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta, date
 from pathlib import Path
@@ -751,7 +750,7 @@ class DbProvider:
                     if csv_path and kohdentumattomat_rivit > 0:
                         lisaa_lisatieto(f"Kohdentumattomat tiedot ({len(kohdentumattomat)}) kpl eli käynteineen {kohdentumattomat_rivit} riviä lisätty CSV-tiedostoon: {csv_path}")
                         file_content = csv_path.read_bytes()
-                        asyncio.run(sp.upload_file(file_content=file_content, filename=csv_path.name, user_name="jkr-core"))
+                        sp.upload_file_best_effort(file_content=file_content, filename=csv_path.name, user_name="jkr-core")
                     elif kohdentumattomat_rivit == 0 and kohdentumattomat:
                         # LIETE-data tai muu data jota ei voitu tallentaa Lahden muodossa
                         lisaa_lisatieto(f"Kohdentumattomia tietoja ({len(kohdentumattomat)}) kpl, tallennetaan erilliseen tiedostoon")

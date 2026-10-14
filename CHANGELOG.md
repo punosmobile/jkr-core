@@ -358,3 +358,9 @@ All notable changes to this project will be documented in this file.
 - DVV data is re-checked when a kohde is terminated
 - Updated the QGIS project
 - Updated system documentation
+
+## [0.7.9] - 2026-09-24
+
+### Fixed
+
+- Fixed issue where sharepoint upload would crash process and prevent saving of data to db

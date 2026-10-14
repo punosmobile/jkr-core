@@ -164,7 +164,7 @@ def test_import_paatokset(engine, datadir):
     _assert_tapahtumalaji(session, paatos_121[0], "Erilliskeräyksestä poikkeaminen")
     assert (
         paatos_121[1]
-        == session.query(Jatetyyppi.id).filter((Jatetyyppi.selite == "Lasi")).first()[0]
+        == session.query(Jatetyyppi.id).filter((Jatetyyppi.selite == "Lasipakkaus")).first()[0]
     )
     assert paatos_121[2] == rakennus_134567890B_id
 
