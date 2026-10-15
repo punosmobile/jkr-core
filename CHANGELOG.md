@@ -360,3 +360,15 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixed issue where sharepoint upload would crash process and prevent saving of data to db
+
+## [0.8.0] - 2026-10-15
+
+### Fixed
+
+- Fixed issue where log would fail if given non cp1252 compatible characters on windows systems
+- Fixed issue where large report would cause the process to stop due to excess memory usage
+- Fixed issue with dump restore where all access rights were dropped
+
+### Changed
+
+- System events and other logs have been made clearer so that users have easier time identifying them and what was run on each

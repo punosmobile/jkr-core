@@ -8,7 +8,7 @@ import sys
 import threading
 from datetime import datetime
 
-__version__ = "0.7.9"
+__version__ = "0.8.0"
 # Tiedostomuotoiset lokit kirjoitetaan oletuksena /data/output/logs-kansioon
 # (mapattu Docker-volume). Polkua voi yliajaa JKR_LOG_DIR-ympäristömuuttujalla.
 _default_log_dir = "/data/output/logs"
