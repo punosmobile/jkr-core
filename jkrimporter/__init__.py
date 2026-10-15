@@ -187,6 +187,12 @@ fileHandler.setFormatter(logFormatter)
 fileHandler.setLevel(logging.DEBUG)
 rootLogger.addHandler(fileHandler)
 
+for _stream in (sys.__stdout__, sys.__stderr__):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (ValueError, OSError):
+            pass
 consoleHandler = logging.StreamHandler(stream=sys.__stdout__)
 consoleHandler.setFormatter(logFormatter)
 consoleHandler.setLevel(_log_level)
