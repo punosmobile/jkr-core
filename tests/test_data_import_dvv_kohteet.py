@@ -13,6 +13,7 @@ from jkrimporter.providers.db.database import json_dumps
 from jkrimporter.providers.db.dbprovider import import_dvv_kohteet
 from jkrimporter.providers.db.models import (
     Kohde,
+    Kohdetyyppi,
     KohteenOsapuolet,
     Osapuolenrooli,
     Osapuoli,
@@ -140,6 +141,29 @@ def test_import_dvv_kohteet(engine, datadir):
             )
             assert vanhin_asukas_count == 7, \
                 f"Vanhin asukas -osapuolien määrä: {vanhin_asukas_count}, odotettiin 7"
+
+            # Rakennusluokan tarkistus (LAH-226):
+            # Kaikki kohteet ovat asuinkiinteistöjä, koska niiden rakennusten
+            # käyttötarkoituskoodi (011-041) on asuinkäyttöä. Yhdellekään ei
+            # sovelleta HAPA-aineistoa tässä testissä. Tämä lukitsee
+            # determine_kohdetyyppi-logiikan rakennusluokan osalta: jos kohdetyypin
+            # määräytyminen regressoituu (esim. kohteet päätyvät MUU-tyypiksi),
+            # testi epäonnistuu.
+            asuinkiinteisto_tyyppi_id = session.execute(
+                select(Kohdetyyppi.id).where(Kohdetyyppi.selite == "asuinkiinteistö")
+            ).scalar()
+            assert asuinkiinteisto_tyyppi_id is not None, \
+                "Kohdetyyppiä 'asuinkiinteistö' ei löydy koodistosta"
+
+            kohdetyyppi_jakauma = session.execute(
+                select(Kohde.kohdetyyppi_id, func.count())
+                .group_by(Kohde.kohdetyyppi_id)
+            ).all()
+            assert kohdetyyppi_jakauma == [(asuinkiinteisto_tyyppi_id, lkm_kohteet)], (
+                "Odotettiin kaikkien kohteiden olevan asuinkiinteistöjä "
+                f"(tyyppi_id {asuinkiinteisto_tyyppi_id}), saatiin jakauma: "
+                f"{kohdetyyppi_jakauma}"
+            )
 
     finally:
         _cleanup_dvv_kohteet(engine)

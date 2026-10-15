@@ -103,10 +103,9 @@ All notable changes to this project will be documented in this file.
 
 ## [0.6.4] - 2025-04-4
 
-
 ### Fixed
 
-- Building clustering logic fix 
+- Building clustering logic fix
   - Compare whole cluster to each potential building as a whole instead of per building
 
 ## [0.6.5] - 2025-04-16
@@ -138,7 +137,7 @@ All notable changes to this project will be documented in this file.
 
 - Database
   - Several new columns
-  - Kunta column to v__rakennukset view
+  - Kunta column to v\_\_rakennukset view
   - Updated QGis project
 
 ### Fixed
@@ -175,7 +174,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Kohde alkupvm is now dynamic and will use either owner or resident starting date and default to poimintapvm if neither is available
-- If Kohde would end due to a building leaving it, it will be marked as expired and removed after active contracts and shipments have been moved to a new Kohde 
+- If Kohde would end due to a building leaving it, it will be marked as expired and removed after active contracts and shipments have been moved to a new Kohde
 
 ## [0.6.10] - 2025-06-23
 
@@ -191,20 +190,17 @@ All notable changes to this project will be documented in this file.
 
 - Switched Kunta_out value source to building.kunta column instead of kiinteistotunnus or postal address
 
-
 ## [0.6.11] - 2025-06-25
 
 ### Fixed
 
 - Old kohde data will now be handled correctly when multiple expiring kohde objects are clustered together
 
-
 ## [0.7.0] - 2025-07-2
 
 ### Fixed
 
 - Fixed a situation where an osapuoli who is the last resident and owner moved out of a building but would still be considered as current owner, failing to end the Kohde
-
 
 ## [0.7.1] - 2025-09-03
 
@@ -364,3 +360,15 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Fixed issue where sharepoint upload would crash process and prevent saving of data to db
+
+## [0.8.0] - 2026-10-15
+
+### Fixed
+
+- Fixed issue where log would fail if given non cp1252 compatible characters on windows systems
+- Fixed issue where large report would cause the process to stop due to excess memory usage
+- Fixed issue with dump restore where all access rights were dropped
+
+### Changed
+
+- System events and other logs have been made clearer so that users have easier time identifying them and what was run on each

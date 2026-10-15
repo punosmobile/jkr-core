@@ -24,6 +24,7 @@ import subprocess
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -44,8 +45,6 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from jkrimporter import ws_log_handler
@@ -59,9 +58,12 @@ from jkrimporter.api.auth import (
     require_viewer_or_admin,
     validate_ws_token,
 )
+from jkrimporter.api import events_store
 from jkrimporter.api.dashboard import (
+    DashboardEventItem,
     DashboardOverviewResponse,
     build_dashboard_overview,
+    build_system_events,
 )
 from jkrimporter.api.util import FileInfo
 from jkrimporter.__init__ import __log_path__
@@ -72,12 +74,44 @@ from jkrimporter.__init__ import __log_path__
 logger = logging.getLogger("jkr-api")
 
 # ---------------------------------------------------------------------------
+# Järjestelmätapahtumien pysyvyys (LAH-623)
+# ---------------------------------------------------------------------------
+# Kuinka monta tapahtumaa ladataan kannasta muistiin käynnistyksessä.
+EVENTS_HYDRATE_LIMIT = int(os.environ.get("JKR_EVENTS_HYDRATE", "50"))
+# Kuinka monta tapahtumaa kantaan säilytetään (vanhemmat siivotaan).
+EVENTS_KEEP = int(os.environ.get("JKR_EVENTS_KEEP", "2000"))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Sovelluksen elinkaari: alustaa tapahtumakannan ja lataa viimeisimmät
+    tapahtumat muistiin, jottei kontin uudelleenkäynnistys hukkaa niitä."""
+    events_store.ensure_schema()
+    try:
+        loaded = 0
+        for row in events_store.recent(limit=EVENTS_HYDRATE_LIMIT):
+            try:
+                task = TaskInfo(**row)
+            except Exception:
+                logger.exception("Tapahtuman lataus muistiin epäonnistui: %s", row.get("id"))
+                continue
+            _tasks[task.id] = task
+            loaded += 1
+        logger.info("Ladattiin %d järjestelmätapahtumaa kannasta muistiin.", loaded)
+        events_store.prune(keep=EVENTS_KEEP)
+    except Exception:
+        logger.exception("Tapahtumien lataus käynnistyksessä epäonnistui.")
+    yield
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="JKR API",
     description="REST-rajapinta JKR-tiedontuontikomentojen ajamiseen.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
@@ -90,7 +124,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 UPLOAD_DIR = Path("/data/input")
 
 
@@ -157,6 +190,50 @@ _running_procs: Dict[str, asyncio.subprocess.Process] = {}
 # Tehtävät, jotka on merkitty pysäytettäväksi (kill-pyyntö vastaanotettu)
 _cancelled_tasks: set = set()
 
+# SharePointista pullatut tiedostot: paikallinen polku -> SharePoint-lähdepolku.
+# Käytetään käsitellyn tiedoston arkistointiin ("viedyt") onnistuneen tuonnin
+# jälkeen. In-memory (kuten _tasks): palvelimen uudelleenkäynnistys nollaa
+# rekisterin, jolloin tiedosto jää JKR-input-kansioon (turvallinen oletus,
+# voidaan siirtää käsin /sharepoint/move-endpointilla).
+_sharepoint_sources: Dict[str, str] = {}
+
+
+def _sp_source_keys(local_path: str) -> List[str]:
+    """Palauttaa hakuavaimet paikalliselle polulle (absoluuttinen + tiedostonimi)."""
+    keys = [local_path]
+    try:
+        keys.append(str(Path(local_path).resolve()))
+    except (OSError, ValueError):
+        pass
+    keys.append(os.path.basename(local_path.rstrip("/\\")))
+    # Säilytä järjestys, poista duplikaatit
+    seen: set = set()
+    return [k for k in keys if k and not (k in seen or seen.add(k))]
+
+
+def _register_sp_source(local_path: str, sharepoint_path: str) -> None:
+    """Tallentaa paikallinen polku -> SharePoint-lähdepolku -kytkennän."""
+    if not local_path or not sharepoint_path:
+        return
+    for key in _sp_source_keys(local_path):
+        _sharepoint_sources[key] = sharepoint_path
+
+
+def _pop_sp_source(local_path: str) -> Optional[str]:
+    """Hakee ja poistaa SharePoint-lähdepolun paikalliselle polulle (None jos ei löydy)."""
+    sp_path = None
+    for key in _sp_source_keys(local_path):
+        if key in _sharepoint_sources:
+            sp_path = _sharepoint_sources[key]
+            break
+    if sp_path is None:
+        return None
+    # Poista kaikki samaan lähteeseen osoittavat avaimet (täysi polku, resolvattu
+    # polku, tiedostonimi), jottei rekisteriin jää roikkuvia kytkentöjä.
+    for key in [k for k, v in _sharepoint_sources.items() if v == sp_path]:
+        _sharepoint_sources.pop(key, None)
+    return sp_path
+
 
 def _infer_task_type_from_command(command: str) -> str:
     normalized = (command or "").strip().lower()
@@ -193,6 +270,15 @@ def _resolve_task_type(command: str, task_type: Optional[TaskType] = None) -> st
     return _infer_task_type_from_command(command)
 
 
+def _persist_event(task: TaskInfo) -> None:
+    """Tallentaa tapahtuman pysyvään kantaan. Ei koskaan nosta poikkeusta,
+    jotta tallennuksen epäonnistuminen ei kaada tehtävän ajoa."""
+    try:
+        events_store.upsert(task)
+    except Exception:
+        logger.exception("Tapahtuman pysyvä tallennus epäonnistui (id=%s)", task.id)
+
+
 def _create_task(
     command: str,
     description: str,
@@ -208,13 +294,175 @@ def _create_task(
         description=description,
     )
     _tasks[task.id] = task
+    _persist_event(task)
     return task
 
 
 _TASK_OUTPUT_TAIL = 100  # task.output/error säilyttää vain viimeiset N riviä
 
 
-async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
+# ---------------------------------------------------------------------------
+# Tuontiloki (jkr.sisaanluku_tapahtuma)
+# ---------------------------------------------------------------------------
+# Osa ajoista kirjaa tuontilokirivinsä itse, jolloin _run_task EI saa kirjata
+# toista riviä samasta ajosta:
+#   - jkr-CLI:n import-alikomennot kirjaavat rivin
+#     jkrimporter.providers.db.sisaanlukutapahtuma.sisaanlukutapahtuma():n kautta
+#     (ja keräävät samalla rikkaan lisatiedot-koosteen lisaa_lisatieto()-kutsuista).
+#   - velvoite-PL/pgSQL-funktiot update_velvoitteet() ja tallenna_velvoite_status()
+#     kirjaavat oman rivinsä.
+# Kaikki muut sisäänlukukomennot (psql \copy, psql -f, ogr2ogr, sh import_*.sh)
+# eivät kirjaa itse, joten _run_task kääräisee ne tähän lokille.
+_SELF_LOGGING_JKR_SUBCOMMANDS = {
+    "import",
+    "batch_import",
+    "import_liete",
+    "import_paatokset",
+    "import_ilmoitukset",
+    "import_liete_ilmoitukset",
+    "import_lopetusilmoitukset",
+    "import_kaivotiedot",
+    "import_kaivotiedon_lopetukset",
+    "import_viemarit",
+    "import_lopeta_viemarit",
+    "import_taajamat",
+    "import_and_create_kohteet",
+    "create_dvv_kohteet",
+    "import_hapa",
+    "import_sote",
+}
+_SELF_LOGGING_SQL_FUNCTIONS = (
+    "jkr.update_velvoitteet",
+    "jkr.tallenna_velvoite_status",
+)
+
+
+def _command_self_logs(command: str) -> bool:
+    """Kirjaako komento itse tuontilokirivinsä (→ _run_task ei saa kirjata toista)."""
+    cmd = (command or "").strip()
+    if not cmd:
+        return False
+    if any(fn in cmd for fn in _SELF_LOGGING_SQL_FUNCTIONS):
+        return True
+    try:
+        tokens = shlex.split(cmd)
+    except ValueError:
+        tokens = cmd.split()
+    for i, tok in enumerate(tokens):
+        if os.path.basename(tok) == "jkr" and i + 1 < len(tokens):
+            return tokens[i + 1] in _SELF_LOGGING_JKR_SUBCOMMANDS
+    return False
+
+
+def _build_loki_lisatiedot(task: TaskInfo) -> Optional[str]:
+    """Kokoaa tuontilokin lisatiedot-kentän tehtävän tulosteesta."""
+    parts: List[str] = []
+    if task.runner:
+        parts.append(f"runner={task.runner}")
+    if task.exit_code is not None:
+        parts.append(f"exit_code={task.exit_code}")
+    out_tail = "\n".join((task.output or "").splitlines()[-20:]).strip()
+    err_tail = "\n".join((task.error or "").splitlines()[-20:]).strip()
+    if out_tail:
+        parts.append(out_tail)
+    if err_tail:
+        parts.append("--- stderr ---\n" + err_tail)
+    return "\n".join(parts) if parts else None
+
+
+def _tuontiloki_alku(command: str) -> int:
+    """Kirjaa sisäänlukutapahtuman alun ja palauttaa rivin id:n (sync)."""
+    from sqlalchemy.orm import Session
+
+    from jkrimporter.providers.db.database import engine
+    from jkrimporter.providers.db.sisaanlukutapahtuma import kirjaa_sisaanluku_alku
+
+    komento = re.sub(r"password=\S+", "password=***", command or "")
+    with Session(engine) as session:
+        return kirjaa_sisaanluku_alku(session, komento)
+
+
+def _tuontiloki_loppu(loki_id: int, status: str, lisatiedot: Optional[str]) -> None:
+    """Päivittää sisäänlukutapahtuman loppuajan ja statuksen (sync)."""
+    from sqlalchemy.orm import Session
+
+    from jkrimporter.providers.db.database import engine
+    from jkrimporter.providers.db.sisaanlukutapahtuma import kirjaa_sisaanluku_loppu
+
+    with Session(engine) as session:
+        kirjaa_sisaanluku_loppu(session, loki_id, status=status, lisatiedot=lisatiedot)
+
+
+async def _aloita_tuontiloki(task: TaskInfo, command: str) -> Optional[int]:
+    """Kirjaa tuontilokin aloitusrivin, jos tehtävä on tuonti eikä kirjaa itse."""
+    if task.taskType != TaskType.import_task.value:
+        return None
+    if _command_self_logs(command):
+        return None
+    try:
+        return await asyncio.to_thread(_tuontiloki_alku, command)
+    except Exception:
+        logger.exception("Tuontilokin aloitusrivin kirjaus epäonnistui (task=%s)", task.id)
+        return None
+
+
+async def _paata_tuontiloki(loki_id: Optional[int], task: TaskInfo) -> None:
+    """Päivittää tuontilokin lopetusrivin tehtävän lopputilan mukaan."""
+    if loki_id is None:
+        return
+    status = "valmis" if task.status == TaskStatus.completed else "virhe"
+    try:
+        await asyncio.to_thread(
+            _tuontiloki_loppu, loki_id, status, _build_loki_lisatiedot(task)
+        )
+    except Exception:
+        logger.exception("Tuontilokin lopetusrivin kirjaus epäonnistui (task=%s)", task.id)
+
+
+async def _archive_processed_sources(
+    local_paths: List[str],
+    user_name: str,
+) -> None:
+    """Siirtää käsitellyt SharePoint-lähdetiedostot arkistoon ("viedyt").
+
+    Best-effort: arkistoidaan vain ne paikalliset tiedostot, jotka on
+    rekisteröity SharePointista pullatuiksi (_sharepoint_sources). Käsin
+    palvelimelle ladatut tiedostot ohitetaan. Virhe arkistoinnissa EI kaada
+    tuontia – tiedosto jää tällöin JKR-input-kansioon ja sen voi siirtää käsin.
+    """
+    if not sp.SHAREPOINT_ARCHIVE_AFTER_IMPORT:
+        return
+    for local_path in local_paths:
+        sp_path = _pop_sp_source(local_path)
+        if not sp_path:
+            continue  # ei SharePoint-alkuperää → ei arkistoida
+        if not sp.has_credentials() or not sp.SHAREPOINT_SITE_ID:
+            logger.warning(
+                "SharePoint-arkistointi ohitettu (konfiguraatio puuttuu): %s",
+                sp_path,
+            )
+            continue
+        try:
+            await sp.archive_file(sp_path, user_name=user_name or "jkr-core")
+            logger.info(
+                "Käsitelty tiedosto arkistoitu SharePointissa: %s -> %s",
+                sp_path,
+                sp.SHAREPOINT_ARCHIVE_FOLDER,
+            )
+        except Exception as exc:  # noqa: BLE001 — arkistointi ei saa kaataa tuontia
+            logger.warning(
+                "SharePoint-arkistointi epäonnistui (%s): %s. "
+                "Tiedosto jää JKR-input-kansioon.",
+                sp_path, exc,
+            )
+
+
+async def _run_task(
+    task_id: str,
+    command: str,
+    cwd: Optional[str] = None,
+    archive_sources: Optional[List[str]] = None,
+):
     """Suorittaa komennon taustalla ja päivittää tehtävän tilan.
 
     Lukee stdout/stderr rivi kerrallaan reaaliajassa, jotta:
@@ -224,7 +472,11 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
     task = _tasks[task_id]
     task.status = TaskStatus.running
     task.started_at = datetime.now()
+    await asyncio.to_thread(_persist_event, task)
     task_logger = logging.getLogger(f"task.{task_id[:8]}")
+
+    # Tuontiloki: kirjaa aloitusrivi niille tuonneille, jotka eivät kirjaa itse.
+    loki_id = await _aloita_tuontiloki(task, command)
 
     output_buf: collections.deque = collections.deque(maxlen=_TASK_OUTPUT_TAIL)
     error_buf: collections.deque = collections.deque(maxlen=_TASK_OUTPUT_TAIL)
@@ -275,7 +527,9 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env=_db_env(),
+            # JKR_RUNNER: itse tuontilokinsa kirjaavat jkr-komennot lukevat
+            # käynnistäjän tästä (ks. sisaanlukutapahtuma.sisaanlukutapahtuma).
+            env={**_db_env(), "JKR_RUNNER": task.runner or ""},
             cwd=cwd,
             **extra_kwargs,
         )
@@ -325,15 +579,39 @@ async def _run_task(task_id: str, command: str, cwd: Optional[str] = None):
         task.duration_seconds or 0,
     )
 
-    """ log_path = Path(__log_path__)
+    # Järjestelmätapahtuma: tallenna lopputila pysyvään kantaan (LAH-623).
+    await asyncio.to_thread(_persist_event, task)
+
+    # Tuontiloki: päivitä lopetusrivi tehtävän lopputilan mukaan (valmis/virhe).
+    await _paata_tuontiloki(loki_id, task)
+
+    # Arkistointi: onnistuneen tuonnin jälkeen siirrä SharePointista pullatut
+    # lähdetiedostot "viedyt"-kansioon (LAH-625). Vain jos tehtävä onnistui
+    # eikä sitä pysäytetty.
+    if (
+        archive_sources
+        and task.status == TaskStatus.completed
+        and task_id not in _cancelled_tasks
+    ):
+        await _archive_processed_sources(archive_sources, task.runner or "")
+
+    log_path = Path(__log_path__)
     if log_path.exists() and log_path.stat().st_size > 0:
         try:
             log_content = log_path.read_bytes()
-            await sp.upload_file(file_content=log_content, filename=log_path.name, user_name="jkr-core")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            runner = _sanitize_for_filename(task.runner or "unknown")
+            new_file_name = f"{log_path.stem}_{timestamp}_{runner}{log_path.suffix}"
+            await sp.upload_file(
+                file_content=log_content,
+                filename=new_file_name,
+                user_name="jkr-core",
+                add_timestamp=False,
+            )
             log_path.write_bytes(b"")
             logger.info("Lokitiedosto lähetetty SharePointiin ja tyhjennetty.")
         except Exception:
-            logger.exception("Lokitiedoston SharePoint-lähetys epäonnistui.") """
+            logger.exception("Lokitiedoston SharePoint-lähetys epäonnistui.")
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +781,74 @@ def _ogr2ogr_cmd(source: str, layer: str, table: str, schema: str) -> str:
     return f'ogr2ogr -f PostgreSQL -overwrite -progress {pg_conn} -nln {table} "{source}" "{layer}"'
 
 
+# Tietokantadumppien kohdekansio (kontissa). Voidaan ylikirjoittaa
+# ympäristömuuttujalla JKR_DBDUMP_DIR. Kansio luodaan Dockerfilessa.
+DBDUMPS_DIR = Path(os.environ.get("JKR_DBDUMP_DIR", "/dbdumps"))
+
+
+def _pg_dump_cmd(output_path: Path) -> str:
+    """Muodostaa pg_dump-komennon tietokannan varmuuskopiointia varten.
+
+    Kaikki yhteystiedot luetaan ympäristömuuttujista (kuten muissakin
+    komennoissa); salasana välitetään PGPASSWORD-muuttujana _db_env():n kautta.
+    """
+    host = os.environ.get("JKR_DB_HOST", "")
+    port = os.environ.get("JKR_DB_PORT", "")
+    db = os.environ.get("JKR_DB", "")
+    user = os.environ.get("JKR_USER", "")
+    return (
+        f"pg_dump -h {shlex.quote(host)} -p {shlex.quote(port)} "
+        f"-U {shlex.quote(user)} -F c -b -v "
+        f"-f {shlex.quote(str(output_path))} {shlex.quote(db)}"
+    )
+
+
+# pg_restore tulostaa tämän rivin, kun palautus eteni tietokantaan asti mutta
+# ohitti objektitason virheitä (esim. --clean-pudotukset). Tällöin data on
+# palautettu, vaikka pg_restore palaa nollasta poikkeavalla koodilla.
+_PG_RESTORE_IGNORED_ERRORS_RE = re.compile(
+    r"errors ignored on restore:\s*(\d+)", re.IGNORECASE
+)
+
+
+def _pg_restore_cmd(input_path: Path) -> str:
+    """Muodostaa pg_restore-komennon varmuuskopion palauttamiseksi.
+
+    Olettaa pg_dump:n custom-formaatin (-F c). `--clean --if-exists` pudottaa
+    olemassa olevat objektit ennen palautusta, jotta palautus voidaan ajaa
+    olemassa olevan tietokannan päälle. Yhteystiedot luetaan
+    ympäristömuuttujista, salasana PGPASSWORD:n kautta (_db_env()).
+    """
+    host = os.environ.get("JKR_DB_HOST", "")
+    port = os.environ.get("JKR_DB_PORT", "")
+    db = os.environ.get("JKR_DB", "")
+    user = os.environ.get("JKR_USER", "")
+    return (
+        f"pg_restore -h {shlex.quote(host)} -p {shlex.quote(port)} "
+        f"-U {shlex.quote(user)} -d {shlex.quote(db)} "
+        f"--clean --if-exists -v "
+        f"{shlex.quote(str(input_path))}"
+    )
+
+
+def _resolve_dump_path(filename: str) -> Path:
+    """Ratkaisee varmuuskopiotiedoston polun turvallisesti DBDUMPS_DIR:n sisällä.
+
+    Estää polkuhyökkäykset (path traversal): hyväksytään vain tiedostonimi
+    ilman hakemisto-osia, ja varmistetaan että lopullinen polku on
+    DBDUMPS_DIR:n alla. Heittää HTTPException 400/404 virhetilanteissa.
+    """
+    if not filename or filename != Path(filename).name:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    dumps_dir = DBDUMPS_DIR.resolve()
+    candidate = (dumps_dir / filename).resolve()
+    if candidate.parent != dumps_dir:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail=f"Varmuuskopiota ei löydy: {filename}")
+    return candidate
+
+
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 
 
@@ -572,6 +918,10 @@ async def _pull_sharepoint_paths(
                     utilities.verify_contents,
                     raw_result,
                 )
+
+            # Kirjaa lähdepolku, jotta käsitelty tiedosto voidaan tuonnin
+            # jälkeen siirtää arkistoon ("viedyt").
+            _register_sp_source(verified_result.target_path, path)
 
             logger.info(
                 "SharePoint pull: %s -> %s",
@@ -785,7 +1135,8 @@ async def cancel_task(task_id: str, user: CurrentUser = Depends(require_admin)):
 async def jkr_batch_import(import_list: list[FileInfo], background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr batch_import {shlex.quote(json.dumps([item.dict() for item in import_list]))}"
     task = _create_task(cmd, f"Tietojen joukko tuonti {import_list}", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    archive_sources = [item.target_path for item in import_list if item.target_path]
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=archive_sources)
     return _task_response(task)
 
 
@@ -793,7 +1144,7 @@ async def jkr_batch_import(import_list: list[FileInfo], background_tasks: Backgr
 async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
     task = _create_task(cmd, f"Kuljetustietojen tuonti ({req.tiedontuottajatunnus} {req.alkupvm}-{req.loppupvm})", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -801,7 +1152,7 @@ async def jkr_import(req: JkrImportRequest, background_tasks: BackgroundTasks, u
 async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete {req.siirtotiedosto} {req.tiedontuottajatunnus} {req.alkupvm} {req.loppupvm}"
     task = _create_task(cmd, f"LIETE-kuljetustietojen tuonti ({req.alkupvm}-{req.loppupvm})", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -809,7 +1160,7 @@ async def jkr_import_liete(req: JkrImportLieteRequest, background_tasks: Backgro
 async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_paatokset {req.siirtotiedosto}"
     task = _create_task(cmd, "Päätösten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -817,7 +1168,7 @@ async def jkr_import_paatokset(req: JkrImportPaatoksetRequest, background_tasks:
 async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_ilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Kompostointi-ilmoitusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -825,7 +1176,7 @@ async def jkr_import_ilmoitukset(req: JkrImportIlmoituksetRequest, background_ta
 async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_liete_ilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Liete kompostointi-ilmoitusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -833,7 +1184,7 @@ async def jkr_import_liete_ilmoitukset(req: JkrImportLieteIlmoituksetRequest, ba
 async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopetusilmoitukset {req.siirtotiedosto}"
     task = _create_task(cmd, "Lopetusilmoitusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -841,7 +1192,7 @@ async def jkr_import_lopetusilmoitukset(req: JkrImportLopetusilmoituksetRequest,
 async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedot {req.siirtotiedosto} {req.tiedontuottajatunnus}"
     task = _create_task(cmd, "Kaivotietojen tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -849,7 +1200,7 @@ async def jkr_import_kaivotiedot(req: JkrImportKaivotiedotRequest, background_ta
 async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_kaivotiedon_lopetukset {req.siirtotiedosto} {req.tiedontuottajatunnus}"
     task = _create_task(cmd, "Kaivotiedon lopetusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -857,7 +1208,7 @@ async def jkr_import_kaivotiedon_lopetukset(req: JkrImportKaivotiedonLopetuksetR
 async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_viemarit {req.siirtotiedosto}"
     task = _create_task(cmd, "Viemäritietojen tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -865,7 +1216,7 @@ async def jkr_import_viemarit(req: JkrImportViemaritRequest, background_tasks: B
 async def jkr_import_lopeta_viemarit(req: JkrImportLopetaViemaritRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
     cmd = f"jkr import_lopeta_viemarit {req.siirtotiedosto}"
     task = _create_task(cmd, "Viemärin lopetusten tuonti", username=user.name, task_type=TaskType.import_task)
-    background_tasks.add_task(_run_task, task.id, cmd)
+    background_tasks.add_task(_run_task, task.id, cmd, archive_sources=[req.siirtotiedosto])
     return _task_response(task)
 
 
@@ -942,6 +1293,246 @@ async def psql_tallenna_velvoite_status(req: TallennaVelvoiteStatusRequest, back
     task = _create_task(cmd, f"Velvoite-statuksen tallennus ({pvm})", username=user.name, task_type=TaskType.import_task)
     background_tasks.add_task(_run_task, task.id, cmd)
     return _task_response(task)
+
+
+# ---------------------------------------------------------------------------
+# Endpointit: Tietokannan varmuuskopiointi (pg_dump)
+# ---------------------------------------------------------------------------
+# Käynnissä olevat dump/restore-operaatiot: task_id -> {"kind", "filename"}.
+# Vain yksi varmuuskopiointi/palautus sallitaan kerrallaan (ks. _ensure_no_db_op).
+# Lukko perustuu tehtävän live-statukseen, joten kaatunut tehtävä ei jätä
+# pysyvää lukkoa.
+_db_operations: Dict[str, Dict[str, Any]] = {}
+
+
+def _prune_db_operations() -> None:
+    """Poistaa rekisteristä jo valmistuneet/kadonneet operaatiot."""
+    stale = [
+        task_id for task_id in _db_operations
+        if (_tasks.get(task_id) is None
+            or _tasks[task_id].status in (TaskStatus.completed, TaskStatus.failed))
+    ]
+    for task_id in stale:
+        _db_operations.pop(task_id, None)
+
+
+def _active_db_task() -> Optional[TaskInfo]:
+    """Palauttaa käynnissä (pending/running) olevan dump/restore-tehtävän, jos on."""
+    for task_id in _db_operations:
+        task = _tasks.get(task_id)
+        if task is not None and task.status in (TaskStatus.pending, TaskStatus.running):
+            return task
+    return None
+
+
+def _ensure_no_db_op_running() -> None:
+    """Estää uuden dump/restore-operaation, jos sellainen on jo käynnissä.
+
+    Varmuuskopiointi ja palautus käsittelevät samaa tietokantaa (pg_restore
+    jopa pudottaa ja luo objektit uudelleen), joten ne suoritetaan toisensa
+    poissulkevasti: kerrallaan vain yksi. Heittää HTTP 409:n, jos käynnissä on jo
+    operaatio.
+    """
+    _prune_db_operations()
+    busy = _active_db_task()
+    if busy is None:
+        return
+    meta = _db_operations.get(busy.id, {})
+    kind_fi = "palautus" if meta.get("kind") == "restore" else "varmuuskopiointi"
+    runner = busy.runner or "toinen käyttäjä"
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"Tietokannan {kind_fi} on jo käynnissä (käynnistäjä: {runner}). "
+            "Odota, että se valmistuu ennen uuden varmuuskopioinnin tai "
+            "palautuksen aloittamista."
+        ),
+    )
+
+
+@app.post("/db/dump", summary="pg_dump – Luo tietokannan varmuuskopio", response_model=TaskResponse)
+async def db_dump(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
+    """Ajaa `pg_dump`-komennon, joka tallentaa tietokannan varmuuskopion
+    `/dbdumps`-kansioon (ylikirjoitettavissa JKR_DBDUMP_DIR-muuttujalla).
+
+    Tiedostonimi muodostuu tietokannan nimestä ja aikaleimasta, esim.
+    `jatehuolto_dump_20260615_1432.backup`. Varmuuskopio luodaan pg_dump:n
+    custom-formaatissa (-F c), joka voidaan palauttaa `pg_restore`-komennolla.
+    """
+    _ensure_no_db_op_running()
+    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
+    db = os.environ.get("JKR_DB", "") or "jkr"
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    output_path = DBDUMPS_DIR / f"{db}_dump_{ts}.backup"
+    cmd = _pg_dump_cmd(output_path)
+    task = _create_task(cmd, f"Tietokannan varmuuskopiointi → {output_path}", username=user.name, task_type=TaskType.maintenance)
+    _db_operations[task.id] = {"kind": "dump", "filename": output_path.name}
+    background_tasks.add_task(_run_task, task.id, cmd)
+    return _task_response(task)
+
+
+class BackupInfo(BaseModel):
+    """Yhden varmuuskopiotiedoston tiedot."""
+    filename: str
+    size: int = Field(..., description="Koko tavuina")
+    created_at: datetime = Field(..., description="Tiedoston muokkausaika")
+
+
+class RestoreRequest(BaseModel):
+    """pg_restore: palauta tietokanta varmuuskopiosta."""
+    filename: str = Field(..., description="Palautettavan varmuuskopion tiedostonimi (DBDUMPS_DIR:ssä)")
+
+
+@app.get("/db/dumps", summary="Listaa olemassa olevat varmuuskopiot", response_model=List[BackupInfo])
+async def list_db_dumps(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa `/dbdumps`-kansiossa olevat varmuuskopiot uusin ensin."""
+    if not DBDUMPS_DIR.exists():
+        return []
+    backups = []
+    for path in DBDUMPS_DIR.iterdir():
+        if not path.is_file():
+            continue
+        stat = path.stat()
+        backups.append(
+            BackupInfo(
+                filename=path.name,
+                size=stat.st_size,
+                created_at=datetime.fromtimestamp(stat.st_mtime),
+            )
+        )
+    backups.sort(key=lambda b: b.created_at, reverse=True)
+    return backups
+
+
+@app.delete("/db/dumps/{filename}", summary="Poista varmuuskopio")
+async def delete_db_dump(filename: str, user: CurrentUser = Depends(require_admin)):
+    """Poistaa annetun varmuuskopiotiedoston `/dbdumps`-kansiosta."""
+    path = _resolve_dump_path(filename)
+    try:
+        path.unlink()
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Poisto epäonnistui: {e}")
+    logger.info("Varmuuskopio poistettu: %s (käyttäjä=%s)", filename, getattr(user, "name", "?"))
+    return {"filename": filename, "message": "Varmuuskopio poistettu"}
+
+
+async def _run_restore_task(task_id: str, command: str):
+    """Ajaa pg_restore-komennon ja tulkitsee ohitetut virheet onnistumiseksi.
+
+    `pg_restore --clean --if-exists` palaa nollasta poikkeavalla koodilla, kun
+    se ohittaa objektitason virheitä (esim. olemassa olevien objektien
+    pudotukset). Data on silti palautettu, joten merkitsemme tehtävän
+    onnistuneeksi, jos lokista löytyy "errors ignored on restore" -rivi.
+    Aito epäonnistuminen (esim. yhteysvirhe) ei tuota tätä riviä, joten se jää
+    edelleen 'failed'-tilaan.
+    """
+    await _run_task(task_id, command)
+
+    task = _tasks.get(task_id)
+    if task is None or task.status != TaskStatus.failed:
+        return
+    if task_id in _cancelled_tasks:
+        return
+
+    combined = f"{task.output}\n{task.error}"
+    match = _PG_RESTORE_IGNORED_ERRORS_RE.search(combined)
+    if not match:
+        return
+
+    note = (
+        f"pg_restore ohitti {match.group(1)} virhettä – tämä on normaalia "
+        "--clean-palautuksessa. Tietokanta palautettiin onnistuneesti."
+    )
+    task.status = TaskStatus.completed
+    task.output = f"{task.output}\n{note}" if task.output else note
+    logger.info("Palautustehtävä %s merkitty onnistuneeksi: %s", task_id, note)
+    # Lopputila muuttui _run_taskin jälkeen → päivitä pysyvä tapahtuma.
+    await asyncio.to_thread(_persist_event, task)
+
+
+@app.post("/db/restore", summary="pg_restore – Palauta tietokanta varmuuskopiosta", response_model=TaskResponse)
+async def db_restore(req: RestoreRequest, background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
+    """Palauttaa tietokannan annetusta varmuuskopiosta `pg_restore`-komennolla.
+
+    HUOM: `--clean --if-exists` pudottaa olemassa olevat objektit ennen
+    palautusta, eli operaatio ylikirjoittaa nykyisen tietokannan sisällön.
+    """
+    _ensure_no_db_op_running()
+    path = _resolve_dump_path(req.filename)
+    cmd = _pg_restore_cmd(path)
+    task = _create_task(cmd, f"Tietokannan palautus varmuuskopiosta {req.filename}", username=user.name, task_type=TaskType.maintenance)
+    _db_operations[task.id] = {"kind": "restore", "filename": req.filename}
+    background_tasks.add_task(_run_restore_task, task.id, cmd)
+    return _task_response(task)
+
+
+class ActiveDbOperation(BaseModel):
+    """Käynnissä oleva varmuuskopiointi/palautus (edistymisindikaattorin palautusta varten)."""
+    task_id: str
+    kind: str = Field(..., description='"dump" tai "restore"')
+    filename: Optional[str] = None
+    status: TaskStatus
+    message: Optional[str] = Field(None, description="Tehtävän viimeisin lokirivi")
+
+
+@app.get(
+    "/db/active-operation",
+    summary="Käynnissä oleva varmuuskopiointi/palautus",
+    response_model=Optional[ActiveDbOperation],
+)
+async def db_active_operation(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa käynnissä olevan dump/restore-operaation tai `null`.
+
+    Frontend kutsuu tätä sivulle saapuessaan, jotta edistymisindikaattori voidaan
+    palauttaa, vaikka taustatehtävä olisi aloitettu eri istunnossa tai sivulta
+    poistuttiin välillä. Tehtävä jatkuu palvelimella riippumatta näkymästä.
+    """
+    busy = _active_db_task()
+    if busy is None:
+        return None
+    meta = _db_operations.get(busy.id, {})
+    last_line: Optional[str] = None
+    for source in (busy.error, busy.output):
+        for line in reversed((source or "").splitlines()):
+            if line.strip():
+                last_line = line.strip()
+                break
+        if last_line:
+            break
+    return ActiveDbOperation(
+        task_id=busy.id,
+        kind=meta.get("kind", "dump"),
+        filename=meta.get("filename"),
+        status=busy.status,
+        message=last_line,
+    )
+
+
+@app.post("/db/dumps/upload", summary="Lataa varmuuskopio palvelimelle")
+async def upload_db_dump(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(require_admin),
+):
+    """Lataa varmuuskopiotiedoston `/dbdumps`-kansioon (esim. palautusta varten)."""
+    if not file.filename or file.filename != Path(file.filename).name:
+        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
+    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
+    target_path = DBDUMPS_DIR / file.filename
+
+    async with aiofiles.open(str(target_path), "wb") as f:
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB kerrallaan
+            if not chunk:
+                break
+            await f.write(chunk)
+
+    file_size = target_path.stat().st_size
+    logger.info("Varmuuskopio ladattu: %s (%d tavua)", file.filename, file_size)
+    return {
+        "filename": file.filename,
+        "target_path": str(target_path),
+        "file_size": file_size,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1206,14 +1797,46 @@ async def dashboard_overview(user: CurrentUser = Depends(require_authenticated))
     return build_dashboard_overview(list(_tasks.values()))
 
 
+@app.get(
+    "/jarjestelmatapahtumat",
+    summary="Viimeisimmät järjestelmätapahtumat",
+    response_model=list[DashboardEventItem],
+)
+async def jarjestelmatapahtumat(
+    limit: int = Query(50, ge=1, description="Palautettavien tapahtumien enimmäismäärä"),
+    kaikki: bool = Query(False, description="Palauta koko historia (ohittaa limitin)"),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Lukee tapahtumat tapahtumakannasta, jotta myös muistista (EVENTS_HYDRATE_LIMIT)
+    puuttuva historia saadaan. Muistissa olevat tehtävät ovat tuoreimpia (esim.
+    käynnissä olevat), joten ne ylikirjoittavat kannan rivit saman id:n osalta."""
+    rajaus = None if kaikki else limit
+    tasks: dict[str, TaskInfo] = {}
+    for row in await asyncio.to_thread(events_store.recent, rajaus):
+        try:
+            task = TaskInfo(**row)
+        except Exception:
+            logger.exception("Tapahtuman muunnos epäonnistui: %s", row.get("id"))
+            continue
+        tasks[task.id] = task
+    tasks.update(_tasks)
+    return build_system_events(list(tasks.values()), limit=rajaus)
+
+
 # ---------------------------------------------------------------------------
 # Tuontiloki
 # ---------------------------------------------------------------------------
-@app.get("/tuontiloki", summary="Tuontilokin rivit (jkr.v_tuontiloki_rivit)")
-async def tuontiloki(user: CurrentUser = Depends(require_authenticated)):
-    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän rivit JSON-listana."""
+def _hae_tuontiloki(limit: Optional[int]) -> list:
+    """Hakee `jkr.v_tuontiloki_rivit` -näkymän uusimmat rivit JSON-listana.
+
+    limit=None palauttaa kaikki rivit (Postgresissa LIMIT NULL = ei rajaa).
+    """
     env = _db_env()
-    sql = "SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM jkr.v_tuontiloki_rivit t;"
+    rajaus = "NULL" if limit is None else str(int(limit))
+    sql = (
+        "SELECT COALESCE(json_agg(row_to_json(t) ORDER BY t.id DESC), '[]'::json) "
+        f"FROM (SELECT * FROM jkr.v_tuontiloki_rivit ORDER BY id DESC LIMIT {rajaus}) t;"
+    )
     try:
         cmd = [
             "psql", "-h", env.get("HOST", ""),
@@ -1240,6 +1863,21 @@ async def tuontiloki(user: CurrentUser = Depends(require_authenticated)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/tuontiloki", summary="Tuontilokin rivit (jkr.v_tuontiloki_rivit)")
+async def tuontiloki(
+    limit: int = Query(50, ge=1, description="Palautettavien rivien enimmäismäärä"),
+    kaikki: bool = Query(False, description="Palauta koko historia (ohittaa limitin)"),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän uusimmat rivit JSON-listana."""
+    return await asyncio.to_thread(_hae_tuontiloki, None if kaikki else limit)
+
+
+@app.get("/tuontiloki_dashboard", summary="Tuontilokin rivit dashboardille (jkr.v_tuontiloki_rivit)")
+async def tuontiloki_dashboard(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa `jkr.v_tuontiloki_rivit` -näkymän ensimmäiset 15 riviä JSON-listana."""
+    return await asyncio.to_thread(_hae_tuontiloki, 15)
 
 # ---------------------------------------------------------------------------
 # Tietokantadokumentaatio
@@ -1383,6 +2021,43 @@ async def auth_me(user: CurrentUser = Depends(require_authenticated)):
         "roles": user.roles,
         "is_admin": user.is_admin,
         "is_viewer": user.is_viewer,
+    }
+
+
+@app.get("/auth/me/debug", summary="Debug: kirjautuneen käyttäjän kaikki token-tiedot")
+async def auth_me_debug(user: CurrentUser = Depends(require_authenticated)):
+    """Palauttaa kaiken kirjautuneesta käyttäjästä: johdetut roolit, ryhmät,
+    Azure App Rolet (tokenin `roles`-claim) sekä KAIKKI token-claimit.
+
+    Tarkoitettu diagnostiikkaan – esim. selvittämään miksi käyttäjä ei saa
+    oikeuksia (puuttuvat group-claimit / groups overage) ja mitä app-roolinimiä
+    tokenissa todella on. Jokainen käyttäjä näkee vain oman tokeninsa tiedot.
+    """
+    claims = getattr(user, "claims", {}) or {}
+    # Groups overage: kun käyttäjä on liian monessa ryhmässä, Azure EI laita
+    # `groups`-taulukkoa tokeniin vaan `_claim_names`/`_claim_sources`-osoittimen.
+    groups_overage = "_claim_names" in claims or "_claim_sources" in claims
+    return {
+        "oid": user.oid,
+        "name": user.name,
+        "email": user.email,
+        # Sovelluksen johtamat roolit (admin/viewer) – mitä käyttäjä TÄLLÄ hetkellä saa.
+        "derived_roles": user.roles,
+        "is_admin": user.is_admin,
+        "is_viewer": user.is_viewer,
+        # Tokenista luetut raakatiedot.
+        "groups": user.groups,
+        "app_roles": claims.get("roles", []),  # Azure App Roles (esim. editor_role/viewer_role)
+        "groups_overage": groups_overage,
+        # Palvelimen konfiguraatio vertailua varten (ei salaisuuksia, vain tunnisteita).
+        "server_config": {
+            "admin_group_id": os.environ.get("AZURE_ADMIN_GROUP_ID", ""),
+            "viewer_group_id": os.environ.get("AZURE_VIEWER_GROUP_ID", ""),
+            "admin_app_role": os.environ.get("AZURE_ADMIN_APP_ROLE", ""),
+            "viewer_app_role": os.environ.get("AZURE_VIEWER_APP_ROLE", ""),
+        },
+        # Kaikki token-claimit sellaisenaan.
+        "claims": claims,
     }
 
 
@@ -1698,6 +2373,8 @@ async def sharepoint_status(user: CurrentUser = Depends(require_authenticated)):
         "site_id": sp.SHAREPOINT_SITE_ID or None,
         "input_folder": sp.SHAREPOINT_INPUT_FOLDER or None,
         "output_folder": sp.SHAREPOINT_OUTPUT_FOLDER or None,
+        "archive_folder": sp.SHAREPOINT_ARCHIVE_FOLDER or None,
+        "archive_after_import": sp.SHAREPOINT_ARCHIVE_AFTER_IMPORT,
     }
 
 
@@ -1854,12 +2531,6 @@ async def sharepoint_create_folder(
         logger.error("SharePoint folder creation epäonnistui: %s", e)
         raise HTTPException(status_code=500, detail=f"SharePoint-virhe: {e}")
 
-
-# ---------------------------------------------------------------------------
-# Staattisten tiedostojen tarjoilu (HUOM: tämä pitää olla viimeisenä,
-# jotta API-reitit ovat prioriteetissa)
-# ---------------------------------------------------------------------------
-app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 # ---------------------------------------------------------------------------
 # Käynnistys

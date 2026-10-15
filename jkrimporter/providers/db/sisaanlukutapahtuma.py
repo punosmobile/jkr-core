@@ -1,3 +1,4 @@
+import os
 import sys
 import traceback
 import threading
@@ -14,10 +15,36 @@ _local = threading.local()
 
 
 def _build_komento_string(args=None):
-    """Rakentaa komentorivin sys.argv:sta tai annetuista argumenteista."""
+    """Rakentaa komentorivin sys.argv:sta tai annetuista argumenteista.
+
+    Jos sisaanluku_komento() on asettanut korvaavan komennon (esim. batch_import
+    ajaa alikomentoja funktiokutsuina), käytetään sitä sys.argv:n sijaan.
+    """
     if args is not None:
         return " ".join(str(a) for a in args)
+    override = getattr(_local, "komento_override", None)
+    if override:
+        return override
     return " ".join(sys.argv)
+
+
+@contextmanager
+def sisaanluku_komento(komento: str):
+    """Asettaa tuontilokiin kirjattavan komennon lohkon ajaksi.
+
+    batch_import kutsuu alikomentoja suoraan Python-funktioina, jolloin sys.argv
+    on koko batch-komento ja jokainen tiedosto kirjautuisi samalla komennolla.
+
+    Käyttö:
+        with sisaanluku_komento("jkr import_paatokset polku.xlsx"):
+            import_paatokset(polku)
+    """
+    edellinen = getattr(_local, "komento_override", None)
+    _local.komento_override = komento
+    try:
+        yield
+    finally:
+        _local.komento_override = edellinen
 
 
 def lisaa_lisatieto(msg: str):
@@ -78,15 +105,29 @@ def sisaanlukutapahtuma(komento: str = None):
             # ... sisäänlukukoodi ...
             lisaa_lisatieto("Lisätty: 45 kohdetta")
             lisaa_lisatieto("Kohdentumatta: 3 kpl")
+
+    Sisäkkäinen kutsu (esim. import_and_create_kohteet → create_dvv_kohteet)
+    ei luo uutta riviä: lisätiedot ja mahdollinen virhe kirjautuvat ulomman
+    tapahtuman riville.
     """
+    aktiivinen_id = getattr(_local, "tapahtuma_id", None)
+    if aktiivinen_id is not None:
+        yield aktiivinen_id
+        return
+
     if komento is None:
         komento = _build_komento_string()
 
-    # Alustetaan koosteen kerääjä
+    # Alustetaan koosteen kerääjä. API asettaa JKR_RUNNER-muuttujaan ajon
+    # käynnistäjän; komentoriviltä ajettaessa sitä ei ole.
     _local.kooste = []
+    runner = os.environ.get("JKR_RUNNER")
+    if runner:
+        _local.kooste.append(f"runner={runner}")
 
     with Session(engine) as session:
         tapahtuma_id = kirjaa_sisaanluku_alku(session, komento)
+        _local.tapahtuma_id = tapahtuma_id
         try:
             yield tapahtuma_id
             lisatiedot = "\n".join(_local.kooste) if _local.kooste else None
@@ -103,3 +144,4 @@ def sisaanlukutapahtuma(komento: str = None):
             raise
         finally:
             _local.kooste = None
+            _local.tapahtuma_id = None

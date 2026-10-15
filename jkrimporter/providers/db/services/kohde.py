@@ -827,22 +827,38 @@ def update_old_kohde_data(
 
             rakennus_ids = session.execute(rakennus_ids_query)
 
-            # 2 Aseta loppupvm vanhoille päätöksille
-            stmt = (
-                update(Viranomaispaatokset)
+            # 2 Viranomaispäätökset (LAH-602)
+            # Voimassa oleva päätös (esim. myönteinen vapautus tai keskeytys) jää
+            # voimaan rakennukselle myös kohteen vaihtuessa. Päätökset liittyvät
+            # kohteeseen RAKENNUKSEN kautta (näkymä v_kohteen_viranomaispaatokset:
+            # kohteen_rakennukset.rakennus_id = viranomaispaatokset.rakennus_id),
+            # joten kun rakennus siirtyy uudelle kohteelle, voimassa oleva päätös
+            # seuraa mukana automaattisesti ALKUPERÄISIN päivämäärin.
+            #
+            # Tästä syystä päätösten päättymispäivää EI muuteta eikä päätöstä
+            # irroteta rakennuksesta tässä. Aiempi toteutus typisti loppupvm:n
+            # kohteen vaihtopäivään ja asetti rakennus_id = None, mikä rikkoi kaksi
+            # asiaa: (1) muutti päätöksen alkuperäistä päättymispäivää ja (2) poisti
+            # voimassa olevan päätöksen uudelta kohteelta kokonaan. LAH-602:n mukaan
+            # päättymispäivät eivät saa muuttua alkuperäisistä päätöksen siirtyessä
+            # uudelle kohteelle. Jo päättyneet päätökset jäävät historiatiedoksi
+            # sellaisenaan.
+            voimassa_olevat_paatokset = session.execute(
+                select(func.count())
+                .select_from(Viranomaispaatokset)
                 .where(
                     Viranomaispaatokset.rakennus_id.in_(rakennus_ids_query.scalar_subquery()),
-                    Viranomaispaatokset.alkupvm <= loppupvm
+                    or_(
+                        Viranomaispaatokset.loppupvm.is_(None),
+                        Viranomaispaatokset.loppupvm > loppupvm,
+                    ),
                 )
-                .values(
-                    loppupvm=loppupvm,
-                    rakennus_id = None  # Irroita rakennuksesta
-                    )
-                .execution_options(synchronize_session=False)
+            ).scalar()
+            print(
+                f"Säilytetään {voimassa_olevat_paatokset} voimassa olevaa "
+                "viranomaispäätöstä alkuperäisin päivämäärin "
+                "(seuraavat rakennuksen mukana uudelle kohteelle)"
             )
-
-            result = session.execute(stmt)
-            print(f"Päivitetty {result.rowcount} viranomaispäätöksen loppupvm")
 
             print(rakennus_ids)
             print("vanhan kohteen rakennus ids haettu")
@@ -1012,30 +1028,26 @@ def update_old_kohde_data(
                 #result = session.execute(stmt)
                 #print(f"Siirretty {result.rowcount} viranomaispäätöstä uudelle kohteelle")
 
-                # 3.6 Käsittele kompostorit
+                # 3.6 Käsittele kompostorit (LAH-602)
                 # Hae vanhan kohteen kompostorien id:t
                 kompostori_ids = select(KompostorinKohteet.kompostori_id).where(
                     KompostorinKohteet.kohde_id == old_kohde.id
                 )
 
-                # 3.6.1 Aseta loppupvm vanhoille kompostoreille
-                stmt = (
-                    update(Kompostori)
-                    .where(
-                        Kompostori.id.in_(kompostori_ids.scalar_subquery()),
-                        Kompostori.alkupvm <= loppupvm
-                    )
-                    .values(loppupvm=loppupvm)
-                    .execution_options(synchronize_session=False)
-                )
-                result = session.execute(stmt)
-                print(f"Päivitetty {result.rowcount} kompostorin loppupvm")
-
-                # 3.6.2 Hae jatkuvien kompostorien id:t
+                # LAH-602: Voimassaoloon perustuva siirto. Kompostointi-ilmoituksen
+                # päättymispäivää EI typistetä kohteen vaihtuessa. Jos ilmoitus on
+                # yhä voimassa vaihtohetkellä (loppupvm > vanhan kohteen loppupvm),
+                # se siirretään uudelle kohteelle alkuperäinen päättymispäivä
+                # säilyttäen. Jo päättyneet ilmoitukset – mukaan lukien
+                # lopetusilmoituksella päätetyt – jätetään ennalleen vanhalle
+                # kohteelle (loppupvm <= vanhan kohteen loppupvm).
+                #
+                # Sama logiikka kattaa myös lietteen kompostointi-ilmoitukset, sillä
+                # ne ovat Kompostori-rivejä (onko_liete=True) eikä tässä eroteta niitä.
                 jatkuvat_kompostorit = select(Kompostori.id).where(
                     and_(
                         Kompostori.id.in_(kompostori_ids.scalar_subquery()),
-                        Kompostori.alkupvm > loppupvm
+                        Kompostori.loppupvm > loppupvm
                     )
                 )
 

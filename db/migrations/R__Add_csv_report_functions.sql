@@ -225,6 +225,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS jkr.kohteiden_kuljetukset(INTEGER[], DATErange);
 CREATE OR REPLACE FUNCTION jkr.kohteiden_kuljetukset(kohde_ids INTEGER[], tarkistusjakso DATErange)
 RETURNS TABLE(
     Kohde_id INTEGER,

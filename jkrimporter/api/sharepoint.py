@@ -1,16 +1,27 @@
 """
 SharePoint Graph API -integraatio.
 
-Käyttää client credentials -flowta (AZURE_CLIENT_ID + AZURE_CLIENT_SECRET)
-ja Sites.Selected -oikeutta SharePoint-siten tiedostojen hallintaan.
+Käyttää client credentials -flowta dedikoidulla SharePoint-App
+Registrationilla (SHAREPOINT_CLIENT_ID + SHAREPOINT_CLIENT_SECRET) ja
+Sites.Selected -oikeutta SharePoint-siten tiedostojen hallintaan.
+
+HUOM: SharePoint-Graph-pääsy käyttää OMAA app registrationiaan (SHAREPOINT_*),
+ei sovelluksen käyttäjätunnistuksen app registrationia (AZURE_*). Näin
+SharePoint-oikeudet pysyvät erillään käyttäjien autentikoinnista. Jos
+SHAREPOINT_*-muuttujia ei ole asetettu, palataan AZURE_*-arvoihin
+taaksepäinyhteensopivuuden vuoksi.
 
 Ympäristömuuttujat:
-    AZURE_TENANT_ID        - Azure AD tenant ID
-    AZURE_CLIENT_ID        - App Registration client ID
-    AZURE_CLIENT_SECRET    - App Registrationin client secret
-    SHAREPOINT_SITE_ID     - SharePoint Site ID (esim. contoso.sharepoint.com,guid1,guid2)
+    SHAREPOINT_TENANT_ID     - Azure AD tenant ID (fallback: AZURE_TENANT_ID)
+    SHAREPOINT_CLIENT_ID     - SharePoint-App Registrationin client ID (fallback: AZURE_CLIENT_ID)
+    SHAREPOINT_CLIENT_SECRET - SharePoint-App Registrationin client secret (fallback: AZURE_CLIENT_SECRET)
+    SHAREPOINT_SITE_ID       - SharePoint Site ID (esim. contoso.sharepoint.com,guid1,guid2)
     SHAREPOINT_INPUT_FOLDER  - Syöttökansio (esim. /Shared Documents/JKR-input)
     SHAREPOINT_OUTPUT_FOLDER - Tuloskansio (esim. /Shared Documents/JKR-output)
+    SHAREPOINT_ARCHIVE_FOLDER - Arkistokansio käsitellyille tiedostoille
+                                (ns. "viedyt", oletus: /Shared Documents/viedyt)
+    SHAREPOINT_ARCHIVE_AFTER_IMPORT - Siirretäänkö syötetiedosto arkistoon
+                                onnistuneen tuonnin jälkeen (oletus: true)
 """
 
 import asyncio
@@ -27,12 +38,22 @@ logger = logging.getLogger("jkr-sharepoint")
 # ---------------------------------------------------------------------------
 # Konfiguraatio
 # ---------------------------------------------------------------------------
-AZURE_TENANT_ID = os.environ.get("AZURE_TENANT_ID", "")
-AZURE_CLIENT_ID = os.environ.get("AZURE_CLIENT_ID", "")
-AZURE_CLIENT_SECRET = os.environ.get("AZURE_CLIENT_SECRET", "")
+# SharePoint-Graph käyttää dedikoitua app registrationia (SHAREPOINT_*).
+# Fallback AZURE_*:iin säilyttää taaksepäinyhteensopivuuden ympäristöissä,
+# joissa SHAREPOINT_*-muuttujia ei (vielä) ole asetettu.
+AZURE_TENANT_ID = os.environ.get("SHAREPOINT_TENANT_ID") or os.environ.get("AZURE_TENANT_ID", "")
+AZURE_CLIENT_ID = os.environ.get("SHAREPOINT_CLIENT_ID") or os.environ.get("AZURE_CLIENT_ID", "")
+AZURE_CLIENT_SECRET = os.environ.get("SHAREPOINT_CLIENT_SECRET") or os.environ.get("AZURE_CLIENT_SECRET", "")
 SHAREPOINT_SITE_ID = os.environ.get("SHAREPOINT_SITE_ID", "")
 SHAREPOINT_INPUT_FOLDER = os.environ.get("SHAREPOINT_INPUT_FOLDER", "/Shared Documents/JKR-input")
 SHAREPOINT_OUTPUT_FOLDER = os.environ.get("SHAREPOINT_OUTPUT_FOLDER", "/Shared Documents/JKR-output")
+# Arkistokansio ("viedyt"): tänne siirretään JKR-input-kansiosta käsitellyt
+# tiedostot onnistuneen tuonnin jälkeen.
+SHAREPOINT_ARCHIVE_FOLDER = os.environ.get("SHAREPOINT_ARCHIVE_FOLDER", "/Shared Documents/viedyt")
+SHAREPOINT_ARCHIVE_AFTER_IMPORT = (
+    os.environ.get("SHAREPOINT_ARCHIVE_AFTER_IMPORT", "true").strip().lower()
+    in ("1", "true", "yes", "on")
+)
 
 # ---------------------------------------------------------------------------
 # Token-välimuisti
@@ -58,8 +79,9 @@ async def _get_app_token() -> str:
 
     if not all([AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET]):
         raise RuntimeError(
-            "SharePoint-konfiguraatio puuttuu: AZURE_TENANT_ID, AZURE_CLIENT_ID "
-            "ja AZURE_CLIENT_SECRET ympäristömuuttujat vaaditaan."
+            "SharePoint-konfiguraatio puuttuu: SHAREPOINT_TENANT_ID, "
+            "SHAREPOINT_CLIENT_ID ja SHAREPOINT_CLIENT_SECRET (tai vastaavat "
+            "AZURE_*-fallbackit) ympäristömuuttujat vaaditaan."
         )
 
     token_url = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}/oauth2/v2.0/token"
@@ -330,16 +352,22 @@ async def upload_file(
     folder: Optional[str] = None,
     user_name: str = "",
     user_email: str = "",
+    add_timestamp: bool = True,
 ) -> Dict[str, Any]:
     """Lataa tiedoston SharePointiin.
 
     Käyttää yksinkertaista PUT-uploadia (< 4 MB) tai upload sessionia (>= 4 MB).
+    Jos add_timestamp on True (oletus), tiedostonimeen lisätään aikaleima ennen
+    tallennusta. Aseta False, jos tiedostonimi on jo aikaleimattu.
     """
     token = await _get_app_token()
     folder_path = _resolve_folder_path(folder, default=SHAREPOINT_OUTPUT_FOLDER)
-    stem, _, ext = filename.rpartition(".")
-    timestamp = datetime.now().strftime("%Y%m%d%H%M")
-    stamped = f"{stem}_{timestamp}.{ext}" if stem else f"{filename}_{timestamp}"
+    if add_timestamp:
+        stem, _, ext = filename.rpartition(".")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M")
+        stamped = f"{stem}_{timestamp}.{ext}" if stem else f"{filename}_{timestamp}"
+    else:
+        stamped = filename
     target = f"{folder_path}/{stamped}"
 
     if len(file_content) < 4 * 1024 * 1024:
@@ -577,6 +605,81 @@ async def move_file(source_path: str, dest_folder: str, new_name: Optional[str] 
         "name": result.get("name"),
         "webUrl": result.get("webUrl"),
     }
+
+
+async def folder_exists(folder_path: str) -> bool:
+    """Tarkistaa onko kansio olemassa SharePointissa."""
+    token = await _get_app_token()
+    path = folder_path.strip("/")
+    url = f"{_graph_base()}/root:/{path}"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"$select": "id"},
+            timeout=30.0,
+        )
+    if resp.status_code == 200:
+        return True
+    if resp.status_code == 404:
+        return False
+    resp.raise_for_status()
+    return False
+
+
+async def ensure_folder(folder_path: str, user_name: str = "", user_email: str = "") -> None:
+    """Varmistaa että kansio on olemassa; luo sen jos puuttuu.
+
+    Best-effort kansion luonnin osalta: jos kansio ehti syntyä rinnakkaisesti
+    (409 Conflict), se ei ole virhe.
+    """
+    if await folder_exists(folder_path):
+        return
+    try:
+        await create_folder(folder_path, user_name=user_name, user_email=user_email)
+    except httpx.HTTPStatusError as exc:
+        if exc.response is not None and exc.response.status_code == 409:
+            return  # kansio luotiin rinnakkaisesti
+        raise
+
+
+async def archive_file(source_path: str, user_name: str = "", user_email: str = "") -> Dict[str, Any]:
+    """Siirtää käsitellyn tiedoston arkistokansioon (SHAREPOINT_ARCHIVE_FOLDER, "viedyt").
+
+    Käyttää natiivia SharePoint-siirtoa (move_file) — tiedosto ei lataudu
+    palvelimen kautta, vaan SharePoint vaihtaa vain tiedoston parent-kansion.
+    Varmistaa että arkistokansio on olemassa ennen siirtoa.
+
+    Jos arkistokansiossa on jo samanniminen tiedosto (Graph palauttaa 409
+    Conflict), siirretään aikaleimalla varustetulla nimellä — näin sama
+    tiedostonimi voidaan tuoda useita kertoja menettämättä aiempia versioita.
+    """
+    await ensure_folder(SHAREPOINT_ARCHIVE_FOLDER, user_name=user_name, user_email=user_email)
+    try:
+        return await move_file(
+            source_path,
+            SHAREPOINT_ARCHIVE_FOLDER,
+            user_name=user_name,
+            user_email=user_email,
+        )
+    except httpx.HTTPStatusError as exc:
+        if exc.response is None or exc.response.status_code != 409:
+            raise
+        # Nimi on jo varattu viedyt-kansiossa → lisätään aikaleima ja yritetään uudelleen.
+        filename = source_path.strip("/").split("/")[-1]
+        stem, _, ext = filename.rpartition(".")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        stamped = f"{stem}_{timestamp}.{ext}" if stem else f"{filename}_{timestamp}"
+        logger.info(
+            "Arkistossa on jo tiedosto %r — siirretään nimellä %r", filename, stamped,
+        )
+        return await move_file(
+            source_path,
+            SHAREPOINT_ARCHIVE_FOLDER,
+            new_name=stamped,
+            user_name=user_name,
+            user_email=user_email,
+        )
 
 
 async def create_folder(folder_path: str, user_name: str = "", user_email: str = "") -> Dict[str, Any]:

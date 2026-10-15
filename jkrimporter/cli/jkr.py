@@ -7,11 +7,12 @@ from typing import Optional
 
 import typer
 import json
-import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import scoped_session
 from sqlalchemy.orm.session import sessionmaker
 import openpyxl
+from openpyxl.cell import WriteOnlyCell
+from openpyxl.styles import Alignment, Border, Font, Side
 from openpyxl.utils import get_column_letter
 from sys import platform
 
@@ -56,7 +57,7 @@ from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
-from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanlukutapahtuma
+from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanluku_komento, sisaanlukutapahtuma
 from jkrimporter.api.util import FileType
 
 
@@ -111,6 +112,14 @@ def _read_dvv_poimintapvm(path: Path) -> str:
     return str(value)
 
 
+def _aja_batchissa(alakomento: str, funktio, *args):
+    """Ajaa alikomennon batch_importin sisällä niin, että tuontilokiin kirjautuu
+    alikomennon oma komentorivi eikä koko batch-komento."""
+    komento = " ".join(["jkr", alakomento, *(str(a) for a in args if a not in (None, ""))])
+    with sisaanluku_komento(komento):
+        return funktio(*args)
+
+
 @app.command("batch_import", help="Import data to JKR in a batch.")
 def import_data_batch(
     tiedostolista: str = typer.Argument(..., help="Lista tiedostoista jotka ajetaan järjestelmään"),
@@ -135,58 +144,61 @@ def import_data_batch(
                 poimintapvm = _read_dvv_poimintapvm(target_path)
                 if (posti_path and perusmaksu_path):
                     print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}, 'posti', {posti_path}")
-                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
+                    _aja_batchissa("import_and_create_kohteet", _import_and_create_kohteet, poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
                 elif perusmaksu_path:
                     print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}")
-                    import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path)
+                    _aja_batchissa("import_and_create_kohteet", _import_and_create_kohteet, poimintapvm, target_path, perusmaksu_path)
                 else:
                     print(f"DVV args: {poimintapvm}, {target_path}")
-                    import_and_create_kohteet(poimintapvm, target_path)
+                    _aja_batchissa("import_and_create_kohteet", _import_and_create_kohteet, poimintapvm, target_path)
                 continue
             case FileType.HUONEISTOMAARAT:
                 update_huoneistomaara(target_path)
                 continue
             case FileType.ILMOITUSTIEDOSTO:
-                import_ilmoitukset(target_path)
+                _aja_batchissa("import_ilmoitukset", import_ilmoitukset, target_path)
                 continue
             case FileType.KOMPOSTOINNIN_LOPETUS:
-                import_lopetusilmoitukset(target_path)
+                _aja_batchissa("import_lopetusilmoitukset", import_lopetusilmoitukset, target_path)
                 continue
             case FileType.PAATOSTIEDOSTO:
-                import_paatokset(target_path)
+                _aja_batchissa("import_paatokset", import_paatokset, target_path)
                 continue
             case FileType.KAIVOTIEDOT_ALKU:
-                import_kaivotiedot(target_path, 'LSJ')
+                _aja_batchissa("import_kaivotiedot", import_kaivotiedot, target_path, 'LSJ')
                 continue
             case FileType.KAIVOTIEDOT_LOPPU:
-                import_kaivotiedon_lopetukset(target_path, 'LSJ')
+                _aja_batchissa("import_kaivotiedon_lopetukset", import_kaivotiedon_lopetukset, target_path, 'LSJ')
                 continue
             case FileType.KULJETUSTIETO_LIETE:
-                import_liete(target_path, 'LSJ', '', '')
+                _aja_batchissa("import_liete", import_liete, target_path, 'LSJ', '', '')
+                continue
+            case FileType.LIETE_PELTOLEVITYS:
+                _aja_batchissa("import_liete", import_liete, target_path, 'LSJ', '', '')
                 continue
             case FileType.LIETE_KOMPOSTOINTI:
-                import_liete_ilmoitukset(target_path)
+                _aja_batchissa("import_liete_ilmoitukset", import_liete_ilmoitukset, target_path)
                 continue
             case FileType.VIEMARIVERKOSTO_ALKU:
-                import_viemarointi(target_path)
+                _aja_batchissa("import_viemarit", import_viemarointi, target_path)
                 continue
             case FileType.VIEMARIVERKOSTO_LOPPU:
-                import_viemari_lopetusilmoitukset(target_path)
+                _aja_batchissa("import_lopeta_viemarit", import_viemari_lopetusilmoitukset, target_path)
                 continue
             case FileType.KULJETUSTIETO:
-                import_data(target_path, 'LSJ', '', '')
+                _aja_batchissa("import", import_data, target_path, 'LSJ', '', '')
                 continue
             case FileType.HAPATIEDOSTO:
-                import_hapa(target_path)
+                _aja_batchissa("import_hapa", import_hapa, target_path)
                 continue
             case FileType.SOTETIEDOSTO:
-                import_sote(target_path)
+                _aja_batchissa("import_sote", import_sote, target_path)
                 continue
             case FileType.PERUSMAKSUAINEISTO:
                 print('perusmaksuaineisto luetaan sisään DVV-sisäänluvussa')
                 continue
             case FileType.TIEDONTUOTTAJAT:
-                with open(target_path, newline='', encoding='utf-8') as f:
+                with open(target_path, newline='', encoding='cp1252') as f:
                     for row in csv.DictReader(f, delimiter=';'):
                         tiedontuottaja_add_new(row['tunnus'], row['nimi'])
                 continue
@@ -289,6 +301,19 @@ def import_and_create_kohteet(
     perusmaksutiedosto: Optional[Path] = typer.Argument(None, help="Perusmaksurekisteri-tiedoston sijainti."),
     posti: Optional[str] = typer.Argument(None, help="Syötä arvoksi 'posti' jos haluat importoida myös posti datan."),
     posti_file: Optional[str] = typer.Argument(None, help="What file to use if provided, else defaults to data/posti/PCF.dat"),
+):
+    _import_and_create_kohteet(poimintapvm, dvv, perusmaksutiedosto, posti, posti_file)
+
+
+# app.command structure fails to parse default argument values, resulting in the passing of typer.argument itself
+# The result is incorrectly viewed as truthy and fails the function call unexpectedly
+# This function acts as a straight function call to avoid the issue while the old command simply calls it instead
+def _import_and_create_kohteet(
+    poimintapvm: Optional[str] = None,
+    dvv: Optional[Path] = None,
+    perusmaksutiedosto: Optional[Path] = None,
+    posti: Optional[str] = None,
+    posti_file: Optional[str] = None,
 ):
     with sisaanlukutapahtuma():
         file_to_run: Optional[str] = None
@@ -538,36 +563,33 @@ def raportti(
             # Fetch all results
             results = result.fetchall()
             
-            # Create DataFrame
-            df = pd.DataFrame(results, columns=columns)
-            
-            # Save to Excel
-            df.to_excel(output_path, index=False, engine='openpyxl')
-            
-            # Open the workbook to adjust column widths
-            wb = openpyxl.load_workbook(output_path)
-            ws = wb.active
-            
-            # Adjust column widths based on content
-            for column in ws.columns:
-                max_length = 0
-                column_letter = get_column_letter(column[0].column)
-                
-                # Find the maximum length of content in each column
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                
-                # Set width with a small padding
-                adjusted_width = max_length + 2
-                ws.column_dimensions[column_letter].width = adjusted_width
-            
-            # Save the workbook with adjusted column widths
+            # write_only-tilassa openpyxl kirjoittaa rivit suoraan levylle eikä pidä
+            # jokaista solua Python-oliona muistissa, kuten tavallinen tila
+            # (jota pandas.to_excel käyttää) tekee. Iso raportti kaatui muistin
+            # loppumiseen ilman rajauksia.
+            wb = openpyxl.Workbook(write_only=True)
+            ws = wb.create_sheet("Sheet1")
+
+            # write_only-tilassa leveydet pitää asettaa ennen ensimmäistä riviä
+            for i, col in enumerate(columns):
+                max_length = max([len(str(col))] + [len(str(row[i])) for row in results])
+                ws.column_dimensions[get_column_letter(i + 1)].width = max_length + 2
+
+            # Otsikkorivi samalla tyylillä kuin pandas.to_excel
+            thin = Side(style="thin")
+            header = []
+            for col in columns:
+                cell = WriteOnlyCell(ws, value=col)
+                cell.font = Font(bold=True)
+                cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+                cell.alignment = Alignment(horizontal="center")
+                header.append(cell)
+            ws.append(header)
+
+            for row in results:
+                ws.append(list(row))
             wb.save(output_path)
-            
+
             typer.echo(f"Raportti luotu onnistuneesti: {output_path}")
             
     except ValueError as e:
@@ -632,7 +654,7 @@ def import_hapa(
             Session = scoped_session(sessionmaker(bind=engine))
             with Session() as session:
                 # Read CSV file to verify structure before importing
-                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                with open(aineistopolku, 'r', encoding='cp1252') as f:
                     reader = csv.reader(f, delimiter=';')
                     headers = next(reader)
 
@@ -736,7 +758,7 @@ def import_sote(
             Session = scoped_session(sessionmaker(bind=engine))
             with Session() as session:
                 # Read CSV file to verify structure before importing
-                with open(aineistopolku, 'r', encoding='utf-8') as f:
+                with open(aineistopolku, 'r', encoding='cp1252') as f:
                     reader = csv.reader(f, delimiter=';')
                     headers = next(reader)
 

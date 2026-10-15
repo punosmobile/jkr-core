@@ -127,6 +127,7 @@ services:
           memory: 4G
     volumes:
       - .:/app
+      - ./dbdumps:/dbdumps
     environment:
       - JKR_DB_HOST=db
       - JKR_DB=${JKR_DB}

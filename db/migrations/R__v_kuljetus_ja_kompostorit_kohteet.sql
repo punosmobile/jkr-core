@@ -66,3 +66,9 @@ CREATE MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista AS
 
 REFRESH MATERIALIZED VIEW jkr.v_kuljetustietojen_kohteet_kolmeviimeista;
 REFRESH MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista;
+
+-- Näkymäkommentit (LAH-622). Pidetään näkymän luonnin yhteydessä, koska
+-- materialisoitu näkymä luodaan DROP + CREATE -tavalla ja kommentti häviäisi,
+-- jos se annettaisiin versioidussa migraatiossa ennen tämän ajamista.
+COMMENT ON MATERIALIZED VIEW jkr.v_kompostorien_kohteet_kolmeviimeista IS E'Kohteet, joilla on voimassa oleva (ei-liete) kompostori-ilmoitus kolmen viimeisimmän vuosineljänneksen ajalta. Sisältää kompostorin yhteystiedot QGIS-karttatasoa varten.';
+COMMENT ON MATERIALIZED VIEW jkr.v_kuljetustietojen_kohteet_kolmeviimeista IS E'Kohteet, joilla on kuljetustietoja kolmelta viimeisimmältä vuosineljännekseltä. Sisältää jätetyypin ja kohteen yhteystiedot QGIS-karttatasoa varten.';

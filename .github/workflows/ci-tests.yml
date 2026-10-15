@@ -1,0 +1,65 @@
+name: CI test gate
+
+# CI-portti testeille (LAH-629, osa LAH-547 CI/CD-putkea).
+# Ajaa koko pytest-testijoukon aina kun pull request luodaan tai sitä
+# päivitetään. Käyttää projektin omaa testausinfraa (testing.docker-compose.yml):
+# testikanta (PostGIS) -> Flyway-migraatiot -> testiajuri (sama GDAL/QGIS-image
+# kuin kehityksessä) ajaa `pytest tests/`. conftest.pytest_sessionstart tuo
+# DVV-testidatan kantaan ennen testejä.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  # Sallii manuaalisen ajon Actions-välilehdeltä.
+  workflow_dispatch:
+
+# Peruuta saman PR:n edellinen kesken oleva ajo kun uusi commit työnnetään.
+concurrency:
+  group: ci-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: pytest (testikanta + migraatiot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Kertakäyttöisen CI-testikannan arvot – EIVÄT salaisuuksia.
+      # HUOM: JKR_USER on oltava 'jkr_admin' – migraatiot (V1.0.0__initial.sql)
+      # viittaavat kovakoodattuun rooliin jkr_admin (ALTER SCHEMA ... OWNER TO
+      # jkr_admin), ja testikannan init luo roolin JKR_USER-arvon mukaan.
+      # (.env.template:n 'sql_admin' on harhaanjohtava; .env.local käyttää jkr_admin.)
+      POSTGRES_PASSWORD: postgres
+      JKR_USER: jkr_admin
+      JKR_TEST_DB: jkr_test
+      JKR_TEST_PASSWORD: password
+      JKR_TEST_DB_PORT: "5436"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rakenna testi-imaget
+        # CI-override korvaa raskaan QGIS-tuotantoimagen kevyellä testi-imagella
+        # (docker/test-runner/Dockerfile) — vain gdal-bin + psql + poetry.
+        run: >-
+          docker compose
+          -f testing.docker-compose.yml
+          -f testing.ci.docker-compose.yml
+          build
+
+      - name: Aja testit (portti)
+        # Käynnistää riippuvuudet (db_test terveeksi -> flyway_test valmiiksi) ja
+        # ajaa testiajurin. Pytestin exit-koodi välittyy tähän: epäonnistuneet
+        # testit kaatavat vaiheen -> PR-portti punaiseksi.
+        run: >-
+          docker compose
+          -f testing.docker-compose.yml
+          -f testing.ci.docker-compose.yml
+          run --rm jkr-core-runner
+
+      - name: Siivoa (kontit + volyymit)
+        if: always()
+        run: >-
+          docker compose
+          -f testing.docker-compose.yml
+          -f testing.ci.docker-compose.yml
+          down -v

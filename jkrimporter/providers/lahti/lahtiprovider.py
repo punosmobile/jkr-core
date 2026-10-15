@@ -514,7 +514,6 @@ class IlmoitusTranslator:
 
         # Convert grouped data to list
         data = [JkrIlmoitukset(**values) for values in grouped_data.values()]
-        print(data)
         return data
 
 
@@ -585,7 +584,6 @@ class LieteIlmoitusTranslator:
 
         # Convert grouped data to list
         data = [JkrIlmoitukset(**values) for values in grouped_data.values()]
-        print(data)
         return data
 
 class LopetusIlmoitusTranslator:
