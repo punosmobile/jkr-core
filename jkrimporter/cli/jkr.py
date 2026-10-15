@@ -57,7 +57,7 @@ from jkrimporter.providers.nokia.siirtotiedosto import NokiaSiirtotiedosto
 from jkrimporter.providers.pjh.pjhprovider import PjhTranslator
 from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
-from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanlukutapahtuma
+from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanluku_komento, sisaanlukutapahtuma
 from jkrimporter.api.util import FileType
 
 
@@ -112,6 +112,14 @@ def _read_dvv_poimintapvm(path: Path) -> str:
     return str(value)
 
 
+def _aja_batchissa(alakomento: str, funktio, *args):
+    """Ajaa alikomennon batch_importin sisällä niin, että tuontilokiin kirjautuu
+    alikomennon oma komentorivi eikä koko batch-komento."""
+    komento = " ".join(["jkr", alakomento, *(str(a) for a in args if a not in (None, ""))])
+    with sisaanluku_komento(komento):
+        return funktio(*args)
+
+
 @app.command("batch_import", help="Import data to JKR in a batch.")
 def import_data_batch(
     tiedostolista: str = typer.Argument(..., help="Lista tiedostoista jotka ajetaan järjestelmään"),
@@ -136,55 +144,55 @@ def import_data_batch(
                 poimintapvm = _read_dvv_poimintapvm(target_path)
                 if (posti_path and perusmaksu_path):
                     print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}, 'posti', {posti_path}")
-                    _import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
+                    _aja_batchissa("import_and_create_kohteet", _import_and_create_kohteet, poimintapvm, target_path, perusmaksu_path, "posti", posti_path)
                 elif perusmaksu_path:
                     print(f"DVV args: {poimintapvm}, {target_path}, {perusmaksu_path}")
-                    _import_and_create_kohteet(poimintapvm, target_path, perusmaksu_path)
+                    _aja_batchissa("import_and_create_kohteet", _import_and_create_kohteet, poimintapvm, target_path, perusmaksu_path)
                 else:
                     print(f"DVV args: {poimintapvm}, {target_path}")
-                    _import_and_create_kohteet(poimintapvm, target_path)
+                    _aja_batchissa("import_and_create_kohteet", _import_and_create_kohteet, poimintapvm, target_path)
                 continue
             case FileType.HUONEISTOMAARAT:
                 update_huoneistomaara(target_path)
                 continue
             case FileType.ILMOITUSTIEDOSTO:
-                import_ilmoitukset(target_path)
+                _aja_batchissa("import_ilmoitukset", import_ilmoitukset, target_path)
                 continue
             case FileType.KOMPOSTOINNIN_LOPETUS:
-                import_lopetusilmoitukset(target_path)
+                _aja_batchissa("import_lopetusilmoitukset", import_lopetusilmoitukset, target_path)
                 continue
             case FileType.PAATOSTIEDOSTO:
-                import_paatokset(target_path)
+                _aja_batchissa("import_paatokset", import_paatokset, target_path)
                 continue
             case FileType.KAIVOTIEDOT_ALKU:
-                import_kaivotiedot(target_path, 'LSJ')
+                _aja_batchissa("import_kaivotiedot", import_kaivotiedot, target_path, 'LSJ')
                 continue
             case FileType.KAIVOTIEDOT_LOPPU:
-                import_kaivotiedon_lopetukset(target_path, 'LSJ')
+                _aja_batchissa("import_kaivotiedon_lopetukset", import_kaivotiedon_lopetukset, target_path, 'LSJ')
                 continue
             case FileType.KULJETUSTIETO_LIETE:
-                import_liete(target_path, 'LSJ', '', '')
+                _aja_batchissa("import_liete", import_liete, target_path, 'LSJ', '', '')
                 continue
             case FileType.LIETE_PELTOLEVITYS:
-                import_liete(target_path, 'LSJ', '', '')
+                _aja_batchissa("import_liete", import_liete, target_path, 'LSJ', '', '')
                 continue
             case FileType.LIETE_KOMPOSTOINTI:
-                import_liete_ilmoitukset(target_path)
+                _aja_batchissa("import_liete_ilmoitukset", import_liete_ilmoitukset, target_path)
                 continue
             case FileType.VIEMARIVERKOSTO_ALKU:
-                import_viemarointi(target_path)
+                _aja_batchissa("import_viemarit", import_viemarointi, target_path)
                 continue
             case FileType.VIEMARIVERKOSTO_LOPPU:
-                import_viemari_lopetusilmoitukset(target_path)
+                _aja_batchissa("import_lopeta_viemarit", import_viemari_lopetusilmoitukset, target_path)
                 continue
             case FileType.KULJETUSTIETO:
-                import_data(target_path, 'LSJ', '', '')
+                _aja_batchissa("import", import_data, target_path, 'LSJ', '', '')
                 continue
             case FileType.HAPATIEDOSTO:
-                import_hapa(target_path)
+                _aja_batchissa("import_hapa", import_hapa, target_path)
                 continue
             case FileType.SOTETIEDOSTO:
-                import_sote(target_path)
+                _aja_batchissa("import_sote", import_sote, target_path)
                 continue
             case FileType.PERUSMAKSUAINEISTO:
                 print('perusmaksuaineisto luetaan sisään DVV-sisäänluvussa')

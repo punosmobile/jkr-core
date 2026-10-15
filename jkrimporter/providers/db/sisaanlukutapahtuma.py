@@ -15,10 +15,36 @@ _local = threading.local()
 
 
 def _build_komento_string(args=None):
-    """Rakentaa komentorivin sys.argv:sta tai annetuista argumenteista."""
+    """Rakentaa komentorivin sys.argv:sta tai annetuista argumenteista.
+
+    Jos sisaanluku_komento() on asettanut korvaavan komennon (esim. batch_import
+    ajaa alikomentoja funktiokutsuina), käytetään sitä sys.argv:n sijaan.
+    """
     if args is not None:
         return " ".join(str(a) for a in args)
+    override = getattr(_local, "komento_override", None)
+    if override:
+        return override
     return " ".join(sys.argv)
+
+
+@contextmanager
+def sisaanluku_komento(komento: str):
+    """Asettaa tuontilokiin kirjattavan komennon lohkon ajaksi.
+
+    batch_import kutsuu alikomentoja suoraan Python-funktioina, jolloin sys.argv
+    on koko batch-komento ja jokainen tiedosto kirjautuisi samalla komennolla.
+
+    Käyttö:
+        with sisaanluku_komento("jkr import_paatokset polku.xlsx"):
+            import_paatokset(polku)
+    """
+    edellinen = getattr(_local, "komento_override", None)
+    _local.komento_override = komento
+    try:
+        yield
+    finally:
+        _local.komento_override = edellinen
 
 
 def lisaa_lisatieto(msg: str):
