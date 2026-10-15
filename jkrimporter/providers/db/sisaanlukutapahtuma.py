@@ -105,7 +105,16 @@ def sisaanlukutapahtuma(komento: str = None):
             # ... sisäänlukukoodi ...
             lisaa_lisatieto("Lisätty: 45 kohdetta")
             lisaa_lisatieto("Kohdentumatta: 3 kpl")
+
+    Sisäkkäinen kutsu (esim. import_and_create_kohteet → create_dvv_kohteet)
+    ei luo uutta riviä: lisätiedot ja mahdollinen virhe kirjautuvat ulomman
+    tapahtuman riville.
     """
+    aktiivinen_id = getattr(_local, "tapahtuma_id", None)
+    if aktiivinen_id is not None:
+        yield aktiivinen_id
+        return
+
     if komento is None:
         komento = _build_komento_string()
 
@@ -118,6 +127,7 @@ def sisaanlukutapahtuma(komento: str = None):
 
     with Session(engine) as session:
         tapahtuma_id = kirjaa_sisaanluku_alku(session, komento)
+        _local.tapahtuma_id = tapahtuma_id
         try:
             yield tapahtuma_id
             lisatiedot = "\n".join(_local.kooste) if _local.kooste else None
@@ -134,3 +144,4 @@ def sisaanlukutapahtuma(komento: str = None):
             raise
         finally:
             _local.kooste = None
+            _local.tapahtuma_id = None
