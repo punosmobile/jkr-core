@@ -60,6 +60,18 @@ def _title_case_label(value: str) -> str:
 
 
 def _import_subject_from_description(description: Optional[str], command: Optional[str]) -> Optional[str]:
+    # Joukkotuonti käsitellään ensin: sen kuvauksen FileInfo-listassa on
+    # tiedostotyyppejä (esim. 'Kiintea_kuljetustiedot'), jotka muuten osuisivat
+    # alla oleviin yksittäisten tuontien tarkistuksiin ja palauttaisivat vain
+    # yhden tiedoston.
+    if "Tietojen joukko tuonti" in (description or ""):
+        filenames = _FILEINFO_FILENAME_RE.findall(description or "")
+        filetypes = _FILEINFO_FILETYPE_RE.findall(description or "")
+        labels = filenames or filetypes
+        if not labels:
+            return "Aineisto"
+        return ", ".join(_title_case_label(label) for label in labels)
+
     text = f"{description or ''}\n{command or ''}"
     quarter_label = _quarter_label_from_dates(description) or _quarter_label_from_dates(command)
 
@@ -89,17 +101,7 @@ def _import_subject_from_description(description: Optional[str], command: Option
         return f"Taajamarajaukset ({quarter_label})" if quarter_label else "Taajamarajaukset"
     if "Viemäriverkoston tuonti" in text:
         return f"Viemäriverkosto ({quarter_label})" if quarter_label else "Viemäriverkosto"
-    if "Tietojen joukko tuonti" not in (description or ""):
-        return None
-
-    filenames = _FILEINFO_FILENAME_RE.findall(description or "")
-    filetypes = _FILEINFO_FILETYPE_RE.findall(description or "")
-    labels = filenames or filetypes
-    if not labels:
-        return "Aineisto"
-
-    pretty_labels = [_title_case_label(label) for label in labels]
-    return ", ".join(pretty_labels)
+    return None
 
 
 def _format_event_title(task: Any) -> str:
