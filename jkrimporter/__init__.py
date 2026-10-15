@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from datetime import datetime
 
 __version__ = "0.7.9"
@@ -97,12 +98,30 @@ ws_log_handler = WebSocketLogHandler()
 class StreamToLogger(io.TextIOBase):
     """Wrapperi joka ohjaa write()-kutsut (esim. print()) loggerin kautta."""
 
+    # Säiekohtainen lippu rekursion estämiseksi (ks. write()). Jaettu stdout-
+    # ja stderr-instanssien kesken, koska print() kulkee stdoutin kautta mutta
+    # handlerin virheilmoitus stderrin kautta.
+    _local = threading.local()
+
     def __init__(self, logger, level, fallback_stream):
         super().__init__()
         self._logger = logger
         self._level = level
         self._fallback = fallback_stream
         self._buffer = ""
+
+    def _write_fallback(self, text):
+        """Kirjoittaa suoraan alkuperäiseen streamiin, korvaten merkit joita
+        streamin enkoodaus ei tue (esim. cp1252 Windowsissa)."""
+        if not self._fallback:
+            return
+        try:
+            self._fallback.write(text)
+        except UnicodeEncodeError:
+            enc = getattr(self._fallback, "encoding", None) or "utf-8"
+            self._fallback.write(text.encode(enc, errors="replace").decode(enc))
+        except Exception:
+            pass
 
     def write(self, message):
         if not message:
@@ -119,9 +138,22 @@ class StreamToLogger(io.TextIOBase):
         else:
             text = message
             length = len(message)
-        if text.strip():
+        if not text.strip():
+            return length
+        # Jos jokin handler kaatuu, logging.Handler.handleError() kirjoittaa
+        # virheilmoituksen sys.stderr:iin, joka on tämä sama olio. Ilman tätä
+        # tarkistusta viesti ohjautuisi takaisin samalle kaatuvalle handlerille
+        # ja syntyisi loputon silmukka. Sisäkkäinen kutsu kirjoitetaan siksi
+        # suoraan alkuperäiseen streamiin.
+        if getattr(self._local, "active", False):
+            self._write_fallback(text)
+            return length
+        self._local.active = True
+        try:
             for line in text.rstrip("\n").splitlines():
                 self._logger.log(self._level, line)
+        finally:
+            self._local.active = False
         return length
 
     def flush(self):
@@ -150,11 +182,17 @@ logFormatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s")
 rootLogger = logging.getLogger()
 rootLogger.setLevel(_log_level)
 
-fileHandler = logging.FileHandler(__log_path__)
+fileHandler = logging.FileHandler(__log_path__, encoding="utf-8")
 fileHandler.setFormatter(logFormatter)
 fileHandler.setLevel(logging.DEBUG)
 rootLogger.addHandler(fileHandler)
 
+for _stream in (sys.__stdout__, sys.__stderr__):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (ValueError, OSError):
+            pass
 consoleHandler = logging.StreamHandler(stream=sys.__stdout__)
 consoleHandler.setFormatter(logFormatter)
 consoleHandler.setLevel(_log_level)
