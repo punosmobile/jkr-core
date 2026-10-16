@@ -118,7 +118,8 @@ def _verify_excel_headers(target_path: str, expected_headers: List[str]):
         actual_headers = [cell.value for cell in sheet[1]]
         rows = max((sheet.max_row or 1) - 1, 0)
         workbook.close()
-        return [h for h in expected_headers if h not in actual_headers], rows
+        actual_lower = {str(h).strip().lower() for h in actual_headers if h}
+        return [h for h in expected_headers if h.lower() not in actual_lower], rows
     except Exception as e:
         logger.error("Tiedoston otsakkeiden lukeminen epäonnistui: %s – %s", target_path, e)
         return expected_headers, None
