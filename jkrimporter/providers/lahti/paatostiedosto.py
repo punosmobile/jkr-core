@@ -5,7 +5,7 @@ from pathlib import Path
 from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
-from jkrimporter.datasheets import get_paatostiedosto_headers
+from jkrimporter.datasheets import get_paatostiedosto_headers, normalize_headers
 from jkrimporter.providers.lahti.models import Paatos
 from jkrimporter.utils.paatos import export_kohdentumattomat_paatokset
 
@@ -39,6 +39,7 @@ class Paatostiedosto:
 
         # In Excel files, the row indices start from 1.
         headers = [cell.value for cell in sheet[1]]
+        headers = normalize_headers(headers, get_paatostiedosto_headers())
         for header in get_paatostiedosto_headers():
             if header not in headers:
                 missing_headers_list.append(header)

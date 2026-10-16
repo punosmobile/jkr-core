@@ -5,6 +5,7 @@ from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
 from jkrimporter.datasheets import (
+    normalize_headers,
     get_ilmoitustiedosto_headers,
     get_liete_ilmoitustiedosto_headers,
     get_lopetustiedosto_headers
@@ -46,6 +47,7 @@ class Ilmoitustiedosto:
 
         # In Excel files, the row indices start from 1.
         headers = [cell.value for cell in sheet[1]]
+        headers = normalize_headers(headers, get_ilmoitustiedosto_headers())
         for header in get_ilmoitustiedosto_headers():
             if header not in headers:
                 missing_headers_list.append(header)
@@ -102,6 +104,7 @@ class LieteIlmoitustiedosto:
 
         # In Excel files, the row indices start from 1.
         headers = [cell.value for cell in sheet[1]]
+        headers = normalize_headers(headers, get_liete_ilmoitustiedosto_headers())
         for header in get_liete_ilmoitustiedosto_headers():
             if header not in headers:
                 missing_headers_list.append(header)
@@ -159,6 +162,7 @@ class LopetusIlmoitustiedosto:
 
         # In Excel files, the row indices start from 1.
         headers = [cell.value for cell in sheet[1]]
+        headers = normalize_headers(headers, get_lopetustiedosto_headers())
         for header in get_lopetustiedosto_headers():
             if header not in headers:
                 missing_headers_list.append(header)
