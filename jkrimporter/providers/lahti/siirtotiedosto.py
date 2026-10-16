@@ -5,7 +5,7 @@ from typing import List
 
 from jkrimporter.conf import get_kohdentumattomat_siirtotiedosto_filename
 from jkrimporter.datasheets import SiirtotiedostoSheet
-from jkrimporter.datasheets import get_siirtotiedosto_headers
+from jkrimporter.datasheets import get_siirtotiedosto_headers, normalize_headers
 from jkrimporter.providers.lahti.models import Asiakas, AsiakasRow
 from pydantic import ValidationError
 
@@ -38,8 +38,6 @@ class LahtiSiirtotiedosto:
         failed_validations = []
         missing_headers_list = []
         expected_headers = get_siirtotiedosto_headers()
-        # Map lowercase -> canonical casing for case-insensitive matching
-        header_map = {h.lower(): h for h in expected_headers}
 
         # Iterate through all CSV files in the directory to check headers
         for csv_file_path in Path(self._path).glob("*.csv"):
@@ -50,8 +48,8 @@ class LahtiSiirtotiedosto:
                     content = content[3:]
                 content = content.decode("cp1252")
                 csv_reader = csv.DictReader(content.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
-                headers_lower = {h.lower() for h in (csv_reader.fieldnames or [])}
-                missing_headers = [header for header in expected_headers if header.lower() not in headers_lower]
+                headers = normalize_headers(csv_reader.fieldnames or [], expected_headers)
+                missing_headers = [header for header in expected_headers if header not in headers]
 
                 if missing_headers:
                     missing_headers_list.append({
@@ -75,9 +73,9 @@ class LahtiSiirtotiedosto:
                     content = content[3:]
                 content = content.decode("cp1252")
                 csv_reader = csv.DictReader(content.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
+                csv_reader.fieldnames = normalize_headers(csv_reader.fieldnames or [], expected_headers)
                 for row in csv_reader:
-                    normalized = {header_map.get(k.lower(), k): v for k, v in row.items()}
-                    all_data.append(normalized)
+                    all_data.append(row)
 
         for data in all_data:
             # Validate AsiakasRow, if validation fails, append to failed_validations

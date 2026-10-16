@@ -14,6 +14,7 @@ from jkrimporter.conf import (
     get_kohdentumattomat_viemarin_lopetus_filename
 )
 from jkrimporter.datasheets import (
+    normalize_headers,
     get_viemari_lopetustiedosto_headers,
     get_viemari_ilmoitustiedosto_headers
 )
@@ -49,6 +50,7 @@ class ViemariIlmoitustiedosto:
 
         # In Excel files, the row indices start from 1.
         headers = [cell.value for cell in sheet[1]]
+        headers = normalize_headers(headers, get_viemari_ilmoitustiedosto_headers())
         for header in get_viemari_ilmoitustiedosto_headers():
             if header not in headers:
                 missing_headers_list.append(header)
@@ -104,6 +106,7 @@ class ViemariLopetustiedosto:
 
         # In Excel files, the row indices start from 1.
         headers = [cell.value for cell in sheet[1]]
+        headers = normalize_headers(headers, get_viemari_lopetustiedosto_headers())
         for header in get_viemari_lopetustiedosto_headers():
             if header not in headers:
                 missing_headers_list.append(header)
