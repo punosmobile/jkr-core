@@ -11,7 +11,7 @@ from typing import List
 from openpyxl.reader.excel import load_workbook
 from pydantic import ValidationError
 
-from jkrimporter.datasheets import get_liete_kuljetustiedosto_headers
+from jkrimporter.datasheets import get_liete_kuljetustiedosto_headers, normalize_headers
 from jkrimporter.providers.lahti.liete_models import LieteKuljetusRow
 
 logger = logging.getLogger(__name__)
@@ -66,24 +66,16 @@ class LieteKuljetustiedosto:
 
         logger.info(f"Löydettiin {len(headers)} saraketta")
 
-        # Validoi otsikot (case-insensitive, koska osa tiedostoista käyttää ISOJA KIRJAIMIA)
+        # Validate headers case-insensitively and normalize them to Pydantic aliases
         expected_headers = get_liete_kuljetustiedosto_headers()
-        actual_lower = {h.lower() for h in headers}
-        missing_headers = [h for h in expected_headers if h.lower() not in actual_lower]
+        headers = normalize_headers(headers, expected_headers)
+        missing_headers = [h for h in expected_headers if h not in headers]
         if missing_headers:
             workbook.close()
             print(f"Tiedosto: {self._file_path}, puuttuvat sarakeotsikot: {missing_headers}")
             raise RuntimeError(
                 f"LIETE-kuljetustiedostosta puuttuu oletettuja sarakeotsikoita: {missing_headers}"
             )
-
-        # Luo case-insensitive mapping: tiedoston header -> odotettu alias (Pydantic)
-        expected_lower_map = {h.lower(): h for h in expected_headers}
-        header_normalize_map = {}
-        for actual in headers:
-            expected = expected_lower_map.get(actual.lower())
-            if expected:
-                header_normalize_map[actual] = expected
 
         # Lue datarivit
         row_count = 0
@@ -93,12 +85,11 @@ class LieteKuljetustiedosto:
         for row in sheet.iter_rows(min_row=2, values_only=True):
             row_count += 1
 
-            # Luo dictionary riveistä, normalisoi avaimet Pydantic-aliaksiin
+            # Build a dict from the row
             row_dict = {}
             for i, value in enumerate(row):
                 if i < len(headers):
-                    key = header_normalize_map.get(headers[i], headers[i])
-                    row_dict[key] = value
+                    row_dict[headers[i]] = value
             
             # Ohita tyhjät rivit
             if all(v is None or str(v).strip() == "" for v in row_dict.values()):

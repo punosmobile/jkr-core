@@ -26,7 +26,7 @@ from typing import Iterator, Optional, Union
 
 import pandas as pd
 
-from jkrimporter.datasheets import get_kaivotiedosto_headers
+from jkrimporter.datasheets import get_kaivotiedosto_headers, normalize_headers
 from jkrimporter.providers.lahti.kaivo_models import (
     KaivotiedotRow,
     KaivotiedonLopetusRow,
@@ -132,17 +132,14 @@ class Kaivotiedosto:
 
         # Validoi otsikot (case-insensitive)
         expected_headers = get_kaivotiedosto_headers()
-        actual_lower = {col.lower() for col in self._df.columns}
-        missing_headers = [h for h in expected_headers if h.lower() not in actual_lower]
+        # Normalize column names to the expected spelling (Pydantic/row.get compatibility)
+        self._df.columns = normalize_headers(list(self._df.columns), expected_headers)
+        missing_headers = [h for h in expected_headers if h not in self._df.columns]
         if missing_headers:
             print(f"Tiedosto: {self._filepath}, puuttuvat sarakeotsikot: {missing_headers}")
             raise RuntimeError(
                 f"Kaivotiedostosta puuttuu oletettuja sarakeotsikoita: {missing_headers}"
             )
-
-        # Normalisoi sarakkeiden nimet vastaamaan odotettuja (Pydantic/row.get -yhteensopivuus)
-        expected_lower_map = {h.lower(): h for h in expected_headers}
-        self._df.columns = [expected_lower_map.get(col.lower(), col) for col in self._df.columns]
 
     @property
     def kaivotiedot(self) -> Iterator[KaivotiedotRow]:
@@ -214,17 +211,14 @@ class KaivotiedonLopetusTiedosto:
 
         # Validoi otsikot (case-insensitive)
         expected_headers = get_kaivotiedosto_headers()
-        actual_lower = {col.lower() for col in self._df.columns}
-        missing_headers = [h for h in expected_headers if h.lower() not in actual_lower]
+        # Normalize column names to the expected spelling (Pydantic/row.get compatibility)
+        self._df.columns = normalize_headers(list(self._df.columns), expected_headers)
+        missing_headers = [h for h in expected_headers if h not in self._df.columns]
         if missing_headers:
             print(f"Tiedosto: {self._filepath}, puuttuvat sarakeotsikot: {missing_headers}")
             raise RuntimeError(
                 f"Kaivotiedon lopetustiedostosta puuttuu oletettuja sarakeotsikoita: {missing_headers}"
             )
-
-        # Normalisoi sarakkeiden nimet vastaamaan odotettuja (Pydantic/row.get -yhteensopivuus)
-        expected_lower_map = {h.lower(): h for h in expected_headers}
-        self._df.columns = [expected_lower_map.get(col.lower(), col) for col in self._df.columns]
 
     @property
     def lopetukset(self) -> Iterator[KaivotiedonLopetusRow]:
