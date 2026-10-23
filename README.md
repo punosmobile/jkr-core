@@ -432,7 +432,17 @@ The GitHub Actions pipeline is not in place yet. Until then, deploy manually as 
 - `develop`, `test` and `main` take changes only through pull requests. Every PR needs 1 approval from the other developer.
 - A prod deploy is approved by a developer who did not trigger it, so two people are always involved.
 - Hotfix: branch from `main`, PR to `main`, then merge `main` back to `develop`.
-- Version is set only in `pyproject.toml`. A PR to `test` or `main` must raise it above the version in `main` and add a `## [X.Y.Z]` entry to `CHANGELOG.md`. Several deliveries to `test` may use the same version. The label `ei-versionnostoa` skips the check for exceptions.
+- Version is set only in `pyproject.toml`. A PR to `test` or `main` must raise it above the version in `main` and add a `## [X.Y.Z]` entry to `CHANGELOG.md`. Several deliveries to `test` may use the same version. The label `skip-version-check` skips the check for exceptions, e.g. a PR to `main` that only changes the README or CI files and should not create a new release:
+
+  - GitHub: open the PR, click the gear next to **Labels** in the right sidebar and select **skip-version-check**.
+  - CLI:
+
+    ```bash
+    gh pr edit <PR number> --add-label skip-version-check
+    ```
+
+  The check reruns when the label is added and passes with a warning. Remove the label to enforce the check again. Adding labels needs at least triage access to the repo.
+- Release: a tag `vX.Y.Z` creates the GitHub Release with the wheel and the CHANGELOG entry (`.github/workflows/release.yml`). The version must match `pyproject.toml`.
 - Image tags: short commit SHA in every environment (`jkr-core:1d1dd6b`), prod also the version (`jkr-core:v0.9.0`). Tags are never overwritten.
 
 ### Feature branches

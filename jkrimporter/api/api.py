@@ -47,7 +47,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from jkrimporter import ws_log_handler
+from jkrimporter import __version__, ws_log_handler
 from jkrimporter.api import licenses as lic
 from jkrimporter.api import sharepoint as sp
 from jkrimporter.api import util as utilities
@@ -110,7 +110,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="JKR API",
     description="REST-rajapinta JKR-tiedontuontikomentojen ajamiseen.",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
