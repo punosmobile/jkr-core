@@ -190,12 +190,6 @@ docker-compose --env-file "${env:APPDATA}/jkr/.env" up flyway
 docker-compose --env-file "${env:APPDATA}/jkr/.env" run --rm flyway repair
 ```
 
-### Running migrations against different platform
-
-```bash
-docker-compose run --rm flyway migrate -user=jkr_admin -password=<password> -url=jdbc:postgresql://trepx-paikka1.tre.t.verkko:5432/ymparisto_test_db
-```
-
 ## Using the QGIS project
 
 The QGIS project reads data from a PostgreSQL service named `jkr` with a QGIS authentication which id is `jkruser`.
@@ -424,9 +418,116 @@ The automated tests test a wide variety of features within the data import proce
 | liete_ilmoitukset    | TestLieteIlmoitustiedosto        | Verifies LIETE composting notification file reading                                                                                                                                                                                                                                                                                                                                    |
 |                      | TestLieteIlmoitusTranslator      | Verifies translation to JKR format, pienpuhdistamo date handling                                                                                                                                                                                                                                                                                                                       |
 
-## Naming development branches
+## Branches and releases
+
+| Branch    | Environment | Deployed                                        |
+| --------- | ----------- | ----------------------------------------------- |
+| `develop` | dev         | after merge                                     |
+| `test`    | test        | after merge                                     |
+| `main`    | prod        | after merge and approval by the other developer |
+
+The GitHub Actions pipeline is not in place yet. Until then, deploy manually as described in [Manual deployment (backend)](#manual-deployment-backend).
+
+- Flow: feature branch → PR to `develop` → PR `develop` → `test` → PR `test` → `main`.
+- `develop`, `test` and `main` take changes only through pull requests. Every PR needs 1 approval from the other developer.
+- A prod deploy is approved by a developer who did not trigger it, so two people are always involved.
+- Hotfix: branch from `main`, PR to `main`, then merge `main` back to `develop`.
+- Version is set only in `pyproject.toml`. A PR to `test` or `main` must raise it above the version in `main` and add a `## [X.Y.Z]` entry to `CHANGELOG.md`. Several deliveries to `test` may use the same version. The label `ei-versionnostoa` skips the check for exceptions.
+- Image tags: short commit SHA in every environment (`jkr-core:1d1dd6b`), prod also the version (`jkr-core:v0.9.0`). Tags are never overwritten.
+
+### Feature branches
 
 Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}/{description}`. For example, `"Lahti-99/kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
+
+## Manual deployment (backend)
+
+Release order: migrations first, then the backend.
+
+### Prerequisites
+
+- bash (macOS, Linux; on Windows WSL or Git Bash), Azure CLI and Docker
+- `az login`
+- `deploy/deploy.<env>.env` for each environment (`dev`, `test`, `prod`). Get the values from the team password manager (Postman); `deploy/deploy.example.env` lists the keys. These files are gitignored and must never be committed.
+- For migrations: VPN on and `.env.<env>` in the repo root with the database credentials. Deploying the backend does not need VPN.
+
+### 1. Migrations
+
+Migrations use the database credentials in the repo root (`.env.dev`, `.env.test` or `.env.prod`), not the deploy settings in `deploy/deploy.<env>.env`.
+
+Add `JKR_DB_OWNER` to the file: the database role that owns the existing objects (value in the password manager). `migrate` runs as that role, so new objects get the same owner even when you log in with another user.
+
+Check out the commit you are releasing first.
+
+Check the state and pending migrations:
+
+```bash
+( set -a; source <(grep -E '^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD)=' .env.test); set +a
+  docker run --rm \
+    -v "$PWD/db/migrations:/flyway/sql" \
+    -v "$PWD/db/flyway.conf:/flyway/conf/flyway.conf" \
+    -e FLYWAY_URL="jdbc:postgresql://$JKR_DB_HOST:$JKR_DB_PORT/$JKR_DB" \
+    -e FLYWAY_USER="$JKR_USER" -e FLYWAY_PASSWORD="$JKR_PASSWORD" \
+    flyway/flyway info )
+```
+
+Run the migrations:
+
+```bash
+( set -a; source <(grep -E '^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD|DB_OWNER)=' .env.test); set +a
+  : "${JKR_DB_OWNER:?JKR_DB_OWNER missing from .env file}"
+  docker run --rm \
+    -v "$PWD/db/migrations:/flyway/sql" \
+    -v "$PWD/db/flyway.conf:/flyway/conf/flyway.conf" \
+    -e FLYWAY_URL="jdbc:postgresql://$JKR_DB_HOST:$JKR_DB_PORT/$JKR_DB" \
+    -e FLYWAY_USER="$JKR_USER" -e FLYWAY_PASSWORD="$JKR_PASSWORD" \
+    flyway/flyway migrate -initSql="SET ROLE $JKR_DB_OWNER" )
+```
+
+Run `info` again afterwards: all migrations should be `Success`.
+
+### 2. Build and deploy
+
+```bash
+# On the environment's own branch, clean working tree:
+# builds jkr-core:<short SHA> if it does not exist yet, then deploys it
+deploy/deploy-backend.sh dev
+
+# Deploy an existing image (any branch), e.g. rollback
+deploy/deploy-backend.sh test 1d1dd6b
+
+# Build only
+deploy/build-image.sh prod v0.9.0
+
+# Test uncommitted changes in dev
+T=testi-$(date +%Y%m%d%H%M)
+ALLOW_DIRTY=1 deploy/build-image.sh dev $T
+deploy/deploy-backend.sh dev $T
+```
+
+- Without a tag, the script deploys only from the environment's branch: `develop` → dev, `test` → test, `main` → prod.
+- The image is built in Azure (`az acr build`) from the working tree, so the tree must be clean unless `ALLOW_DIRTY=1` is given with an own tag.
+- The deploy waits until the new revision is healthy and then deactivates the old ones. If it fails, the old version keeps running and the Container App is set back to the previous image (`PALAUTETTU` in the output). If that also fails, the output says so in red and gives the rollback command.
+- If the script stops midway (e.g. a dropped connection), run the same command again. It continues from where it stopped.
+- Prod: build from `main` with the version tag and deploy that tag. A second developer approves before the deploy.
+
+### Rollback
+
+Deploy the previous tag: `deploy/deploy-backend.sh <env> <tag>`. Migrations are forward only, so a database change is fixed with a new migration.
+
+### Checking the state
+
+```bash
+# Active revision, image and health
+( source deploy/deploy.dev.env
+  az containerapp revision list -n "$APP" -g "$RG" --subscription "$SUBSCRIPTION" -o table \
+    --query '[?properties.active].{revision:name, image:properties.template.containers[0].image, health:properties.healthState, traffic:properties.trafficWeight}' )
+
+# Latest image tags in the registry
+( source deploy/deploy.dev.env
+  az acr repository show-tags -n "$REGISTRY" --repository jkr-core --orderby time_desc --top 10 --subscription "$SUBSCRIPTION" -o tsv )
+```
+
+Azure resources and roles are managed by the Azure service provider. The scripts only build and deploy images.
 
 ## Using Pseydonymized data
 
