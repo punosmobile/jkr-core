@@ -62,7 +62,7 @@ ENV_KEYS='SUBSCRIPTION REGISTRY RG APP'
 
 # Reads the environment settings from deploy/deploy.<env>.env (template: deploy/deploy.example.env).
 # In GitHub Actions there is no file; the same keys come from the environment's
-# variables. Locally the file is required so that variables left in the shell
+# secrets. Locally the file is required so that variables left in the shell
 # from another environment are never used.
 load_env() {
   ENVIRONMENT=${1:-}

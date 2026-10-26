@@ -426,7 +426,11 @@ The automated tests test a wide variety of features within the data import proce
 | `test`    | test        | after merge                                     |
 | `main`    | prod        | after merge and approval by the other developer |
 
-The GitHub Actions pipeline is not in place yet. Until then, deploy manually as described in [Manual deployment (backend)](#manual-deployment-backend).
+Deploys run in GitHub Actions (`.github/workflows/deploy.yml`) as soon as the Azure credentials are in place; until then deploy manually as described in [Manual deployment (backend)](#manual-deployment-backend).
+
+- A merge builds the image of the commit and deploys it. A prod deploy also tags the image with the version and creates the GitHub Release.
+- Rollback: **Actions → deploy → Run workflow**, pick the environment's branch and enter an existing image tag (e.g. `v0.8.0`).
+- Azure identifiers and resource names are environment secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `SUBSCRIPTION`, `REGISTRY`, `RG`, `APP`), so they are masked in the public logs.
 
 - Flow: feature branch → PR to `develop` → PR `develop` → `test` → PR `test` → `main`.
 - `develop`, `test` and `main` take changes only through pull requests. Every PR needs 1 approval from the other developer.
@@ -506,7 +510,7 @@ deploy/deploy-backend.sh dev
 deploy/deploy-backend.sh test 1d1dd6b
 
 # Build only
-deploy/build-image.sh prod v0.9.0
+deploy/build-image.sh dev
 
 # Test uncommitted changes in dev
 T=testi-$(date +%Y%m%d%H%M)
@@ -518,7 +522,7 @@ deploy/deploy-backend.sh dev $T
 - The image is built in Azure (`az acr build`) from the working tree, so the tree must be clean unless `ALLOW_DIRTY=1` is given with an own tag.
 - The deploy waits until the new revision is healthy and then deactivates the old ones. If it fails, the old version keeps running and the Container App is set back to the previous image (`PALAUTETTU` in the output). If that also fails, the output says so in red and gives the rollback command.
 - If the script stops midway (e.g. a dropped connection), run the same command again. It continues from where it stopped.
-- Prod: build from `main` with the version tag and deploy that tag. A second developer approves before the deploy.
+- Prod: on `main`, `VERSION_TAG=v<version> deploy/deploy-backend.sh prod` tags the image with both the SHA and the version. A second developer approves before the deploy.
 
 ### Rollback
 

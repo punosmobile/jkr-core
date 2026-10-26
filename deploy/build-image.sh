@@ -4,8 +4,10 @@
 #
 # Usage: deploy/build-image.sh <dev|test|prod> [tag] [context]
 #   environment  selects the settings file deploy/deploy.<env>.env (registry and subscription)
-#   tag          defaults to the short SHA of the current commit; prod also gets the version
+#   tag          defaults to the short SHA of the current commit
 #   context      defaults to the repo root
+#   VERSION_TAG  optional second tag for the same image, e.g. v0.9.0 in prod. If it
+#                already exists it is skipped with a warning (release without a version bump).
 #
 # The image is built from the files in the context, not from git, so the working
 # tree must be clean for the image to match the commit. ALLOW_DIRTY=1 skips the
@@ -38,10 +40,21 @@ if azs acr repository show --name "$REGISTRY" --image "$IMAGE_NAME:$TAG" -o none
   fail_tag "Image $IMAGE_NAME:$TAG on jo olemassa. Tageja ei ylikirjoiteta, joten anna uusi tagi."
 fi
 
-info "Rakennetaan $IMAGE_NAME:$TAG"
+image_args=(--image "$IMAGE_NAME:$TAG")
+extra=''
+if [ -n "${VERSION_TAG:-}" ]; then
+  if azs acr repository show --name "$REGISTRY" --image "$IMAGE_NAME:$VERSION_TAG" -o none 2>/dev/null; then
+    warn "Versiotagi $IMAGE_NAME:$VERSION_TAG on jo olemassa, joten sitä ei lisätä. Versiota ei ole nostettu."
+  else
+    image_args+=(--image "$IMAGE_NAME:$VERSION_TAG")
+    extra=" + $VERSION_TAG"
+  fi
+fi
+
+info "Rakennetaan $IMAGE_NAME:$TAG$extra"
 azs acr build \
   --registry "$REGISTRY" \
-  --image "$IMAGE_NAME:$TAG" \
+  "${image_args[@]}" \
   --file Dockerfile \
   "$CONTEXT"
-ok "Valmis: $IMAGE_NAME:$TAG"
+ok "Valmis: $IMAGE_NAME:$TAG$extra"
