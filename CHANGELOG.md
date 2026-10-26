@@ -372,3 +372,21 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - System events and other logs have been made clearer so that users have easier time identifying them and what was run on each
+
+## [0.8.1] - 2026-10-26
+
+### Fixed
+
+- Data sheet headers are compared case-insensitively in all validity checks and in the pre-analysis
+
+### Added
+
+- Bash deploy scripts (`deploy/`) for building the image in ACR and deploying the backend, with rollback to the previous image on failure
+- Version check for pull requests to `test` and `main`
+- README: branching strategy and manual deployment
+
+### Changed
+
+- The version is set only in `pyproject.toml`; the API and CLI report it from the package metadata
+- `release.yml` updated and can be called from the deploy pipeline
+- Dockerfile base image pinned to a digest
