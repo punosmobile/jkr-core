@@ -79,3 +79,7 @@ roles_report*
 
 # Windows null device file
 nul
+
+# Deploy script environment settings (resource names do not belong in the public repo)
+deploy/*.env
+!deploy/deploy.example.env

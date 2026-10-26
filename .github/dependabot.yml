@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keeps the pinned base image in the Dockerfile up to date. PRs target develop
+  # so they go through the normal branch flow.
+  - package-ecosystem: docker
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
