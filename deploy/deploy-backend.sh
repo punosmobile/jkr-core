@@ -75,7 +75,18 @@ if [ -n "${VERSION_TAG:-}" ] && ! exists "$IMAGE_NAME:$VERSION_TAG"; then
   warn "Versiotagia $IMAGE_NAME:$VERSION_TAG ei ole, koska commitin imaget oli rakennettu jo aiemmin. Julkaisu jatkuu SHA-tagilla."
 fi
 
-IMAGE="$REGISTRY.azurecr.io/$IMAGE_NAME:$TAG"
+# Deploy by digest, not by tag. The registry is shared and every environment's
+# pipeline can build into it, so a tag could later point to other content, and a
+# replica restart would then run that content without a deploy.
+image_ref() { # image name -> registry/name@sha256:... of the tag
+  local digest
+  digest=$(azs acr repository show --name "$REGISTRY" --image "$1:$TAG" --query digest -o tsv) \
+    || fail "Imagen $1:$TAG digestiä ei saatu rekisteristä."
+  case "$digest" in sha256:*) ;; *) fail "Imagen $1:$TAG digest puuttuu." ;; esac
+  printf '%s.azurecr.io/%s@%s' "$REGISTRY" "$1" "$digest"
+}
+IMAGE=$(image_ref "$IMAGE_NAME")
+[ -z "$MIGRATIONS" ] || MIGRATIONS=$(image_ref "$MIGRATIONS_IMAGE")
 
 # Template of the revision that serves traffic now. A failed update stays in the
 # Container App template, and Azure carries it out later on its own once the
@@ -92,6 +103,19 @@ else
 fi
 PREV_IMAGE=$(printf '%s' "$PREV_TEMPLATE" | jq -r '.containers[0].image')
 
+# Tag of the previous image for messages and the rollback command. An image
+# deployed by digest is looked up in the registry; empty if it has no tag.
+prev_tag() {
+  local repo
+  case "$PREV_IMAGE" in
+    *@sha256:*)
+      repo=${PREV_IMAGE%@*}
+      azs acr manifest list-metadata --registry "$REGISTRY" --name "${repo##*/}" \
+        --query "[?digest=='${PREV_IMAGE##*@}'].tags[0] | [0]" -o tsv 2>/dev/null || true ;;
+    *) printf '%s' "${PREV_IMAGE##*:}" ;;
+  esac
+}
+
 # New template: the backend image. Earlier versions of this script ran the
 # migrations as the init container "migrations", which is removed.
 NEW_TEMPLATE=$(printf '%s' "$PREV_TEMPLATE" | jq -c --arg image "$IMAGE" '
@@ -107,15 +131,19 @@ patch_template() {
 }
 
 fail_and_restore() {
+  local previous label
   printf '%sVIRHE:%s %s\n' "$C_RED" "$C_OFF" "$*" >&2
   if [ "$PREV_TEMPLATE" != "$NEW_TEMPLATE" ]; then
-    info "Palautetaan $APP edelliseen määrittelyyn (${PREV_IMAGE##*/})" >&2
+    previous=$(prev_tag)
+    label=${previous:+$IMAGE_NAME:$previous}
+    label=${label:-${PREV_IMAGE##*/}}
+    info "Palautetaan $APP edelliseen määrittelyyn ($label)" >&2
     if patch_template "$PREV_TEMPLATE" 2>/dev/null; then
       printf '%sPALAUTETTU:%s Ajossa on edelleen edellinen versio %s. Julkaisua %s ei tehty, eikä se toteudu myöhemmin itsestään.\n' \
-        "$C_YELLOW" "$C_OFF" "${PREV_IMAGE##*/}" "$IMAGE_NAME:$TAG" >&2
+        "$C_YELLOW" "$C_OFF" "$label" "$IMAGE_NAME:$TAG" >&2
     else
       printf '%sPALAUTUS EPÄONNISTUI:%s Määrittelyssä on yhä %s, ja Azure voi julkaista sen myöhemmin itsestään. Palauta hetken kuluttua käsin: deploy/deploy-backend.sh %s %s\n' \
-        "$C_RED" "$C_OFF" "$IMAGE_NAME:$TAG" "$ENVIRONMENT" "${PREV_IMAGE##*:}" >&2
+        "$C_RED" "$C_OFF" "$IMAGE_NAME:$TAG" "$ENVIRONMENT" "${previous:-<edellinen tagi>}" >&2
     fi
   fi
   exit 1

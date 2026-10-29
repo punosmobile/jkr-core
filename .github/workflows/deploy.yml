@@ -65,7 +65,10 @@ jobs:
             exit 1
           fi
 
+      # No token in .git/config: the build context must never be able to carry it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # A failure here means the federated credential does not match: check the
       # repo and the environment name in the identity's federated credentials.

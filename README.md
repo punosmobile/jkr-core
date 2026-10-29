@@ -460,7 +460,7 @@ Two scripts do the work. Both take the environment (`dev`, `test` or `prod`) as 
 | Script | What it does |
 | --- | --- |
 | `deploy/build-image.sh` | Builds the backend image and the migration image in Azure. Both get the same tag, by default the short commit SHA (e.g. `1d1dd6b`). |
-| `deploy/deploy-backend.sh` | Deploys: builds the images of the commit if they do not exist yet, runs pending migrations in the migration job, starts the new version, waits until it is healthy and stops the old one. |
+| `deploy/deploy-backend.sh` | Deploys: builds the images of the commit if they do not exist yet, runs pending migrations in the migration job, starts the new version, waits until it is healthy and stops the old one. The images are deployed by digest, so a later push to the same tag cannot change what runs. |
 
 ### Setup (once)
 
@@ -563,13 +563,18 @@ Replace `info` with `repair`, or leave it out to migrate if there are pending mi
 
 #### See what is running
 
-The active revision, and the latest tags in the registry:
+The active revision (its image is shown as a digest), and the latest tags in the registry:
 
 ```bash
 ( source deploy/deploy.dev.env
   az containerapp revision list -n "$APP" -g "$RG" --subscription "$SUBSCRIPTION" -o table \
     --query '[?properties.active].{revision:name, image:properties.template.containers[0].image, health:properties.healthState}'
   az acr repository show-tags -n "$REGISTRY" --repository jkr-core --orderby time_desc --top 10 --subscription "$SUBSCRIPTION" -o tsv )
+
+# The tag of a digest
+( source deploy/deploy.dev.env
+  az acr manifest list-metadata -r "$REGISTRY" -n jkr-core --subscription "$SUBSCRIPTION" -o tsv \
+    --query "[?digest=='sha256:<digest>'].tags[]" )
 ```
 
 Azure resources and roles are managed by the Azure service provider. The scripts only build and deploy.
