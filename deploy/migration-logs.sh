@@ -6,8 +6,8 @@
 # Usage: deploy/migration-logs.sh <dev|test|prod> [hours]
 #   hours  how far back to look (default 24)
 #
-# Database addresses in Flyway's output are hidden, so the output is safe for
-# public pipeline logs.
+# For local use, not for the pipeline: database addresses in jdbc URLs are
+# hidden, but Flyway's error messages can show the database host in other forms.
 
 # Run the script directly, do not source it (. or source): an exit on error would
 # close the caller's terminal, and zsh cannot parse this file.

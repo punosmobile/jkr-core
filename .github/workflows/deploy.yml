@@ -10,6 +10,8 @@
 # Azure identifiers and resource names are environment secrets, not variables:
 # GitHub masks secrets in every log line, including the env and with values it
 # prints for each step, and the logs of this public repo are public.
+# Keep it that way: no set -x or --debug, and Azure commands only with -o none
+# or a narrow --query, because full Azure responses contain resource IDs.
 
 name: deploy
 
@@ -46,6 +48,15 @@ jobs:
       RG: ${{ secrets.RG }}
       APP: ${{ secrets.APP }}
     steps:
+      # GitHub masks secrets case-sensitively, but Azure often returns resource
+      # IDs in lower case. The mask commands themselves are not shown in the log.
+      - name: Mask lower-case resource names
+        run: |
+          for value in "$SUBSCRIPTION" "$REGISTRY" "$RG" "$APP"; do
+            lower=$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')
+            [ -z "$lower" ] || [ "$lower" = "$value" ] || echo "::add-mask::$lower"
+          done
+
       - name: Check input
         run: |
           if [ -n "$TAG" ] && ! printf '%s' "$TAG" | grep -Eqx '[A-Za-z0-9._-]+'; then
