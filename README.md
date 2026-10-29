@@ -455,93 +455,123 @@ Because this repository is developed mostly in customer specific projects the la
 
 ## Manual deployment (backend)
 
-Release order: migrations first, then the backend.
+Two scripts do the work. Both take the environment (`dev`, `test` or `prod`) as the first argument.
 
-### Prerequisites
+| Script | What it does |
+| --- | --- |
+| `deploy/build-image.sh` | Builds the backend image and the migration image in Azure. Both get the same tag, by default the short commit SHA (e.g. `1d1dd6b`). |
+| `deploy/deploy-backend.sh` | Deploys: builds the images of the commit if they do not exist yet, runs pending migrations, starts the new version, waits until it is healthy and stops the old one. |
 
-- bash (macOS, Linux; on Windows WSL or Git Bash), Azure CLI and Docker
-- `az login`
-- `deploy/deploy.<env>.env` for each environment (`dev`, `test`, `prod`). Get the values from the team password manager (Postman); `deploy/deploy.example.env` lists the keys. These files are gitignored and must never be committed.
-- For migrations: VPN on and `.env.<env>` in the repo root with the database credentials. Deploying the backend does not need VPN.
+### Setup (once)
 
-### 1. Migrations
+| | |
+| --- | --- |
+| Tools | bash, Azure CLI, jq (Windows: WSL or Git Bash). Docker only for running migrations by hand. |
+| Settings | `cp deploy/deploy.example.env deploy/deploy.dev.env` and fill in the values from Postman. Same for `test` and `prod`. Never commit these files. |
+| Login | `az login` |
 
-Migrations use the database credentials in the repo root (`.env.dev`, `.env.test` or `.env.prod`), not the deploy settings in `deploy/deploy.<env>.env`.
+### Deploy to dev or test
 
-Add `JKR_DB_OWNER` to the file: the database role that owns the existing objects (value in the password manager). `migrate` runs as that role, so new objects get the same owner even when you log in with another user.
-
-Check out the commit you are releasing first.
-
-Check the state and pending migrations:
-
-```bash
-( set -a; source <(grep -E '^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD)=' .env.test); set +a
-  docker run --rm \
-    -v "$PWD/db/migrations:/flyway/sql" \
-    -v "$PWD/db/flyway.conf:/flyway/conf/flyway.conf" \
-    -e FLYWAY_URL="jdbc:postgresql://$JKR_DB_HOST:$JKR_DB_PORT/$JKR_DB" \
-    -e FLYWAY_USER="$JKR_USER" -e FLYWAY_PASSWORD="$JKR_PASSWORD" \
-    flyway/flyway info )
-```
-
-Run the migrations:
+Each environment is deployed from its own branch: `develop` to dev, `test` to test.
 
 ```bash
-( set -a; source <(grep -E '^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD|DB_OWNER)=' .env.test); set +a
-  : "${JKR_DB_OWNER:?JKR_DB_OWNER missing from .env file}"
-  docker run --rm \
-    -v "$PWD/db/migrations:/flyway/sql" \
-    -v "$PWD/db/flyway.conf:/flyway/conf/flyway.conf" \
-    -e FLYWAY_URL="jdbc:postgresql://$JKR_DB_HOST:$JKR_DB_PORT/$JKR_DB" \
-    -e FLYWAY_USER="$JKR_USER" -e FLYWAY_PASSWORD="$JKR_PASSWORD" \
-    flyway/flyway migrate -initSql="SET ROLE $JKR_DB_OWNER" )
-```
-
-Run `info` again afterwards: all migrations should be `Success`.
-
-### 2. Build and deploy
-
-```bash
-# On the environment's own branch, clean working tree:
-# builds jkr-core:<short SHA> if it does not exist yet, then deploys it
+git switch develop
+git pull
 deploy/deploy-backend.sh dev
+```
 
-# Deploy an existing image (any branch), e.g. rollback
-deploy/deploy-backend.sh test 1d1dd6b
+The deploy is done when the output ends with a green `==> Valmis`. For test, use `git switch test` and `test` as the argument.
 
-# Build only
+Check what the migrations did: `deploy/migration-logs.sh dev`
+
+### Deploy to prod
+
+Prod is normally deployed by the pipeline, which waits for approval from another developer. Deploy prod by hand only when the pipeline is not available, and agree on it with another developer first. The script does not check this: it only asks you to type `prod` to confirm.
+
+Prod is deployed from `main`, and its images also get the version tag.
+
+```bash
+git switch main
+git pull
+VERSION_TAG=v0.9.0 deploy/deploy-backend.sh prod    # version from pyproject.toml
+git tag v0.9.0 && git push origin v0.9.0            # creates the GitHub Release
+```
+
+### When something fails
+
+None of these leaves a broken version running.
+
+| Output | What to do |
+| --- | --- |
+| `Työhakemistossa on commitoimattomia muutoksia` | Commit first. To try uncommitted code, see [Try uncommitted changes in dev](#try-uncommitted-changes-in-dev). |
+| `julkaistaan ilman tagia vain haarasta …` | Switch to the environment's branch. |
+| `Imaget … ovat jo olemassa` (`build-image.sh`) | The commit is already built. Deploy it: `deploy/deploy-backend.sh <env>`. |
+| `VIRHE` + `PALAUTETTU` | The deploy failed and the previous version was restored. The error names the cause; failed migrations: `deploy/migration-logs.sh <env>`. |
+| `PALAUTUS EPÄONNISTUI` | The restore failed too. Run the rollback command shown in the output. |
+| A connection error midway | Run the same command again. It continues where it stopped. |
+
+### Special cases
+
+#### Roll back to an earlier version
+
+Deploy an existing tag. Nothing is built, and it works from any branch.
+
+```bash
+deploy/deploy-backend.sh test v0.8.0
+```
+
+Migrations are not rolled back. Fix a bad database change with a new migration.
+
+#### Deploy a commit from another branch to dev
+
+Without a tag the deploy only works from `develop`. With a tag it does not build, so build first. The build works from any branch.
+
+```bash
 deploy/build-image.sh dev
+deploy/deploy-backend.sh dev $(git rev-parse --short HEAD)
+```
 
-# Test uncommitted changes in dev
+#### Try uncommitted changes in dev
+
+`ALLOW_DIRTY=1` builds the working tree as it is, under your own tag. Use it only in dev. Build first, as above.
+
+```bash
 T=testi-$(date +%Y%m%d%H%M)
 ALLOW_DIRTY=1 deploy/build-image.sh dev $T
 deploy/deploy-backend.sh dev $T
 ```
 
-- Without a tag, the script deploys only from the environment's branch: `develop` → dev, `test` → test, `main` → prod.
-- The image is built in Azure (`az acr build`) from the working tree, so the tree must be clean unless `ALLOW_DIRTY=1` is given with an own tag.
-- The deploy waits until the new revision is healthy and then deactivates the old ones. If it fails, the old version keeps running and the Container App is set back to the previous image (`PALAUTETTU` in the output). If that also fails, the output says so in red and gives the rollback command.
-- If the script stops midway (e.g. a dropped connection), run the same command again. It continues from where it stopped.
-- Prod: on `main`, `VERSION_TAG=v<version> deploy/deploy-backend.sh prod` tags the image with both the SHA and the version. A second developer approves before the deploy.
-
-### Rollback
-
-Deploy the previous tag: `deploy/deploy-backend.sh <env> <tag>`. Migrations are forward only, so a database change is fixed with a new migration.
-
-### Checking the state
+#### Build without deploying
 
 ```bash
-# Active revision, image and health
+deploy/build-image.sh dev        # tag = short commit SHA
+```
+
+#### Run migrations by hand
+
+Normally not needed, the deploy runs them. Needs VPN and `.env.<env>` in the repo root with the database credentials. `JKR_DB_OWNER` in that file is the role that owns the database objects.
+
+```bash
+docker build -t jkr-core-migrations db/
+( set -a; source <(grep -E '^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD|DB_OWNER)=' .env.test); set +a
+  docker run --rm -e JKR_DB_HOST -e JKR_DB_PORT -e JKR_DB -e JKR_USER -e JKR_PASSWORD -e JKR_DB_OWNER \
+    jkr-core-migrations info )
+```
+
+Replace `info` with `repair`, or leave it out to migrate if there are pending migrations.
+
+#### See what is running
+
+The active revision, and the latest tags in the registry:
+
+```bash
 ( source deploy/deploy.dev.env
   az containerapp revision list -n "$APP" -g "$RG" --subscription "$SUBSCRIPTION" -o table \
-    --query '[?properties.active].{revision:name, image:properties.template.containers[0].image, health:properties.healthState, traffic:properties.trafficWeight}' )
-
-# Latest image tags in the registry
-( source deploy/deploy.dev.env
+    --query '[?properties.active].{revision:name, image:properties.template.containers[0].image, health:properties.healthState}'
   az acr repository show-tags -n "$REGISTRY" --repository jkr-core --orderby time_desc --top 10 --subscription "$SUBSCRIPTION" -o tsv )
 ```
 
-Azure resources and roles are managed by the Azure service provider. The scripts only build and deploy images.
+Azure resources and roles are managed by the Azure service provider. The scripts only build and deploy.
 
 ## Using Pseydonymized data
 

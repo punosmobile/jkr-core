@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds the jkr-core image in Azure Container Registry (az acr build), so no
-# local Docker is needed.
+# Builds the jkr-core image and the migration image (db/Dockerfile) in Azure
+# Container Registry (az acr build), so no local Docker is needed. Both get the
+# same tag.
 #
 # Usage: deploy/build-image.sh <dev|test|prod> [tag] [context]
 #   environment  selects the settings file deploy/deploy.<env>.env (registry and subscription)
@@ -11,7 +12,8 @@
 #
 # The image is built from the files in the context, not from git, so the working
 # tree must be clean for the image to match the commit. ALLOW_DIRTY=1 skips the
-# check, but then the tag must be given explicitly. Existing tags are never overwritten.
+# check, but then the tag must be given explicitly. Existing tags are never
+# overwritten: an image that already has the tag is skipped.
 
 # Run the script directly, do not source it (. or source): an exit on error would
 # close the caller's terminal, and zsh cannot parse this file.
@@ -36,25 +38,33 @@ fi
 
 require_az
 
-if azs acr repository show --name "$REGISTRY" --image "$IMAGE_NAME:$TAG" -o none 2>/dev/null; then
-  fail_tag "Image $IMAGE_NAME:$TAG on jo olemassa. Tageja ei ylikirjoiteta, joten anna uusi tagi."
+exists() { azs acr repository show --name "$REGISTRY" --image "$1" -o none 2>/dev/null; }
+
+if exists "$IMAGE_NAME:$TAG" && exists "$MIGRATIONS_IMAGE:$TAG"; then
+  fail_tag "Imaget $IMAGE_NAME:$TAG ja $MIGRATIONS_IMAGE:$TAG ovat jo olemassa. Tageja ei ylikirjoiteta, joten anna uusi tagi."
 fi
 
-image_args=(--image "$IMAGE_NAME:$TAG")
-extra=''
-if [ -n "${VERSION_TAG:-}" ]; then
-  if azs acr repository show --name "$REGISTRY" --image "$IMAGE_NAME:$VERSION_TAG" -o none 2>/dev/null; then
-    warn "Versiotagi $IMAGE_NAME:$VERSION_TAG on jo olemassa, joten sitä ei lisätä. Versiota ei ole nostettu."
-  else
-    image_args+=(--image "$IMAGE_NAME:$VERSION_TAG")
-    extra=" + $VERSION_TAG"
+build() { # image name, build context
+  local name=$1 dir=$2 extra=''
+  local image_args=(--image "$name:$TAG")
+  if exists "$name:$TAG"; then
+    ok "$name:$TAG on jo olemassa, ei rakenneta uudelleen"
+    return
   fi
-fi
+  if [ -n "${VERSION_TAG:-}" ]; then
+    if exists "$name:$VERSION_TAG"; then
+      warn "Versiotagi $name:$VERSION_TAG on jo olemassa, joten sitä ei lisätä. Versiota ei ole nostettu."
+    else
+      image_args+=(--image "$name:$VERSION_TAG")
+      extra=" + $VERSION_TAG"
+    fi
+  fi
+  info "Rakennetaan $name:$TAG$extra"
+  # Run in the context directory: az acr build resolves --file from the current
+  # directory, not from the context.
+  (cd "$dir" && azs acr build --registry "$REGISTRY" "${image_args[@]}" --file Dockerfile .)
+  ok "Valmis: $name:$TAG$extra"
+}
 
-info "Rakennetaan $IMAGE_NAME:$TAG$extra"
-azs acr build \
-  --registry "$REGISTRY" \
-  "${image_args[@]}" \
-  --file Dockerfile \
-  "$CONTEXT"
-ok "Valmis: $IMAGE_NAME:$TAG$extra"
+build "$IMAGE_NAME" "$CONTEXT"
+build "$MIGRATIONS_IMAGE" "$CONTEXT/db"

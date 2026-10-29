@@ -8,6 +8,8 @@ set -euo pipefail
 # Resource names are not in the repo because it is public. load_env reads them.
 LOCATION='westeurope'
 IMAGE_NAME='jkr-core'
+# Flyway and the migrations (db/Dockerfile), run as the backend's init container.
+MIGRATIONS_IMAGE='jkr-core-migrations'
 
 # Colours only on a terminal or in GitHub Actions (which renders them), never with NO_COLOR.
 if [ -z "${NO_COLOR:-}" ] && { [ -t 2 ] || [ "${GITHUB_ACTIONS:-}" = true ]; }; then

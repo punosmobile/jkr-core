@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Deploys an existing image to the backend Container App and waits until the new
-# revision is healthy. Old revisions are deactivated only after that, so on a
-# failed deploy the old version keeps running, and the Container App is set back
-# to the previous image so the failed deploy cannot complete later on its own.
+# Deploys the backend Container App (building the images of the commit first if
+# they do not exist yet) and waits until the new revision is healthy. The migration image with the same tag runs as an init
+# container before the backend starts, so migrations are part of the deploy; a
+# failed migration stops the revision. Old revisions are deactivated only after
+# the new one is healthy, so on a failed deploy the old version keeps running,
+# and the Container App is set back to the previous template so the failed
+# deploy cannot complete later on its own.
 #
 # Usage: deploy/deploy-backend.sh <dev|test|prod> [tag]
 #   tag        defaults to the short SHA of the current commit. Then the deploy
 #              only runs from the environment's own branch (develop, test, main),
 #              and the image is built first if it does not exist yet. An explicit
 #              tag (e.g. rollback to v0.8.0) skips the branch check, but the image
-#              must already exist.
+#              must already exist. A tag from before the migration image (e.g.
+#              v0.8.0) deploys without changing the init container.
 #   TIMEOUT_S  wait time in seconds (default 600)
 #
 # The script creates no resources and does not write to Key Vault; the Azure service provider manages them.
@@ -36,31 +40,84 @@ if [ -z "$TAG" ]; then
   ok "Tagi: $TAG (haaran $BRANCH nykyinen commit)"
 fi
 
+# Prod is normally deployed by the pipeline, where another developer approves.
+# A manual prod deploy asks for confirmation so that it is never started by
+# accident. It does not replace that approval.
+if [ "$ENVIRONMENT" = prod ] && [ "${GITHUB_ACTIONS:-}" != true ]; then
+  [ -t 0 ] || fail 'Tuotantojulkaisu käsin vaatii vahvistuksen terminaalissa.'
+  printf '%sTuotantojulkaisu käsin: %s.%s Onko toinen kehittäjä hyväksynyt julkaisun? Kirjoita prod jatkaaksesi: ' \
+    "$C_YELLOW" "$IMAGE_NAME:$TAG" "$C_OFF"
+  read -r answer
+  [ "$answer" = prod ] || fail 'Julkaisu peruttu.'
+fi
+
 require_az
 
-if ! azs acr repository show --name "$REGISTRY" --image "$IMAGE_NAME:$TAG" -o none 2>/dev/null; then
-  [ -z "${2:-}" ] || fail_tag "Imagea $IMAGE_NAME:$TAG ei löydy rekisteristä. Rakenna se ensin (deploy/build-image.sh $ENVIRONMENT $TAG) tai valitse olemassa oleva tagi."
-  info "Imagea $IMAGE_NAME:$TAG ei vielä ole, rakennetaan se ensin"
-  ALLOW_DIRTY=0 "$(dirname "$0")/build-image.sh" "$ENVIRONMENT" "$TAG"
+command -v jq >/dev/null || fail 'jq puuttuu.'
+
+exists() { azs acr repository show --name "$REGISTRY" --image "$1" -o none 2>/dev/null; }
+MIGRATIONS="$REGISTRY.azurecr.io/$MIGRATIONS_IMAGE:$TAG"
+if ! exists "$IMAGE_NAME:$TAG" || ! exists "$MIGRATIONS_IMAGE:$TAG"; then
+  if [ -z "${2:-}" ]; then
+    info "Imageja tagille $TAG ei vielä ole, rakennetaan ne ensin"
+    ALLOW_DIRTY=0 "$(dirname "$0")/build-image.sh" "$ENVIRONMENT" "$TAG"
+  else
+    exists "$IMAGE_NAME:$TAG" \
+      || fail_tag "Imagea $IMAGE_NAME:$TAG ei löydy rekisteristä. Rakenna se ensin (deploy/build-image.sh $ENVIRONMENT $TAG) tai valitse olemassa oleva tagi."
+    warn "Migraatioimagea $MIGRATIONS_IMAGE:$TAG ei ole (tagi ennen migraatioputkea). Init container jää ennalleen."
+    MIGRATIONS=''
+  fi
+fi
+# The version tag is added only when the images are built in this run.
+if [ -n "${VERSION_TAG:-}" ] && ! exists "$IMAGE_NAME:$VERSION_TAG"; then
+  warn "Versiotagia $IMAGE_NAME:$VERSION_TAG ei ole, koska commitin imaget oli rakennettu jo aiemmin. Julkaisu jatkuu SHA-tagilla."
 fi
 
 IMAGE="$REGISTRY.azurecr.io/$IMAGE_NAME:$TAG"
 deadline=$(( $(date +%s) + TIMEOUT_S ))
 
-# Image of the revision that serves traffic now. A failed update stays in the
+# Template of the revision that serves traffic now. A failed update stays in the
 # Container App template, and Azure carries it out later on its own once the
 # cause is fixed (seen 22.10.2026 when AcrPull was restored). So on failure the
-# template is set back to this image.
+# template is set back to this one. revisionSuffix must not be reused, and an
+# empty init container list (not null) removes an init container in a PATCH.
+APP_ID=$(azs containerapp show --name "$APP" --resource-group "$RG" --query id -o tsv)
 ready_revision=$(azs containerapp show --name "$APP" --resource-group "$RG" --query properties.latestReadyRevisionName -o tsv)
-PREV_IMAGE=''
-[ -z "$ready_revision" ] || PREV_IMAGE=$(azs containerapp revision show --name "$APP" --resource-group "$RG" \
-  --revision "$ready_revision" --query "properties.template.containers[0].image" -o tsv)
+if [ -n "$ready_revision" ]; then
+  PREV_TEMPLATE=$(azs containerapp revision show --name "$APP" --resource-group "$RG" \
+    --revision "$ready_revision" --query properties.template -o json | jq -c 'del(.revisionSuffix) | .initContainers //= []')
+else
+  PREV_TEMPLATE=$(azs containerapp show --name "$APP" --resource-group "$RG" --query properties.template -o json | jq -c 'del(.revisionSuffix) | .initContainers //= []')
+fi
+PREV_IMAGE=$(printf '%s' "$PREV_TEMPLATE" | jq -r '.containers[0].image')
+
+# New template: the backend image, and the migration image as the init container
+# with the backend's database settings (the same Key Vault secret references).
+NEW_TEMPLATE=$(printf '%s' "$PREV_TEMPLATE" | jq -c --arg image "$IMAGE" --arg migrations "$MIGRATIONS" '
+  .containers[0].image = $image
+  | if $migrations == "" then . else
+      .initContainers = [{
+        name: "migrations",
+        image: $migrations,
+        env: [.containers[0].env[] | select(.name | test("^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD)$"))],
+        resources: {cpu: 0.5, memory: "1Gi"}
+      }]
+    end')
+
+# PATCH only the template; configuration (secrets, ingress, registries) stays as is.
+# Returns at once, like --no-wait, so the script polls the state itself. Same API
+# version as Azure CLI, so the template it reads (e.g. scale settings) is accepted.
+patch_template() {
+  az rest --method patch --only-show-errors -o none \
+    --url "https://management.azure.com$APP_ID?api-version=2025-07-01" \
+    --body "$(printf '%s' "$1" | jq -c '{properties: {template: .}}')"
+}
 
 fail_and_restore() {
   printf '%sVIRHE:%s %s\n' "$C_RED" "$C_OFF" "$*" >&2
-  if [ -n "$PREV_IMAGE" ] && [ "$PREV_IMAGE" != "$IMAGE" ]; then
-    info "Palautetaan $APP edelliseen imageen ${PREV_IMAGE##*/}" >&2
-    if azs containerapp update --name "$APP" --resource-group "$RG" --image "$PREV_IMAGE" --no-wait -o none 2>/dev/null; then
+  if [ "$PREV_TEMPLATE" != "$NEW_TEMPLATE" ]; then
+    info "Palautetaan $APP edelliseen määrittelyyn (${PREV_IMAGE##*/})" >&2
+    if patch_template "$PREV_TEMPLATE" 2>/dev/null; then
       printf '%sPALAUTETTU:%s Ajossa on edelleen edellinen versio %s. Julkaisua %s ei tehty, eikä se toteudu myöhemmin itsestään.\n' \
         "$C_YELLOW" "$C_OFF" "${PREV_IMAGE##*/}" "$IMAGE_NAME:$TAG" >&2
     else
@@ -71,11 +128,12 @@ fail_and_restore() {
   exit 1
 }
 
-info "Päivitetään $APP imageen $IMAGE_NAME:$TAG"
-# --no-wait: the script polls the state itself, so a dropped connection during a
-# long CLI poll cannot abort a deploy that Azure is already carrying out. Running
-# the script again with the same tag resumes from where it stopped.
-azs containerapp update --name "$APP" --resource-group "$RG" --image "$IMAGE" --no-wait -o none
+info "Päivitetään $APP imageen $IMAGE_NAME:$TAG${MIGRATIONS:+ (migraatiot: $MIGRATIONS_IMAGE:$TAG)}"
+# The script polls the state itself, so a dropped connection cannot abort a
+# deploy that Azure is already carrying out. Running the script again with the
+# same tag resumes from where it stopped.
+patch_template "$NEW_TEMPLATE" \
+  || fail "Azure hylkäsi päivityksen (yllä), joten mitään ei muutettu ja vanha versio jatkaa toimintaansa."
 
 # The Container App update can fail without creating a revision, e.g. when the
 # identity lacks AcrPull on the registry. The latest revision is then still the
@@ -115,10 +173,10 @@ while :; do
     break
   fi
   if [ "$provisioning" = Failed ] || [ "$running" = Failed ]; then
-    fail_and_restore "Revisio $REVISION epäonnistui. Syy: az containerapp logs show -n $APP -g $RG --revision $REVISION --type system"
+    fail_and_restore "Revisio $REVISION epäonnistui. Syy: az containerapp logs show -n $APP -g $RG --revision $REVISION --type system, migraatiot: deploy/migration-logs.sh $ENVIRONMENT"
   fi
   if [ "$(date +%s)" -ge "$deadline" ]; then
-    fail_and_restore "Revisio $REVISION ei ollut terve $TIMEOUT_S sekunnissa."
+    fail_and_restore "Revisio $REVISION ei ollut terve $TIMEOUT_S sekunnissa. Jos migraatiot kaatuivat: deploy/migration-logs.sh $ENVIRONMENT"
   fi
   sleep 15
 done
