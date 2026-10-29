@@ -15,6 +15,9 @@ dbdumps/
 .github/
 .hooks/
 
+# Deploy-skriptit ja niiden paikalliset asetukset (deploy.<env>.env), joita image ei tarvitse
+deploy/
+
 # Python-välimuistit ja virtuaaliympäristöt
 **/__pycache__/
 *.pyc
