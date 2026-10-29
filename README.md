@@ -460,7 +460,7 @@ Two scripts do the work. Both take the environment (`dev`, `test` or `prod`) as 
 | Script | What it does |
 | --- | --- |
 | `deploy/build-image.sh` | Builds the backend image and the migration image in Azure. Both get the same tag, by default the short commit SHA (e.g. `1d1dd6b`). |
-| `deploy/deploy-backend.sh` | Deploys: builds the images of the commit if they do not exist yet, runs pending migrations, starts the new version, waits until it is healthy and stops the old one. |
+| `deploy/deploy-backend.sh` | Deploys: builds the images of the commit if they do not exist yet, runs pending migrations in the migration job, starts the new version, waits until it is healthy and stops the old one. |
 
 ### Setup (once)
 
@@ -506,7 +506,8 @@ None of these leaves a broken version running.
 | `Työhakemistossa on commitoimattomia muutoksia` | Commit first. To try uncommitted code, see [Try uncommitted changes in dev](#try-uncommitted-changes-in-dev). |
 | `julkaistaan ilman tagia vain haarasta …` | Switch to the environment's branch. |
 | `Imaget … ovat jo olemassa` (`build-image.sh`) | The commit is already built. Deploy it: `deploy/deploy-backend.sh <env>`. |
-| `VIRHE` + `PALAUTETTU` | The deploy failed and the previous version was restored. The error names the cause; failed migrations: `deploy/migration-logs.sh <env>`. |
+| `Migraatiot epäonnistuivat` | The backend was not touched. See why with `deploy/migration-logs.sh <env>`, fix the migration in a new commit and deploy again. |
+| `VIRHE` + `PALAUTETTU` | The new version did not start and the previous version was restored. The error names the cause. |
 | `PALAUTUS EPÄONNISTUI` | The restore failed too. Run the rollback command shown in the output. |
 | A connection error midway | Run the same command again. It continues where it stopped. |
 

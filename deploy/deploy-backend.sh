@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Deploys the backend Container App (building the images of the commit first if
-# they do not exist yet) and waits until the new revision is healthy. The migration image with the same tag runs as an init
-# container before the backend starts, so migrations are part of the deploy; a
-# failed migration stops the revision. Old revisions are deactivated only after
-# the new one is healthy, so on a failed deploy the old version keeps running,
-# and the Container App is set back to the previous template so the failed
-# deploy cannot complete later on its own.
+# they do not exist yet) and waits until the new revision is healthy. First the
+# migration job runs the migration image with the same tag, so migrations are part
+# of the deploy; a failed migration stops the deploy before the backend is
+# touched. Old revisions are deactivated only after the new one is healthy, so on
+# a failed deploy the old version keeps running, and the Container App is set
+# back to the previous template so the failed deploy cannot complete later on its
+# own.
 #
 # Usage: deploy/deploy-backend.sh <dev|test|prod> [tag]
 #   tag        defaults to the short SHA of the current commit. Then the deploy
@@ -13,8 +14,9 @@
 #              and the image is built first if it does not exist yet. An explicit
 #              tag (e.g. rollback to v0.8.0) skips the branch check, but the image
 #              must already exist. A tag from before the migration image (e.g.
-#              v0.8.0) deploys without changing the init container.
-#   TIMEOUT_S  wait time in seconds (default 600)
+#              v0.8.0) deploys without running migrations.
+#   TIMEOUT_S  wait time for the backend in seconds (default 600). The migration
+#              job has its own time limit.
 #
 # The script creates no resources and does not write to Key Vault; the Azure service provider manages them.
 # Output contains no addresses or identifiers, because pipeline logs are public.
@@ -64,7 +66,7 @@ if ! exists "$IMAGE_NAME:$TAG" || ! exists "$MIGRATIONS_IMAGE:$TAG"; then
   else
     exists "$IMAGE_NAME:$TAG" \
       || fail_tag "Imagea $IMAGE_NAME:$TAG ei löydy rekisteristä. Rakenna se ensin (deploy/build-image.sh $ENVIRONMENT $TAG) tai valitse olemassa oleva tagi."
-    warn "Migraatioimagea $MIGRATIONS_IMAGE:$TAG ei ole (tagi ennen migraatioputkea). Init container jää ennalleen."
+    warn "Migraatioimagea $MIGRATIONS_IMAGE:$TAG ei ole (tagi ennen migraatioputkea). Migraatioita ei ajeta."
     MIGRATIONS=''
   fi
 fi
@@ -74,7 +76,6 @@ if [ -n "${VERSION_TAG:-}" ] && ! exists "$IMAGE_NAME:$VERSION_TAG"; then
 fi
 
 IMAGE="$REGISTRY.azurecr.io/$IMAGE_NAME:$TAG"
-deadline=$(( $(date +%s) + TIMEOUT_S ))
 
 # Template of the revision that serves traffic now. A failed update stays in the
 # Container App template, and Azure carries it out later on its own once the
@@ -91,18 +92,10 @@ else
 fi
 PREV_IMAGE=$(printf '%s' "$PREV_TEMPLATE" | jq -r '.containers[0].image')
 
-# New template: the backend image, and the migration image as the init container
-# with the backend's database settings (the same Key Vault secret references).
-NEW_TEMPLATE=$(printf '%s' "$PREV_TEMPLATE" | jq -c --arg image "$IMAGE" --arg migrations "$MIGRATIONS" '
-  .containers[0].image = $image
-  | if $migrations == "" then . else
-      .initContainers = [{
-        name: "migrations",
-        image: $migrations,
-        env: [.containers[0].env[] | select(.name | test("^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD)$"))],
-        resources: {cpu: 0.5, memory: "1Gi"}
-      }]
-    end')
+# New template: the backend image. Earlier versions of this script ran the
+# migrations as the init container "migrations", which is removed.
+NEW_TEMPLATE=$(printf '%s' "$PREV_TEMPLATE" | jq -c --arg image "$IMAGE" '
+  .containers[0].image = $image | .initContainers |= map(select(.name != "migrations"))')
 
 # PATCH only the template; configuration (secrets, ingress, registries) stays as is.
 # Returns at once, like --no-wait, so the script polls the state itself. Same API
@@ -128,7 +121,68 @@ fail_and_restore() {
   exit 1
 }
 
-info "Päivitetään $APP imageen $IMAGE_NAME:$TAG${MIGRATIONS:+ (migraatiot: $MIGRATIONS_IMAGE:$TAG)}"
+# The migration job runs before the backend is updated, so a failed migration
+# leaves the backend untouched. The job gets the migration image and the
+# backend's database settings (the same variables and Key Vault references), so
+# the two cannot drift apart. Only its container and secrets are replaced; the
+# trigger, time limit, identity and registry login stay as they are. The calls use
+# the same API version as patch_template.
+run_migrations() {
+  local job_url api='api-version=2025-07-01' job secrets body state job_image execution status timeout_s job_deadline
+  job_url="https://management.azure.com${APP_ID%/providers/*}/providers/Microsoft.App/jobs/$MIGRATION_JOB"
+  job=$(az rest --method get --only-show-errors --url "$job_url?$api" -o json) \
+    || fail "Migraatiojobia $MIGRATION_JOB ei löydy (yllä). Backendiä ei päivitetty."
+  secrets=$(azs containerapp show --name "$APP" --resource-group "$RG" --query properties.configuration.secrets -o json)
+  body=$(jq -cn --argjson job "$job" --argjson secrets "$secrets" --argjson template "$PREV_TEMPLATE" --arg image "$MIGRATIONS" '
+    [$template.containers[0].env[] | select(.name | test("^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD)$"))] as $env
+    | [$env[].secretRef | select(.)] as $refs
+    | [$secrets[] | select(.name | IN($refs[])) | {name, keyVaultUrl, identity}] as $used
+    | if ($used | length) != ($refs | unique | length) or any($used[]; .keyVaultUrl == null) then error("not Key Vault") else . end
+    | {properties: {
+        configuration: {secrets: $used},
+        template: {containers: [$job.properties.template.containers[0] | del(.command, .args) | .image = $image | .env = $env]}}}' 2>/dev/null) \
+    || fail "Backendin kanta-asetukset eivät ole kaikki Key Vault -viittauksia, joten niitä ei voi antaa migraatiojobille."
+
+  info "Päivitetään migraatiojob imageen $MIGRATIONS_IMAGE:$TAG"
+  az rest --method patch --only-show-errors -o none --url "$job_url?$api" --body "$body" \
+    || fail "Azure hylkäsi migraatiojobin päivityksen (yllä). Backendiä ei päivitetty."
+  # The update finishes in the background, and the job is started only after it.
+  job_deadline=$(( $(date +%s) + 300 ))
+  while :; do
+    read -r state job_image <<< "$(az rest --method get --only-show-errors --url "$job_url?$api" -o tsv \
+      --query "join(' ', [properties.provisioningState || 'none', properties.template.containers[0].image || 'none'])" 2>/dev/null \
+      || echo 'ei-yhteyttä none')"
+    [ "$state" = Succeeded ] && [ "$job_image" = "$MIGRATIONS" ] && break
+    [ "$state" != Failed ] || fail "Migraatiojobin päivitys epäonnistui. Backendiä ei päivitetty."
+    [ "$(date +%s)" -lt "$job_deadline" ] || fail "Migraatiojobin päivitys ei valmistunut 300 sekunnissa (tila $state). Backendiä ei päivitetty."
+    sleep 5
+  done
+
+  execution=$(az rest --method post --only-show-errors --url "$job_url/start?$api" --body '{}' --query name -o tsv) || execution=''
+  [ -n "$execution" ] || fail "Migraatiojobin käynnistys epäonnistui (yllä). Backendiä ei päivitetty."
+  timeout_s=$(printf '%s' "$job" | jq -r '.properties.configuration.replicaTimeout // 1800')
+  job_deadline=$(( $(date +%s) + timeout_s + 120 ))
+  info "Ajetaan migraatiot (ajo $execution, enintään $timeout_s s)"
+  while :; do
+    status=$(az rest --method get --only-show-errors --url "$job_url/executions/$execution?$api" \
+      --query properties.status -o tsv 2>/dev/null || echo 'ei-yhteyttä')
+    case "$status" in
+      Succeeded) break ;;
+      Failed|Stopped|Degraded)
+        fail "Migraatiot epäonnistuivat (ajo $execution: $status). Backendiä ei päivitetty, joten edellinen versio jatkaa toimintaansa. Loki: deploy/migration-logs.sh $ENVIRONMENT" ;;
+    esac
+    [ "$(date +%s)" -lt "$job_deadline" ] \
+      || fail "Migraatioajo $execution ei valmistunut ajassa (tila $status). Backendiä ei päivitetty. Loki: deploy/migration-logs.sh $ENVIRONMENT"
+    ok "Tila: ${status:-tuntematon}"
+    sleep 10
+  done
+  ok 'Migraatiot ajettu'
+}
+
+[ -z "$MIGRATIONS" ] || run_migrations
+
+deadline=$(( $(date +%s) + TIMEOUT_S ))
+info "Päivitetään $APP imageen $IMAGE_NAME:$TAG"
 # The script polls the state itself, so a dropped connection cannot abort a
 # deploy that Azure is already carrying out. Running the script again with the
 # same tag resumes from where it stopped.
@@ -173,10 +227,10 @@ while :; do
     break
   fi
   if [ "$provisioning" = Failed ] || [ "$running" = Failed ]; then
-    fail_and_restore "Revisio $REVISION epäonnistui. Syy: az containerapp logs show -n $APP -g $RG --revision $REVISION --type system, migraatiot: deploy/migration-logs.sh $ENVIRONMENT"
+    fail_and_restore "Revisio $REVISION epäonnistui. Syy: az containerapp logs show -n $APP -g $RG --revision $REVISION --type system"
   fi
   if [ "$(date +%s)" -ge "$deadline" ]; then
-    fail_and_restore "Revisio $REVISION ei ollut terve $TIMEOUT_S sekunnissa. Jos migraatiot kaatuivat: deploy/migration-logs.sh $ENVIRONMENT"
+    fail_and_restore "Revisio $REVISION ei ollut terve $TIMEOUT_S sekunnissa."
   fi
   sleep 15
 done

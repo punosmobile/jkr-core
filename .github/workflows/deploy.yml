@@ -47,12 +47,13 @@ jobs:
       REGISTRY: ${{ secrets.REGISTRY }}
       RG: ${{ secrets.RG }}
       APP: ${{ secrets.APP }}
+      MIGRATION_JOB: ${{ secrets.MIGRATION_JOB }}
     steps:
       # GitHub masks secrets case-sensitively, but Azure often returns resource
       # IDs in lower case. The mask commands themselves are not shown in the log.
       - name: Mask lower-case resource names
         run: |
-          for value in "$SUBSCRIPTION" "$REGISTRY" "$RG" "$APP"; do
+          for value in "$SUBSCRIPTION" "$REGISTRY" "$RG" "$APP" "$MIGRATION_JOB"; do
             lower=$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')
             [ -z "$lower" ] || [ "$lower" = "$value" ] || echo "::add-mask::$lower"
           done

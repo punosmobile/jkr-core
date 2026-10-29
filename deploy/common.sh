@@ -8,7 +8,7 @@ set -euo pipefail
 # Resource names are not in the repo because it is public. load_env reads them.
 LOCATION='westeurope'
 IMAGE_NAME='jkr-core'
-# Flyway and the migrations (db/Dockerfile), run as the backend's init container.
+# Flyway and the migrations (db/Dockerfile), run by the migration job before the backend is updated.
 MIGRATIONS_IMAGE='jkr-core-migrations'
 
 # Colours only on a terminal or in GitHub Actions (which renders them), never with NO_COLOR.
@@ -60,7 +60,7 @@ head_tag() { git -C "$(dirname "$0")/.." rev-parse --short HEAD; }
 current_branch() { echo "${GITHUB_REF_NAME:-$(git -C "$(dirname "$0")/.." rev-parse --abbrev-ref HEAD)}"; }
 
 # Per-environment resources. The ACR is shared by all and is found by name alone.
-ENV_KEYS='SUBSCRIPTION REGISTRY RG APP'
+ENV_KEYS='SUBSCRIPTION REGISTRY RG APP MIGRATION_JOB'
 
 # Reads the environment settings from deploy/deploy.<env>.env (template: deploy/deploy.example.env).
 # In GitHub Actions there is no file; the same keys come from the environment's

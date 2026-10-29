@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Shows the output of the migration init container from Log Analytics. The init
-# container has finished by the time the backend runs, so az containerapp logs
-# show cannot reach it.
+# Shows the output of the migration job's runs from Log Analytics, one row per
+# line with the run (replica) name. A finished run's output is no longer
+# available from the job itself.
 #
 # Usage: deploy/migration-logs.sh <dev|test|prod> [hours]
 #   hours  how far back to look (default 24)
@@ -32,9 +32,10 @@ workspace=$(azs containerapp env show --ids "$aca_env" \
 [ -n "$workspace" ] || fail "Container Apps -ympäristöllä ei ole Log Analytics -työtilaa."
 
 info "Migraatioiden loki ($ENVIRONMENT, viimeiset $HOURS h)"
+# Lines that arrive together share TimeGenerated; _timestamp_d keeps their order.
 azs monitor log-analytics query --workspace "$workspace" -o tsv \
   --analytics-query "ContainerAppConsoleLogs_CL
-    | where TimeGenerated > ago(${HOURS}h) and ContainerAppName_s == '$APP' and ContainerName_s == 'migrations'
-    | order by TimeGenerated asc" \
-  --query "[].[TimeGenerated, RevisionName_s, Log_s]" \
+    | where TimeGenerated > ago(${HOURS}h) and ContainerJobName_s == '$MIGRATION_JOB'
+    | order by _timestamp_d asc" \
+  --query "[].[TimeGenerated, ContainerGroupName_s, Log_s]" \
   | sed -E 's#jdbc:postgresql://[^ ]*#jdbc:postgresql://***#g'

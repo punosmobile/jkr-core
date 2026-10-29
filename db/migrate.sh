@@ -1,7 +1,7 @@
 #!/bin/sh
 # Entrypoint of the migration image. Builds the Flyway connection from the same
 # JKR_* variables the backend uses. Without arguments it runs migrate only when
-# there are pending migrations, so a container restart does not rerun
+# there are pending migrations, so running it again does not rerun
 # afterMigrate.sql. Arguments are passed to Flyway as is, e.g. "info" or "repair".
 #
 #   JKR_DB_HOST, JKR_DB_PORT (default 5432), JKR_DB, JKR_USER, JKR_PASSWORD
