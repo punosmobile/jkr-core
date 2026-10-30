@@ -78,6 +78,15 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Azure error messages name the identity by its object id, which is not a
+      # secret, so it is read from the access token and masked.
+      - name: Mask the identity's object id
+        run: |
+          payload=$(az account get-access-token --query accessToken -o tsv | cut -d. -f2 | tr '_-' '/+')
+          while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
+          oid=$(printf '%s' "$payload" | base64 -d | jq -r '.oid // empty')
+          [ -z "$oid" ] || echo "::add-mask::$oid"
+
       - name: Deploy
         run: |
           if [ "$ENVIRONMENT" = prod ] && [ -z "$TAG" ]; then
