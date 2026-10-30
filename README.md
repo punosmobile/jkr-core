@@ -420,34 +420,43 @@ The automated tests test a wide variety of features within the data import proce
 
 ## Branches and releases
 
-| Branch    | Environment | Deployed                                        |
-| --------- | ----------- | ----------------------------------------------- |
-| `develop` | dev         | after merge                                     |
-| `test`    | test        | after merge                                     |
-| `main`    | prod        | after merge and approval by the other developer |
+| Branch    | Environment | Deployed                                                 |
+| --------- | ----------- | -------------------------------------------------------- |
+| `develop` | dev         | automatically after merge                                |
+| `test`    | test        | automatically after merge                                |
+| `main`    | prod        | after merge, once another developer approves the deploy  |
 
-Deploys run in GitHub Actions (`.github/workflows/deploy.yml`) as soon as the Azure credentials are in place; until then deploy manually as described in [Manual deployment (backend)](#manual-deployment-backend).
+The pipeline (`.github/workflows/deploy.yml`) builds the image of the merged commit, runs pending migrations in the migration job and then deploys the backend. If the migrations fail, the backend is not touched. Azure identifiers and resource names are environment secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `SUBSCRIPTION`, `REGISTRY`, `RG`, `APP`, `MIGRATION_JOB`), so they are masked in the public logs. When the pipeline is not available, see [Manual deployment (backend)](#manual-deployment-backend).
 
-- A merge builds the image of the commit and deploys it. A prod deploy also tags the image with the version and creates the GitHub Release.
-- Rollback: **Actions → deploy → Run workflow**, pick the environment's branch and enter an existing image tag (e.g. `v0.8.0`).
-- Azure identifiers and resource names are environment secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `SUBSCRIPTION`, `REGISTRY`, `RG`, `APP`), so they are masked in the public logs.
+- `develop`, `test` and `main` change only through pull requests. A PR needs one approval from another developer after its latest push, and the check *pytest (testikanta + migraatiot)* must pass.
+- The version is only in `pyproject.toml`. A PR to `test` or `main` needs a version above the one in `main` and an entry `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (check *Version bumped*).
+- The prod deploy tags the commit and the image `vX.Y.Z` and creates the GitHub Release. Do not tag by hand, except after a [manual prod deploy](#deploy-to-prod).
 
-- Flow: feature branch → PR to `develop` → PR `develop` → `test` → PR `test` → `main`.
-- `develop`, `test` and `main` take changes only through pull requests. Every PR needs 1 approval from the other developer.
-- A prod deploy is approved by a developer who did not trigger it, so two people are always involved.
-- Hotfix: branch from `main`, PR to `main`, then merge `main` back to `develop`.
-- Version is set only in `pyproject.toml`. A PR to `test` or `main` must raise it above the version in `main` and add a `## [X.Y.Z]` entry to `CHANGELOG.md`. Several deliveries to `test` may use the same version. The label `skip-version-check` skips the check for exceptions, e.g. a PR to `main` that only changes the README or CI files and should not create a new release:
+### Release
 
-  - GitHub: open the PR, click the gear next to **Labels** in the right sidebar and select **skip-version-check**.
-  - CLI:
+1. Make the change in a feature branch from `develop` and open a PR to `develop`.
+2. Before the first PR to `test`, `develop` must have a version above `main` and its CHANGELOG entry. If it does not, raise the version in a PR to `develop`: minor (`0.8.1` → `0.9.0`) if there are new features, otherwise patch (`0.8.1` → `0.8.2`).
+3. Open a PR `develop` → `test`. Fixes found in test go the same way with the same version: a PR to `develop`, then a new PR `develop` → `test`. Add them to the same CHANGELOG entry.
+4. When test is accepted, open a PR `test` → `main`. After the merge, another developer approves the deploy in **Actions → deploy → Review deployments**. Whoever merged cannot approve it.
 
-    ```bash
-    gh pr edit <PR number> --add-label skip-version-check
-    ```
+### Hotfix
 
-  The check reruns when the label is added and passes with a warning. Remove the label to enforce the check again. Adding labels needs at least triage access to the repo.
-- Release: a tag `vX.Y.Z` creates the GitHub Release with the wheel and the CHANGELOG entry (`.github/workflows/release.yml`). The version must match `pyproject.toml`.
-- Image tags: short commit SHA in every environment (`jkr-core:1d1dd6b`), prod also the version (`jkr-core:v0.9.0`). Tags are never overwritten.
+1. Branch from `main`. Fix, raise the patch version (`0.9.0` → `0.9.1`) and add the CHANGELOG entry.
+2. Open a PR to `main`. The deploy is approved as in step 4.
+3. Open a PR `main` → `develop`. If `pyproject.toml` or `CHANGELOG.md` conflicts, keep the higher version and both entries.
+
+### Rollback
+
+**Actions → deploy → Run workflow**: pick the environment's branch and enter an existing image tag, the short commit SHA (`1d1dd6b`) or in prod also the version (`v0.8.0`). Nothing is built. The database is not rolled back: the previous version runs against the migrated database.
+
+### Exception: label `skip-version-check`
+
+The label lets a PR through without a version bump, with a warning. Use it only for agreed exceptions, e.g. a PR to `main` that only changes the README or CI files.
+
+- GitHub: the gear next to **Labels** in the PR's right sidebar → **skip-version-check**.
+- CLI: `gh pr edit <PR number> --add-label skip-version-check`
+
+Adding labels needs at least triage access to the repo.
 
 ### Feature branches
 
