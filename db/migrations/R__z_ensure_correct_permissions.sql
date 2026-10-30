@@ -70,3 +70,26 @@ ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO jkr_editor;
 ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr
 GRANT ALL ON TABLES TO jkr_admin;
+
+DO $$
+BEGIN
+CREATE ROLE IF NOT EXISTS "auditor" WITH
+  NOLOGIN
+  NOSUPERUSER
+  NOINHERIT
+  NOCREATEDB
+  NOCREATEROLE
+  NOREPLICATION
+  NOBYPASSRLS;
+EXCEPTION WHEN duplicate_object THEN RAISE NOTICE '%, skipping', SQLERRM USING ERRCODE = SQLSTATE;
+END
+$$;
+
+COMMENT ON ROLE "auditor" IS 'Role for monitoring GDPR compliance. Allows limiting of monitored tables for audit logs to reduce volume of unnecessary lines';
+ALTER DEFAULT PRIVILEGES IN SCHEMA jkr GRANT SELECT ON TABLES TO "auditor";
+ALTER DEFAULT PRIVILEGES IN SCHEMA jkr_dvv GRANT SELECT ON TABLES TO "auditor";
+
+GRANT SELECT ON TABLE jkr_dvv.omistaja TO "auditor";
+GRANT SELECT ON TABLE jkr_dvv.vanhin TO "auditor";
+
+GRANT SELECT ON TABLE jkr.osapuoli TO "auditor";
