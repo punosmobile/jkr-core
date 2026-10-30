@@ -190,12 +190,6 @@ docker-compose --env-file "${env:APPDATA}/jkr/.env" up flyway
 docker-compose --env-file "${env:APPDATA}/jkr/.env" run --rm flyway repair
 ```
 
-### Running migrations against different platform
-
-```bash
-docker-compose run --rm flyway migrate -user=jkr_admin -password=<password> -url=jdbc:postgresql://trepx-paikka1.tre.t.verkko:5432/ymparisto_test_db
-```
-
 ## Using the QGIS project
 
 The QGIS project reads data from a PostgreSQL service named `jkr` with a QGIS authentication which id is `jkruser`.
@@ -424,9 +418,175 @@ The automated tests test a wide variety of features within the data import proce
 | liete_ilmoitukset    | TestLieteIlmoitustiedosto        | Verifies LIETE composting notification file reading                                                                                                                                                                                                                                                                                                                                    |
 |                      | TestLieteIlmoitusTranslator      | Verifies translation to JKR format, pienpuhdistamo date handling                                                                                                                                                                                                                                                                                                                       |
 
-## Naming development branches
+## Branches and releases
+
+| Branch    | Environment | Deployed                                                 |
+| --------- | ----------- | -------------------------------------------------------- |
+| `develop` | dev         | automatically after merge                                |
+| `test`    | test        | automatically after merge                                |
+| `main`    | prod        | after merge, once another developer approves the deploy  |
+
+The pipeline (`.github/workflows/deploy.yml`) builds the image of the merged commit, runs pending migrations in the migration job and then deploys the backend. If the migrations fail, the backend is not touched. Azure identifiers and resource names are environment secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `SUBSCRIPTION`, `REGISTRY`, `RG`, `APP`, `MIGRATION_JOB`), so they are masked in the public logs. When the pipeline is not available, see [Manual deployment (backend)](#manual-deployment-backend).
+
+- `develop`, `test` and `main` change only through pull requests. A PR needs one approval from another developer after its latest push, and the check *pytest (testikanta + migraatiot)* must pass.
+- The version is only in `pyproject.toml`. A PR to `test` or `main` needs a version above the one in `main` and an entry `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (check *Version bumped*).
+- The prod deploy tags the commit and the image `vX.Y.Z` and creates the GitHub Release. Do not tag by hand, except after a [manual prod deploy](#deploy-to-prod).
+
+### Release
+
+1. Make the change in a feature branch from `develop` and open a PR to `develop`.
+2. Before the first PR to `test`, `develop` must have a version above `main` and its CHANGELOG entry. If it does not, raise the version in a PR to `develop`: minor (`0.8.1` → `0.9.0`) if there are new features, otherwise patch (`0.8.1` → `0.8.2`).
+3. Open a PR `develop` → `test`. Fixes found in test go the same way with the same version: a PR to `develop`, then a new PR `develop` → `test`. Add them to the same CHANGELOG entry.
+4. When test is accepted, open a PR `test` → `main`. After the merge, another developer approves the deploy in **Actions → deploy → Review deployments**. Whoever merged cannot approve it.
+
+### Hotfix
+
+1. Branch from `main`. Fix, raise the patch version (`0.9.0` → `0.9.1`) and add the CHANGELOG entry.
+2. Open a PR to `main`. The deploy is approved as in step 4.
+3. Open a PR `main` → `develop`. If `pyproject.toml` or `CHANGELOG.md` conflicts, keep the higher version and both entries.
+
+### Rollback
+
+**Actions → deploy → Run workflow**: pick the environment's branch and enter an existing image tag, the short commit SHA (`1d1dd6b`) or in prod also the version (`v0.8.0`). Nothing is built. The database is not rolled back: the previous version runs against the migrated database.
+
+### Exception: label `skip-version-check`
+
+The label lets a PR through without a version bump, with a warning. Use it only for agreed exceptions, e.g. a PR to `main` that only changes the README or CI files.
+
+- GitHub: the gear next to **Labels** in the PR's right sidebar → **skip-version-check**.
+- CLI: `gh pr edit <PR number> --add-label skip-version-check`
+
+Adding labels needs at least triage access to the repo.
+
+### Feature branches
 
 Because this repository is developed mostly in customer specific projects the label of the project may be good to be included in the branch name. The preferred naming convention is `{label-of-project}-{issue-in-that-project}/{description}`. For example, `"Lahti-99/kuljetustietojen-tallennus"`. Please avoid umlauts and use hyphens as separators.
+
+## Manual deployment (backend)
+
+Two scripts do the work. Both take the environment (`dev`, `test` or `prod`) as the first argument.
+
+| Script | What it does |
+| --- | --- |
+| `deploy/build-image.sh` | Builds the backend image and the migration image in Azure. Both get the same tag, by default the short commit SHA (e.g. `1d1dd6b`). |
+| `deploy/deploy-backend.sh` | Deploys: builds the images of the commit if they do not exist yet, runs pending migrations in the migration job, starts the new version, waits until it is healthy and stops the old one. The images are deployed by digest, so a later push to the same tag cannot change what runs. |
+
+### Setup (once)
+
+| | |
+| --- | --- |
+| Tools | bash, Azure CLI, jq (Windows: WSL or Git Bash). Docker only for running migrations by hand. |
+| Settings | `cp deploy/deploy.example.env deploy/deploy.dev.env` and fill in the values from Postman. Same for `test` and `prod`. Never commit these files. |
+| Login | `az login` |
+
+### Deploy to dev or test
+
+Each environment is deployed from its own branch: `develop` to dev, `test` to test.
+
+```bash
+git switch develop
+git pull
+deploy/deploy-backend.sh dev
+```
+
+The deploy is done when the output ends with a green `==> Valmis`. For test, use `git switch test` and `test` as the argument.
+
+Check what the migrations did: `deploy/migration-logs.sh dev`
+
+### Deploy to prod
+
+Prod is normally deployed by the pipeline, which waits for approval from another developer. Deploy prod by hand only when the pipeline is not available, and agree on it with another developer first. The script does not check this: it only asks you to type `prod` to confirm.
+
+Prod is deployed from `main`, and its images also get the version tag.
+
+```bash
+git switch main
+git pull
+VERSION_TAG=v0.9.0 deploy/deploy-backend.sh prod    # version from pyproject.toml
+git tag v0.9.0 && git push origin v0.9.0            # creates the GitHub Release
+```
+
+### When something fails
+
+None of these leaves a broken version running.
+
+| Output | What to do |
+| --- | --- |
+| `Työhakemistossa on commitoimattomia muutoksia` | Commit first. To try uncommitted code, see [Try uncommitted changes in dev](#try-uncommitted-changes-in-dev). |
+| `julkaistaan ilman tagia vain haarasta …` | Switch to the environment's branch. |
+| `Imaget … ovat jo olemassa` (`build-image.sh`) | The commit is already built. Deploy it: `deploy/deploy-backend.sh <env>`. |
+| `Migraatiot epäonnistuivat` | The backend was not touched. See why with `deploy/migration-logs.sh <env>`, fix the migration in a new commit and deploy again. |
+| `VIRHE` + `PALAUTETTU` | The new version did not start and the previous version was restored. The error names the cause. |
+| `PALAUTUS EPÄONNISTUI` | The restore failed too. Run the rollback command shown in the output. |
+| A connection error midway | Run the same command again. It continues where it stopped. |
+
+### Special cases
+
+#### Roll back to an earlier version
+
+Deploy an existing tag. Nothing is built, and it works from any branch.
+
+```bash
+deploy/deploy-backend.sh test v0.8.0
+```
+
+Migrations are not rolled back. Fix a bad database change with a new migration.
+
+#### Deploy a commit from another branch to dev
+
+Without a tag the deploy only works from `develop`. With a tag it does not build, so build first. The build works from any branch.
+
+```bash
+deploy/build-image.sh dev
+deploy/deploy-backend.sh dev $(git rev-parse --short HEAD)
+```
+
+#### Try uncommitted changes in dev
+
+`ALLOW_DIRTY=1` builds the working tree as it is, under your own tag. Use it only in dev. Build first, as above.
+
+```bash
+T=testi-$(date +%Y%m%d%H%M)
+ALLOW_DIRTY=1 deploy/build-image.sh dev $T
+deploy/deploy-backend.sh dev $T
+```
+
+#### Build without deploying
+
+```bash
+deploy/build-image.sh dev        # tag = short commit SHA
+```
+
+#### Run migrations by hand
+
+Normally not needed, the deploy runs them. Needs VPN and `.env.<env>` in the repo root with the database credentials. `JKR_DB_OWNER` in that file is the role that owns the database objects.
+
+```bash
+docker build -t jkr-core-migrations db/
+( set -a; source <(grep -E '^JKR_(DB_HOST|DB_PORT|DB|USER|PASSWORD|DB_OWNER)=' .env.test); set +a
+  docker run --rm -e JKR_DB_HOST -e JKR_DB_PORT -e JKR_DB -e JKR_USER -e JKR_PASSWORD -e JKR_DB_OWNER \
+    jkr-core-migrations info )
+```
+
+Replace `info` with `repair`, or leave it out to migrate if there are pending migrations.
+
+#### See what is running
+
+The active revision (its image is shown as a digest), and the latest tags in the registry:
+
+```bash
+( source deploy/deploy.dev.env
+  az containerapp revision list -n "$APP" -g "$RG" --subscription "$SUBSCRIPTION" -o table \
+    --query '[?properties.active].{revision:name, image:properties.template.containers[0].image, health:properties.healthState}'
+  az acr repository show-tags -n "$REGISTRY" --repository jkr-core --orderby time_desc --top 10 --subscription "$SUBSCRIPTION" -o tsv )
+
+# The tag of a digest
+( source deploy/deploy.dev.env
+  az acr manifest list-metadata -r "$REGISTRY" -n jkr-core --subscription "$SUBSCRIPTION" -o tsv \
+    --query "[?digest=='sha256:<digest>'].tags[]" )
+```
+
+Azure resources and roles are managed by the Azure service provider. The scripts only build and deploy.
 
 ## Using Pseydonymized data
 

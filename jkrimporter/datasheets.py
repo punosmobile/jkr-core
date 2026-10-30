@@ -17,6 +17,25 @@ if TYPE_CHECKING:
         headers: List[str]
 
 
+def normalize_headers(headers, expected_headers):
+    """
+    Return file headers in their expected spelling, ignoring case and surrounding
+    whitespace, since some files use UPPERCASE headers. Unknown headers are returned
+    as-is. If several columns match the same expected header, only the first one gets
+    it, so a later column cannot overwrite the value in dict(zip(headers, row)).
+    """
+    expected_map = {h.lower(): h for h in expected_headers}
+    used = set()
+    normalized = []
+    for header in headers:
+        canonical = expected_map.get(str(header).strip().lower()) if header is not None else None
+        if canonical and canonical not in used:
+            used.add(canonical)
+            normalized.append(canonical)
+        else:
+            normalized.append(header)
+    return normalized
+
 
 def get_hapa_kohteet_headers():
     expected_headers = [

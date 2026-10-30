@@ -1,0 +1,104 @@
+# Deploys the backend: develop → dev, test → test, main → prod (prod waits for
+# approval in the GitHub environment). A merge builds the image of the commit
+# (tag = short SHA) and deploys it with deploy/deploy-backend.sh. A prod deploy
+# also tags the image with the version and creates the GitHub Release.
+#
+# Manual run (Actions → deploy → Run workflow): pick the environment's branch.
+# With an image tag (e.g. v0.8.0 or 1d1dd6b) the existing image is deployed
+# without a build, which is the rollback. The environment follows the branch.
+#
+# Azure identifiers and resource names are environment secrets, not variables:
+# GitHub masks secrets in every log line, including the env and with values it
+# prints for each step, and the logs of this public repo are public.
+# Keep it that way: no set -x or --debug, and Azure commands only with -o none
+# or a narrow --query, because full Azure responses contain resource IDs.
+
+name: deploy
+
+on:
+  push:
+    branches: [develop, test, main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing image tag to deploy (rollback). Empty: build and deploy the selected branch."
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy (${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'test' && 'test' || 'dev' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'test' && 'test' || 'dev' }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'test' && 'test' || 'dev' }}
+      TAG: ${{ inputs.tag }}
+      SUBSCRIPTION: ${{ secrets.SUBSCRIPTION }}
+      REGISTRY: ${{ secrets.REGISTRY }}
+      RG: ${{ secrets.RG }}
+      APP: ${{ secrets.APP }}
+      MIGRATION_JOB: ${{ secrets.MIGRATION_JOB }}
+    steps:
+      # GitHub masks secrets case-sensitively, but Azure often returns resource
+      # IDs in lower case. The mask commands themselves are not shown in the log.
+      - name: Mask lower-case resource names
+        run: |
+          for value in "$SUBSCRIPTION" "$REGISTRY" "$RG" "$APP" "$MIGRATION_JOB"; do
+            lower=$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')
+            [ -z "$lower" ] || [ "$lower" = "$value" ] || echo "::add-mask::$lower"
+          done
+
+      - name: Check input
+        run: |
+          if [ -n "$TAG" ] && ! printf '%s' "$TAG" | grep -Eqx '[A-Za-z0-9._-]+'; then
+            echo "::error::Image tag may contain only letters, digits, dot, underscore and hyphen."
+            exit 1
+          fi
+
+      # No token in .git/config: the build context must never be able to carry it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A failure here means the federated credential does not match: check the
+      # repo and the environment name in the identity's federated credentials.
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Azure error messages name the identity by its object id, which is not a
+      # secret, so it is read from the access token and masked.
+      - name: Mask the identity's object id
+        run: |
+          payload=$(az account get-access-token --query accessToken -o tsv | cut -d. -f2 | tr '_-' '/+')
+          while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
+          oid=$(printf '%s' "$payload" | base64 -d | jq -r '.oid // empty')
+          [ -z "$oid" ] || echo "::add-mask::$oid"
+
+      - name: Deploy
+        run: |
+          if [ "$ENVIRONMENT" = prod ] && [ -z "$TAG" ]; then
+            VERSION_TAG=v$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+            export VERSION_TAG
+          fi
+          deploy/deploy-backend.sh "$ENVIRONMENT" "$TAG"
+
+  release:
+    name: Release
+    needs: deploy
+    if: github.ref_name == 'main' && !inputs.tag
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml

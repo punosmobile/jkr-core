@@ -1,0 +1,62 @@
+# PRs to test and main must raise the version in pyproject.toml above main and
+# add a "## [X.Y.Z]" entry to CHANGELOG.md. A PR to test may keep the version
+# already in test, so test can receive several deliveries of the same version.
+# The label skip-version-check lets an exception through with a warning.
+
+name: version-check
+
+on:
+  pull_request:
+    branches: [main, test]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Version bumped
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Compare versions
+        env:
+          BASE: ${{ github.base_ref }}
+          SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'skip-version-check') }}
+        run: |
+          read_version() { sed -n 's/^version = "\(.*\)"/\1/p' | head -1; }
+          # True when $1 is strictly greater than $2 (sort -V orders versions).
+          gt() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
+
+          new=$(read_version < pyproject.toml)
+          # The PR's pyproject.toml is untrusted input: accept only X.Y.Z before
+          # it is printed or used.
+          if ! printf '%s' "$new" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "Version in pyproject.toml must have the form X.Y.Z." >&2
+            exit 1
+          fi
+          main=$(git show origin/main:pyproject.toml | read_version)
+          echo "PR: $new, main: $main"
+
+          errors=''
+          gt "$new" "$main" || errors="$errors\n- Version $new must be greater than $main in main."
+          if [ "$BASE" = test ]; then
+            current=$(git show origin/test:pyproject.toml | read_version)
+            echo "test: $current"
+            if [ "$new" != "$current" ] && ! gt "$new" "$current"; then
+              errors="$errors\n- Version $new must not be lower than $current in test."
+            fi
+          fi
+          grep -q "^## \[${new//./\\.}\]" CHANGELOG.md || errors="$errors\n- CHANGELOG.md has no entry \"## [$new]\"."
+
+          if [ -z "$errors" ]; then
+            echo "Version $new is ok."
+          elif [ "$SKIP" = true ]; then
+            echo "::warning::Version check skipped with label skip-version-check:$(printf '%b' "$errors" | tr '\n' ' ')"
+          else
+            printf 'Version check failed:%b\n\nRaise the version in pyproject.toml and add a CHANGELOG.md entry, or add the label skip-version-check for an exception.\n' "$errors" >&2
+            exit 1
+          fi

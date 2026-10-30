@@ -59,6 +59,7 @@ from jkrimporter.providers.pjh.siirtotiedosto import PjhSiirtotiedosto
 from jkrimporter.utils.date import parse_date_string
 from jkrimporter.providers.db.sisaanlukutapahtuma import sisaanluku_komento, sisaanlukutapahtuma
 from jkrimporter.api.util import FileType
+from jkrimporter.datasheets import get_tiedontuottajat_headers, normalize_headers
 
 
 @dataclass
@@ -199,7 +200,9 @@ def import_data_batch(
                 continue
             case FileType.TIEDONTUOTTAJAT:
                 with open(target_path, newline='', encoding='cp1252') as f:
-                    for row in csv.DictReader(f, delimiter=';'):
+                    reader = csv.DictReader(f, delimiter=';')
+                    reader.fieldnames = normalize_headers(reader.fieldnames or [], get_tiedontuottajat_headers())
+                    for row in reader:
                         tiedontuottaja_add_new(row['tunnus'], row['nimi'])
                 continue
             case FileType.POSTINUMEROT:
@@ -663,6 +666,7 @@ def import_hapa(
                                        'Katunimi FI', 'Talon numero', 'Postinumero',
                                        'Postitoimipaikka FI', 'kohdetyyppi']
 
+                    headers = normalize_headers(headers, required_headers)
                     missing_headers = [h for h in required_headers if h not in headers]
                     if missing_headers:
                         typer.echo(f"Error: CSV file is missing required headers: {missing_headers}", err=True)
@@ -767,6 +771,7 @@ def import_sote(
                                        'Katunimi FI', 'Talon numero', 'Postinumero',
                                        'Postitoimipaikka FI', 'kohdetyyppi']
 
+                    headers = normalize_headers(headers, required_headers)
                     missing_headers = [h for h in required_headers if h not in headers]
                     if missing_headers:
                         typer.echo(f"Error: CSV file is missing required headers: {missing_headers}", err=True)

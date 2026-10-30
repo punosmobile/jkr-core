@@ -26,6 +26,7 @@ from jkrimporter.datasheets import (
     get_perusmaksu_headers,
     get_tiedontuottajat_headers,
     get_huoneistomaara_headers,
+    normalize_headers,
 )
 
 logger = logging.getLogger("jkr-sharepoint")
@@ -118,7 +119,8 @@ def _verify_excel_headers(target_path: str, expected_headers: List[str]):
         actual_headers = [cell.value for cell in sheet[1]]
         rows = max((sheet.max_row or 1) - 1, 0)
         workbook.close()
-        return [h for h in expected_headers if h not in actual_headers], rows
+        normalized = normalize_headers(actual_headers, expected_headers)
+        return [h for h in expected_headers if h not in normalized], rows
     except Exception as e:
         logger.error("Tiedoston otsakkeiden lukeminen epäonnistui: %s – %s", target_path, e)
         return expected_headers, None
@@ -133,9 +135,9 @@ def _verify_csv_headers(target_path: str, expected_headers: List[str]):
             content = content[3:]
         decoded = content.decode("cp1252")
         reader = csv.DictReader(decoded.splitlines(), delimiter=";", quotechar='"', skipinitialspace=True)
-        actual_lower = {h.lower() for h in (reader.fieldnames or [])}
+        normalized = normalize_headers(reader.fieldnames or [], expected_headers)
         rows = sum(1 for _ in reader)
-        return [h for h in expected_headers if h.lower() not in actual_lower], rows
+        return [h for h in expected_headers if h not in normalized], rows
     except Exception as e:
         logger.error("Tiedoston otsakkeiden lukeminen epäonnistui: %s – %s", target_path, e)
         return expected_headers, None
