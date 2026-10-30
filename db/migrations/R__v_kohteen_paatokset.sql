@@ -5,8 +5,6 @@ FROM jkr.kohde k
 JOIN jkr.kohteen_rakennukset kr ON k.id = kr.kohde_id
 JOIN jkr.viranomaispaatokset vp ON kr.rakennus_id = vp.rakennus_id;
 
-ALTER VIEW jkr.v_kohteen_viranomaispaatokset OWNER TO jkr_admin;
-
 COMMENT ON VIEW jkr.v_kohteen_viranomaispaatokset IS E'Näkymä, joka sisältää kohteen kaikki viranomaispäätökset QGIS-tarkastelua varten.';
 COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.id IS E'Viranomaispäätöksen yksilöivä tunniste (jkr.viranomaispaatokset.id).';
 COMMENT ON COLUMN jkr.v_kohteen_viranomaispaatokset.paatosnumero IS E'Viranomaispäätöksen päätösnumero.';
