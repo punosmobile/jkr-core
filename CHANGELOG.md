@@ -378,6 +378,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Data sheet headers are compared case-insensitively in all validity checks and in the pre-analysis
+- The repeatable migrations of the views `v_rakennukset`, `v_yli_5_asunnon_kohteet` and `v_kohteen_viranomaispaatokset` can be run again on an existing database and no longer change the view owner
 
 ### Added
 
