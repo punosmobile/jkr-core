@@ -447,7 +447,7 @@ The pipeline (`.github/workflows/deploy.yml`) builds the image of the merged com
 
 ### Rollback
 
-**Actions → deploy → Run workflow**: pick the environment's branch and enter an existing image tag, the short commit SHA (`1d1dd6b`) or in prod also the version (`v0.8.0`). Nothing is built. The database is not rolled back: the previous version runs against the migrated database.
+**Actions → deploy → Run workflow**: pick the environment's branch and enter an existing image tag, the short commit SHA (`1d1dd6b`) or in prod also the version (`v0.8.0`). Nothing is built and no migrations are run. The database is not rolled back: the previous version runs against the migrated database.
 
 ### Exception: label `skip-version-check`
 
@@ -524,13 +524,13 @@ None of these leaves a broken version running.
 
 #### Roll back to an earlier version
 
-Deploy an existing tag. Nothing is built, and it works from any branch.
+Deploy an existing tag without migrations. Nothing is built, and it works from any branch.
 
 ```bash
-deploy/deploy-backend.sh test v0.8.0
+SKIP_MIGRATIONS=1 deploy/deploy-backend.sh test v0.8.0
 ```
 
-Migrations are not rolled back. Fix a bad database change with a new migration.
+The database is not rolled back: running the old version's migrations would put back its old views and functions. Fix a bad database change with a new migration.
 
 #### Deploy a commit from another branch to dev
 

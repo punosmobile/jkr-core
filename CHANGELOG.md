@@ -391,3 +391,4 @@ All notable changes to this project will be documented in this file.
 - The version is set only in `pyproject.toml`; the API and CLI report it from the package metadata
 - `release.yml` updated and can be called from the deploy pipeline
 - Dockerfile base image pinned to a digest
+- A rollback does not run migrations, so the database stays as it is: in the pipeline a manual run with an image tag, by hand `SKIP_MIGRATIONS=1 deploy/deploy-backend.sh <env> <tag>`
