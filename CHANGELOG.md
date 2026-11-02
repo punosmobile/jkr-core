@@ -379,6 +379,7 @@ All notable changes to this project will be documented in this file.
 
 - Data sheet headers are compared case-insensitively in all validity checks and in the pre-analysis
 - The repeatable migrations of the views `v_rakennukset`, `v_yli_5_asunnon_kohteet` and `v_kohteen_viranomaispaatokset` can be run again on an existing database and no longer change the view owner
+- `R__z_ensure_correct_permissions.sql` runs again, so the four materialized views that the repeatable migrations recreate in this release stay owned by `jkr_admin` with their privileges
 
 ### Added
 
