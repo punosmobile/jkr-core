@@ -402,3 +402,13 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - The legacy migration test workflow (`test.yml`); the CI test gate runs the migrations and tests in every pull request
+
+## [0.8.2] - 2026-11-03
+
+### Added
+
+- The GitHub Release also contains the CLI package `jkr-X.Y.Z.zip` that the AVD installation fetches: the wheel and the scripts. It was added by hand before
+
+### Changed
+
+- The CLI package takes the scripts from the repository. Earlier packages had older versions of `cherrypick_data.py`, `import_and_create_kohteet.bat`, `import_posti.sql`, `tulosta_raportti.sql` and `update_huoneistomaara.sh`
