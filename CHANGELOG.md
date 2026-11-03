@@ -372,3 +372,33 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - System events and other logs have been made clearer so that users have easier time identifying them and what was run on each
+
+## [0.8.1] - 2026-10-26
+
+### Fixed
+
+- Data sheet headers are compared case-insensitively in all validity checks and in the pre-analysis
+- The repeatable migrations of the views `v_rakennukset`, `v_yli_5_asunnon_kohteet` and `v_kohteen_viranomaispaatokset` can be run again on an existing database and no longer change the view owner
+- `R__z_ensure_correct_permissions.sql` runs again, so the four materialized views that the repeatable migrations recreate in this release stay owned by `jkr_admin` with their privileges
+
+### Added
+
+- Deploy pipeline in GitHub Actions (`.github/workflows/deploy.yml`): a merge to `develop`, `test` or `main` deploys to dev, test or prod, and prod waits for approval by another developer. Azure login with OIDC, no stored credentials
+- The pipeline runs the migrations in the migration job before updating the backend; a failed migration leaves the backend untouched
+- A prod deploy tags the commit and the image with the version and creates the GitHub Release
+- Bash deploy scripts (`deploy/`) for building the image in ACR and deploying the backend, with rollback to the previous image on failure
+- Version check for pull requests to `test` and `main`
+- README: branching strategy, release process and manual deployment
+
+### Changed
+
+- The version is set only in `pyproject.toml`; the API and CLI report it from the package metadata
+- `release.yml` updated and can be called from the deploy pipeline
+- Dockerfile base image pinned to a digest; Dependabot proposes digest updates
+- Images are built from a clean checkout of the commit and deployed by digest
+- Deploy logs mask resource names and identifiers, because the repository is public
+- A rollback does not run migrations, so the database stays as it is: in the pipeline a manual run with an image tag, by hand `SKIP_MIGRATIONS=1 deploy/deploy-backend.sh <env> <tag>`
+
+### Removed
+
+- The legacy migration test workflow (`test.yml`); the CI test gate runs the migrations and tests in every pull request

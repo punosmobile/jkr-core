@@ -1,4 +1,4 @@
-CREATE VIEW jkr.v_rakennukset
+CREATE OR REPLACE VIEW jkr.v_rakennukset
 AS
 
 SELECT r.id,
@@ -19,8 +19,6 @@ SELECT r.id,
     r.kunta
 FROM jkr.rakennus r
 LEFT JOIN jkr_koodistot.rakennusluokka_2018 rl ON r.rakennusluokka_2018 = rl.koodi;
-
-ALTER VIEW jkr.v_rakennukset OWNER TO jkr_admin;
 
 COMMENT ON VIEW jkr.v_rakennukset IS E'Rakennusnäkymä, joka sisältää kaikki jkr.rakennus-taulun kentät sekä generoidun kentän onko rakennukselle tyrkyllä kohteita.';
 COMMENT ON COLUMN jkr.v_rakennukset.id IS E'Rakennuksen yksilöivä tunniste (jkr.rakennus.id).';

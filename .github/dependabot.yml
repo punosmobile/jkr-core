@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # Keeps the digest of the pinned base image up to date. PRs target develop
+  # so they go through the normal branch flow.
+  - package-ecosystem: docker
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+    # Only new digests of python:3.11-slim. A Python version change is a separate
+    # decision, because QGIS and GDAL in the image depend on it.
+    ignore:
+      - dependency-name: python
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"

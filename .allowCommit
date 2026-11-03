@@ -11,3 +11,4 @@ jkrimporter/api/api.py
 .env.template
 db/migrations/V3.05.36__Tuontiloki_suomen_aikaan.sql
 db/migrations/V3.05.37__Tuontiloki_kaikki_komentotyypit.sql
+db/migrate.sh

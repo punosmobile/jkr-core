@@ -7,8 +7,15 @@ import os
 import sys
 import threading
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
 
-__version__ = "0.8.0"
+# Ainoa versiolähde on pyproject.toml. Asennettu paketti (poetry install) kantaa
+# version metatiedoissaan, joten numeroa ei kirjoiteta tänne.
+try:
+    __version__ = _package_version("jkr-core")
+except PackageNotFoundError:
+    __version__ = "0.0.0+unknown"
 
 # Tiedostomuotoiset lokit kirjoitetaan oletuksena /data/output/logs-kansioon
 # (mapattu Docker-volume). Polkua voi yliajaa JKR_LOG_DIR-ympäristömuuttujalla.

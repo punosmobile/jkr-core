@@ -1,5 +1,7 @@
-# Käytä virallista Python 3.11 -slim-kuvaa pohjana
-FROM python:3.11-slim
+# Käytä virallista Python 3.11 -slim-kuvaa pohjana. Kiinnitetty digestiin, jotta
+# jokainen ympäristö rakennetaan samasta pohjasta. Dependabot ehdottaa päivitykset
+# (.github/dependabot.yml).
+FROM python:3.11-slim@sha256:673719e071ecf27434fd2635bbd8d00f49f4fdd81f243143438a42ced8bedf60
 
 # Aseta ympäristömuuttujat
 ENV PYTHONUNBUFFERED=1 \

@@ -1,4 +1,4 @@
-CREATE VIEW jkr.v_yli_5_asunnon_kohteet
+CREATE OR REPLACE VIEW jkr.v_yli_5_asunnon_kohteet
 AS
 SELECT k.id,
     k.nimi,
@@ -16,8 +16,6 @@ SELECT k.id,
              JOIN jkr.rakennus r ON ((kr.rakennus_id = r.id)))
           GROUP BY k_1.id
          HAVING (sum(COALESCE((r.huoneistomaara)::integer, 1)) >= 5)) yli5 ON ((k.id = yli5.id)));
-
-ALTER VIEW jkr.v_yli_5_asunnon_kohteet OWNER TO jkr_admin;
 
 COMMENT ON VIEW jkr.v_yli_5_asunnon_kohteet IS E'Kohteet, joiden rakennusten yhteenlaskettu huoneistomäärä on vähintään 5. Sisältää lasketun huoneistomäärän ja käytetään suurten kohteiden tunnistamiseen.';
 COMMENT ON COLUMN jkr.v_yli_5_asunnon_kohteet.id IS E'Kohteen yksilöivä tunniste (jkr.kohde.id).';
