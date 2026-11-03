@@ -1,3 +1,8 @@
+-- Owners and privileges, run as the last repeatable migration. Flyway runs this file
+-- only when it changes, so edit this comment in the same release as a repeatable
+-- migration that recreates one of the materialized views below. 0.8.1:
+-- R__03_v_velvoitteita_rikkovat and R__v_kuljetus_ja_kompostorit_kohteet.
+
 GRANT SELECT, UPDATE ON TABLE jkr_qgis_projektit.qgis_projects TO jkr_admin;
 GRANT SELECT ON TABLE jkr_qgis_projektit.qgis_projects TO jkr_editor;
 GRANT REFERENCES, TRUNCATE, DELETE, UPDATE, INSERT, SELECT, TRIGGER ON TABLE jkr_qgis_projektit.qgis_projects TO jkr_admin;
