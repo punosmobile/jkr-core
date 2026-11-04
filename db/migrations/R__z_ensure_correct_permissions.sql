@@ -81,17 +81,8 @@ GRANT ALL ON TABLES TO jkr_admin;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr
 GRANT USAGE ON SEQUENCES TO jkr_editor, jkr_admin;
-ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr_dvv
-GRANT USAGE ON SEQUENCES TO jkr_editor, jkr_admin;
 ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr_qgis_projektit
 GRANT USAGE ON SEQUENCES TO jkr_editor, jkr_admin;
-
-ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr_dvv
-GRANT SELECT ON TABLES TO jkr_viewer;
-ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr_dvv
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO jkr_editor;
-ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr_dvv
-GRANT ALL ON TABLES TO jkr_admin;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr
 GRANT SELECT ON TABLES TO jkr_viewer;
@@ -109,3 +100,37 @@ GRANT SELECT ON TABLE jkr.v_kohteen_viranomaispaatokset TO auditor;
 GRANT SELECT ON TABLE jkr.v_kohteen_osapuolet_roolilla TO auditor;
 GRANT SELECT ON TABLE jkr.v_kohteen_osapuolet TO auditor;
 GRANT SELECT ON TABLE jkr.v_kohdehaku TO auditor;
+
+-- Audit every jkr_dvv table.
+GRANT SELECT ON ALL TABLES IN SCHEMA jkr_dvv TO auditor;
+
+-- Default privileges for jkr_dvv. The DVV import (ogr2ogr -overwrite) drops and
+-- recreates the tables, so per-table grants are lost on each import and only default
+-- privileges survive it. Default privileges only apply to objects created by the named
+-- role, and the import user (JKR_USER) differs between environments (jkr_admin,
+-- punos_admin), so set them for every known admin role that exists plus the role
+-- running this migration (Flyway and the imports both connect as JKR_USER).
+DO
+$do$
+DECLARE
+   creator text;
+BEGIN
+   FOR creator IN
+      SELECT DISTINCT rolname FROM pg_catalog.pg_roles
+      WHERE rolname IN ('jkr_admin', 'punos_admin', current_user)
+   LOOP
+      BEGIN
+         EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA jkr_dvv
+            GRANT SELECT ON TABLES TO jkr_viewer, auditor', creator);
+         EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA jkr_dvv
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO jkr_editor', creator);
+         EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA jkr_dvv
+            GRANT ALL ON TABLES TO jkr_admin', creator);
+         EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA jkr_dvv
+            GRANT USAGE ON SEQUENCES TO jkr_editor, jkr_admin', creator);
+      EXCEPTION WHEN insufficient_privilege THEN
+         RAISE NOTICE 'Cannot set default privileges for role "%": not a member. Skipping.', creator;
+      END;
+   END LOOP;
+END
+$do$;
