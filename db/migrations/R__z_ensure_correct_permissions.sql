@@ -3,6 +3,30 @@
 -- migration that recreates one of the materialized views below. 0.8.1:
 -- R__03_v_velvoitteita_rikkovat and R__v_kuljetus_ja_kompostorit_kohteet.
 
+-- pgaudit role
+DO
+$do$
+BEGIN
+   IF EXISTS (
+      SELECT FROM pg_catalog.pg_roles
+      WHERE  rolname = 'auditor') THEN
+
+      RAISE NOTICE 'Role "auditor" already exists. Skipping.';
+   ELSE
+      CREATE ROLE auditor WITH
+        NOLOGIN
+        NOSUPERUSER
+        NOINHERIT
+        NOCREATEDB
+        NOCREATEROLE
+        NOREPLICATION
+        NOBYPASSRLS;
+
+        COMMENT ON ROLE auditor IS 'Role for monitoring GDPR compliance. Allows limiting of monitored tables for audit logs to reduce volume of unnecessary lines';
+   END IF;
+END
+$do$;
+
 GRANT SELECT, UPDATE ON TABLE jkr_qgis_projektit.qgis_projects TO jkr_admin;
 GRANT SELECT ON TABLE jkr_qgis_projektit.qgis_projects TO jkr_editor;
 GRANT REFERENCES, TRUNCATE, DELETE, UPDATE, INSERT, SELECT, TRIGGER ON TABLE jkr_qgis_projektit.qgis_projects TO jkr_admin;
@@ -75,3 +99,15 @@ ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO jkr_editor;
 ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr
 GRANT ALL ON TABLES TO jkr_admin;
+
+-- tables to audit with pgaudit role
+GRANT SELECT ON TABLE jkr.osapuoli TO auditor;
+GRANT SELECT ON TABLE jkr.ulkoinen_asiakastieto TO auditor;
+GRANT SELECT ON TABLE jkr_dvv.omistaja TO auditor;
+GRANT SELECT ON TABLE jkr_dvv.vanhin TO auditor;
+GRANT SELECT ON TABLE jkr.v_ulkoinen_asiakastieto_tiedontuottajalla TO auditor;
+GRANT SELECT ON TABLE jkr.v_kohteen_yhteystiedot TO auditor;
+GRANT SELECT ON TABLE jkr.v_kohteen_viranomaispaatokset TO auditor;
+GRANT SELECT ON TABLE jkr.v_kohteen_osapuolet_roolilla TO auditor;
+GRANT SELECT ON TABLE jkr.v_kohteen_osapuolet TO auditor;
+GRANT SELECT ON TABLE jkr.v_kohdehaku TO auditor;
