@@ -103,8 +103,6 @@ GRANT ALL ON TABLES TO jkr_admin;
 -- tables to audit with pgaudit role
 GRANT SELECT ON TABLE jkr.osapuoli TO auditor;
 GRANT SELECT ON TABLE jkr.ulkoinen_asiakastieto TO auditor;
-GRANT SELECT ON TABLE jkr_dvv.omistaja TO auditor;
-GRANT SELECT ON TABLE jkr_dvv.vanhin TO auditor;
 GRANT SELECT ON TABLE jkr.v_ulkoinen_asiakastieto_tiedontuottajalla TO auditor;
 GRANT SELECT ON TABLE jkr.v_kohteen_yhteystiedot TO auditor;
 GRANT SELECT ON TABLE jkr.v_kohteen_viranomaispaatokset TO auditor;
