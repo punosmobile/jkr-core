@@ -408,6 +408,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - The GitHub Release also contains the CLI package `jkr-X.Y.Z.zip` that the AVD installation fetches: the wheel and the scripts. It was added by hand before
+- Auditor role migrations to ensure correct permissions
 
 ### Changed
 
