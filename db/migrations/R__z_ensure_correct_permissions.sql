@@ -92,17 +92,21 @@ ALTER DEFAULT PRIVILEGES FOR ROLE jkr_admin IN SCHEMA jkr
 GRANT ALL ON TABLES TO jkr_admin;
 
 -- tables to audit with pgaudit role
-GRANT SELECT ON TABLE jkr.osapuoli TO auditor;
-GRANT SELECT ON TABLE jkr.ulkoinen_asiakastieto TO auditor;
-GRANT SELECT ON TABLE jkr.v_ulkoinen_asiakastieto_tiedontuottajalla TO auditor;
-GRANT SELECT ON TABLE jkr.v_kohteen_yhteystiedot TO auditor;
-GRANT SELECT ON TABLE jkr.v_kohteen_viranomaispaatokset TO auditor;
-GRANT SELECT ON TABLE jkr.v_kohteen_osapuolet_roolilla TO auditor;
-GRANT SELECT ON TABLE jkr.v_kohteen_osapuolet TO auditor;
-GRANT SELECT ON TABLE jkr.v_kohdehaku TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.osapuoli TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.ulkoinen_asiakastieto TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.v_ulkoinen_asiakastieto_tiedontuottajalla TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.v_kohteen_yhteystiedot TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.v_kohteen_viranomaispaatokset TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.v_kohteen_osapuolet_roolilla TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.v_kohteen_osapuolet TO auditor;
+GRANT SELECT, UPDATE, DELETE ON TABLE jkr.v_kohdehaku TO auditor;
 
--- Audit every jkr_dvv table.
-GRANT SELECT ON ALL TABLES IN SCHEMA jkr_dvv TO auditor;
+-- Grants on the jkr_dvv tables that exist now. ON ALL TABLES only touches existing
+-- tables and is a no-op on an empty schema, so this is safe before the first DVV import.
+-- Tables created later are covered by the default privileges below.
+GRANT SELECT ON ALL TABLES IN SCHEMA jkr_dvv TO jkr_viewer, auditor;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA jkr_dvv TO jkr_editor;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA jkr_dvv TO jkr_editor;
 
 -- Default privileges for jkr_dvv. The DVV import (ogr2ogr -overwrite) drops and
 -- recreates the tables, so per-table grants are lost on each import and only default
@@ -117,7 +121,7 @@ DECLARE
 BEGIN
    FOR creator IN
       SELECT DISTINCT rolname FROM pg_catalog.pg_roles
-      WHERE rolname IN ('jkr_admin', 'punos_admin', current_user)
+      WHERE rolname IN ('jkr_admin', 'punos_admin', 'sofokus_admin', current_user)
    LOOP
       BEGIN
          EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA jkr_dvv
