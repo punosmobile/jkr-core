@@ -46,6 +46,8 @@ aiofiles = "^23.1.0"
 python-multipart = ">=0.0.5"
 python-jose = {version = "^3.3.0", extras = ["cryptography"]}
 httpx = ">=0.24.0"
+azure-identity = "^1.27.0"
+azure-storage-blob = "^12.31.1"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^5.0.4"
