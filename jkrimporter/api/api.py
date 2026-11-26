@@ -22,6 +22,7 @@ import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -29,7 +30,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import aiofiles
 from fastapi import (
@@ -59,6 +60,14 @@ from jkrimporter.api.auth import (
     validate_ws_token,
 )
 from jkrimporter.api import events_store
+from jkrimporter.api.dump_storage import (
+    DumpAlreadyExists,
+    DumpNotFound,
+    DumpStorage,
+    is_valid_dump_name,
+    storage_from_env,
+)
+from jkrimporter.api.dump_storage import temp_dir as dump_temp_dir
 from jkrimporter.api.dashboard import (
     DashboardEventItem,
     DashboardOverviewResponse,
@@ -86,6 +95,11 @@ EVENTS_KEEP = int(os.environ.get("JKR_EVENTS_KEEP", "2000"))
 async def lifespan(app: FastAPI):
     """Sovelluksen elinkaari: alustaa tapahtumakannan ja lataa viimeisimmät
     tapahtumat muistiin, jottei kontin uudelleenkäynnistys hukkaa niitä."""
+    logger.info(
+        "Varmuuskopioiden tallennus: %s (säilytys %s)",
+        DUMP_STORAGE.description,
+        f"{DUMP_STORAGE.retention_days} pv + uusin" if DUMP_STORAGE.retention_days else "ei automaattista poistoa",
+    )
     events_store.ensure_schema()
     try:
         loaded = 0
@@ -462,12 +476,20 @@ async def _run_task(
     command: str,
     cwd: Optional[str] = None,
     archive_sources: Optional[List[str]] = None,
+    before: Optional[Callable[[Callable[[str], None]], Awaitable[None]]] = None,
+    after_success: Optional[Callable[[Callable[[str], None]], Awaitable[None]]] = None,
 ):
     """Suorittaa komennon taustalla ja päivittää tehtävän tilan.
 
     Lukee stdout/stderr rivi kerrallaan reaaliajassa, jotta:
     - rivit logitetaan Pythonin loggeriin (→ WebSocket-loki, tiedostoloki, konsoli)
     - task.output/error sisältää vain viimeiset _TASK_OUTPUT_TAIL riviä (kevyt JSON)
+
+    `before` ajetaan ennen komentoa ja `after_success` komennon onnistuttua,
+    molemmat tehtävän ollessa vielä `running`-tilassa (esim. varmuuskopion
+    lataus blobista / blobiin). Kumpikin saa parametrina lokifunktion, jonka
+    rivit näkyvät tehtävän tulosteessa. Poikkeus kummassakin merkitsee tehtävän
+    epäonnistuneeksi; `before`:n poikkeus estää komennon ajon.
     """
     task = _tasks[task_id]
     task.status = TaskStatus.running
@@ -513,8 +535,16 @@ async def _run_task(
             else:
                 task.error = "\n".join(error_buf)
 
+    def _hook_log(message: str) -> None:
+        output_buf.append(message)
+        task_logger.info(message)
+        task.output = "\n".join(output_buf)
+
     proc = None
     try:
+        if before is not None:
+            await before(_hook_log)
+
         # Käynnistä prosessi omaan session-/process-groupiin, jotta
         # koko puu (esim. sh + psql) voidaan tappaa kerralla DELETE /tasks/{id}.
         extra_kwargs = {}
@@ -550,8 +580,12 @@ async def _run_task(
                 task.error = "Tehtävä pysäytettiin käyttäjän pyynnöstä."
             else:
                 task.error += "\nTehtävä pysäytettiin käyttäjän pyynnöstä."
+        elif proc.returncode != 0:
+            task.status = TaskStatus.failed
         else:
-            task.status = TaskStatus.completed if proc.returncode == 0 else TaskStatus.failed
+            if after_success is not None:
+                await after_success(_hook_log)
+            task.status = TaskStatus.completed
     except Exception as e:
         task.status = TaskStatus.failed
         task.error = "\n".join(error_buf) + "\n" + str(e) if error_buf else str(e)
@@ -781,9 +815,9 @@ def _ogr2ogr_cmd(source: str, layer: str, table: str, schema: str) -> str:
     return f'ogr2ogr -f PostgreSQL -overwrite -progress {pg_conn} -nln {table} "{source}" "{layer}"'
 
 
-# Tietokantadumppien kohdekansio (kontissa). Voidaan ylikirjoittaa
-# ympäristömuuttujalla JKR_DBDUMP_DIR. Kansio luodaan Dockerfilessa.
-DBDUMPS_DIR = Path(os.environ.get("JKR_DBDUMP_DIR", "/dbdumps"))
+# Tietokantadumppien tallennus: Azure Blob (JKR_DUMPS_STORAGE_ACCOUNT) tai
+# paikallinen hakemisto (JKR_DBDUMP_DIR, docker-compose). Ks. dump_storage.py.
+DUMP_STORAGE: DumpStorage = storage_from_env()
 
 
 def _pg_dump_cmd(output_path: Path) -> str:
@@ -831,22 +865,36 @@ def _pg_restore_cmd(input_path: Path) -> str:
     )
 
 
-def _resolve_dump_path(filename: str) -> Path:
-    """Ratkaisee varmuuskopiotiedoston polun turvallisesti DBDUMPS_DIR:n sisällä.
+def _validate_dump_name(filename: Optional[str]) -> str:
+    """Hyväksyy vain pelkän tiedostonimen (ei polkuja, ks. is_valid_dump_name).
 
-    Estää polkuhyökkäykset (path traversal): hyväksytään vain tiedostonimi
-    ilman hakemisto-osia, ja varmistetaan että lopullinen polku on
-    DBDUMPS_DIR:n alla. Heittää HTTPException 400/404 virhetilanteissa.
+    Estää polkuhyökkäykset paikallisessa hakemistossa ja virtuaalihakemistot
+    blob-kontissa. Heittää HTTPException 400.
     """
-    if not filename or filename != Path(filename).name:
+    if not filename or not is_valid_dump_name(filename):
         raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
-    dumps_dir = DBDUMPS_DIR.resolve()
-    candidate = (dumps_dir / filename).resolve()
-    if candidate.parent != dumps_dir:
-        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
-    if not candidate.is_file():
+    return filename
+
+
+async def _resolve_dump_name(filename: str) -> str:
+    """Validoi tiedostonimen ja varmistaa, että varmuuskopio on olemassa.
+
+    Heittää HTTPException 400/404 virhetilanteissa.
+    """
+    _validate_dump_name(filename)
+    if not await DUMP_STORAGE.exists(filename):
         raise HTTPException(status_code=404, detail=f"Varmuuskopiota ei löydy: {filename}")
-    return candidate
+    return filename
+
+
+def _dump_temp_path(filename: str) -> Path:
+    """Uusi väliaikaistiedoston polku pg_dumpille/pg_restorelle.
+
+    Tiedostoa ei luoda; kutsuja poistaa sen finally-lohkossa.
+    """
+    fd, name = tempfile.mkstemp(prefix=f"{filename}.", suffix=".tmp", dir=dump_temp_dir())
+    os.close(fd)
+    return Path(name)
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
@@ -1350,24 +1398,72 @@ def _ensure_no_db_op_running() -> None:
     )
 
 
+async def _run_dump_task(task_id: str, command: str, filename: str, tmp_path: Path):
+    """Ajaa pg_dumpin väliaikaistiedostoon ja tallentaa tuloksen DUMP_STORAGEen.
+
+    Tallennus tehdään tehtävän ollessa vielä `running`-tilassa, joten
+    dump/restore-lukko pysyy voimassa ja epäonnistunut tallennus merkitsee
+    tehtävän epäonnistuneeksi. Väliaikaistiedosto poistetaan aina.
+    """
+
+    async def store(log: Callable[[str], None]) -> None:
+        size = tmp_path.stat().st_size
+        log(f"Tallennetaan varmuuskopio {filename} ({size} tavua) → {DUMP_STORAGE.description}")
+        try:
+            await DUMP_STORAGE.upload_file(filename, tmp_path)
+        except DumpAlreadyExists:
+            raise RuntimeError(f"Varmuuskopio {filename} on jo olemassa, sitä ei ylikirjoiteta.") from None
+        except Exception as e:
+            raise RuntimeError(f"Varmuuskopion {filename} tallennus epäonnistui: {e}") from e
+        log("Varmuuskopio tallennettu.")
+        # Säilytys: vanhat pois, uusin aina tallessa. Epäonnistunut siivous ei
+        # tee varmuuskopiosta epäonnistunutta.
+        try:
+            removed = await DUMP_STORAGE.prune()
+        except Exception:
+            logger.exception("Vanhojen varmuuskopioiden siivous epäonnistui.")
+            return
+        if removed:
+            log(
+                f"Poistettiin {len(removed)} yli {DUMP_STORAGE.retention_days} pv vanhaa "
+                f"varmuuskopiota: {', '.join(removed)}"
+            )
+
+    try:
+        await _run_task(task_id, command, after_success=store)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
 @app.post("/db/dump", summary="pg_dump – Luo tietokannan varmuuskopio", response_model=TaskResponse)
 async def db_dump(background_tasks: BackgroundTasks, user: CurrentUser = Depends(require_admin)):
-    """Ajaa `pg_dump`-komennon, joka tallentaa tietokannan varmuuskopion
-    `/dbdumps`-kansioon (ylikirjoitettavissa JKR_DBDUMP_DIR-muuttujalla).
+    """Ajaa `pg_dump`-komennon ja tallentaa tietokannan varmuuskopion
+    varmuuskopiotallennukseen (Azure Blob tai paikallinen JKR_DBDUMP_DIR).
 
     Tiedostonimi muodostuu tietokannan nimestä ja aikaleimasta, esim.
-    `jatehuolto_dump_20260615_1432.backup`. Varmuuskopio luodaan pg_dump:n
+    `jatehuolto_dump_20260615_143205.backup`. Varmuuskopio luodaan pg_dump:n
     custom-formaatissa (-F c), joka voidaan palauttaa `pg_restore`-komennolla.
+    pg_dump kirjoittaa ensin väliaikaistiedostoon, joka siirretään
+    tallennukseen ja poistetaan.
     """
     _ensure_no_db_op_running()
-    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
     db = os.environ.get("JKR_DB", "") or "jkr"
-    ts = datetime.now().strftime("%Y%m%d_%H%M")
-    output_path = DBDUMPS_DIR / f"{db}_dump_{ts}.backup"
-    cmd = _pg_dump_cmd(output_path)
-    task = _create_task(cmd, f"Tietokannan varmuuskopiointi → {output_path}", username=user.name, task_type=TaskType.maintenance)
-    _db_operations[task.id] = {"kind": "dump", "filename": output_path.name}
-    background_tasks.add_task(_run_task, task.id, cmd)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = _validate_dump_name(f"{db}_dump_{ts}.backup")
+    tmp_path = _dump_temp_path(filename)
+    try:
+        cmd = _pg_dump_cmd(tmp_path)
+        task = _create_task(
+            cmd,
+            f"Tietokannan varmuuskopiointi → {DUMP_STORAGE.description}/{filename}",
+            username=user.name,
+            task_type=TaskType.maintenance,
+        )
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    _db_operations[task.id] = {"kind": "dump", "filename": filename}
+    background_tasks.add_task(_run_dump_task, task.id, cmd, filename, tmp_path)
     return _task_response(task)
 
 
@@ -1380,44 +1476,48 @@ class BackupInfo(BaseModel):
 
 class RestoreRequest(BaseModel):
     """pg_restore: palauta tietokanta varmuuskopiosta."""
-    filename: str = Field(..., description="Palautettavan varmuuskopion tiedostonimi (DBDUMPS_DIR:ssä)")
+    filename: str = Field(..., description="Palautettavan varmuuskopion tiedostonimi (GET /db/dumps)")
 
 
 @app.get("/db/dumps", summary="Listaa olemassa olevat varmuuskopiot", response_model=List[BackupInfo])
 async def list_db_dumps(user: CurrentUser = Depends(require_authenticated)):
-    """Palauttaa `/dbdumps`-kansiossa olevat varmuuskopiot uusin ensin."""
-    if not DBDUMPS_DIR.exists():
-        return []
-    backups = []
-    for path in DBDUMPS_DIR.iterdir():
-        if not path.is_file():
-            continue
-        stat = path.stat()
-        backups.append(
-            BackupInfo(
-                filename=path.name,
-                size=stat.st_size,
-                created_at=datetime.fromtimestamp(stat.st_mtime),
-            )
-        )
-    backups.sort(key=lambda b: b.created_at, reverse=True)
-    return backups
+    """Palauttaa tallennuksessa olevat varmuuskopiot uusin ensin.
+
+    Blob-tallennuksessa `size` on blobin koko ja `created_at` sen
+    viimeisin muokkausaika.
+    """
+    try:
+        dumps = await DUMP_STORAGE.list()
+    except Exception as e:
+        logger.exception("Varmuuskopioiden listaus epäonnistui.")
+        raise HTTPException(status_code=502, detail=f"Varmuuskopioiden listaus epäonnistui: {e}")
+    return [BackupInfo(filename=d.name, size=d.size, created_at=d.created_at) for d in dumps]
 
 
 @app.delete("/db/dumps/{filename}", summary="Poista varmuuskopio")
 async def delete_db_dump(filename: str, user: CurrentUser = Depends(require_admin)):
-    """Poistaa annetun varmuuskopiotiedoston `/dbdumps`-kansiosta."""
-    path = _resolve_dump_path(filename)
+    """Poistaa annetun varmuuskopion tallennuksesta."""
+    _validate_dump_name(filename)
+    busy = _active_db_task()
+    if busy is not None and _db_operations.get(busy.id, {}).get("filename") == filename:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Varmuuskopiota {filename} käytetään parhaillaan, sitä ei voi poistaa nyt.",
+        )
     try:
-        path.unlink()
-    except OSError as e:
+        await DUMP_STORAGE.delete(filename)
+    except DumpNotFound:
+        raise HTTPException(status_code=404, detail=f"Varmuuskopiota ei löydy: {filename}")
+    except Exception as e:
+        logger.exception("Varmuuskopion %s poisto epäonnistui.", filename)
         raise HTTPException(status_code=500, detail=f"Poisto epäonnistui: {e}")
     logger.info("Varmuuskopio poistettu: %s (käyttäjä=%s)", filename, getattr(user, "name", "?"))
     return {"filename": filename, "message": "Varmuuskopio poistettu"}
 
 
-async def _run_restore_task(task_id: str, command: str):
-    """Ajaa pg_restore-komennon ja tulkitsee ohitetut virheet onnistumiseksi.
+async def _run_restore_task(task_id: str, command: str, filename: str, tmp_path: Path):
+    """Lataa varmuuskopion väliaikaistiedostoon, ajaa pg_restore-komennon ja
+    tulkitsee ohitetut virheet onnistumiseksi. Väliaikaistiedosto poistetaan aina.
 
     `pg_restore --clean --if-exists` palaa nollasta poikkeavalla koodilla, kun
     se ohittaa objektitason virheitä (esim. olemassa olevien objektien
@@ -1426,7 +1526,21 @@ async def _run_restore_task(task_id: str, command: str):
     Aito epäonnistuminen (esim. yhteysvirhe) ei tuota tätä riviä, joten se jää
     edelleen 'failed'-tilaan.
     """
-    await _run_task(task_id, command)
+
+    async def fetch(log: Callable[[str], None]) -> None:
+        log(f"Ladataan varmuuskopio {filename} ← {DUMP_STORAGE.description}")
+        try:
+            await DUMP_STORAGE.download_file(filename, tmp_path)
+        except DumpNotFound:
+            raise RuntimeError(f"Varmuuskopiota {filename} ei löydy.") from None
+        except Exception as e:
+            raise RuntimeError(f"Varmuuskopion {filename} lataus epäonnistui: {e}") from e
+        log(f"Varmuuskopio ladattu ({tmp_path.stat().st_size} tavua), aloitetaan palautus.")
+
+    try:
+        await _run_task(task_id, command, before=fetch)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
     task = _tasks.get(task_id)
     if task is None or task.status != TaskStatus.failed:
@@ -1457,12 +1571,20 @@ async def db_restore(req: RestoreRequest, background_tasks: BackgroundTasks, use
     HUOM: `--clean --if-exists` pudottaa olemassa olevat objektit ennen
     palautusta, eli operaatio ylikirjoittaa nykyisen tietokannan sisällön.
     """
+    # Olemassaolon tarkistus ensin: se on ainoa await, ja lukon tarkistuksen ja
+    # _db_operations-rekisteröinnin välissä ei saa olla awaitia (muuten kaksi
+    # rinnakkaista pyyntöä voisi molemmat päästä lukosta läpi).
+    filename = await _resolve_dump_name(req.filename)
     _ensure_no_db_op_running()
-    path = _resolve_dump_path(req.filename)
-    cmd = _pg_restore_cmd(path)
-    task = _create_task(cmd, f"Tietokannan palautus varmuuskopiosta {req.filename}", username=user.name, task_type=TaskType.maintenance)
-    _db_operations[task.id] = {"kind": "restore", "filename": req.filename}
-    background_tasks.add_task(_run_restore_task, task.id, cmd)
+    tmp_path = _dump_temp_path(filename)
+    try:
+        cmd = _pg_restore_cmd(tmp_path)
+        task = _create_task(cmd, f"Tietokannan palautus varmuuskopiosta {filename}", username=user.name, task_type=TaskType.maintenance)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    _db_operations[task.id] = {"kind": "restore", "filename": filename}
+    background_tasks.add_task(_run_restore_task, task.id, cmd, filename, tmp_path)
     return _task_response(task)
 
 
@@ -1513,24 +1635,34 @@ async def upload_db_dump(
     file: UploadFile = File(...),
     user: CurrentUser = Depends(require_admin),
 ):
-    """Lataa varmuuskopiotiedoston `/dbdumps`-kansioon (esim. palautusta varten)."""
-    if not file.filename or file.filename != Path(file.filename).name:
-        raise HTTPException(status_code=400, detail="Virheellinen tiedostonimi")
-    DBDUMPS_DIR.mkdir(parents=True, exist_ok=True)
-    target_path = DBDUMPS_DIR / file.filename
+    """Tallentaa varmuuskopiotiedoston varmuuskopiotallennukseen (esim.
+    palautusta varten). Tiedosto striimataan suoraan tallennukseen.
 
-    async with aiofiles.open(str(target_path), "wb") as f:
-        while True:
-            chunk = await file.read(1024 * 1024)  # 1 MB kerrallaan
-            if not chunk:
-                break
-            await f.write(chunk)
+    Olemassa olevaa varmuuskopiota ei ylikirjoiteta: samanniminen tiedosto
+    palauttaa 409.
+    """
+    filename = _validate_dump_name(file.filename)
+    try:
+        file_size = await DUMP_STORAGE.upload_stream(filename, file.file)
+    except DumpAlreadyExists:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Varmuuskopio {filename} on jo olemassa. Poista se ensin tai "
+                "nimeä ladattava tiedosto uudelleen."
+            ),
+        )
+    except Exception as e:
+        logger.exception("Varmuuskopion %s lataus epäonnistui.", filename)
+        raise HTTPException(status_code=502, detail=f"Varmuuskopion tallennus epäonnistui: {e}")
 
-    file_size = target_path.stat().st_size
-    logger.info("Varmuuskopio ladattu: %s (%d tavua)", file.filename, file_size)
+    logger.info(
+        "Varmuuskopio ladattu: %s (%d tavua, käyttäjä=%s)",
+        filename, file_size, getattr(user, "name", "?"),
+    )
     return {
-        "filename": file.filename,
-        "target_path": str(target_path),
+        "filename": filename,
+        "target_path": f"{DUMP_STORAGE.description}/{filename}",
         "file_size": file_size,
     }
 
