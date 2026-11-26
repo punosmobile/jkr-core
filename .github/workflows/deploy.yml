@@ -5,7 +5,8 @@
 #
 # Manual run (Actions → deploy → Run workflow): pick the environment's branch.
 # With an image tag (e.g. v0.8.0 or 1d1dd6b) the existing image is deployed
-# without a build, which is the rollback. The environment follows the branch.
+# without a build and without migrations, which is the rollback: the database
+# stays as it is. The environment follows the branch.
 #
 # Azure identifiers and resource names are environment secrets, not variables:
 # GitHub masks secrets in every log line, including the env and with values it
@@ -21,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing image tag to deploy (rollback). Empty: build and deploy the selected branch."
+        description: "Existing image tag to deploy (rollback, no migrations). Empty: build and deploy the selected branch."
         required: false
 
 permissions:
@@ -93,6 +94,10 @@ jobs:
             VERSION_TAG=v$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
             export VERSION_TAG
           fi
+          # A tag means a rollback. The database is not rolled back, and the
+          # repeatable migrations of an older image would put back its old views
+          # and functions.
+          [ -z "$TAG" ] || export SKIP_MIGRATIONS=1
           deploy/deploy-backend.sh "$ENVIRONMENT" "$TAG"
 
   release:

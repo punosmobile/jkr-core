@@ -17,6 +17,11 @@
 #              v0.8.0) deploys without running migrations.
 #   TIMEOUT_S  wait time for the backend in seconds (default 600). The migration
 #              job has its own time limit.
+#   SKIP_MIGRATIONS=1
+#              deploys without running migrations, as in a rollback: the
+#              database is not rolled back, and the repeatable migrations of an
+#              older image would put back its old views and functions. The
+#              pipeline sets it when a manual run is given a tag.
 #
 # The script creates no resources and does not write to Key Vault; the Azure service provider manages them.
 # Output contains no addresses or identifiers, because pipeline logs are public.
@@ -69,6 +74,10 @@ if ! exists "$IMAGE_NAME:$TAG" || ! exists "$MIGRATIONS_IMAGE:$TAG"; then
     warn "Migraatioimagea $MIGRATIONS_IMAGE:$TAG ei ole (tagi ennen migraatioputkea). Migraatioita ei ajeta."
     MIGRATIONS=''
   fi
+fi
+if [ "${SKIP_MIGRATIONS:-}" = 1 ] && [ -n "$MIGRATIONS" ]; then
+  warn "Palautus: migraatioita ei ajeta, ja kanta jää nykyiseen versioonsa (SKIP_MIGRATIONS=1)."
+  MIGRATIONS=''
 fi
 # The version tag is added only when the images are built in this run.
 if [ -n "${VERSION_TAG:-}" ] && ! exists "$IMAGE_NAME:$VERSION_TAG"; then
@@ -142,7 +151,7 @@ fail_and_restore() {
       printf '%sPALAUTETTU:%s Ajossa on edelleen edellinen versio %s. Julkaisua %s ei tehty, eikä se toteudu myöhemmin itsestään.\n' \
         "$C_YELLOW" "$C_OFF" "$label" "$IMAGE_NAME:$TAG" >&2
     else
-      printf '%sPALAUTUS EPÄONNISTUI:%s Määrittelyssä on yhä %s, ja Azure voi julkaista sen myöhemmin itsestään. Palauta hetken kuluttua käsin: deploy/deploy-backend.sh %s %s\n' \
+      printf '%sPALAUTUS EPÄONNISTUI:%s Määrittelyssä on yhä %s, ja Azure voi julkaista sen myöhemmin itsestään. Palauta hetken kuluttua käsin: SKIP_MIGRATIONS=1 deploy/deploy-backend.sh %s %s\n' \
         "$C_RED" "$C_OFF" "$IMAGE_NAME:$TAG" "$ENVIRONMENT" "${previous:-<edellinen tagi>}" >&2
     fi
   fi
