@@ -280,6 +280,58 @@ Dev ja test käyttävät App Registrationin client secretia (tallennettu Key Vau
 | PostgreSQL versio | 16 | 16 | 16 |
 | Julkinen verkko | Ei (VNet only) | Ei (VNet only) | Ei (VNet only) |
 
+### 5.1.1 Sovelluksen pg_dump-varmuuskopiot
+
+Azuren automaattisten varmuuskopioiden lisäksi ylläpitäjä voi ottaa ja palauttaa
+pg_dump-varmuuskopioita käyttöliittymästä (`POST /db/dump`, `GET /db/dumps`,
+`POST /db/restore`, `POST /db/dumps/upload`, `DELETE /db/dumps/{filename}`).
+Dumpit tallennetaan ympäristön omaan blob-konttiin `dbdumps`.
+
+| Ympäristö | Storage account | Container App | Identiteetti | Resurssiryhmä |
+|---|---|---|---|---|
+| kehitys | `stlhhh01s01devjkrdumps` | `ca-jkr-core-dev` | `id-lhh-jatehuolto-kehitys-dumps` | `rg-LHH-jatehuolto-kehitys` |
+| testi | `stlhhjatehuoltotestidump` | `ca-jkr-core-testi` | `id-lhh-jatehuolto-testi-dumps` | `rg-LHH-jatehuolto-testi` |
+| tuotanto | `stlhhjkrtuotantodumps` | `ca-jkr-core-tuotanto` | `id-lhh-jatehuolto-tuotanto-dumps` | `rg-LHH-jatehuolto-tuotanto` |
+
+**Pääsy.** Dumppeihin pääsee käsiksi vain oman ympäristön `ca-jkr-core-<ymp>`
+omalla user-assigned identityllään ja vain oman ympäristön VNetistä:
+
+- Identiteetti `id-lhh-jatehuolto-<ymp>-dumps` on liitetty vain Container Appiin, ei jobeihin.
+- Ainoa datatason rooliosoitus: *Storage Blob Data Contributor* identiteetille, scope kontti `dbdumps`
+  (ei tili eikä resurssiryhmä). Kehittäjillä ei ole datatason rooleja.
+- Tili: `allowSharedKeyAccess: false`, `defaultToOAuthAuthentication: true`,
+  `allowBlobPublicAccess: false`, `minimumTlsVersion: TLS1_2`.
+- Verkko: `defaultAction: Deny`, VNet-sääntö vain aliverkolle `snet-jatehuolto-<ymp>-aca`
+  (Microsoft.Storage-service endpoint), `bypass: None`.
+
+**Sovellus.** Backend valitsee tallennuksen ympäristömuuttujista:
+
+| Muuttuja | Kuvaus |
+|---|---|
+| `JKR_DUMPS_STORAGE_ACCOUNT` | Storage accountin nimi. Asetettuna dumpit ovat blobissa, muuten paikallisessa hakemistossa `JKR_DBDUMP_DIR` (oletus `/dbdumps`, vain docker-compose-kehitys). |
+| `JKR_DUMPS_IDENTITY_CLIENT_ID` | Identiteetin `id-lhh-jatehuolto-<ymp>-dumps` client id. Pakollinen, kun tili on asetettu; sovellus ei käynnisty ilman sitä. Tunnistautuminen on aina `ManagedIdentityCredential(client_id=...)`, ei `DefaultAzureCredential`. |
+| `JKR_DUMPS_CONTAINER` | Blob-kontti, oletus `dbdumps`. |
+| `JKR_DUMPS_RETENTION_DAYS` | Säilytysaika päivinä. Oletus blobissa 30, paikallisessa 0 (ei poistoa). |
+| `JKR_DUMPS_TMP_DIR` | Väliaikaistiedostojen hakemisto, oletus järjestelmän temp. |
+
+pg_dump ja pg_restore tarvitsevat tiedoston levyllä, joten dump kirjoitetaan
+väliaikaistiedostoon ja siirretään blobiksi, ja palautus ladataan blobista
+väliaikaistiedostoon. Väliaikaistiedosto poistetaan aina. Replikan
+ephemeral-levyn (riippuu replikan CPU-varauksesta) on mahduttava yksi
+tuotannon dumppi (~160 Mt, kasvaa). Upload striimataan suoraan blobiin, eikä
+olemassa olevaa dumppia ylikirjoiteta (409).
+
+**Säilytys.** Säilytetään uusin dumppi sekä kaikki alle 30 päivää vanhat.
+Backend poistaa vanhemmat jokaisen onnistuneen varmuuskopioinnin jälkeen.
+Lifecycle-politiikka ei osaa säilyttää uusinta, joten sillä ei tehdä 30 päivän
+poistoa (korkeintaan selvästi pidempi vararaja). Blob soft delete 7 pv.
+
+**Auditointi.** Blob-palvelun diagnostiikka-asetus lähettää StorageRead-,
+StorageWrite- ja StorageDelete-tapahtumat ympäristön Log Analytics
+-työtilaan. Activity log -hälytys valvoo tilin scopeen kohdistuvia
+rooliosoitusmuutoksia (`Microsoft.Authorization/roleAssignments/write`): Owner
+voi edelleen antaa itselleen datatason roolin, ja tämä jäännösriski valvotaan.
+
 ### 5.2 Laajennukset (per tietokanta)
 
 ```sql
@@ -505,6 +557,7 @@ Kaikki ympäristöt lähettävät logit keskitettyyn `law-jkr` -työtilaan (tai 
 | PostgreSQL Diagnostic Logs | `psql-jkr-{env}` | `law-jkr` |
 | pgaudit-lokit | PostgreSQL | `law-jkr` (PostgreSQL Diagnostic Logs kautta) |
 | Sovelluksen telemetria | FastAPI + Application Insights SDK | `ai-jkr-{env}` |
+| Dumppien luku/kirjoitus/poisto | Storage account (blob, StorageRead/Write/Delete) | Ympäristön Log Analytics -työtila |
 
 ### 9.2 Audit trail
 
@@ -586,7 +639,7 @@ Resurssien luontia ei ole vielä automatisoitu (PowerShell-skriptit kattavat vai
 2. **Custom domain:** Mikä on tuotantofrontendin ja -backendin osoite? (Tarvitaan App Registrationin redirect URI:hin.)
 3. **SharePoint-site:** Mikä SharePoint-site vastaanottaa JKR-ajot? (Tarvitaan Set-JKRManagedIdentity.ps1-ajoon.)
 4. **Flyway prod-migraatiot:** Kuka ajaa migraatiot tuotantoon? Automaattisesti CI/CD:ssä vai manuaalisesti?
-5. **PostgreSQL-varmuuskopiot:** Riittävätkö Azuren automaattiset varmuuskopiot vai tarvitaanko erillinen pg_dump-prosessi?
+5. ~~**PostgreSQL-varmuuskopiot:** Riittävätkö Azuren automaattiset varmuuskopiot vai tarvitaanko erillinen pg_dump-prosessi?~~ Ratkaistu: molemmat, ks. [5.1.1](#511-sovelluksen-pg_dump-varmuuskopiot).
 6. **Runnerin elinkaari:** VM vai skaalautuva Container App Job -runner? (ARC = Actions Runner Controller on parempi pitkällä tähtäimellä.)
 
 ---

@@ -409,7 +409,17 @@ All notable changes to this project will be documented in this file.
 
 - The GitHub Release also contains the CLI package `jkr-X.Y.Z.zip` that the AVD installation fetches: the wheel and the scripts. It was added by hand before
 - Auditor role migrations to ensure correct permissions
+- Database dumps (`/db/dump*`, `/db/restore`) can be stored in an Azure Blob container instead of the mounted Azure Files share. The backend uses blob storage when `JKR_DUMPS_STORAGE_ACCOUNT` is set and authenticates only with its user-assigned managed identity (`JKR_DUMPS_IDENTITY_CLIENT_ID`); the container is `JKR_DUMPS_CONTAINER` (default `dbdumps`). Without these variables the dumps stay in `JKR_DBDUMP_DIR` (default `/dbdumps`) as before
+- Dump retention: after each successful dump, dumps older than `JKR_DUMPS_RETENTION_DAYS` (default 30 in blob storage, off for the local directory) are deleted. The newest dump is always kept
 
 ### Changed
 
 - The CLI package takes the scripts from the repository. Earlier packages had older versions of `cherrypick_data.py`, `import_and_create_kohteet.bat`, `import_posti.sql`, `tulosta_raportti.sql` and `update_huoneistomaara.sh`
+- `pg_dump` and `pg_restore` run through a temporary file (`JKR_DUMPS_TMP_DIR`, default the system temp directory) that is always removed. A dump that cannot be saved to storage marks the task failed, and the dump/restore lock stays held until the upload or download is done
+- Uploading a dump with the name of an existing dump returns 409 instead of overwriting it
+- Dump file names include seconds (`<db>_dump_YYYYMMDD_HHMMSS.backup`)
+- Dump names starting with a dot or containing path separators or control characters are rejected (400)
+
+### Documentation
+
+- `docs/azure-arkkitehtuuri.md`: section 5.1.1 on the pg_dump backups in blob storage: resources per environment, access, environment variables, retention and auditing
