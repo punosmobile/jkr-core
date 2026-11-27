@@ -51,7 +51,9 @@ RUN pip install --upgrade pip
 # Varmista /data/input -kansio
 RUN mkdir -p /data/input
 
-# Varmista /dbdumps -kansio tietokannan varmuuskopioille
+# /dbdumps: tietokannan varmuuskopiot VAIN paikallisessa kehityksessä
+# (docker-compose, JKR_DBDUMP_DIR). Azure-ympäristöissä varmuuskopiot ovat
+# blob-kontissa (JKR_DUMPS_STORAGE_ACCOUNT), eikä tätä kansiota käytetä.
 RUN mkdir -p /dbdumps
 
 # Määritä työhakemisto

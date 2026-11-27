@@ -430,7 +430,7 @@ The pipeline (`.github/workflows/deploy.yml`) builds the image of the merged com
 
 - `develop`, `test` and `main` change only through pull requests. A PR needs one approval from another developer after its latest push, and the check *pytest (testikanta + migraatiot)* must pass.
 - The version is only in `pyproject.toml`. A PR to `test` or `main` needs a version above the one in `main` and an entry `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (check *Version bumped*).
-- The prod deploy tags the commit and the image `vX.Y.Z` and creates the GitHub Release. Do not tag by hand, except after a [manual prod deploy](#deploy-to-prod).
+- The prod deploy tags the commit and the image `vX.Y.Z` and creates the GitHub Release with the wheel and the CLI package `jkr-X.Y.Z.zip`, which the AVD installation fetches. Do not tag by hand, except after a [manual prod deploy](#deploy-to-prod).
 
 ### Release
 

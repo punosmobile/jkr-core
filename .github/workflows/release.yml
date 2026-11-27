@@ -1,4 +1,5 @@
-# Creates a GitHub Release with the wheel and the CHANGELOG entry of the version.
+# Creates a GitHub Release with the wheel, the CLI package jkr-<version>.zip and
+# the CHANGELOG entry of the version.
 # Triggers: a pushed tag v*, a manual run, or a call from the prod deploy
 # (workflow_call), which creates the tag on the deployed commit.
 # The version must match pyproject.toml. An existing release is skipped.
@@ -74,6 +75,26 @@ jobs:
           python -m pip install --upgrade pip poetry
           poetry build
 
+      # The CLI package that the AVD installation fetches from the release
+      # (dokumentaatio.md 2.1): the wheel and the scripts. The checkout already
+      # writes the batch files in CP850 with CRLF (.gitattributes).
+      - name: Build the CLI package
+        if: steps.version.outputs.exists != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          pkg=dist/jkr-$VERSION
+          mkdir -p "$pkg/scripts"
+          cp dist/*.whl scripts/tulosta_raportti.bat "$pkg/"
+          for f in cherrypick_data.py cherrypickfields.json import_and_create_kohteet.bat \
+              import_dvv.sql import_hapa.bat import_posti.sql import_taajama.bat \
+              import_viemari.bat jkr_posti.sql luo_suola_pseydolle.py pseudofields.json \
+              pseudonymisointi.py tulosta_raportti.sql update_huoneistomaara.bat \
+              update_huoneistomaara.sh update_huoneistomaara.sql; do
+            cp "scripts/$f" "$pkg/scripts/"
+          done
+          cd dist && zip -q -r -X "jkr-$VERSION.zip" "jkr-$VERSION"
+
       # Creates the tag on this commit if it does not exist yet (prod deploy call).
       - name: Create GitHub release
         if: steps.version.outputs.exists != 'true'
@@ -83,4 +104,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: v${{ steps.version.outputs.version }}
           body: ${{ steps.changelog.outputs.changes }}
-          files: dist/*.whl
+          files: |
+            dist/*.whl
+            dist/jkr-*.zip
